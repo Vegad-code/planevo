@@ -1,26 +1,112 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   Plant Pilot — Design System
+   Brand colors, typography, animations, and component tokens
+   ============================================================ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Matte Earth-toned Palette */
+  --color-brand-50: #f7f6f4;
+  --color-brand-100: #efede7;
+  --color-brand-200: #e2dfd4;
+  --color-brand-300: #cec8b9;
+  --color-brand-400: #b0a794;
+  --color-brand-500: #938772;
+  --color-brand-600: #7b6f5d;
+  --color-brand-700: #62584a;
+  --color-brand-800: #524b40;
+  --color-brand-900: #463f37;
+
+  /* Accent — Matte Terracotta */
+  --color-accent-50: #fcf6f5;
+  --color-accent-100: #f8ebe8;
+  --color-accent-200: #f1d4cc;
+  --color-accent-300: #e5b3a6;
+  --color-accent-400: #d48b78;
+  --color-accent-500: #c66952;
+  --color-accent-600: #b1513a;
+  --color-accent-700: #94402d;
+
+  /* Surface colors */
+  --color-surface-900: #22201e;
+  --color-surface-800: #2b2826;
+  --color-surface-700: #3b3734;
+  --color-surface-600: #4a4642;
+  --color-surface-500: #625d57;
+  --color-surface-400: #8c867e;
+  --color-surface-300: #b8b3ab;
+  --color-surface-200: #d6d3ce;
+  --color-surface-100: #f1efe9;
+
+  /* Semantic */
+  --color-success: #6d7a5b;
+  --color-warning: #c29f55;
+  --color-error: #a34e35;
+  --color-info: #5a7582;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows (Removed glows, simple brutalist shadows) */
+  --shadow-glow: none;
+  --shadow-glow-accent: none;
+  --shadow-sm: 2px 2px 0px 0px rgba(34, 32, 30, 1);
+  --shadow-md: 4px 4px 0px 0px rgba(34, 32, 30, 1);
+  --shadow-lg: 8px 8px 0px 0px rgba(34, 32, 30, 1);
+
+  /* Force 0px borders */
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 0px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ============================================================
+   Base Styles
+   ============================================================ */
+
+:root {
+  --background: var(--color-surface-100);
+  --foreground: var(--color-surface-900);
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base resets for brutalist aesthetic */
+* {
+  border-radius: 0 !important;
+}
+
+.glass, .glass-light {
+  background: var(--color-surface-100);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 2px solid var(--color-surface-900);
+  box-shadow: 4px 4px 0px 0px var(--color-surface-900);
+}
+
+.skeleton {
+  background: var(--color-surface-200);
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-surface-900);
+  outline-offset: 2px;
 }
