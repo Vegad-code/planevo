@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🦉 Plan Pilot
 
-## Getting Started
+Plan Pilot is a proactive, AI-powered productivity assistant designed to help users manage tasks, focus, and energy without the guilt of traditional to-do lists.
 
-First, run the development server:
+## 🚀 Current Progress (Phase One)
+- [x] **Brutalist Design System**: High-contrast, tactile UI with no rounded corners or gradients.
+- [x] **Smart Auth**: Google Sign-In and email authentication via Supabase.
+- [x] **Tasks 2.0**:
+  - [x] AI Priority sorting (using GPT-4o-mini).
+  - [x] Task breakdown into actionable steps.
+  - [x] Shame-free rescheduling (no "past due" badges).
+  - [x] Garden of Done (visual history).
+- [x] **Dashboard**: Real-time stats, Ollie greetings, and quick actions.
+- [x] **AI Scheduling**: Basic daily plan generation based on active tasks.
 
+## 🎯 Phase Two: Proactive Assistance (Next Steps)
+The goal of Phase Two is to move from a reactive task list to a proactive "Pilot" that manages the user's focus and energy.
+
+### 1. ⏱️ AI Focus Mode
+- Implement a focus timer (Pomodoro-style but flexible).
+- **Ollie Nudges**: AI check-ins during focus sessions to prevent distractions.
+- Integration with the "Tasks" list to select a current focus item.
+
+### 2. 📅 Google Calendar Sync (Full Integration)
+- Fetch real-time calendar events via OAuth.
+- Ollie should "look" at the calendar and schedule tasks in the empty gaps.
+- Proactive alerts: "You have a gap between 2pm and 4pm, want to knock out [Task X]?"
+
+### 3. 🔄 Adaptive Rescheduling
+- Background job or trigger that detects "yesterday's unfinished business."
+- Automatically reorganizes today's schedule without user intervention (with a "Start Fresh" greeting).
+
+### 4. 📈 Habit & Goal Tracking
+- **Habits**: Daily repetitive tasks with streak tracking.
+- **Goals**: Long-term milestones that Ollie helps deconstruct over weeks/months.
+
+### 5. 🦉 Ollie Personalities
+- Expand `OllieAvatar` and `OllieBubble` to have distinct personalities based on user preference (e.g., "Tough Love," "Zen Master," "Hyper Productive").
+
+---
+
+## 🛠️ Development
+
+### Environment Variables
+Ensure you have the following in `.env.local`:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+
+### Commands
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev      # Start development server
+npm run build    # Build for production
+npm run lint     # Run ESLint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🤖 Handoff Note for Claude Code
+When continuing work, focus on the **AI Focus Mode** first. The state for the focus timer should probably be persistent (or at least handled in a shared context/store like Zustand if needed). Check `app/dashboard/focus` for the current placeholder.

@@ -4,7 +4,9 @@
 export type UserPlanType = 'free' | 'pro' | 'team';
 export type EnergyPreference = 'morning' | 'afternoon' | 'evening';
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'missed';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskPriority = 'low' | 'medium' | 'high';
+export type BestTimeOfDay = 'morning' | 'afternoon' | 'evening' | 'anytime';
+export type EnergyLevel = 'low' | 'medium' | 'high';
 export type GoalStatus = 'active' | 'completed' | 'archived';
 export type HabitFrequency = 'daily' | 'weekly' | 'custom';
 export type OllieMessageType =
@@ -37,7 +39,46 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   estimated_minutes: number | null;
+  best_time_of_day: BestTimeOfDay;
+  is_ai_suggested: boolean;
+  ai_confidence_score: number;
+  completed: boolean;
+  completed_at: string | null;
+  parent_task_id: string | null;
+  is_recurring: boolean;
+  recurrence_pattern: string | null;
+  consistency_score: number | null;
+  energy_level_required: EnergyLevel;
   created_at: string;
+  updated_at: string;
+  rescheduled_count: number;
+  last_ai_scheduling_at: string | null;
+}
+
+export interface TaskGroup {
+  id: string;
+  title: string;
+  icon: string;
+  ai_generated: boolean;
+  sort_order: number;
+  is_collapsed: boolean;
+  tasks: Task[];
+}
+
+export interface AITaskRecommendation {
+  task_id: string;
+  best_time_of_day: BestTimeOfDay;
+  estimated_minutes: number;
+  priority: TaskPriority;
+  reasoning: string;
+}
+
+export interface AITaskResponse {
+  today_focus: string[];
+  this_week: string[];
+  waiting: string[];
+  recommendations: Record<string, AITaskRecommendation>;
+  encouraging_message: string;
 }
 
 export interface Goal {
@@ -98,7 +139,7 @@ export interface Database {
       };
       tasks: {
         Row: Task;
-        Insert: Omit<Task, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Insert: Omit<Task, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Omit<Task, 'id'>>;
       };
       goals: {

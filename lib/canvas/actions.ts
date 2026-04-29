@@ -1,0 +1,241 @@
+'use server';
+
+import { CanvasCourse, CanvasAssignment } from './api';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Server-side proxy for Canvas API calls to avoid CORS issues.
+ */
+export async function testCanvasConnectionAction(url: string, token: string): Promise<boolean> {
+  try {
+    const cleanUrl = url.replace(/\/$/, '');
+    const response = await fetch(`${cleanUrl}/api/v1/users/self`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      cache: 'no-store'
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Canvas connection test failed (Server):', error);
+    return false;
+  }
+}
+
+export async function fetchCanvasUpcomingAction(url: string, token: string): Promise<CanvasAssignment[]> {
+  try {
+    const cleanUrl = url.replace(/\/$/, '');
+    
+    // Step 1: Get active courses from the user's dashboard cards
+    // This is CRITICAL because the standard /courses endpoint returns Section IDs 
+    // for cross-listed courses, which causes assignment fetches to return empty arrays.
+    // The dashboard_cards endpoint contains the true Master Course ID in the assetString.
+    const coursesRes = await fetch(`${cleanUrl}/api/v1/dashboard/dashboard_cards`, { 
+      headers: { 'Authorization': `Bearer ${token}` }, 
+      cache: 'no-store' 
+    });
+    
+    let contextCodes: string[] = [];
+    if (coursesRes.ok) {
+      const cards = await coursesRes.json();
+      // Extract the true course ID from the assetString (e.g. "course_179010000001161785")
+      contextCodes = cards.filter((c: any) => c.assetString?.startsWith('course_')).map((c: any) => c.assetString);
+    }
+
+    if (contextCodes.length === 0) {
+      return [];
+    }
+
+    // Step 2: Fetch events and assignments for those specific courses with per_page=100
+    // We add user_xyz as a context code just in case there are personal calendar events
+    let contextQuery = contextCodes.map(c => `context_codes[]=${c}`).join('&');
+    if (contextQuery) contextQuery = '&' + contextQuery;
+
+    // Use a date range of -1 month to +3 months from today to ensure we don't hit pagination limits on old data
+    const today = new Date();
+    const startDate = new Date(today.setMonth(today.getMonth() - 1)).toISOString();
+    const endDate = new Date(today.setMonth(today.getMonth() + 4)).toISOString(); // +4 because we subtracted 1
+
+    // Aggressively fetch multiple pages to bypass strict 10-item server limits
+    const fetchPage = async (url: string, page: number) => {
+      const res = await fetch(`${url}&page=${page}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
+      return res.ok ? res.json() : [];
+    };
+
+    const [
+      eventsP1, eventsP2, eventsP3,
+      assignmentsP1, assignmentsP2, assignmentsP3,
+      plannerP1, plannerP2, plannerP3, plannerP4, plannerP5,
+      todoRes, upcomingRes, dashboardCardsRes
+    ] = await Promise.all([
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 1),
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 2),
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 3),
+      
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 1),
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 2),
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 3),
+      
+      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 1),
+      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 2),
+      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 3),
+      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 4),
+      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 5),
+      
+      fetch(`${cleanUrl}/api/v1/users/self/todo`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' }),
+      fetch(`${cleanUrl}/api/v1/users/self/upcoming_events`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
+    ]);
+    
+    const allEvents = [...(Array.isArray(eventsP1) ? eventsP1 : []), ...(Array.isArray(eventsP2) ? eventsP2 : []), ...(Array.isArray(eventsP3) ? eventsP3 : [])];
+    const allAssignments = [...(Array.isArray(assignmentsP1) ? assignmentsP1 : []), ...(Array.isArray(assignmentsP2) ? assignmentsP2 : []), ...(Array.isArray(assignmentsP3) ? assignmentsP3 : [])];
+    const allPlannerItems = [...(Array.isArray(plannerP1) ? plannerP1 : []), ...(Array.isArray(plannerP2) ? plannerP2 : []), ...(Array.isArray(plannerP3) ? plannerP3 : []), ...(Array.isArray(plannerP4) ? plannerP4 : []), ...(Array.isArray(plannerP5) ? plannerP5 : [])];
+
+    let combinedItems: any[] = [];
+    
+    combinedItems = [...combinedItems, ...allEvents];
+    combinedItems = [...combinedItems, ...allAssignments];
+    
+    if (allPlannerItems.length > 0) {
+      const unwrapped = allPlannerItems.map(p => ({
+        ...p.plannable,
+        context_name: p.context_name,
+        html_url: p.html_url,
+        plannable_type: p.plannable_type
+      }));
+      combinedItems = [...combinedItems, ...unwrapped];
+    }
+
+    if (todoRes.ok) {
+      const todos = await todoRes.json();
+      if (Array.isArray(todos)) {
+        const unwrapped = todos.map(t => t.assignment || t.quiz || t);
+        combinedItems = [...combinedItems, ...unwrapped];
+      }
+    }
+
+    if (upcomingRes.ok) {
+      const upcoming = await upcomingRes.json();
+      if (Array.isArray(upcoming)) {
+        const unwrapped = upcoming.map(u => u.assignment || u);
+        combinedItems = [...combinedItems, ...unwrapped];
+      }
+    }
+
+    // Deduplicate by ID
+    const uniqueItemsMap = new Map();
+    for (const item of combinedItems) {
+      const target = item.assignment || item;
+      if (target && target.id) {
+        uniqueItemsMap.set(target.id, target);
+      }
+    }
+    const uniqueItems = Array.from(uniqueItemsMap.values());
+    
+    // Filter out irrelevant staff events from the school district
+    const clutterKeywords = ['support professionals', 'administrators', 'licensed employees', 'staff development day - no school'];
+    const filteredItems = uniqueItems.filter((target: any) => {
+      const title = (target.title || target.name || '').toLowerCase();
+      // Always keep events explicitly meant for students
+      if (title.includes('no school students')) return true;
+      if (title.includes('staff development day - no school')) {
+        // Many schools use this generic title, we should probably keep it if it implies no school
+        return true; 
+      }
+      
+      // Filter out admin/staff internal events
+      if (clutterKeywords.some(kw => title.includes(kw)) && !title.includes('no school')) return false;
+      
+      return true;
+    });
+    
+    // Map them to our standard format and categorize
+    const mappedItems = filteredItems.map((target: any) => {
+      let itemType: 'assignment' | 'milestone' | 'event' = 'event';
+      const title = (target.title || target.name || '').toLowerCase();
+      
+      // If it has submission types or points, or is explicitly an assignment/quiz, it's actual class work
+      if (
+        target.submission_types || 
+        target.points_possible !== undefined || 
+        target.plannable_type === 'assignment' || 
+        target.plannable_type === 'quiz' ||
+        target.type === 'assignment'
+      ) {
+        itemType = 'assignment';
+      } 
+      // If it's a district-level account event or mentions specific milestone words
+      else if (
+        target.context_type === 'Account' || 
+        target.context_name?.includes('School District') ||
+        title.includes('end of') || 
+        title.includes('semester') ||
+        title.includes('break') ||
+        title.includes('closed') ||
+        title.includes('no school')
+      ) {
+        itemType = 'milestone'; 
+      }
+      
+      return {
+        id: target.id,
+        name: target.title || target.name || 'Untitled Event',
+        description: target.description || '',
+        due_at: target.start_at || target.due_at || target.end_at || new Date().toISOString(),
+        course_id: target.course_id || target.context_code || 'Account',
+        html_url: target.html_url || target.url || '',
+        type: itemType,
+        context_type: target.context_type || 'Course'
+      };
+    });
+
+    const now = new Date().getTime();
+    // We give a 24-hour grace period so things due at midnight don't instantly vanish 
+    const cutoffTime = now - (24 * 60 * 60 * 1000);
+
+    return mappedItems.filter((item) => {
+      // Hide assignments and regular events that are in the past
+      if (item.type === 'assignment' || item.type === 'event') {
+        const itemTime = new Date(item.due_at).getTime();
+        if (itemTime < cutoffTime) {
+          return false;
+        }
+      }
+      // We keep milestones regardless because they are useful for the academic calendar
+      return true;
+    });
+  } catch (error) {
+    console.error('Error fetching Canvas assignments (Server):', error);
+    return [];
+  }
+}
+
+export async function fetchCanvasTodoAction(url: string, token: string): Promise<CanvasAssignment[]> {
+  try {
+    const cleanUrl = url.replace(/\/$/, '');
+    const response = await fetch(`${cleanUrl}/api/v1/users/self/todo`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      cache: 'no-store'
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch todo items');
+    const items = await response.json();
+    
+    return items.map((i: any) => {
+      const target = i.assignment || i;
+      return {
+        id: target.id,
+        name: target.title || target.name,
+        description: target.description || '',
+        due_at: target.due_at || target.start_at,
+        course_id: target.course_id,
+        html_url: target.html_url || target.url
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching Canvas todo (Server):', error);
+    return [];
+  }
+}

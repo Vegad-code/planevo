@@ -16,7 +16,7 @@ CREATE TABLE public.users (
 );
 
 -- ============================================================
--- TASKS TABLE
+-- TASKS TABLE (Enhanced for AI Life Pilot)
 -- ============================================================
 CREATE TABLE public.tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -24,10 +24,23 @@ CREATE TABLE public.tasks (
   title TEXT NOT NULL,
   description TEXT,
   due_date TIMESTAMPTZ,
-  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done', 'missed')),
-  estimated_minutes INTEGER,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  estimated_minutes INTEGER DEFAULT 30,
+  best_time_of_day TEXT DEFAULT 'anytime' CHECK (best_time_of_day IN ('morning', 'afternoon', 'evening', 'anytime')),
+  is_ai_suggested BOOLEAN DEFAULT false,
+  ai_confidence_score INTEGER DEFAULT 0,
+  completed BOOLEAN DEFAULT false,
+  completed_at TIMESTAMPTZ,
+  parent_task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
+  is_recurring BOOLEAN DEFAULT false,
+  recurrence_pattern TEXT,
+  consistency_score INTEGER,
+  energy_level_required TEXT DEFAULT 'medium' CHECK (energy_level_required IN ('low', 'medium', 'high')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  rescheduled_count INTEGER DEFAULT 0,
+  last_ai_scheduling_at TIMESTAMPTZ
 );
 
 -- ============================================================

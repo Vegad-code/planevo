@@ -19,6 +19,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    label: 'Briefing',
+    href: '/dashboard/briefing',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 18a5 5 0 0 0-10 0" />
+        <line x1="12" y1="9" x2="12" y2="2" />
+        <circle cx="12" cy="13" r="4" />
+      </svg>
+    ),
+  },
+  {
     label: 'Tasks',
     href: '/dashboard/tasks',
     icon: (
@@ -125,7 +136,7 @@ export default function Sidebar() {
         className={`
           fixed top-0 left-0 h-full z-50
           flex flex-col
-          bg-surface-800 border-r border-surface-600/50
+          bg-card border-r-2 border-border
           transition-all duration-300 ease-in-out
           ${collapsed ? 'w-[68px]' : 'w-[240px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -134,23 +145,23 @@ export default function Sidebar() {
         id="sidebar"
       >
         {/* Header */}
-        <div className={`flex items-center h-16 px-4 border-b border-surface-600/50 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`flex items-center h-16 px-4 border-b-2 border-border ${collapsed ? 'justify-center' : 'justify-between'}`}>
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2 group" id="sidebar-logo">
-              <span className="text-xl">🌱</span>
-              <span className="font-bold text-white group-hover:text-brand-400 transition-colors">
-                Plant Pilot
+              <span className="text-xl transition-transform group-hover:scale-110">🦉</span>
+              <span className="font-black uppercase tracking-tighter text-foreground group-hover:text-brand-600 transition-colors">
+                Plan Pilot
               </span>
             </Link>
           )}
           {collapsed && (
-            <span className="text-xl">🌱</span>
+            <span className="text-xl">🦉</span>
           )}
 
           {/* Collapse toggle — desktop only */}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex p-1.5 rounded-lg hover:bg-surface-600 transition-colors text-slate-400 hover:text-white"
+            className="hidden lg:flex p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
             id="sidebar-collapse-toggle"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -166,7 +177,7 @@ export default function Sidebar() {
           {/* Mobile close */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-surface-600 transition-colors text-slate-400 hover:text-white"
+            className="lg:hidden p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
             id="sidebar-mobile-close"
             aria-label="Close navigation menu"
           >
@@ -189,19 +200,19 @@ export default function Sidebar() {
                 id={`sidebar-nav-${item.label.toLowerCase()}`}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 group
+                  transition-all duration-200 group border-2 border-transparent
                   ${isActive
-                    ? 'bg-brand-600/15 text-brand-400'
-                    : 'text-slate-400 hover:text-white hover:bg-surface-700'
+                    ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
+                    : 'text-muted hover:text-foreground hover:bg-muted/10'
                   }
                   ${collapsed ? 'justify-center' : ''}
                 `}
               >
-                <span className={`shrink-0 ${isActive ? 'text-brand-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
                   {item.icon}
                 </span>
                 {!collapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-xs font-black uppercase">{item.label}</span>
                 )}
               </Link>
             );
@@ -209,7 +220,7 @@ export default function Sidebar() {
         </nav>
 
         {/* Bottom nav */}
-        <div className="border-t border-surface-600/50 py-4 px-2 space-y-1">
+        <div className="border-t-2 border-border py-4 px-2 space-y-1">
           {BOTTOM_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -220,36 +231,63 @@ export default function Sidebar() {
                 id={`sidebar-nav-${item.label.toLowerCase()}`}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 group
+                  transition-all duration-200 group border-2 border-transparent
                   ${isActive
-                    ? 'bg-brand-600/15 text-brand-400'
-                    : 'text-slate-400 hover:text-white hover:bg-surface-700'
+                    ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
+                    : 'text-muted hover:text-foreground hover:bg-muted/10'
                   }
                   ${collapsed ? 'justify-center' : ''}
                 `}
               >
-                <span className={`shrink-0 ${isActive ? 'text-brand-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
                   {item.icon}
                 </span>
                 {!collapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-xs font-black uppercase">{item.label}</span>
                 )}
               </Link>
             );
           })}
+
+          {/* Pro Feature Teaser */}
+          {!collapsed && (
+            <div className="mx-2 mb-4 p-4 border-2 border-brand-200 bg-brand-50 shadow-md rounded-2xl transition-all hover:shadow-lg hover:-translate-y-0.5">
+              <h3 className="text-xs font-black uppercase tracking-tight text-brand-900 mb-1 flex items-center gap-1.5">
+                <span className="text-base">✨</span> Pro Feature
+              </h3>
+              <p className="text-[10px] font-bold text-brand-700 uppercase leading-tight mb-3">
+                Unlock AI priority, project insights, and custom themes.
+              </p>
+              <Link 
+                href="/pricing" 
+                className="block text-center py-2 text-[10px] font-black uppercase bg-brand-600 text-white rounded-full shadow-sm hover:bg-brand-500 transition-colors"
+              >
+                View Plans
+              </Link>
+            </div>
+          )}
+          {collapsed && (
+            <Link 
+              href="/pricing"
+              className="flex justify-center mb-4 py-2 text-brand-600 hover:text-brand-500 transition-colors"
+              title="Upgrade to Pro"
+            >
+              <span className="text-xl">✨</span>
+            </Link>
+          )}
 
           {/* Logout button */}
           <button
             onClick={handleLogout}
             id="sidebar-logout-button"
             className={`
-              flex items-center gap-3 px-3 py-2.5 rounded-xl w-full
-              text-slate-400 hover:text-red-400 hover:bg-red-500/10
-              transition-all duration-200 group
+              flex items-center gap-3 px-3 py-2.5 w-full
+              text-muted hover:text-error hover:bg-error/10
+              transition-all duration-200 group border-2 border-transparent
               ${collapsed ? 'justify-center' : ''}
             `}
           >
-            <span className="shrink-0 text-slate-500 group-hover:text-red-400">
+            <span className="shrink-0 text-muted group-hover:text-error">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
                 <polyline points="16 17 21 12 16 7" />
@@ -257,7 +295,7 @@ export default function Sidebar() {
               </svg>
             </span>
             {!collapsed && (
-              <span className="text-sm font-medium">Log out</span>
+              <span className="text-xs font-black uppercase">Log out</span>
             )}
           </button>
         </div>

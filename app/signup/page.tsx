@@ -68,9 +68,20 @@ export default function SignupForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground py-12">
+      <div className="w-full max-w-md mx-4 mb-4">
+        <Link 
+          href="/" 
+          className="inline-flex items-center text-sm font-bold text-surface-900 hover:bg-surface-900 hover:text-surface-100 px-2 py-1 transition-colors uppercase border-2 border-transparent hover:border-surface-900"
+        >
+          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Home
+        </Link>
+      </div>
       <div className="w-full max-w-md mx-4">
-        <Card className="border-2 border-surface-900 shadow-[8px_8px_0_0_#22201e] pb-0 bg-surface-100 text-surface-900">
+        <Card className="border-2 border-surface-900 shadow-[8px_8px_0_0_var(--shadow-color)] pb-0 bg-surface-100 text-surface-900">
           <CardHeader className="flex flex-col items-center space-y-1.5 pb-4 pt-6">
             <div className="text-surface-900 mb-2">
               <span className="text-4xl hover:scale-110 transition-transform">🌱</span>
@@ -87,7 +98,7 @@ export default function SignupForm() {
           
           <CardContent className="space-y-6 px-8">
             {success ? (
-               <div className="text-center py-6 border-2 border-surface-900 bg-surface-200 shadow-[4px_4px_0_0_#22201e]">
+               <div className="text-center py-6 border-2 border-surface-900 bg-surface-200 shadow-[4px_4px_0_0_var(--shadow-color)]">
                  <div className="text-4xl mb-4">✉️</div>
                  <h2 className="text-xl font-bold text-surface-900 mb-2 uppercase">Check your email</h2>
                  <p className="text-surface-900 text-sm font-medium px-4">
@@ -98,7 +109,7 @@ export default function SignupForm() {
             ) : (
               <form onSubmit={handleSignup} className="space-y-6">
                 {error && (
-                  <div className="p-3 bg-error text-surface-100 border-2 border-surface-900 font-bold text-sm shadow-[4px_4px_0_0_#22201e]">
+                  <div className="p-3 bg-error text-surface-100 border-2 border-surface-900 font-bold text-sm shadow-[4px_4px_0_0_var(--shadow-color)]">
                     {error}
                   </div>
                 )}
@@ -111,7 +122,7 @@ export default function SignupForm() {
                     onChange={(e) => setName(e.target.value)}
                     required
                     placeholder="Your name"
-                    className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#22201e] transition-shadow shadow-[2px_2px_0_0_#22201e]"
+                    className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_var(--shadow-color)] transition-shadow shadow-[2px_2px_0_0_var(--shadow-color)]"
                   />
                 </div>
 
@@ -124,7 +135,7 @@ export default function SignupForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="you@example.com"
-                    className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#22201e] transition-shadow shadow-[2px_2px_0_0_#22201e]"
+                    className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_var(--shadow-color)] transition-shadow shadow-[2px_2px_0_0_var(--shadow-color)]"
                   />
                 </div>
 
@@ -134,7 +145,7 @@ export default function SignupForm() {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      className="pr-10 bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#22201e] transition-shadow shadow-[2px_2px_0_0_#22201e]"
+                      className="pr-10 bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_var(--shadow-color)] transition-shadow shadow-[2px_2px_0_0_var(--shadow-color)]"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -158,7 +169,7 @@ export default function SignupForm() {
                 </div>
 
                 <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox id="terms" className="border-2 border-surface-900 data-[state=checked]:bg-surface-900 data-[state=checked]:text-surface-100 shadow-[2px_2px_0_0_#22201e]" required />
+                  <Checkbox id="terms" className="border-2 border-surface-900 data-[state=checked]:bg-surface-900 data-[state=checked]:text-surface-100 shadow-[2px_2px_0_0_var(--shadow-color)]" required />
                   <label htmlFor="terms" className="text-sm font-bold text-surface-900 uppercase">
                     I agree to the{" "}
                     <Link href="#" className="text-surface-900 underline underline-offset-4 hover:bg-surface-900 hover:text-surface-100 px-1 transition-colors">

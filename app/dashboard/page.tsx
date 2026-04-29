@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import OllieBubble from '@/components/ollie/OllieBubble';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { getRandomGreeting, getTimeOfDay } from '@/lib/ollie';
+import FlightPlan from '@/components/dashboard/FlightPlan';
 
 // Stats card component
 function StatCard({
@@ -31,18 +32,19 @@ function StatCard({
   return (
     <div
       className={`
-        rounded-2xl border p-5
-        bg-gradient-to-br ${colorMap[color]}
-        hover:scale-[1.02] transition-transform duration-200
+        border-2 border-border p-5
+        bg-card
+        hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all duration-200
+        shadow-[4px_4px_0px_0px_var(--border)]
       `}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-slate-400 text-sm font-medium">{label}</span>
-        <span className="text-slate-500">{icon}</span>
+        <span className="text-muted text-xs font-black uppercase tracking-wider">{label}</span>
+        <span className="text-muted">{icon}</span>
       </div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-3xl font-black text-foreground">{value}</div>
       {trend && (
-        <div className="mt-1 text-xs text-brand-400">{trend}</div>
+        <div className="mt-2 text-xs font-bold text-brand-600 uppercase">{trend}</div>
       )}
     </div>
   );
@@ -64,12 +66,12 @@ function QuickAction({
     <button
       onClick={onClick}
       id={id}
-      className="flex items-center gap-3 px-4 py-3 rounded-xl glass-light hover:bg-surface-600 transition-all duration-200 group w-full text-left"
+      className="flex items-center gap-3 px-4 py-3 border-2 border-border bg-card hover:bg-muted/10 transition-all duration-200 group w-full text-left shadow-[2px_2px_0px_0px_var(--border)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
     >
-      <span className="p-2 rounded-lg bg-brand-600/15 text-brand-400 group-hover:bg-brand-600/25 transition-colors">
+      <span className="p-2 border-2 border-border bg-brand-50 text-brand-600 group-hover:bg-brand-100 transition-colors">
         {icon}
       </span>
-      <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
+      <span className="text-sm font-black uppercase tracking-tight text-foreground">
         {label}
       </span>
     </button>
@@ -81,6 +83,7 @@ interface Task {
   title: string;
   status: string;
   priority: string;
+  completed: boolean;
 }
 
 export default function DashboardPage() {
@@ -91,6 +94,7 @@ export default function DashboardPage() {
   const [completedTasks, setCompletedTasks] = useState(0);
   const [activeGoals, setActiveGoals] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [rolloverMessage, setRolloverMessage] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -98,13 +102,14 @@ export default function DashboardPage() {
     // Get all tasks
     const { data: tasks } = await supabase
       .from('tasks')
-      .select('id, title, status, priority')
+      .select('id, title, status, priority, completed')
       .order('created_at', { ascending: false });
 
     if (tasks) {
-      setTodayTasks(tasks.slice(0, 5) as Task[]);
-      setTotalTasks(tasks.filter((t: { status: string }) => t.status !== 'done').length);
-      setCompletedTasks(tasks.filter((t: { status: string }) => t.status === 'done').length);
+      const incompleteTasks = tasks.filter((t: any) => !t.completed);
+      setTodayTasks(incompleteTasks.slice(0, 5) as Task[]);
+      setTotalTasks(incompleteTasks.length);
+      setCompletedTasks(tasks.filter((t: any) => t.completed).length);
     }
 
     // Get active goals count
@@ -117,16 +122,39 @@ export default function DashboardPage() {
     setStatsLoading(false);
   }, [supabase]);
 
+  const performRollover = useCallback(async () => {
+    try {
+      const res = await fetch('/api/schedule/rollover', { method: 'POST' });
+      const data = await res.json();
+      if (data.moved > 0) {
+        setRolloverMessage(data.message);
+        fetchStats();
+      }
+    } catch (err) {
+      console.error('Rollover failed:', err);
+    }
+  }, [fetchStats]);
+
   useEffect(() => {
     setGreeting(getRandomGreeting());
     setTimeOfDay(getTimeOfDay());
     fetchStats();
-  }, [fetchStats]);
+    performRollover();
+  }, [fetchStats, performRollover]);
 
-  async function toggleTask(taskId: string, currentStatus: string) {
-    const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-    // @ts-expect-error - Database type doesn't resolve tasks Update correctly
-    await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
+  async function toggleTask(taskId: string, currentlyCompleted: boolean) {
+    const updates = currentlyCompleted
+      ? { completed: false, completed_at: null, status: 'todo' }
+      : { completed: true, completed_at: new Date().toISOString(), status: 'done' };
+    await supabase.from('tasks')
+      // @ts-expect-error - Database type doesn't resolve tasks Update correctly
+      .update(updates).eq('id', taskId);
+    fetchStats();
+  }
+
+  async function deleteTask(taskId: string) {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    await supabase.from('tasks').delete().eq('id', taskId);
     fetchStats();
   }
 
@@ -137,23 +165,36 @@ export default function DashboardPage() {
       {/* Header with time-based greeting */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
+          <h1 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter text-foreground">
             {timeOfDay === 'morning' && '☀️ Good morning'}
             {timeOfDay === 'afternoon' && '🌤️ Good afternoon'}
             {timeOfDay === 'evening' && '🌙 Good evening'}
           </h1>
-          <p className="text-slate-400 mt-1">Here&apos;s what&apos;s on your radar today.</p>
+          <p className="text-muted mt-1 font-medium italic">Here&apos;s what&apos;s on your radar today.</p>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted">
           <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
 
       {/* Ollie greeting bubble */}
       {greeting && (
-        <div className="animate-fade-in-up">
+        <div className="animate-fade-in-up space-y-4">
           <OllieBubble message={greeting} mood={ollieMood} size="md" />
+          
+          {rolloverMessage && (
+            <div className="flex items-center gap-3 p-4 bg-brand-50 border-2 border-brand-200 rounded-2xl animate-bounce-subtle">
+              <span className="text-xl">🌿</span>
+              <p className="text-sm font-bold text-brand-900 italic">{rolloverMessage}</p>
+              <button 
+                onClick={() => setRolloverMessage(null)}
+                className="ml-auto text-brand-400 hover:text-brand-600"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -210,9 +251,9 @@ export default function DashboardPage() {
       {/* Main content area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's tasks — takes 2 cols */}
-        <div className="lg:col-span-2 glass rounded-2xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <div className="lg:col-span-2 glass p-6">
+          <h2 className="text-xl font-black uppercase tracking-tight text-foreground mb-4 flex items-center gap-2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
               <path d="M9 11l3 3L22 4" />
               <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
             </svg>
@@ -238,27 +279,27 @@ export default function DashboardPage() {
               {todayTasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl hover:bg-surface-700/50 transition-colors ${
-                    task.status === 'done' ? 'opacity-50' : ''
-                  }`}
+                  className="flex items-center group gap-3 p-3 rounded-xl hover:bg-surface-700/50 transition-colors"
                 >
                   <button
-                    onClick={() => toggleTask(task.id, task.status)}
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                      task.status === 'done'
-                        ? 'bg-brand-500 border-brand-500 text-white'
-                        : 'border-slate-500 hover:border-brand-400'
-                    }`}
+                    onClick={() => toggleTask(task.id, task.completed)}
+                    className="w-5 h-5 rounded-md border-2 border-slate-500 hover:border-brand-400 flex items-center justify-center shrink-0 transition-colors"
                   >
-                    {task.status === 'done' && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
+                    {/* Checkbox is always empty here because only incomplete tasks are shown */}
                   </button>
-                  <span className={`text-sm ${task.status === 'done' ? 'line-through text-slate-500' : 'text-white'}`}>
+                  <span className="text-sm text-foreground flex-1 truncate">
                     {task.title}
                   </span>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="p-1 text-muted hover:text-error opacity-0 group-hover:opacity-100 transition-all"
+                    title="Delete task"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
                 </div>
               ))}
               <button
@@ -271,10 +312,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Quick Actions sidebar */}
-        <div className="space-y-4">
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <FlightPlan />
+
           <div className="glass rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+            <h2 className="text-lg font-black uppercase tracking-tight text-foreground mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <QuickAction
                 label="Add a new task"
@@ -310,27 +353,7 @@ export default function DashboardPage() {
                   </svg>
                 }
               />
-              <QuickAction
-                label="View your habits"
-                id="quick-action-habits"
-                onClick={() => router.push('/dashboard/habits')}
-                icon={
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                }
-              />
             </div>
-          </div>
-
-          {/* Ollie's Tip of the Day */}
-          <div className="glass rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-              🦉 Ollie&apos;s Tip
-            </h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Start your day with your most important task. Your brain is freshest in the first 2 hours — wise move to use them well.
-            </p>
           </div>
         </div>
       </div>

@@ -90,7 +90,7 @@ export default function GoalsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Goals</h1>
+        <h1 className="text-2xl font-bold text-surface-900 uppercase tracking-tight">Goals</h1>
         <button
           id="goals-add-button"
           onClick={() => setShowAddModal(true)}
@@ -105,14 +105,14 @@ export default function GoalsPage() {
       </div>
 
       {loading ? (
-        <div className="glass rounded-2xl p-12 flex items-center justify-center">
+        <div className="bg-surface-100 border-2 border-surface-900 rounded-2xl p-12 flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : goals.length === 0 ? (
-        <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+        <div className="bg-surface-100 border-2 border-surface-900 shadow-[var(--shadow-color)] rounded-2xl p-12 flex flex-col items-center justify-center text-center">
           <OllieAvatar mood="thinking" size="lg" />
-          <h2 className="mt-4 text-lg font-semibold text-white">No goals set</h2>
-          <p className="mt-2 text-slate-400 text-sm max-w-sm">
+          <h2 className="mt-4 text-lg font-semibold text-surface-900 uppercase">No goals set</h2>
+          <p className="mt-2 text-surface-600 text-sm max-w-sm font-medium">
             What&apos;s something big you&apos;d like to achieve? Tell me, and I&apos;ll break it down into bite-sized steps.
           </p>
           <button
@@ -126,10 +126,10 @@ export default function GoalsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {goals.map((goal) => (
-            <div key={goal.id} className="glass rounded-2xl p-6 group hover:border-brand-500/20 border border-transparent transition-colors">
+            <div key={goal.id} className="bg-surface-100 border-2 border-surface-900 shadow-[var(--shadow-color)] rounded-2xl p-6 group hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className={`font-semibold ${goal.status === 'completed' ? 'line-through text-slate-500' : 'text-white'}`}>
+                  <h3 className={`font-bold uppercase ${goal.status === 'completed' ? 'line-through text-surface-400' : 'text-surface-900'}`}>
                     {goal.title}
                   </h3>
                 </div>
@@ -176,12 +176,12 @@ export default function GoalsPage() {
       {/* Add Goal Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative w-full max-w-md glass rounded-2xl p-6 animate-fade-in-up">
-            <h2 className="text-xl font-bold text-white mb-4">Set a new goal</h2>
+          <div className="absolute inset-0 bg-surface-900/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="relative w-full max-w-md bg-surface-100 border-4 border-surface-900 shadow-[12px_12px_0_0_var(--shadow-color)] rounded-2xl p-8 animate-fade-in-up">
+            <h2 className="text-xl font-black text-surface-900 mb-6 uppercase">Set a new goal</h2>
             <form onSubmit={handleAddGoal} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">What&apos;s the goal?</label>
+                <label className="block text-xs font-black text-surface-900 mb-1.5 uppercase">What&apos;s the goal?</label>
                 <input
                   type="text"
                   value={newTitle}
@@ -189,7 +189,7 @@ export default function GoalsPage() {
                   placeholder="e.g. Learn conversational Spanish"
                   required
                   autoFocus
-                  className="w-full px-4 py-2.5 bg-surface-700 border border-surface-500 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                  className="w-full px-4 py-3 bg-surface-50 border-2 border-surface-900 rounded-xl text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-accent-500 font-bold"
                 />
               </div>
               <div>

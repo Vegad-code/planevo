@@ -30,9 +30,13 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Refresh the session — important for Server Components
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user;
+  } catch (e) {
+    console.error('Middleware Auth Error:', e);
+  }
 
   // Define public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/auth/callback'];

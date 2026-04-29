@@ -6,42 +6,43 @@
    ============================================================ */
 
 @theme inline {
-  /* Matte Earth-toned Palette */
-  --color-brand-50: #f7f6f4;
-  --color-brand-100: #efede7;
-  --color-brand-200: #e2dfd4;
-  --color-brand-300: #cec8b9;
-  --color-brand-400: #b0a794;
-  --color-brand-500: #938772;
-  --color-brand-600: #7b6f5d;
-  --color-brand-700: #62584a;
-  --color-brand-800: #524b40;
-  --color-brand-900: #463f37;
+  /* Plan Pilot — Theme Tokens Mapped to Variables */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
 
-  /* Accent — Matte Terracotta */
-  --color-accent-50: #fcf6f5;
-  --color-accent-100: #f8ebe8;
-  --color-accent-200: #f1d4cc;
-  --color-accent-300: #e5b3a6;
-  --color-accent-400: #d48b78;
-  --color-accent-500: #c66952;
-  --color-accent-600: #b1513a;
-  --color-accent-700: #94402d;
+  /* Accent — Owl Tan/Beige */
+  --color-accent-50: #f9f7f4;
+  --color-accent-100: #f2ede9;
+  --color-accent-200: #e5dbd3;
+  --color-accent-300: #d8c9bc;
+  --color-accent-400: #cbb7a6;
+  --color-accent-500: #c8b38c;
+  --color-accent-600: #b19e7c;
+  --color-accent-700: #9a8a6c;
 
-  /* Surface colors */
-  --color-surface-900: #22201e;
-  --color-surface-800: #2b2826;
-  --color-surface-700: #3b3734;
-  --color-surface-600: #4a4642;
-  --color-surface-500: #625d57;
-  --color-surface-400: #8c867e;
-  --color-surface-300: #b8b3ab;
-  --color-surface-200: #d6d3ce;
-  --color-surface-100: #f1efe9;
+  /* Surface colors (Neutral) — Now mapped to theme-aware variables */
+  --color-surface-50: var(--surface-50);
+  --color-surface-100: var(--surface-100);
+  --color-surface-200: var(--surface-200);
+  --color-surface-300: var(--surface-300);
+  --color-surface-400: var(--surface-400);
+  --color-surface-500: var(--surface-500);
+  --color-surface-600: var(--surface-600);
+  --color-surface-700: var(--surface-700);
+  --color-surface-800: var(--surface-800);
+  --color-surface-900: var(--surface-900);
 
   /* Semantic */
-  --color-success: #6d7a5b;
-  --color-warning: #c29f55;
+  --color-success: var(--brand-500);
+  --color-warning: #c8b38c;
   --color-error: #a34e35;
   --color-info: #5a7582;
 
@@ -49,32 +50,130 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Shadows (Removed glows, simple brutalist shadows) */
-  --shadow-glow: none;
-  --shadow-glow-accent: none;
-  --shadow-sm: 2px 2px 0px 0px rgba(34, 32, 30, 1);
-  --shadow-md: 4px 4px 0px 0px rgba(34, 32, 30, 1);
-  --shadow-lg: 8px 8px 0px 0px rgba(34, 32, 30, 1);
+  /* Shadows (Bubble Design — Softer Elevations) */
+  --shadow-glow: 0 0 20px rgba(93, 138, 102, 0.2);
+  --shadow-glow-accent: 0 0 20px rgba(200, 179, 140, 0.2);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
-  /* Force 0px borders */
-  --radius: 0px;
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-full: 0px;
+  /* Bubble Design — Softened Corners */
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 3rem;
+  --radius-full: 9999px;
+
+  /* Theme Tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
 }
 
-/* ============================================================
-   Base Styles
-   ============================================================ */
-
 :root {
-  --background: var(--color-surface-100);
-  --foreground: var(--color-surface-900);
+  /* Surface colors (Neutral) — LIGHT MODE */
+  --surface-50: #fbfbfb;
+  --surface-100: #f8f9f5;
+  --surface-200: #e9ede5;
+  --surface-300: #d3dbcb;
+  --surface-400: #949a8e;
+  --surface-500: #626570;
+  --surface-600: #4a4d55;
+  --surface-700: #3a3d45;
+  --surface-800: #2c2e35;
+  --surface-900: #1a1b1e;
+
+  /* Brand: Forest (Default) */
+  --brand-50: #f4f6f2;
+  --brand-100: #e9ede5;
+  --brand-200: #d3dbcb;
+  --brand-300: #a7c091;
+  --brand-400: #82a56f;
+  --brand-500: #5d8a66;
+  --brand-600: #4a6e52;
+  --brand-700: #3b5842;
+  --brand-800: #2d4332;
+  --brand-900: #223326;
+
+  --background: #f8f9f5;
+  --foreground: #2c2e35;
+  --card: #ffffff;
+  --card-foreground: #2c2e35;
+  --border: #2c2e35;
+  --input: #2c2e35;
+  --ring: #5d8a66;
+  --muted: #626570;
+  --muted-foreground: #8a8e99;
+  --accent-foreground: #ffffff;
+  
+  --shadow-color: rgba(44, 46, 53, 1);
   color-scheme: light;
+}
+
+[data-theme='dark'] {
+  /* Surface colors (Neutral) — DARK MODE */
+  --surface-50: #0f1012;
+  --surface-100: #1a1b1e;
+  --surface-200: #2c2e35;
+  --surface-300: #3a3d45;
+  --surface-400: #a1a5b0; /* Lighter for visibility */
+  --surface-500: #bec3cc;
+  --surface-600: #d1d5db;
+  --surface-700: #e5e7eb;
+  --surface-800: #f3f4f6;
+  --surface-900: #f8f9f5;
+
+  --background: #1a1b1e;
+  --foreground: #f8f9f5;
+  --card: #2c2e35;
+  --card-foreground: #f8f9f5;
+  --border: #f8f9f5;
+  --input: #f8f9f5;
+  --ring: #a7c091;
+  --muted: #a1a5b0;
+  --muted-foreground: #8a8e99;
+  --accent-foreground: #ffffff;
+  
+  --shadow-color: rgba(248, 249, 245, 0.2);
+  color-scheme: dark;
+}
+
+[data-theme-color="aqua"] {
+  --brand-50: #f2f8f9;
+  --brand-300: #8fbcc7;
+  --brand-500: #3a7d8e;
+  --brand-600: #2e6472;
+}
+
+[data-theme-color="violet"] {
+  --brand-50: #f8f2f9;
+  --brand-300: #c091a7;
+  --brand-500: #7d5d8a;
+  --brand-600: #644a6e;
+}
+
+[data-theme-color="crimson"] {
+  --brand-50: #f9f2f2;
+  --brand-300: #c09191;
+  --brand-500: #8a5d5d;
+  --brand-600: #6e4a4a;
+}
+
+[data-theme-color="midnight"] {
+  --brand-50: #f2f4f6;
+  --brand-300: #5d8a9e;
+  --brand-500: #2c3e50;
+  --brand-600: #233240;
 }
 
 body {
@@ -83,23 +182,35 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Base resets for brutalist aesthetic */
+/* Bubble design resets */
 * {
-  border-radius: 0 !important;
+  border-radius: var(--radius);
 }
 
 .glass, .glass-light {
-  background: var(--color-surface-100);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 2px solid var(--color-surface-900);
-  box-shadow: 4px 4px 0px 0px var(--color-surface-900);
+  background: var(--card);
+  color: var(--card-foreground);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(0,0,0,0.05);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: var(--radius-xl);
+}
+
+.brutalist-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  box-shadow: 6px 6px 0px 0px var(--shadow-color);
+  border-radius: var(--radius-md);
 }
 
 .skeleton {
-  background: var(--color-surface-200);
+  background: var(--muted);
+  opacity: 0.2;
 }
 
 .focus-ring {
@@ -107,6 +218,37 @@ body {
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid var(--color-surface-900);
+  outline: 2px solid var(--border);
   outline-offset: 2px;
+}
+
+/* Typography Helpers for Visibility */
+.text-visible {
+  color: var(--foreground);
+}
+
+.text-muted-visible {
+  color: var(--muted);
+}
+/* ============================================================
+   Tactical Animations
+   ============================================================ */
+
+@keyframes slide-infinite {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-infinite {
+  animation: slide-infinite 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }

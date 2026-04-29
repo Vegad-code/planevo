@@ -1,0 +1,66 @@
+/**
+ * lib/canvas.ts
+ * Utility for interacting with the Canvas LMS API.
+ */
+
+export interface CanvasAssignment {
+  id: number;
+  name: string;
+  description: string;
+  due_at: string;
+  course_id: number;
+  html_url: string;
+}
+
+export async function fetchCanvasUpcoming(url: string, token: string): Promise<CanvasAssignment[]> {
+  try {
+    // Sanitize URL
+    const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    
+    // We use the planner/items endpoint to get a unified list of upcoming work
+    // documented at: https://canvas.instructure.com/doc/api/planner.html
+    const response = await fetch(`${baseUrl}/api/v1/planner/items?filter=new_activity`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Canvas API error: ${response.statusText}`);
+    }
+
+    const items = await response.json();
+    
+    // Filter for assignments with due dates
+    return items
+      .filter((item: any) => item.plannable_type === 'assignment' && item.plannable.due_at)
+      .map((item: any) => ({
+        id: item.plannable_id,
+        name: item.plannable.title || item.plannable.name,
+        description: item.plannable.description || '',
+        due_at: item.plannable.due_at,
+        course_id: item.course_id,
+        html_url: item.html_url
+      }));
+
+  } catch (error) {
+    console.error('Error fetching Canvas data:', error);
+    return [];
+  }
+}
+
+export async function validateCanvasConnection(url: string, token: string): Promise<boolean> {
+  try {
+    const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    const response = await fetch(`${baseUrl}/api/v1/users/self`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}

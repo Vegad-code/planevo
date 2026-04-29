@@ -28,7 +28,7 @@ export default function DashboardLayout({
   }, []);
 
   return (
-    <div className="min-h-screen bg-surface-900">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       <Sidebar />
 
       {/* Main content area — offset by sidebar width */}

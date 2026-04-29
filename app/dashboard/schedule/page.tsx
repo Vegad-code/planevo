@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { format } from 'date-fns';
 
 interface ScheduleBlock {
   time: string;
@@ -15,52 +17,57 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function generateSchedule() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to generate schedule');
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function loadSchedule() {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('schedules')
+          .select('schedule_json')
+          .eq('user_id', user.id)
+          .eq('date', format(new Date(), 'yyyy-MM-dd'))
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (data && data.length > 0) {
+          setSchedule(data[0].schedule_json);
+        }
       }
-      if (data.schedule && data.schedule.length > 0) {
-        setSchedule(data.schedule);
-      } else {
-        setError(data.message || 'No schedule generated.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
-    } finally {
       setLoading(false);
     }
+    loadSchedule();
+  }, []);
+
+  async function generateSchedule() {
+    // This now redirects to briefing if no schedule exists, 
+    // or we could implement a quick re-gen here.
+    window.location.href = '/dashboard/briefing';
   }
 
   const getTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
       case 'focus':
-        return 'border-brand-500/50 bg-brand-500/10 text-brand-400';
+        return 'border-accent-500 bg-accent-500/10 text-accent-600';
       case 'break':
-        return 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400';
-      case 'routine':
-        return 'border-blue-500/50 bg-blue-500/10 text-blue-400';
-      case 'flexible':
-        return 'border-amber-500/50 bg-amber-500/10 text-amber-400';
+        return 'border-green-500 bg-green-500/10 text-green-600';
+      case 'event':
+        return 'border-brand-500 bg-brand-500/10 text-brand-600';
       default:
-        return 'border-surface-500 bg-surface-700 text-slate-300';
+        return 'border-surface-900 bg-surface-200 text-surface-900';
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Schedule</h1>
+        <h1 className="text-2xl font-bold text-surface-900 uppercase tracking-tight">Schedule</h1>
         <div className="flex items-center gap-2">
           <button
             id="schedule-today-button"
-            className="px-3 py-1.5 text-sm text-slate-400 hover:text-white bg-surface-700 hover:bg-surface-600 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm text-surface-500 hover:text-surface-900 bg-surface-200 hover:bg-surface-300 rounded-lg transition-colors font-bold uppercase"
           >
             Today
           </button>
@@ -89,9 +96,9 @@ export default function SchedulePage() {
       )}
 
       {loading ? (
-        <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center">
-          <OllieAvatar mood="thinking" size="lg" />
-          <h2 className="mt-4 text-lg font-semibold text-white">Ollie is planning your day...</h2>
+        <div className="bg-surface-100 border-2 border-surface-900 rounded-2xl p-12 flex flex-col items-center justify-center text-center shadow-[var(--shadow-color)]">
+          <div className="w-12 h-12 border-4 border-accent-500 border-t-transparent rounded-full animate-spin" />
+          <h2 className="mt-4 text-lg font-semibold text-surface-900 uppercase">Ollie is planning your day...</h2>
           <p className="mt-2 text-slate-400 text-sm max-w-sm">
             Reviewing your tasks, checking your priorities, and finding the best times to focus.
           </p>
@@ -100,7 +107,7 @@ export default function SchedulePage() {
         <div className="glass rounded-2xl p-6 md:p-8 space-y-6">
           <div className="flex items-center gap-4 mb-6">
             <OllieAvatar mood="happy" size="md" />
-            <p className="text-slate-300 text-sm">
+            <p className="text-surface-600 text-sm">
               Here is a balanced plan for your day. Remember to take your breaks!
             </p>
           </div>
@@ -109,20 +116,20 @@ export default function SchedulePage() {
             {schedule.map((block, i) => (
               <div
                 key={i}
-                className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 rounded-xl bg-surface-800/50 hover:bg-surface-700/50 transition-colors border border-surface-600/50"
+                className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors border border-surface-200"
               >
-                <div className="sm:w-32 shrink-0 text-sm font-medium text-slate-400 pt-1">
+                <div className="sm:w-32 shrink-0 text-sm font-medium text-surface-500 pt-1">
                   {block.time}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-start gap-3">
-                    <h3 className="text-white font-medium text-lg">{block.title}</h3>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-surface-900 font-bold text-lg uppercase leading-tight">{block.title}</h3>
                     <span className={`text-xs px-2 py-0.5 rounded-full border ${getTypeColor(block.type)}`}>
                       {block.type}
                     </span>
                   </div>
                   {block.description && (
-                    <p className="mt-2 text-sm text-slate-400">
+                    <p className="mt-2 text-sm text-surface-600">
                       {block.description}
                     </p>
                   )}
@@ -130,11 +137,32 @@ export default function SchedulePage() {
               </div>
             ))}
           </div>
+          <div className="pt-6 mt-6 border-t border-surface-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-surface-500 italic uppercase tracking-wider">
+              Feedback helps Ollie learn your style
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => setSchedule(null)}
+                className="flex-1 sm:flex-none px-6 py-2 bg-surface-200 hover:bg-surface-300 text-surface-700 text-sm font-bold rounded-xl transition-all uppercase"
+              >
+                I need changes
+              </button>
+              <button
+                onClick={() => {
+                  alert('Thanks! Ollie is learning your preferences.');
+                }}
+                className="flex-1 sm:flex-none px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-bold rounded-xl transition-all shadow-md uppercase"
+              >
+                This looks good
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center">
-          <OllieAvatar mood="gentle" size="lg" />
-          <h2 className="mt-4 text-lg font-semibold text-white">No schedule yet</h2>
+        <div className="bg-surface-100 border-2 border-surface-900 shadow-[var(--shadow-color)] rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+          <OllieAvatar mood="thinking" size="lg" />
+          <h2 className="mt-4 text-lg font-semibold text-surface-900 uppercase">No schedule yet</h2>
           <p className="mt-2 text-slate-400 text-sm max-w-sm">
             Add some tasks first, then I'll build you a smart daily plan. I'll work around your calendar and energy levels.
           </p>

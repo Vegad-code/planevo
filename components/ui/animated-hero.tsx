@@ -29,13 +29,13 @@ function Hero() {
       <div className="container mx-auto px-6">
         <div className="flex gap-8 py-20 lg:py-40 items-center justify-center flex-col">
           <div>
-            <Button variant="outline" size="sm" className="gap-4 font-bold text-surface-900">
-              Introducing Plant Pilot <Star weight="thin" className="w-4 h-4 text-accent-500" />
+            <Button variant="outline" size="sm" className="gap-4 font-black uppercase text-foreground border-2 border-border shadow-[2px_2px_0px_0px_var(--border)]">
+              Introducing Plan Pilot <Star weight="thin" className="w-4 h-4 text-accent-500" />
             </Button>
           </div>
           <div className="flex gap-4 flex-col">
-            <h1 className="text-5xl md:text-7xl max-w-4xl tracking-tight text-center font-bold">
-              <span className="text-surface-900">Plant Pilot is </span>
+            <h1 className="text-5xl md:text-7xl max-w-4xl tracking-tighter text-center font-black uppercase">
+              <span className="text-foreground">Plan Pilot is </span>
               <span className="relative flex w-full justify-center overflow-hidden text-center md:pb-4 md:pt-1 text-accent-500">
                 &nbsp;
                 {titles.map((title, index) => (

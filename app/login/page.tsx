@@ -20,6 +20,7 @@ export default function SignIn() {
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +52,11 @@ export default function SignIn() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
       },
     });
 
@@ -61,8 +67,19 @@ export default function SignIn() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-      <Card className="w-full max-w-md mx-4 pb-0 bg-surface-100 border-2 border-surface-900 shadow-[8px_8px_0_0_#22201e] text-surface-900">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground py-12">
+      <div className="w-full max-w-md mx-4 mb-4">
+        <Link 
+          href="/" 
+          className="inline-flex items-center text-sm font-bold text-surface-900 hover:bg-surface-900 hover:text-surface-100 px-2 py-1 transition-colors uppercase border-2 border-transparent hover:border-surface-900"
+        >
+          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Home
+        </Link>
+      </div>
+      <Card className="w-full max-w-md mx-4 pb-0 bg-surface-100 border-2 border-surface-900 shadow-[8px_8px_0_0_var(--shadow-color)] text-surface-900">
         <CardHeader className="space-y-1 text-center mb-2 mt-4">
           <div className="flex justify-center text-surface-900 mb-4">
             <span className="text-4xl hover:scale-110 transition-transform">🌱</span>
@@ -78,7 +95,7 @@ export default function SignIn() {
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
             {error && (
-              <div className="p-3 bg-error text-surface-100 border-2 border-surface-900 font-bold text-sm shadow-[4px_4px_0_0_#22201e]">
+              <div className="p-3 bg-error text-surface-100 border-2 border-surface-900 font-bold text-sm shadow-[4px_4px_0_0_var(--shadow-color)]">
                 {error}
               </div>
             )}
@@ -92,7 +109,7 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#22201e] transition-shadow shadow-[2px_2px_0_0_#22201e]"
+                className="bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_var(--shadow-color)] transition-shadow shadow-[2px_2px_0_0_var(--shadow-color)]"
               />
             </div>
             <div className="space-y-2">
@@ -105,7 +122,7 @@ export default function SignIn() {
               <div className="relative">
                 <Input
                   id="password"
-                  className="pe-9 bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_#22201e] transition-shadow shadow-[2px_2px_0_0_#22201e]"
+                  className="pe-9 bg-surface-100 border-2 border-surface-900 focus-visible:ring-0 focus-visible:shadow-[4px_4px_0_0_var(--shadow-color)] transition-shadow shadow-[2px_2px_0_0_var(--shadow-color)]"
                   placeholder="Enter your password"
                   type={isPasswordVisible ? "text" : "password"}
                   value={password}
@@ -131,7 +148,12 @@ export default function SignIn() {
               </div>
             </div>
             <div className="flex items-center space-x-2 pt-2">
-              <Checkbox id="remember" defaultChecked className="border-2 border-surface-900 data-[state=checked]:bg-surface-900 data-[state=checked]:text-surface-100 shadow-[2px_2px_0_0_#22201e]" />
+              <Checkbox 
+                id="remember" 
+                checked={rememberMe} 
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+                className="border-2 border-surface-900 data-[state=checked]:bg-surface-900 data-[state=checked]:text-surface-100 shadow-[2px_2px_0_0_var(--shadow-color)]" 
+              />
               <Label htmlFor="remember" className="text-sm font-bold text-surface-900 uppercase">
                 Remember me
               </Label>

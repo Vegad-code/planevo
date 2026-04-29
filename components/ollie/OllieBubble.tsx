@@ -33,14 +33,13 @@ export default function OllieBubble({
       <div className="relative">
         {/* Bubble arrow */}
         <div
-          className="absolute left-[-6px] top-3 w-3 h-3 rotate-45"
-          style={{ background: 'rgba(19, 23, 32, 0.7)' }}
+          className="absolute left-[-8px] top-4 w-4 h-4 rotate-45 border-l-2 border-b-2 border-border bg-card"
         />
 
         {/* Bubble content */}
-        <div className="glass rounded-2xl rounded-tl-sm px-4 py-3 max-w-md">
-          <p className={`text-slate-200 leading-relaxed ${
-            size === 'sm' ? 'text-sm' : size === 'lg' ? 'text-base' : 'text-sm'
+        <div className="glass px-4 py-3 max-w-md shadow-[4px_4px_0px_0px_var(--border)] bg-card border-2 border-border">
+          <p className={`text-foreground font-black leading-relaxed ${
+            size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-base' : 'text-sm'
           }`}>
             {message}
           </p>

@@ -9,10 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-surface-900 text-surface-100 border-2 border-surface-900 hover:bg-surface-800 shadow-[4px_4px_0_0_#22201e] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        destructive: "bg-error text-surface-100 border-2 border-surface-900 hover:bg-error/90 shadow-[4px_4px_0_0_#22201e] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        outline: "border-2 border-surface-900 bg-surface-100 text-surface-900 hover:bg-surface-200 shadow-[4px_4px_0_0_#22201e] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        secondary: "bg-brand-300 text-surface-900 border-2 border-surface-900 hover:bg-brand-400 shadow-[4px_4px_0_0_#22201e] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
+        default: "bg-surface-900 text-surface-100 border-2 border-surface-900 hover:bg-surface-800 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
+        destructive: "bg-error text-surface-100 border-2 border-surface-900 hover:bg-error/90 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
+        outline: "border-2 border-surface-900 bg-surface-100 text-surface-900 hover:bg-surface-200 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
+        secondary: "bg-brand-300 text-surface-900 border-2 border-surface-900 hover:bg-brand-400 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
         ghost: "hover:bg-surface-200 text-surface-900",
         link: "text-surface-900 underline-offset-4 hover:underline",
       },
