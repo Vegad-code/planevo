@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/auth/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
+    const { allowed, error: limitError, message } = await checkRateLimit('breakdown');
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!allowed) {
+      return NextResponse.json({ 
+        error: limitError, 
+        message: message || 'You have reached your daily AI limit.' 
+      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
     }
+    // -----------------------------------------
 
     const { title, description } = await request.json();
 

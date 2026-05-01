@@ -20,6 +20,7 @@ export default function GoalsPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newTargetDate, setNewTargetDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [architectingId, setArchitectingId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -50,7 +51,6 @@ export default function GoalsPage() {
         return;
       }
 
-      // @ts-expect-error - Database type doesn't resolve goals Insert correctly
       const { error } = await supabase.from('goals').insert({
         user_id: user.id,
         title: newTitle.trim(),
@@ -82,9 +82,30 @@ export default function GoalsPage() {
 
   async function toggleGoalStatus(goalId: string, currentStatus: string) {
     const newStatus = currentStatus === 'completed' ? 'active' : 'completed';
-    // @ts-expect-error - Database type doesn't resolve goals Update correctly
     await supabase.from('goals').update({ status: newStatus }).eq('id', goalId);
     fetchGoals();
+  }
+
+  async function architectGoal(goal: Goal) {
+    setArchitectingId(goal.id);
+    try {
+      const response = await fetch('/api/ai/architect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goalId: goal.id, goalTitle: goal.title }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`Ollie has architected ${data.count} tasks for this goal! Check your task list.`);
+      } else {
+        alert("Ollie hit some turbulence while architecting. Try again later.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to connect to the Architect.");
+    } finally {
+      setArchitectingId(null);
+    }
   }
 
   return (
@@ -159,9 +180,27 @@ export default function GoalsPage() {
                 </div>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  goal.status === 'completed' ? 'text-brand-400 bg-brand-500/10' : 'text-blue-400 bg-blue-500/10'
-                }`}>{goal.status}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    goal.status === 'completed' ? 'text-brand-400 bg-brand-500/10' : 'text-blue-400 bg-blue-500/10'
+                  }`}>{goal.status}</span>
+                  {goal.status !== 'completed' && (
+                    <button
+                      onClick={() => architectGoal(goal)}
+                      disabled={architectingId === goal.id}
+                      className="text-[10px] font-black uppercase tracking-widest text-accent-600 hover:text-accent-500 flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {architectingId === goal.id ? (
+                        <span className="flex items-center gap-1">
+                          <div className="w-2 h-2 border border-accent-500 border-t-transparent rounded-full animate-spin" />
+                          Architecting...
+                        </span>
+                      ) : (
+                        '🏗️ Architect Tasks'
+                      )}
+                    </button>
+                  )}
+                </div>
                 {goal.deadline && (
                   <span className="text-xs text-slate-500">
                     Deadline: {new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

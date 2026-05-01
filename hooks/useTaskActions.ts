@@ -29,7 +29,6 @@ export function useTaskActions(onRefresh: () => void) {
         return { error: 'Please log in again.' };
       }
 
-      // @ts-expect-error - Database type doesn't resolve tasks Insert correctly
       const { error } = await supabase.from('tasks').insert({
         user_id: user.id,
         title: input.title.trim(),
@@ -72,7 +71,6 @@ export function useTaskActions(onRefresh: () => void) {
 
     await supabase
       .from('tasks')
-      // @ts-expect-error - Database type doesn't resolve tasks Update correctly
       .update(updates)
       .eq('id', taskId);
 
@@ -89,7 +87,6 @@ export function useTaskActions(onRefresh: () => void) {
   const rescheduleTask = useCallback(async (taskId: string, newDueDate: string) => {
     await supabase
       .from('tasks')
-      // @ts-expect-error - Database type doesn't resolve tasks Update correctly
       .update({ due_date: newDueDate })
       .eq('id', taskId);
 
@@ -99,7 +96,6 @@ export function useTaskActions(onRefresh: () => void) {
     if (data) {
       await supabase
         .from('tasks')
-        // @ts-expect-error - Database type doesn't resolve tasks Update correctly
         .update({ rescheduled_count: (data.rescheduled_count || 0) + 1 })
         .eq('id', taskId);
     }
@@ -111,7 +107,6 @@ export function useTaskActions(onRefresh: () => void) {
   const moveToWaiting = useCallback(async (taskId: string) => {
     await supabase
       .from('tasks')
-      // @ts-expect-error - Database type doesn't resolve tasks Update correctly
       .update({ due_date: null, priority: 'low' })
       .eq('id', taskId);
 
@@ -139,7 +134,7 @@ export function useTaskActions(onRefresh: () => void) {
             title: sub.title,
             estimated_minutes: sub.estimated_minutes,
             parent_task_id: task.id,
-            best_time_of_day: task.best_time_of_day,
+            best_time_of_day: (task.best_time_of_day as BestTimeOfDay) || undefined,
             due_date: task.due_date || undefined,
           });
         }

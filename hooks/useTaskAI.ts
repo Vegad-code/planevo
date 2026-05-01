@@ -9,7 +9,8 @@ export function useTaskAI() {
   const [aiResponse, setAiResponse] = useState<AITaskResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const cacheRef = useRef<{ data: AITaskResponse; timestamp: number } | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const cacheRef = useRef<{ data: AITaskResponse; timestamp: number; fingerprint: string } | null>(null);
 
   const fetchAIPriorities = useCallback(async (tasks: Task[]) => {
     // Only call if there are incomplete tasks
@@ -19,8 +20,15 @@ export function useTaskAI() {
       return;
     }
 
-    // Check cache
-    if (cacheRef.current && Date.now() - cacheRef.current.timestamp < AI_CACHE_DURATION) {
+    // Create a fingerprint of the current tasks
+    const fingerprint = JSON.stringify(incompleteTasks.map(t => ({ id: t.id, title: t.title, completed: t.completed })));
+
+    // Check cache: if it matches fingerprint AND is within duration
+    if (
+      cacheRef.current && 
+      cacheRef.current.fingerprint === fingerprint &&
+      Date.now() - cacheRef.current.timestamp < AI_CACHE_DURATION
+    ) {
       setAiResponse(cacheRef.current.data);
       return;
     }
@@ -40,7 +48,7 @@ export function useTaskAI() {
       }
 
       const data: AITaskResponse = await response.json();
-      cacheRef.current = { data, timestamp: Date.now() };
+      cacheRef.current = { data, timestamp: Date.now(), fingerprint };
       setAiResponse(data);
     } catch (err) {
       console.error('AI prioritization failed:', err);
@@ -62,5 +70,27 @@ export function useTaskAI() {
     aiError,
     fetchAIPriorities,
     invalidateCache,
+    logFeedback: async (feature: string, suggestion: any, action: 'accept' | 'reject', correction?: string) => {
+      setFeedbackLoading(true);
+      try {
+        const response = await fetch('/api/ai/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            feature_name: feature,
+            suggestion_json: suggestion,
+            action,
+            correction_text: correction,
+          }),
+        });
+        return response.ok;
+      } catch (err) {
+        console.error('Failed to log feedback:', err);
+        return false;
+      } finally {
+        setFeedbackLoading(false);
+      }
+    },
+    feedbackLoading,
   };
 }

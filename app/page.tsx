@@ -58,16 +58,16 @@ export default function LandingPage() {
       <section className="py-24 relative bg-background border-b-2 border-surface-900">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center gap-16">
           <div className="flex-1 space-y-6">
-            <div className="text-surface-900 font-bold tracking-widest text-sm uppercase border-b-2 border-surface-900 inline-block pb-1">The Solution</div>
+            <div className="text-surface-900 font-bold tracking-widest text-sm uppercase border-b-2 border-surface-900 inline-block pb-1">The Command Center</div>
             <h2 className="text-4xl md:text-5xl font-bold text-surface-900 leading-tight uppercase tracking-tight">
-              Meet the app that does the thinking for you.
+              One view to rule your entire academic life.
             </h2>
             <p className="text-lg text-surface-600 leading-relaxed font-medium">
-              Plant Pilot isn&apos;t just a list—it&apos;s a proactive assistant powered by Ollie. 
-              When you miss a task, Ollie reschedules it. When you&apos;re overwhelmed, Ollie breaks it down. No guilt, just gentle course correction.
+              Plan Pilot merges your Canvas assignments, Google Calendar, and local tasks into a single, high-visibility cockpit. 
+              No more tab-switching. No more missed deadlines. Just total clarity.
             </p>
             <ul className="space-y-4 pt-4">
-              {['Adaptive rescheduling without overdue badges', 'Natural language task entry', 'Energy-based calendar sync'].map((feature, i) => (
+              {['Live sync with Canvas and Google', 'The "No-Shame" Rollover system', 'Intelligent flight planning'].map((feature, i) => (
                 <li key={i} className="flex items-center gap-3 text-surface-900 font-bold">
                   <CheckCircle weight="thin" className="w-6 h-6 text-accent-500" />
                   {feature}
@@ -78,8 +78,8 @@ export default function LandingPage() {
           <div className="flex-1 w-full relative">
             <div className="relative bg-surface-100 p-8 border-2 border-surface-900 shadow-xl flex flex-col items-center text-center rounded-3xl">
               <OllieAvatar mood="celebrating" size="xl" className="mb-6" />
-              <h3 className="text-xl font-bold text-surface-900 mb-2 uppercase">Yesterday slipped away?</h3>
-              <p className="text-surface-600 font-medium">No worries. I automatically reorganized your schedule for today so you can start fresh.</p>
+              <h3 className="text-xl font-bold text-surface-900 mb-2 uppercase">Sync Complete.</h3>
+              <p className="text-surface-600 font-medium">I&apos;ve mapped out your week based on your Canvas deadlines and upcoming meetings. You&apos;re clear for takeoff.</p>
             </div>
           </div>
         </div>
@@ -98,9 +98,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 border-2 border-surface-900 bg-brand-300 flex items-center justify-center text-surface-900 mb-6 group-hover:-translate-y-2 group-hover:shadow-[4px_4px_0_0_var(--shadow-color)] transition-all">
                 <CalendarBlank weight="thin" className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">AI Scheduling</h3>
+              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">Unified Briefing</h3>
               <p className="text-surface-600 font-medium leading-relaxed">
-                Drop your tasks in. Ollie looks at your Google Calendar and builds a realistic daily plan that respects your breaks.
+                Connect Canvas and Google in seconds. Ollie builds a realistic daily plan that respects your actual availability.
               </p>
             </div>
 
@@ -109,9 +109,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 border-2 border-surface-900 bg-accent-300 flex items-center justify-center text-surface-900 mb-6 group-hover:-translate-y-2 group-hover:shadow-[4px_4px_0_0_var(--shadow-color)] transition-all">
                 <Target weight="thin" className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">Smart Breakdown</h3>
+              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">Smart Rollover</h3>
               <p className="text-surface-600 font-medium leading-relaxed">
-                Staring at a massive goal? Ollie deconstructs your projects into small, manageable steps so you always know where to start.
+                Missed a task? The system automatically finds the next open slot for it. No red badges, no guilt, just progress.
               </p>
             </div>
 
@@ -120,9 +120,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 border-2 border-surface-900 bg-success flex items-center justify-center text-surface-100 mb-6 group-hover:-translate-y-2 group-hover:shadow-[4px_4px_0_0_var(--shadow-color)] transition-all">
                 <ChatCircleDots weight="thin" className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">AI Co-Pilot</h3>
+              <h3 className="text-xl font-bold text-surface-900 mb-3 uppercase">Deep Work Pilot</h3>
               <p className="text-surface-600 font-medium leading-relaxed">
-                Ollie sits with you during focus sessions. Gentle check-ins mid-session keep you from wandering off to social media.
+                Enter focus mode with a dedicated assistant. Ollie monitors your progress and keeps you anchored to your goal.
               </p>
             </div>
           </div>
@@ -216,12 +216,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 relative z-10">
           <div className="flex flex-col md:flex-row items-center gap-16">
             <div className="flex-1">
-              <span className="bg-accent-500 text-surface-900 px-3 py-1 text-xs font-black uppercase tracking-widest mb-6 inline-block">Elite Exclusive</span>
+              <span className="bg-accent-500 text-surface-900 px-3 py-1 text-xs font-black uppercase tracking-widest mb-6 inline-block">Elite Feature</span>
               <h2 className="text-4xl md:text-6xl font-bold mb-6 uppercase tracking-tighter leading-none">
-                Ollie Command: Your AI Executive Assistant.
+                Ollie Command: Total Database Autonomy.
               </h2>
               <p className="text-xl text-surface-300 font-medium mb-8 leading-relaxed">
-                Elite members don't just use an app—they have a partner. Ollie Command is an agentic interface that doesn't just suggest actions, it <span className="text-surface-100 underline decoration-accent-500 underline-offset-4">executes them</span>.
+                Elite members don&apos;t just get suggestions—they have a system that executes. Ollie Command can reschedule entire weeks, modify assignments, and manage your load via natural language.
               </p>
               <div className="space-y-4">
                 {[

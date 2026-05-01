@@ -14,6 +14,7 @@ export interface ScheduleBlock {
   title: string;
   type: 'focus' | 'break' | 'event' | 'buffer';
   description: string;
+  [key: string]: any; // Ensure compatibility with Json type
 }
 
 export interface SchedulerInput {
@@ -56,10 +57,10 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
   );
 
   // 2. Identify Academic Priorities (Canvas)
-  const urgentAssignments = assignments.filter(a => {
-    const diff = new Date(a.due_at).getTime() - new Date().getTime();
-    return diff > 0 && diff < (48 * 60 * 60 * 1000); // Next 48 hours
-  });
+  // We take all upcoming assignments and sort them by deadline
+  const activeAssignments = [...assignments]
+    .filter(a => new Date(a.due_at).getTime() > new Date().getTime())
+    .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
   // 3. Building the Timeline
   let currentTime = parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${preferredStartTime}:00`);
@@ -84,16 +85,22 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
       continue;
     }
 
-    // Assign Focus Blocks for Urgent Tasks
-    if (urgentAssignments.length > 0) {
-      const task = urgentAssignments[0]; // Simple queue for now
+    // Assign Focus Blocks for Assignments
+    if (activeAssignments.length > 0) {
+      const task = activeAssignments[0];
       const duration = 90; // 90 min deep work
+      
+      const dueDate = new Date(task.due_at);
+      const diffHours = (dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60);
+      const isUrgent = diffHours < 72; // 3 days
       
       schedule.push({
         time: format(currentTime, 'h:mm a'),
         title: `Deep Work: ${task.name}`,
         type: 'focus',
-        description: `Deadline-First Focus: Assignment is due soon! (${format(new Date(task.due_at), 'MMM do @ h:mm a')})`
+        description: isUrgent 
+          ? `Priority Focus: Due soon on ${format(dueDate, 'MMM do @ h:mm a')}`
+          : `Project Progress: Working ahead on class work. Due ${format(dueDate, 'MMM do')}.`
       });
       
       currentTime = addMinutes(currentTime, duration);
@@ -107,17 +114,17 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
       });
       currentTime = addMinutes(currentTime, 15);
       
-      // Move to next task if this one is "covered" (simplification)
-      urgentAssignments.shift();
+      // Move to next task
+      activeAssignments.shift();
     } else {
       if (isNoSchoolDay) {
         schedule.push({
           time: format(currentTime, 'h:mm a'),
           title: 'Off-Duty',
           type: 'break',
-          description: 'No school today and no urgent deadlines. Enjoy your break!'
+          description: 'No school today and no immediate deadlines. Enjoy your rest!'
         });
-        break; // Stop generating blocks if it's a day off and no urgent work
+        break; // Stop generating blocks if it's a day off and no work is left
       }
 
       // General focus or administrative work

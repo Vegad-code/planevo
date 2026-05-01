@@ -4,6 +4,7 @@ import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { format } from 'date-fns';
+import { useCallback } from 'react';
 
 interface ScheduleBlock {
   time: string;
@@ -16,8 +17,32 @@ export default function SchedulePage() {
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackLogged, setFeedbackLogged] = useState(false);
 
   const supabase = createClient();
+
+  const logFeedback = useCallback(async (action: 'accept' | 'reject', correction?: string) => {
+    if (!schedule || feedbackLogged) return;
+    
+    try {
+      await fetch('/api/ai/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feature_name: 'daily_schedule',
+          suggestion_json: schedule,
+          action,
+          correction_text: correction,
+        }),
+      });
+      setFeedbackLogged(true);
+      if (action === 'accept') {
+        alert('Thanks! Ollie is learning your preferences.');
+      }
+    } catch (err) {
+      console.error('Failed to log feedback:', err);
+    }
+  }, [schedule, feedbackLogged]);
 
   useEffect(() => {
     async function loadSchedule() {
@@ -33,7 +58,7 @@ export default function SchedulePage() {
           .limit(1);
         
         if (data && data.length > 0) {
-          setSchedule(data[0].schedule_json);
+          setSchedule(data[0].schedule_json as unknown as ScheduleBlock[]);
         }
       }
       setLoading(false);
@@ -143,18 +168,21 @@ export default function SchedulePage() {
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
-                onClick={() => setSchedule(null)}
+                onClick={() => {
+                  const msg = prompt("What's wrong with this schedule? (Optional)");
+                  logFeedback('reject', msg || undefined);
+                  setSchedule(null);
+                }}
                 className="flex-1 sm:flex-none px-6 py-2 bg-surface-200 hover:bg-surface-300 text-surface-700 text-sm font-bold rounded-xl transition-all uppercase"
               >
                 I need changes
               </button>
               <button
-                onClick={() => {
-                  alert('Thanks! Ollie is learning your preferences.');
-                }}
-                className="flex-1 sm:flex-none px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-bold rounded-xl transition-all shadow-md uppercase"
+                onClick={() => logFeedback('accept')}
+                disabled={feedbackLogged}
+                className="flex-1 sm:flex-none px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-bold rounded-xl transition-all shadow-md uppercase disabled:opacity-50"
               >
-                This looks good
+                {feedbackLogged ? 'Feedback Recorded' : 'This looks good'}
               </button>
             </div>
           </div>

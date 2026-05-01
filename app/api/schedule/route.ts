@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { OLLIE_SYSTEM_PROMPT } from '@/lib/ollie';
+import { checkRateLimit } from '@/lib/auth/rateLimit';
 
-export async function POST(request: Request) {
+type ScheduleTask = {
+  id: string;
+  title: string;
+  priority: string;
+  estimated_minutes: number | null;
+};
+
+export async function POST() {
   try {
+    const { allowed, error: limitError, message } = await checkRateLimit('schedule');
+
+    if (!allowed) {
+      return NextResponse.json({
+        error: limitError === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
+        message: message || 'You have reached your daily AI limit.'
+      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -15,7 +32,7 @@ export async function POST(request: Request) {
     const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
       .select('id, title, priority, estimated_minutes')
-      .in('status', ['todo', 'in_progress']) as { data: { id: string; title: string; priority: string; estimated_minutes: number | null }[] | null; error: any };
+      .in('status', ['todo', 'in_progress']) as { data: ScheduleTask[] | null; error: unknown };
 
     if (tasksError) {
       return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
@@ -86,7 +103,7 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
         }
       }
       return NextResponse.json({ schedule: scheduleArray });
-    } catch (e) {
+    } catch {
       console.error('Failed to parse AI output', content);
       return NextResponse.json({ error: 'Failed to parse generated schedule' }, { status: 500 });
     }

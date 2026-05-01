@@ -3,7 +3,11 @@
 import { useEffect, useCallback } from 'react';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { useFocusStore } from '@/store/useFocusStore';
+import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { FOCUS_SOUNDS } from '@/lib/audio/sounds';
+import FocusAudioPlayer from '@/components/focus/FocusAudioPlayer';
+import SessionCompleteModal from '@/components/focus/SessionCompleteModal';
 
 const TIMER_PRESETS = [
   { label: 'Pomodoro', minutes: 25 },
@@ -25,16 +29,34 @@ export default function FocusPage() {
     pauseTimer,
     resumeTimer,
     resetTimer,
+    setTimerPreset,
     tick,
-    completeSession
+    completeSession,
+    currentNudge,
+    setNudge,
+    lastNudgeTime,
+    setLastNudgeTime,
+    selectedSound,
+    setSelectedSound,
+    volume,
+    setVolume
   } = useFocusStore();
 
   // Tick the timer globally
   useEffect(() => {
     if (timerState === 'running') {
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         if (timeLeft <= 1) {
           completeSession();
+          // Log to database
+          const { data: { user } } = await createClient().auth.getUser();
+          if (user) {
+            await createClient().from('focus_sessions').insert({
+              user_id: user.id,
+              duration_minutes: Math.ceil(totalTime / 60),
+              was_interrupted: false
+            });
+          }
         } else {
           tick();
         }
@@ -42,6 +64,63 @@ export default function FocusPage() {
       return () => clearInterval(interval);
     }
   }, [timerState, timeLeft, tick, completeSession]);
+
+  // AI NUDGE LOGIC
+  const triggerNudge = useCallback(async (isReturning = false) => {
+    try {
+      const res = await fetch('/api/ai/nudge', {
+        method: 'POST',
+        body: JSON.stringify({
+          taskTitle: activeTask?.title,
+          timeLeft,
+          totalTime,
+          isReturning
+        })
+      });
+      const data = await res.json();
+      if (data.nudge) {
+        setNudge(data.nudge);
+        setLastNudgeTime(Date.now());
+        // Clear nudge after 8 seconds
+        setTimeout(() => setNudge(null), 8000);
+      }
+    } catch (err) {
+      console.error('Nudge trigger failed:', err);
+    }
+  }, [activeTask, timeLeft, totalTime, setNudge, setLastNudgeTime]);
+
+  // Trigger periodic nudges (every 10 minutes)
+  useEffect(() => {
+    if (timerState === 'running') {
+      const now = Date.now();
+      const tenMinutes = 10 * 60 * 1000;
+      
+      if (!lastNudgeTime || (now - lastNudgeTime > tenMinutes)) {
+        // Don't trigger immediately on start, wait at least 5 mins
+        if (!lastNudgeTime) {
+           setLastNudgeTime(now - (5 * 60 * 1000)); // Set it so next check triggers in 5 mins
+        } else {
+           triggerNudge();
+        }
+      }
+    }
+  }, [timerState, lastNudgeTime, triggerNudge, setLastNudgeTime]);
+
+  // Trigger nudge when returning to tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && timerState === 'running') {
+        // Only nudge if it's been at least 2 minutes since last nudge
+        const twoMinutes = 2 * 60 * 1000;
+        if (!lastNudgeTime || (Date.now() - lastNudgeTime > twoMinutes)) {
+          triggerNudge(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [timerState, lastNudgeTime, triggerNudge]);
 
   function handleStart() {
     if (timerState === 'paused') {
@@ -62,12 +141,7 @@ export default function FocusPage() {
   function selectPreset(index: number) {
     if (timerState !== 'idle') return;
     const minutes = TIMER_PRESETS[index].minutes;
-    // We update the totalTime by starting the timer but immediately pausing it if they just selected it?
-    // Actually, store allows passing minutes to startTimer. We can just set it.
-    // For a better UX, maybe we need a setTimer action in store, but we can hack it by starting and resetting.
-    startTimer(minutes);
-    pauseTimer();
-    resetTimer(); // This puts it back to idle with the new totalTime
+    setTimerPreset(minutes);
   }
 
   function handleClearTask() {
@@ -82,7 +156,9 @@ export default function FocusPage() {
     : timeLeft === 0 && sessionsCompleted > 0 ? 'celebrating' as const
     : 'gentle' as const;
 
-  const ollieMessage = timerState === 'running' && activeTask
+  const ollieMessage = currentNudge 
+    ? currentNudge
+    : timerState === 'running' && activeTask
     ? `Focusing on: "${activeTask.title}". You've got this!`
     : timerState === 'running'
     ? "You're doing great. Stay with it."
@@ -100,6 +176,8 @@ export default function FocusPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <FocusAudioPlayer />
+      <SessionCompleteModal />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-surface-900 uppercase tracking-tight">Focus Timer</h1>
@@ -220,6 +298,45 @@ export default function FocusPage() {
             🎉 {sessionsCompleted} session{sessionsCompleted > 1 ? 's' : ''} completed today!
           </p>
         )}
+
+        {/* Cockpit Vibes Selection */}
+        <div className="mt-12 w-full pt-8 border-t border-surface-200">
+          <h3 className="text-xs font-black text-surface-400 uppercase tracking-widest mb-4">Cockpit Vibe</h3>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {FOCUS_SOUNDS.map((sound) => (
+              <button
+                key={sound.id}
+                onClick={() => setSelectedSound(sound.id)}
+                className={`flex items-center gap-2 px-4 py-2 border-2 rounded-xl text-sm font-bold transition-all ${
+                  selectedSound === sound.id
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-[2px_2px_0_0_var(--brand-600)]'
+                    : 'border-surface-200 bg-surface-50 text-surface-600 hover:border-surface-400'
+                }`}
+              >
+                <span>{sound.icon}</span>
+                <span>{sound.name}</span>
+              </button>
+            ))}
+          </div>
+          
+          {selectedSound !== 'none' && (
+            <div className="mt-6 max-w-xs mx-auto animate-fade-in">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-black text-surface-400 uppercase">Volume</span>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="1" 
+                  step="0.01"
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="flex-1 h-1.5 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-brand-600"
+                />
+                <span className="text-[10px] font-black text-surface-400 w-8">{Math.round(volume * 100)}%</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

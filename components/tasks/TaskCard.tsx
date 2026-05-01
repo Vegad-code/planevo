@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Task } from '@/types/database';
+import type { Task, TaskPriority, BestTimeOfDay } from '@/types/database';
 import { PRIORITY_COLORS, TIME_OF_DAY_INFO, formatDuration, formatDueDate } from '@/lib/taskHelpers';
 
 interface TaskCardProps {
@@ -41,7 +41,7 @@ const TaskCard = React.memo(function TaskCard({
 
     // Trigger completion after animation
     setTimeout(() => {
-      onToggleComplete(task.id, task.completed);
+      onToggleComplete(task.id, !!task.completed);
       if (!task.completed && showCompletionToast) {
         const messages = ['Nice work! 🌱', 'You got this! ⚡', 'One step closer! 🎉', 'Crushed it! 🌱', 'Keep growing! 🌱'];
         showCompletionToast(messages[Math.floor(Math.random() * messages.length)]);
@@ -52,7 +52,9 @@ const TaskCard = React.memo(function TaskCard({
 
   const dueLabel = formatDueDate(task.due_date);
   const durationLabel = formatDuration(task.estimated_minutes);
-  const timeInfo = TIME_OF_DAY_INFO[task.best_time_of_day];
+  const timeInfo = (task.best_time_of_day && TIME_OF_DAY_INFO[task.best_time_of_day as BestTimeOfDay]) 
+    ? TIME_OF_DAY_INFO[task.best_time_of_day as BestTimeOfDay] 
+    : null;
 
   return (
     <motion.div
@@ -186,7 +188,7 @@ const TaskCard = React.memo(function TaskCard({
           {/* Priority color bar */}
           <div
             className="w-1 h-10 rounded-full"
-            style={{ backgroundColor: PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium }}
+            style={{ backgroundColor: PRIORITY_COLORS[task.priority as TaskPriority] || PRIORITY_COLORS.medium }}
             title={`${task.priority} priority`}
           />
 

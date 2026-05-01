@@ -84,7 +84,8 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
       fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 5),
       
       fetch(`${cleanUrl}/api/v1/users/self/todo`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' }),
-      fetch(`${cleanUrl}/api/v1/users/self/upcoming_events`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
+      fetch(`${cleanUrl}/api/v1/users/self/upcoming_events`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' }),
+      fetch(`${cleanUrl}/api/v1/dashboard/dashboard_cards`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
     ]);
     
     const allEvents = [...(Array.isArray(eventsP1) ? eventsP1 : []), ...(Array.isArray(eventsP2) ? eventsP2 : []), ...(Array.isArray(eventsP3) ? eventsP3 : [])];

@@ -99,7 +99,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   const waiting: Task[] = [];
 
   // Sort by priority weight first
-  const priorityWeight = { high: 0, medium: 1, low: 2 };
+  const priorityWeight: Record<string, number> = { high: 0, medium: 1, low: 2 };
   const sorted = [...tasks].sort((a, b) => {
     const pa = priorityWeight[a.priority] ?? 1;
     const pb = priorityWeight[b.priority] ?? 1;

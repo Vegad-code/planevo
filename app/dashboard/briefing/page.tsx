@@ -20,6 +20,7 @@ export default function BriefingPage() {
   const [milestones, setMilestones] = useState<CanvasAssignment[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [generatedSchedule, setGeneratedSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,8 +80,9 @@ export default function BriefingPage() {
           setEvents(filtered);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fetch error:', error);
+      setErrorMsg('Failed to sync with external sources. Please check your credentials in Settings.');
     } finally {
       setFetching(false);
     }
@@ -113,8 +115,9 @@ export default function BriefingPage() {
           setTimeout(() => router.push('/dashboard/schedule'), 1500);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error finalizing schedule:', error);
+      setErrorMsg('Ollie encountered turbulence while building your schedule. Try again or use a fallback.');
     } finally {
       setFetching(false);
     }
@@ -137,11 +140,11 @@ export default function BriefingPage() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black uppercase tracking-tighter flex items-center gap-3">
-            <FlyingSaucer weight="fill" className="text-accent-600 animate-bounce" />
-            Morning Briefing
+            <RocketLaunch weight="fill" className="text-accent-600" />
+            The Briefing Room
           </h1>
           <p className="text-surface-600 font-bold uppercase text-sm mt-1">
-            {format(new Date(), 'EEEE, MMMM do')} — Prep your daily flight plan.
+            {format(new Date(), 'EEEE, MMMM do')} — Synchronizing flight data.
           </p>
         </div>
         <Button 
@@ -152,6 +155,16 @@ export default function BriefingPage() {
           {fetching ? 'Syncing...' : 'Sync All Sources'}
         </Button>
       </header>
+
+      {errorMsg && (
+        <div className="bg-red-500/10 border-2 border-red-500 p-4 flex items-center justify-between text-red-500 font-bold uppercase text-xs animate-shake">
+          <div className="flex items-center gap-2">
+            <Warning weight="fill" />
+            {errorMsg}
+          </div>
+          <button onClick={() => setErrorMsg(null)} className="hover:scale-110 transition-transform">×</button>
+        </div>
+      )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

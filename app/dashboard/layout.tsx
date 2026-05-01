@@ -2,6 +2,9 @@
 
 import Sidebar from '@/components/dashboard/Sidebar';
 import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
+import OllieChat from '@/components/ollie/OllieChat';
 
 export default function DashboardLayout({
   children,
@@ -9,6 +12,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    ensureUserProfile(supabase).catch(console.error);
+  }, []);
 
   // Listen for sidebar state (using a simple approach; could use context)
   useEffect(() => {
@@ -43,6 +51,7 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+      <OllieChat />
     </div>
   );
 }

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/auth/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify the user is authenticated
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
+    const { allowed, error: limitError, message } = await checkRateLimit('prioritize');
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!allowed) {
+      return NextResponse.json({ 
+        error: limitError, 
+        message: message || 'You have reached your daily AI limit.' 
+      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
     }
+    // -----------------------------------------
 
     const { tasks } = await request.json();
 
@@ -158,4 +161,3 @@ function buildFallbackResponse(tasks: FallbackTask[]) {
     encouraging_message: "You've got a great list — let's tackle it one step at a time! 🌱",
   };
 }
-

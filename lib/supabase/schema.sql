@@ -4,12 +4,15 @@
 -- ============================================================
 -- USERS TABLE (extends Supabase auth.users)
 -- ============================================================
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   name TEXT,
-  plan_type TEXT NOT NULL DEFAULT 'free' CHECK (plan_type IN ('free', 'pro', 'team')),
+  plan_type TEXT NOT NULL DEFAULT 'free' CHECK (plan_type IN ('free', 'pro', 'team', 'elite')),
   avatar_url TEXT,
+  canvas_url TEXT,
+  canvas_token TEXT,
+  preferred_morning_time TIME,
   onboarding_complete BOOLEAN NOT NULL DEFAULT false,
   energy_preference TEXT CHECK (energy_preference IN ('morning', 'afternoon', 'evening')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -18,7 +21,7 @@ CREATE TABLE public.users (
 -- ============================================================
 -- TASKS TABLE (Enhanced for AI Life Pilot)
 -- ============================================================
-CREATE TABLE public.tasks (
+CREATE TABLE IF NOT EXISTS public.tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
@@ -46,7 +49,7 @@ CREATE TABLE public.tasks (
 -- ============================================================
 -- GOALS TABLE
 -- ============================================================
-CREATE TABLE public.goals (
+CREATE TABLE IF NOT EXISTS public.goals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
@@ -58,7 +61,7 @@ CREATE TABLE public.goals (
 -- ============================================================
 -- SUBTASKS TABLE
 -- ============================================================
-CREATE TABLE public.subtasks (
+CREATE TABLE IF NOT EXISTS public.subtasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   goal_id UUID REFERENCES public.goals(id) ON DELETE CASCADE NOT NULL,
   task_id UUID REFERENCES public.tasks(id) ON DELETE SET NULL,
@@ -69,7 +72,7 @@ CREATE TABLE public.subtasks (
 -- ============================================================
 -- HABITS TABLE
 -- ============================================================
-CREATE TABLE public.habits (
+CREATE TABLE IF NOT EXISTS public.habits (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
@@ -80,7 +83,7 @@ CREATE TABLE public.habits (
 -- ============================================================
 -- HABIT LOGS TABLE
 -- ============================================================
-CREATE TABLE public.habit_logs (
+CREATE TABLE IF NOT EXISTS public.habit_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   habit_id UUID REFERENCES public.habits(id) ON DELETE CASCADE NOT NULL,
   completed_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -89,7 +92,7 @@ CREATE TABLE public.habit_logs (
 -- ============================================================
 -- SCHEDULES TABLE
 -- ============================================================
-CREATE TABLE public.schedules (
+CREATE TABLE IF NOT EXISTS public.schedules (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   date DATE NOT NULL,
@@ -100,7 +103,7 @@ CREATE TABLE public.schedules (
 -- ============================================================
 -- OLLIE MESSAGES TABLE
 -- ============================================================
-CREATE TABLE public.ollie_messages (
+CREATE TABLE IF NOT EXISTS public.ollie_messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   message_type TEXT NOT NULL CHECK (message_type IN (
@@ -110,6 +113,68 @@ CREATE TABLE public.ollie_messages (
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- AI USAGE LOGS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.ai_usage_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  feature TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- RPC: Check AI usage limit
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.can_user_use_ai(p_user_id UUID, p_limit INTEGER)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  IF auth.uid() IS NULL OR p_user_id <> auth.uid() THEN
+    RETURN false;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.ai_usage_logs
+  WHERE user_id = p_user_id
+  AND created_at > now() - interval '24 hours';
+
+  RETURN v_count < p_limit;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.consume_ai_usage(
+  p_user_id UUID,
+  p_feature TEXT,
+  p_limit INTEGER
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  IF auth.uid() IS NULL OR p_user_id <> auth.uid() OR p_limit < 1 THEN
+    RETURN false;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(p_user_id::text));
+
+  SELECT count(*) INTO v_count
+  FROM public.ai_usage_logs
+  WHERE user_id = p_user_id
+  AND created_at > now() - interval '24 hours';
+
+  IF v_count >= p_limit THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.ai_usage_logs (user_id, feature)
+  VALUES (p_user_id, left(coalesce(p_feature, 'unknown'), 100));
+
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================
 -- INDEXES
@@ -138,6 +203,7 @@ ALTER TABLE public.habits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.habit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ollie_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
 
 -- USERS: Users can only read and update their own profile
 CREATE POLICY "Users can view own profile"
@@ -205,6 +271,14 @@ CREATE POLICY "Users can create own subtasks"
       WHERE goals.id = subtasks.goal_id
       AND goals.user_id = auth.uid()
     )
+    AND (
+      subtasks.task_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM public.tasks
+        WHERE tasks.id = subtasks.task_id
+        AND tasks.user_id = auth.uid()
+      )
+    )
   );
 
 CREATE POLICY "Users can update own subtasks"
@@ -214,6 +288,21 @@ CREATE POLICY "Users can update own subtasks"
       SELECT 1 FROM public.goals
       WHERE goals.id = subtasks.goal_id
       AND goals.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE goals.id = subtasks.goal_id
+      AND goals.user_id = auth.uid()
+    )
+    AND (
+      subtasks.task_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM public.tasks
+        WHERE tasks.id = subtasks.task_id
+        AND tasks.user_id = auth.uid()
+      )
     )
   );
 
@@ -299,6 +388,15 @@ CREATE POLICY "Users can view own ollie messages"
 
 CREATE POLICY "Users can create own ollie messages"
   ON public.ollie_messages FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- AI USAGE LOGS: Users can only view their own logs
+CREATE POLICY "Users can view own AI logs"
+  ON public.ai_usage_logs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own AI logs"
+  ON public.ai_usage_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================

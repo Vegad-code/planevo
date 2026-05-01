@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Task } from '@/types/database';
+import { Task, TaskPriority } from '@/types/database';
 import { PRIORITY_COLORS } from '@/lib/taskHelpers';
 
 interface GardenOfDoneProps {
@@ -15,7 +15,7 @@ const Plant = ({ task, index }: { task: Task; index: number }) => {
   const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   
   const size = Math.min(60, Math.max(30, (task.estimated_minutes || 30) / 2));
-  const color = PRIORITY_COLORS[task.priority] || '#4ECDC4';
+  const color = PRIORITY_COLORS[task.priority as TaskPriority] || '#4ECDC4';
   
   // Geometric variants
   const variant = hash % 4;

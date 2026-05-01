@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import OllieBubble from '@/components/ollie/OllieBubble';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { getRandomGreeting, getTimeOfDay } from '@/lib/ollie';
 import FlightPlan from '@/components/dashboard/FlightPlan';
+import { format } from 'date-fns';
+import { Calendar } from 'lucide-react';
 
 // Stats card component
 function StatCard({
@@ -89,6 +91,7 @@ interface Task {
 export default function DashboardPage() {
   const [greeting, setGreeting] = useState('');
   const [timeOfDay, setTimeOfDay] = useState<'morning' | 'afternoon' | 'evening'>('morning');
+  const [userName, setUserName] = useState<string | null>(null);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [completedTasks, setCompletedTasks] = useState(0);
@@ -96,7 +99,7 @@ export default function DashboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [rolloverMessage, setRolloverMessage] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchStats = useCallback(async () => {
     // Get all tasks
@@ -125,6 +128,10 @@ export default function DashboardPage() {
   const performRollover = useCallback(async () => {
     try {
       const res = await fetch('/api/schedule/rollover', { method: 'POST' });
+      if (!res.ok) {
+        console.error('Rollover request failed with status:', res.status);
+        return;
+      }
       const data = await res.json();
       if (data.moved > 0) {
         setRolloverMessage(data.message);
@@ -136,18 +143,41 @@ export default function DashboardPage() {
   }, [fetchStats]);
 
   useEffect(() => {
-    setGreeting(getRandomGreeting());
-    setTimeOfDay(getTimeOfDay());
+    const hours = new Date().getHours();
+    if (hours < 12) setTimeOfDay('morning');
+    else if (hours < 17) setTimeOfDay('afternoon');
+    else setTimeOfDay('evening');
+
+    // Fetch user name
+    const fetchUserData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', user.id)
+          .single();
+        if (data?.name) {
+          setUserName(data.name);
+          setGreeting(getRandomGreeting(data.name));
+        } else {
+          setGreeting(getRandomGreeting());
+        }
+      } else {
+        setGreeting(getRandomGreeting());
+      }
+    };
+
+    fetchUserData();
     fetchStats();
     performRollover();
-  }, [fetchStats, performRollover]);
+  }, [fetchStats, performRollover, supabase]);
 
   async function toggleTask(taskId: string, currentlyCompleted: boolean) {
     const updates = currentlyCompleted
       ? { completed: false, completed_at: null, status: 'todo' }
       : { completed: true, completed_at: new Date().toISOString(), status: 'done' };
     await supabase.from('tasks')
-      // @ts-expect-error - Database type doesn't resolve tasks Update correctly
       .update(updates).eq('id', taskId);
     fetchStats();
   }
@@ -166,22 +196,23 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter text-foreground">
-            {timeOfDay === 'morning' && '☀️ Good morning'}
-            {timeOfDay === 'afternoon' && '🌤️ Good afternoon'}
-            {timeOfDay === 'evening' && '🌙 Good evening'}
+            {timeOfDay === 'morning' && `☀️ Good morning${userName ? `, ${userName.trim().split(' ')[0]}` : ''}`}
+            {timeOfDay === 'afternoon' && `🌤️ Good afternoon${userName ? `, ${userName.trim().split(' ')[0]}` : ''}`}
+            {timeOfDay === 'evening' && `🌙 Good evening${userName ? `, ${userName.trim().split(' ')[0]}` : ''}`}
           </h1>
           <p className="text-muted mt-1 font-medium italic">Here&apos;s what&apos;s on your radar today.</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted">
-          <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+          <Calendar className="w-4 h-4" />
+          <span>{format(new Date(), 'EEEE, MMMM do')}</span>
         </div>
       </div>
 
-      {/* Ollie greeting bubble */}
+      {/* Navigator briefing bubble */}
       {greeting && (
-        <div className="animate-fade-in-up space-y-4">
-          <OllieBubble message={greeting} mood={ollieMood} size="md" />
+        <div className="animate-fade-in-up space-y-4 max-w-2xl">
+          <OllieBubble message={greeting} mood={ollieMood} size="sm" />
           
           {rolloverMessage && (
             <div className="flex items-center gap-3 p-4 bg-brand-50 border-2 border-brand-200 rounded-2xl animate-bounce-subtle">
@@ -201,7 +232,7 @@ export default function DashboardPage() {
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Tasks Today"
+          label="Stress Relief"
           value={statsLoading ? '...' : totalTasks}
           color="brand"
           icon={
@@ -212,10 +243,10 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Completed"
+          label="Flight Velocity"
           value={statsLoading ? '...' : completedTasks}
           color="success"
-          trend="All time"
+          trend="Clearance"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <polyline points="20 6 9 17 4 12" />
@@ -223,7 +254,7 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Active Goals"
+          label="Active Missions"
           value={statsLoading ? '...' : activeGoals}
           color="accent"
           icon={
@@ -235,10 +266,10 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Focus Time"
-          value="0h"
+          label="System Status"
+          value="Nominal"
           color="info"
-          trend="This week"
+          trend="All clear"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" />
@@ -257,7 +288,7 @@ export default function DashboardPage() {
               <path d="M9 11l3 3L22 4" />
               <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
             </svg>
-            Recent Tasks
+            Active Flight Plan
           </h2>
 
           {todayTasks.length === 0 ? (

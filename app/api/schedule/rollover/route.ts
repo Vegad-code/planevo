@@ -34,17 +34,19 @@ export async function POST(request: NextRequest) {
     // We use a loop for now because each task might have a different rescheduled_count
     // For large lists, a Postgres function (RPC) would be better
     let movedCount = 0;
-    for (const task of (overdueTasks as any[])) {
-      const { error: updateError } = await (supabase
-        .from('tasks')
-        .update as any)({
-          due_date: today.toISOString(),
-          rescheduled_count: (task.rescheduled_count || 0) + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', task.id);
-      
-      if (!updateError) movedCount++;
+    if (overdueTasks) {
+      for (const task of overdueTasks) {
+        const { error: updateError } = await supabase
+          .from('tasks')
+          .update({
+            due_date: today.toISOString(),
+            rescheduled_count: (task.rescheduled_count || 0) + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', task.id);
+        
+        if (!updateError) movedCount++;
+      }
     }
 
     return NextResponse.json({ 

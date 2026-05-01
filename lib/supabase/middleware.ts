@@ -46,6 +46,11 @@ export async function updateSession(request: NextRequest) {
 
   // Redirect unauthenticated users to login
   if (!user && !isPublicRoute) {
+    // Check if it's an API request
+    if (request.nextUrl.pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

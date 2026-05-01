@@ -32,10 +32,20 @@ export function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-export function getRandomGreeting(): string {
+export function getRandomGreeting(userName?: string | null): string {
   const timeOfDay = getTimeOfDay();
   const greetings = OLLIE_GREETINGS[timeOfDay];
-  return greetings[Math.floor(Math.random() * greetings.length)];
+  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+  
+  if (userName) {
+    // Only use first name for a friendlier tone
+    const firstName = userName.trim().split(' ')[0];
+    
+    // Basic injection for now, could be more sophisticated
+    return greeting.replace(/^(Rise and shine!|Good morning!|Morning!|Hey early bird!|Afternoon check-in!|Hey!|Good afternoon!|Afternoon!|Evening!|Good evening!)/i, (match) => `${match}, ${firstName}`);
+  }
+  
+  return greeting;
 }
 
 // Ollie's system prompt for OpenAI API calls

@@ -20,12 +20,21 @@ interface FocusState {
   pauseTimer: () => void;
   resumeTimer: () => void;
   resetTimer: () => void;
+  setTimerPreset: (minutes: number) => void;
   tick: () => void;
   completeSession: () => void;
   
   // Nudge State (for AI/Ollie)
   lastNudgeTime: number | null;
+  currentNudge: string | null;
   setLastNudgeTime: (time: number) => void;
+  setNudge: (nudge: string | null) => void;
+  
+  // Audio State
+  selectedSound: string;
+  volume: number;
+  setSelectedSound: (id: string) => void;
+  setVolume: (volume: number) => void;
 }
 
 const DEFAULT_MINUTES = 25;
@@ -39,6 +48,9 @@ export const useFocusStore = create<FocusState>()(
       timerState: 'idle',
       sessionsCompleted: 0,
       lastNudgeTime: null,
+      currentNudge: null,
+      selectedSound: 'none',
+      volume: 0.5,
 
       setActiveTask: (task) => set({ activeTask: task }),
       
@@ -58,7 +70,14 @@ export const useFocusStore = create<FocusState>()(
       resetTimer: () => set({ 
         timerState: 'idle', 
         timeLeft: get().totalTime,
-        lastNudgeTime: null
+        lastNudgeTime: null,
+        currentNudge: null
+      }),
+      
+      setTimerPreset: (minutes) => set({
+        timeLeft: minutes * 60,
+        totalTime: minutes * 60,
+        timerState: 'idle'
       }),
       
       tick: () => set((state) => {
@@ -70,10 +89,14 @@ export const useFocusStore = create<FocusState>()(
         timerState: 'idle',
         timeLeft: 0,
         sessionsCompleted: state.sessionsCompleted + 1,
-        lastNudgeTime: null
+        lastNudgeTime: null,
+        currentNudge: null
       })),
       
       setLastNudgeTime: (time) => set({ lastNudgeTime: time }),
+      setNudge: (nudge) => set({ currentNudge: nudge }),
+      setSelectedSound: (id) => set({ selectedSound: id }),
+      setVolume: (v) => set({ volume: v }),
     }),
     {
       name: 'plant-pilot-focus-storage',
@@ -84,7 +107,9 @@ export const useFocusStore = create<FocusState>()(
         // We persist timeLeft so if they accidentally refresh, they don't lose their pomodoro
         timeLeft: state.timeLeft,
         totalTime: state.totalTime,
-        timerState: state.timerState === 'running' ? 'paused' : state.timerState // Pause on reload
+        timerState: state.timerState === 'running' ? 'paused' : state.timerState, // Pause on reload
+        selectedSound: state.selectedSound,
+        volume: state.volume
       }),
     }
   )
