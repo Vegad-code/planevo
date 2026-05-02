@@ -10,6 +10,7 @@ import { User, Palette, Globe, CreditCard, Warning } from '@phosphor-icons/react
 
 export default function SettingsPage() {
   const [name, setName] = useState('');
+  const [planType, setPlanType] = useState('free');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const supabase = createClient();
@@ -20,12 +21,15 @@ export default function SettingsPage() {
       if (user) {
         const { data } = await supabase
           .from('users')
-          .select('name')
+          .select('name, plan_type')
           .eq('id', user.id)
           .single();
         
         if (data?.name) {
           setName(data.name);
+        }
+        if (data?.plan_type) {
+          setPlanType(data.plan_type);
         }
       }
       setLoading(false);
@@ -52,6 +56,15 @@ export default function SettingsPage() {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getPlanDisplay = (type: string) => {
+    switch (type) {
+      case 'elite': return 'ELITE PILOT';
+      case 'team': return 'TEAM PILOT';
+      case 'pro': return 'PRO PILOT';
+      default: return 'STANDARD PILOT';
     }
   };
 
@@ -129,19 +142,27 @@ export default function SettingsPage() {
 
       {/* Subscription & Danger Zone */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <section className="glass p-8 border-2 border-surface-900 shadow-[4px_4px_0px_0px_var(--surface-900)] bg-surface-900 text-surface-100">
+        <section className="glass p-8 border-2 border-surface-900 shadow-[4px_4px_0px_0px_var(--surface-900)] bg-[#121212] text-white">
           <div className="flex items-center gap-3 mb-6">
             <CreditCard weight="fill" className="size-6 text-accent-500" />
             <h2 className="text-2xl font-black uppercase tracking-tight">Membership</h2>
           </div>
           <div className="flex flex-col gap-6">
-            <div className="p-4 border-2 border-surface-700 bg-surface-800">
+            <div className="p-4 border-2 border-surface-700 bg-[#1a1a1a]">
               <span className="text-xs font-black uppercase text-accent-500">Current Tier</span>
-              <p className="text-2xl font-black">STANDARD PILOT</p>
+              <p className={`text-2xl font-black ${planType.toLowerCase() === 'elite' ? 'text-accent-400' : 'text-white'}`}>
+                {getPlanDisplay(planType)}
+              </p>
             </div>
-            <button className="w-full py-4 bg-accent-500 hover:bg-accent-400 text-surface-900 font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_white] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
-              Upgrade to Elite
-            </button>
+            {planType.toLowerCase() !== 'elite' ? (
+              <button className="w-full py-4 bg-accent-500 hover:bg-accent-400 text-white font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_white] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
+                Upgrade to Elite
+              </button>
+            ) : (
+              <button className="w-full py-4 bg-white text-black font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
+                Manage Subscription
+              </button>
+            )}
           </div>
         </section>
 

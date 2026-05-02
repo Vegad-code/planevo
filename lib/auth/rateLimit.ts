@@ -2,11 +2,14 @@ import { createClient } from '@/lib/supabase/server';
 import { getUserPlan } from './subscription';
 
 // Define the daily limits for each plan
+// Free: 5/day — enough to build habit, not enough to avoid upgrading
+// Pro:  100/day — effectively unlimited for normal students
+// Elite: 1000/day — true unlimited for power users & agents
 export const AI_DAILY_LIMITS = {
-  free: 3,
-  pro: 50,
-  team: 100,
-  elite: 200,
+  free: 5,
+  pro: 100,
+  team: 200,
+  elite: 1000,
 } as const;
 
 export async function checkRateLimit(feature: string) {

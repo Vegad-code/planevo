@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Calendar, GraduationCap, Clock, CheckCircle, Warning, FlyingSaucer, RocketLaunch } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { generateDeadlineFirstSchedule, ScheduleBlock } from '@/lib/ai/scheduler';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 
 export default function BriefingPage() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get('assignmentId');
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -27,12 +30,30 @@ export default function BriefingPage() {
     async function loadData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase
+        // Fetch profile
+        const { data: profileData } = await supabase
           .from('users')
           .select('*')
           .eq('id', user.id)
           .single();
-        setProfile(data);
+        setProfile(profileData);
+
+        // Fetch existing assignments from DB so search focus works immediately
+        const { data: dbAssignments } = await supabase
+          .from('canvas_assignments')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (dbAssignments) {
+          setAssignments(dbAssignments.map(a => ({
+            id: Number(a.id) || a.id,
+            name: a.name,
+            due_at: a.due_at,
+            html_url: a.html_url,
+            course_id: '',
+            description: ''
+          })));
+        }
       }
       setLoading(false);
     }
@@ -60,6 +81,21 @@ export default function BriefingPage() {
         
         setAssignments(actualAssignments);
         setMilestones(schoolMilestones);
+
+        // 1.5 Persist to database for search and Ollie
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && actualAssignments.length > 0) {
+          const toUpsert = actualAssignments.map(a => ({
+            id: String(a.id),
+            user_id: user.id,
+            name: a.name,
+            due_at: a.due_at,
+            html_url: a.html_url,
+            synced_at: new Date().toISOString()
+          }));
+
+          await supabase.from('canvas_assignments').upsert(toUpsert);
+        }
       }
 
       // 2. Fetch Google Calendar
@@ -155,6 +191,50 @@ export default function BriefingPage() {
           {fetching ? 'Syncing...' : 'Sync All Sources'}
         </Button>
       </header>
+
+      {/* Focus Target from Search */}
+      {focusId && (
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-accent-500 p-6 border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-surface-900 text-accent-500 p-3 rounded-full">
+              <RocketLaunch weight="fill" className="size-8" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-black uppercase text-surface-900 tracking-widest mb-1">Priority Target Identified</p>
+              <h2 className="text-2xl font-black uppercase text-surface-900 leading-tight">
+                {assignments.find(a => String(a.id) === focusId)?.name || 'Analyzing Assignment...'}
+              </h2>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="bg-surface-100 border-2 border-surface-900 text-surface-900 font-black uppercase"
+                onClick={() => {
+                  const target = assignments.find(a => String(a.id) === focusId);
+                  if (target) {
+                    window.dispatchEvent(new CustomEvent('ollie-deconstruct', { 
+                      detail: { name: target.name } 
+                    }));
+                  }
+                }}
+              >
+                Ollie, Deconstruct
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-surface-900 text-white border-2 border-surface-900 font-black uppercase hover:bg-accent-500 hover:text-surface-900"
+                onClick={handleFetchAll}
+              >
+                Update Sync
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {errorMsg && (
         <div className="bg-red-500/10 border-2 border-red-500 p-4 flex items-center justify-between text-red-500 font-bold uppercase text-xs animate-shake">

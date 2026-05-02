@@ -9,10 +9,10 @@ import * as path from 'path';
  */
 export async function testCanvasConnectionAction(url: string, token: string): Promise<boolean> {
   try {
-    const cleanUrl = url.replace(/\/$/, '');
+    const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token.trim()}`
       },
       cache: 'no-store'
     });
@@ -25,14 +25,15 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
 
 export async function fetchCanvasUpcomingAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const cleanUrl = url.replace(/\/$/, '');
+    const cleanUrl = url.trim().replace(/\/$/, '');
+    const cleanToken = token.trim();
     
     // Step 1: Get active courses from the user's dashboard cards
     // This is CRITICAL because the standard /courses endpoint returns Section IDs 
     // for cross-listed courses, which causes assignment fetches to return empty arrays.
     // The dashboard_cards endpoint contains the true Master Course ID in the assetString.
     const coursesRes = await fetch(`${cleanUrl}/api/v1/dashboard/dashboard_cards`, { 
-      headers: { 'Authorization': `Bearer ${token}` }, 
+      headers: { 'Authorization': `Bearer ${cleanToken}` }, 
       cache: 'no-store' 
     });
     
@@ -58,46 +59,46 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     const endDate = new Date(today.setMonth(today.getMonth() + 4)).toISOString(); // +4 because we subtracted 1
 
     // Aggressively fetch multiple pages to bypass strict 10-item server limits
+    // Consolidate fetching to prevent network congestion (reducing 14 parallel requests to 6 critical ones)
     const fetchPage = async (url: string, page: number) => {
-      const res = await fetch(`${url}&page=${page}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
-      return res.ok ? res.json() : [];
+      try {
+        const res = await fetch(`${url}&page=${page}`, { 
+          headers: { 'Authorization': `Bearer ${cleanToken}` }, 
+          cache: 'no-store',
+          signal: AbortSignal.timeout(15000) // 15s timeout
+        });
+        return res.ok ? await res.json() : [];
+      } catch (e) {
+        console.error(`Canvas Page ${page} failed:`, e);
+        return [];
+      }
     };
 
-    const [
-      eventsP1, eventsP2, eventsP3,
-      assignmentsP1, assignmentsP2, assignmentsP3,
-      plannerP1, plannerP2, plannerP3, plannerP4, plannerP5,
-      todoRes, upcomingRes, dashboardCardsRes
-    ] = await Promise.all([
-      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 1),
-      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 2),
-      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 3),
-      
+    const results = await Promise.allSettled([
+      // 1-3. Core Calendar & Assignments
       fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 1),
-      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 2),
-      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=assignment&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 3),
+      fetchPage(`${cleanUrl}/api/v1/calendar_events?type=event&per_page=100&start_date=${startDate}&end_date=${endDate}${contextQuery}`, 1),
       
+      // 4. Planner Items (Rich data)
       fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 1),
-      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 2),
-      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 3),
-      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 4),
-      fetchPage(`${cleanUrl}/api/v1/planner/items?per_page=100&start_date=${startDate}&end_date=${endDate}`, 5),
       
-      fetch(`${cleanUrl}/api/v1/users/self/todo`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' }),
-      fetch(`${cleanUrl}/api/v1/users/self/upcoming_events`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' }),
-      fetch(`${cleanUrl}/api/v1/dashboard/dashboard_cards`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
+      // 5-6. System Backups
+      fetch(`${cleanUrl}/api/v1/users/self/todo`, { headers: { 'Authorization': `Bearer ${cleanToken}` }, cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : []),
+      fetch(`${cleanUrl}/api/v1/users/self/upcoming_events`, { headers: { 'Authorization': `Bearer ${cleanToken}` }, cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : [])
     ]);
     
-    const allEvents = [...(Array.isArray(eventsP1) ? eventsP1 : []), ...(Array.isArray(eventsP2) ? eventsP2 : []), ...(Array.isArray(eventsP3) ? eventsP3 : [])];
-    const allAssignments = [...(Array.isArray(assignmentsP1) ? assignmentsP1 : []), ...(Array.isArray(assignmentsP2) ? assignmentsP2 : []), ...(Array.isArray(assignmentsP3) ? assignmentsP3 : [])];
-    const allPlannerItems = [...(Array.isArray(plannerP1) ? plannerP1 : []), ...(Array.isArray(plannerP2) ? plannerP2 : []), ...(Array.isArray(plannerP3) ? plannerP3 : []), ...(Array.isArray(plannerP4) ? plannerP4 : []), ...(Array.isArray(plannerP5) ? plannerP5 : [])];
+    const allAssignments = results[0].status === 'fulfilled' ? results[0].value : [];
+    const allEvents = results[1].status === 'fulfilled' ? results[1].value : [];
+    const allPlannerItems = results[2].status === 'fulfilled' ? results[2].value : [];
+    const todoData = results[3].status === 'fulfilled' ? results[3].value : [];
+    const upcomingData = results[4].status === 'fulfilled' ? results[4].value : [];
+    
+    const todos = Array.isArray(todoData) ? todoData.map((t: any) => t.assignment || t.quiz || t) : [];
+    const upcoming = Array.isArray(upcomingData) ? upcomingData.map((u: any) => u.assignment || u) : [];
 
-    let combinedItems: any[] = [];
+    let combinedItems: any[] = [...allAssignments, ...allEvents, ...todos, ...upcoming];
     
-    combinedItems = [...combinedItems, ...allEvents];
-    combinedItems = [...combinedItems, ...allAssignments];
-    
-    if (allPlannerItems.length > 0) {
+    if (Array.isArray(allPlannerItems)) {
       const unwrapped = allPlannerItems.map(p => ({
         ...p.plannable,
         context_name: p.context_name,
@@ -105,22 +106,6 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
         plannable_type: p.plannable_type
       }));
       combinedItems = [...combinedItems, ...unwrapped];
-    }
-
-    if (todoRes.ok) {
-      const todos = await todoRes.json();
-      if (Array.isArray(todos)) {
-        const unwrapped = todos.map(t => t.assignment || t.quiz || t);
-        combinedItems = [...combinedItems, ...unwrapped];
-      }
-    }
-
-    if (upcomingRes.ok) {
-      const upcoming = await upcomingRes.json();
-      if (Array.isArray(upcoming)) {
-        const unwrapped = upcoming.map(u => u.assignment || u);
-        combinedItems = [...combinedItems, ...unwrapped];
-      }
     }
 
     // Deduplicate by ID
@@ -213,10 +198,10 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
 
 export async function fetchCanvasTodoAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const cleanUrl = url.replace(/\/$/, '');
+    const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self/todo`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token.trim()}`
       },
       cache: 'no-store'
     });

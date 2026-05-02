@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useUIStore } from '@/lib/store/ui-store';
+import { useState, useEffect } from 'react';
 
 const NAV_ITEMS = [
   {
@@ -98,9 +99,15 @@ const BOTTOM_NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const [mounted, setMounted] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -111,7 +118,7 @@ export default function Sidebar() {
     <>
       {/* Mobile hamburger button */}
       <button
-        onClick={() => setMobileOpen(true)}
+        onClick={() => setMobileMenuOpen(true)}
         id="sidebar-mobile-toggle"
         className="fixed top-4 left-4 z-50 lg:hidden p-2 rounded-xl glass hover:bg-surface-600 transition-colors"
         aria-label="Open navigation menu"
@@ -124,10 +131,10 @@ export default function Sidebar() {
       </button>
 
       {/* Mobile overlay */}
-      {mobileOpen && (
+      {mobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
@@ -138,15 +145,15 @@ export default function Sidebar() {
           flex flex-col
           bg-card border-r-2 border-border
           transition-all duration-300 ease-in-out
-          ${collapsed ? 'w-[68px]' : 'w-[240px]'}
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarCollapsed ? 'w-[68px]' : 'w-[240px]'}
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}
         id="sidebar"
       >
         {/* Header */}
-        <div className={`flex items-center h-16 px-4 border-b-2 border-border ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          {!collapsed && (
+        <div className={`flex items-center h-16 px-4 border-b-2 border-border ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+          {!sidebarCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2 group" id="sidebar-logo">
               <span className="text-xl transition-transform group-hover:scale-110">🦉</span>
               <span className="font-black uppercase tracking-tighter text-foreground group-hover:text-brand-600 transition-colors">
@@ -154,19 +161,19 @@ export default function Sidebar() {
               </span>
             </Link>
           )}
-          {collapsed && (
+          {sidebarCollapsed && (
             <span className="text-xl">🦉</span>
           )}
 
           {/* Collapse toggle — desktop only */}
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden lg:flex p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
             id="sidebar-collapse-toggle"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              {collapsed ? (
+              {sidebarCollapsed ? (
                 <polyline points="9 18 15 12 9 6" />
               ) : (
                 <polyline points="15 18 9 12 15 6" />
@@ -176,7 +183,7 @@ export default function Sidebar() {
 
           {/* Mobile close */}
           <button
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setMobileMenuOpen(false)}
             className="lg:hidden p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
             id="sidebar-mobile-close"
             aria-label="Close navigation menu"
@@ -196,7 +203,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => setMobileMenuOpen(false)}
                 id={`sidebar-nav-${item.label.toLowerCase()}`}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl
@@ -205,13 +212,13 @@ export default function Sidebar() {
                     ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
                     : 'text-muted hover:text-foreground hover:bg-muted/10'
                   }
-                  ${collapsed ? 'justify-center' : ''}
+                  ${sidebarCollapsed ? 'justify-center' : ''}
                 `}
               >
                 <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
                   {item.icon}
                 </span>
-                {!collapsed && (
+                {!sidebarCollapsed && (
                   <span className="text-xs font-black uppercase">{item.label}</span>
                 )}
               </Link>
@@ -227,7 +234,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => setMobileMenuOpen(false)}
                 id={`sidebar-nav-${item.label.toLowerCase()}`}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl
@@ -236,13 +243,13 @@ export default function Sidebar() {
                     ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
                     : 'text-muted hover:text-foreground hover:bg-muted/10'
                   }
-                  ${collapsed ? 'justify-center' : ''}
+                  ${sidebarCollapsed ? 'justify-center' : ''}
                 `}
               >
                 <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
                   {item.icon}
                 </span>
-                {!collapsed && (
+                {!sidebarCollapsed && (
                   <span className="text-xs font-black uppercase">{item.label}</span>
                 )}
               </Link>
@@ -250,7 +257,7 @@ export default function Sidebar() {
           })}
 
           {/* Pro Feature Teaser */}
-          {!collapsed && (
+          {!sidebarCollapsed && (
             <div className="mx-2 mb-4 p-4 border-2 border-brand-200 bg-brand-50 shadow-md rounded-2xl transition-all hover:shadow-lg hover:-translate-y-0.5">
               <h3 className="text-xs font-black uppercase tracking-tight text-brand-900 mb-1 flex items-center gap-1.5">
                 <span className="text-base">✨</span> Pro Feature
@@ -266,7 +273,7 @@ export default function Sidebar() {
               </Link>
             </div>
           )}
-          {collapsed && (
+          {sidebarCollapsed && (
             <Link 
               href="/pricing"
               className="flex justify-center mb-4 py-2 text-brand-600 hover:text-brand-500 transition-colors"
@@ -284,7 +291,7 @@ export default function Sidebar() {
               flex items-center gap-3 px-3 py-2.5 w-full
               text-muted hover:text-error hover:bg-error/10
               transition-all duration-200 group border-2 border-transparent
-              ${collapsed ? 'justify-center' : ''}
+              ${sidebarCollapsed ? 'justify-center' : ''}
             `}
           >
             <span className="shrink-0 text-muted group-hover:text-error">
@@ -294,7 +301,7 @@ export default function Sidebar() {
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </span>
-            {!collapsed && (
+            {!sidebarCollapsed && (
               <span className="text-xs font-black uppercase">Log out</span>
             )}
           </button>

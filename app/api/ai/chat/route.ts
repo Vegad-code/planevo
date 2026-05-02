@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import {
+  buildServerTimingHeader,
+  createAiLatencyTimer,
+  shouldReportLatencyDiagnostic,
+} from '@/lib/diagnostics/aiLatency';
 import { z } from 'zod';
 
 const messageSchema = z.object({
@@ -10,15 +15,40 @@ const messageSchema = z.object({
 
 const requestSchema = z.object({
   messages: z.array(messageSchema).min(1).max(20),
+  diagnostics: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
+  const latencyTimer = createAiLatencyTimer('ollie-chat');
+  let openAiMs: number | null = null;
+
+  const jsonWithDiagnostics = (
+    body: Record<string, unknown>,
+    init?: ResponseInit,
+    forceDiagnostics = false
+  ) => {
+    const diagnostic = latencyTimer.complete(openAiMs);
+    const shouldIncludeDiagnostic = forceDiagnostics || shouldReportLatencyDiagnostic();
+    const response = NextResponse.json(
+      shouldIncludeDiagnostic ? { ...body, diagnostic } : body,
+      init
+    );
+    response.headers.set('Server-Timing', buildServerTimingHeader(diagnostic));
+
+    if (shouldIncludeDiagnostic && diagnostic.severity !== 'good') {
+      console.info('[AI latency diagnostic]', diagnostic);
+    }
+
+    return response;
+  };
+
   try {
     // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
     const { allowed, error: limitError, message } = await checkRateLimit('ollie-chat');
+    latencyTimer.mark('rate_limit');
     
     if (!allowed) {
-      return NextResponse.json({ 
+      return jsonWithDiagnostics({ 
         error: limitError, 
         message: message || 'You have reached your daily AI limit.' 
       }, { status: limitError === 'Unauthorized' ? 401 : 403 });
@@ -27,29 +57,32 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser(); // user is guaranteed to exist by checkRateLimit
+    latencyTimer.mark('auth');
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return jsonWithDiagnostics({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const parsedBody = requestSchema.safeParse(await request.json());
+    latencyTimer.mark('parse_body');
 
     if (!parsedBody.success) {
-      return NextResponse.json({ error: 'Invalid messages' }, { status: 400 });
+      return jsonWithDiagnostics({ error: 'Invalid messages' }, { status: 400 });
     }
 
-    const { messages } = parsedBody.data;
+    const { diagnostics, messages } = parsedBody.data;
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key missing' }, { status: 500 });
+      return jsonWithDiagnostics({ error: 'OpenAI API key missing' }, { status: 500 }, diagnostics);
     }
 
     // Get user context for better responses
     const { data: profile } = await supabase
       .from('users')
-      .select('name, plan_type')
+      .select('name, plan_type, canvas_token')
       .eq('id', user.id)
       .single();
+    latencyTimer.mark('profile');
 
     const { data: tasks } = await supabase
       .from('tasks')
@@ -57,19 +90,39 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('completed', false)
       .limit(10);
+    const { data: assignments } = await supabase
+      .from('canvas_assignments')
+      .select('name, due_at, course_name')
+      .eq('user_id', user.id)
+      .gte('due_at', new Date().toISOString())
+      .order('due_at', { ascending: true })
+      .limit(5);
+    latencyTimer.mark('assignments');
 
-    const systemPrompt = `You are Ollie, the AI navigator for "Plan Pilot", a productivity app. 
-Your tone is encouraging, tactical, and clear. You use flight/aviation metaphors occasionally but keep it professional.
+    const hasCanvas = !!profile?.canvas_token;
+
+    const systemPrompt = `You are Ollie, the AI navigator for "Plan Pilot", an active cockpit for productivity. 
+Your tone is encouraging, tactical, and clear. You act with "Active Agency" - you are here to offload cognitive burden.
 User Name: ${profile?.name || 'Pilot'}
+Active Sensors: ${hasCanvas ? 'Canvas LMS (Connected)' : 'None'}
 Current Tasks: ${tasks?.map(t => `${t.title} (${t.priority}, due ${t.due_date || 'soon'})`).join(', ') || 'No active tasks.'}
+Upcoming Assignments: ${assignments?.map(a => `${a.name} (${a.course_name || 'Canvas'}, due ${a.due_at})`).join(', ') || 'No upcoming assignments.'}
+
+TACTICAL FORMATTING RULES:
+1. Always use clean Markdown formatting.
+2. USE BULLETED LISTS (-) for all steps and deconstructions. 
+3. DO NOT CLUMP STEPS INTO PARAGRAPHS. Each step must be its own line.
+4. USE BOLD HEADERS (e.g. **Phase 1: Prep**) for logical sections.
+5. Keep descriptions for each step short and punchy.
 
 Guidelines:
-1. Be concise.
-2. Help the user prioritize or break down tasks.
-3. If they seem overwhelmed, suggest a "Quick Refit" (5 min break).
-4. Do not offer medical or legal advice.
-5. If asked about technical issues, refer to support.`;
+1. Be concise and tactical. Do not be overly chatty.
+2. If Canvas is connected, act as if you monitor assignments and suggest reorganizing their Flight Plan based on deadlines.
+3. If they ask about organizing work, remind them that Plan Pilot acts as a "cockpit" to handle the details so they can just "fly".
+4. If they seem overwhelmed by tasks, offer to "Deconstruct" a complex task into 15-minute micro-steps.
+5. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Elite Tier.`;
 
+    const openAiStartedAt = performance.now();
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -88,6 +141,8 @@ Guidelines:
         max_tokens: 500,
       }),
     });
+    openAiMs = performance.now() - openAiStartedAt;
+    latencyTimer.mark('openai');
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -97,16 +152,18 @@ Guidelines:
 
     const data = await response.json();
     const text = data.choices[0].message.content;
+    latencyTimer.mark('openai_json');
 
     // Log message to database
     await supabase.from('ollie_messages').insert([
       { user_id: user.id, content: messages[messages.length - 1].content, message_type: 'user' },
       { user_id: user.id, content: text, message_type: 'ollie' }
     ]);
+    latencyTimer.mark('message_log');
 
-    return NextResponse.json({ text });
+    return jsonWithDiagnostics({ text }, undefined, diagnostics);
   } catch (error) {
     console.error('Error in Ollie chat:', error);
-    return NextResponse.json({ error: 'Failed to connect to Ollie' }, { status: 500 });
+    return jsonWithDiagnostics({ error: 'Failed to connect to Ollie' }, { status: 500 });
   }
 }
