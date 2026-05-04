@@ -219,7 +219,7 @@ export default function Integrations() {
       {/* Global Settings */}
       <div className="bg-surface-100 p-6 border-2 border-surface-900 shadow-[6px_6px_0_0_var(--surface-900)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="font-black text-surface-900 uppercase tracking-tight">Briefing Generation Time</h3>
+          <h3 className="font-black text-surface-900 uppercase tracking-tight">Blueprint Refresh Time</h3>
           <p className="text-xs font-bold text-surface-600">When should Ollie pull from sensors and build your plan?</p>
         </div>
         <div className="flex items-center gap-3">

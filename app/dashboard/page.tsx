@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client';
 import OllieBubble from '@/components/ollie/OllieBubble';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { getRandomGreeting, getTimeOfDay } from '@/lib/ollie';
-import FlightPlan from '@/components/dashboard/FlightPlan';
+import CommandCenter from '@/components/dashboard/CommandCenter';
+import TaskHistory from '@/components/dashboard/TaskHistory';
+import TrashBin from '@/components/dashboard/TrashBin';
 import { format } from 'date-fns';
 import { Calendar } from 'lucide-react';
 
@@ -95,7 +97,7 @@ export default function DashboardPage() {
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [completedTasks, setCompletedTasks] = useState(0);
-  const [activeGoals, setActiveGoals] = useState(0);
+  const [activeProjects, setActiveProjects] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
   const [rolloverMessage, setRolloverMessage] = useState<string | null>(null);
   const router = useRouter();
@@ -105,7 +107,8 @@ export default function DashboardPage() {
     // Get all tasks
     const { data: tasks } = await supabase
       .from('tasks')
-      .select('id, title, status, priority, completed')
+      .select('id, title, status, priority, completed, completed_at, deleted_at')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (tasks) {
@@ -121,7 +124,7 @@ export default function DashboardPage() {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active');
     
-    setActiveGoals(count || 0);
+    setActiveProjects(count || 0);
     setStatsLoading(false);
   }, [supabase]);
 
@@ -183,8 +186,10 @@ export default function DashboardPage() {
   }
 
   async function deleteTask(taskId: string) {
-    if (!confirm('Are you sure you want to delete this task?')) return;
-    await supabase.from('tasks').delete().eq('id', taskId);
+    // Soft delete
+    await supabase.from('tasks')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', taskId);
     fetchStats();
   }
 
@@ -209,7 +214,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Navigator briefing bubble */}
+      {/* Navigator blueprint bubble */}
       {greeting && (
         <div className="animate-fade-in-up space-y-4 max-w-2xl">
           <OllieBubble message={greeting} mood={ollieMood} size="sm" />
@@ -254,8 +259,8 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Active Missions"
-          value={statsLoading ? '...' : activeGoals}
+          label="Active Projects"
+          value={statsLoading ? '...' : activeProjects}
           color="accent"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -279,115 +284,71 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Main content area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Today's tasks — takes 2 cols */}
-        <div className="lg:col-span-2 glass p-6">
-          <h2 className="text-xl font-black uppercase tracking-tight text-foreground mb-4 flex items-center gap-2">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-            Active Flight Plan
-          </h2>
+        {/* Today's tasks — centered and cleaner */}
+        <div className="lg:col-span-3 glass p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </svg>
+              Active Flight Plan
+            </h2>
+          </div>
 
           {todayTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center">
               <OllieAvatar mood="happy" size="lg" />
-              <p className="mt-4 text-slate-400 text-sm max-w-xs">
-                Nothing on the list! Enjoy the calm, or add something new.
+              <p className="mt-6 text-slate-400 text-base max-w-xs font-medium">
+                The horizon is clear. Add a task from the Command Center to begin your mission.
               </p>
-              <button
-                id="dashboard-add-first-task"
-                onClick={() => router.push('/dashboard/tasks')}
-                className="mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium rounded-xl transition-all duration-200 hover:shadow-[var(--shadow-glow)] active:scale-[0.98]"
-              >
-                + Add a task
-              </button>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3 max-w-4xl mx-auto">
               {todayTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center group gap-3 p-3 rounded-xl hover:bg-surface-700/50 transition-colors"
+                  className="flex items-center group gap-4 p-4 rounded-2xl bg-surface-50/50 border-2 border-transparent hover:border-surface-200 hover:bg-white transition-all duration-300"
                 >
                   <button
                     onClick={() => toggleTask(task.id, task.completed)}
-                    className="w-5 h-5 rounded-md border-2 border-slate-500 hover:border-brand-400 flex items-center justify-center shrink-0 transition-colors"
+                    className="w-6 h-6 rounded-lg border-2 border-slate-300 hover:border-brand-500 flex items-center justify-center shrink-0 transition-all active:scale-90"
                   >
-                    {/* Checkbox is always empty here because only incomplete tasks are shown */}
                   </button>
-                  <span className="text-sm text-foreground flex-1 truncate">
+                  <span className="text-base font-bold text-foreground flex-1 truncate">
                     {task.title}
                   </span>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="p-1 text-muted hover:text-error opacity-0 group-hover:opacity-100 transition-all"
-                    title="Delete task"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="p-2 text-muted hover:text-error hover:bg-error/5 rounded-lg transition-all"
+                      title="Delete task"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               ))}
-              <button
-                onClick={() => router.push('/dashboard/tasks')}
-                className="w-full mt-2 py-2 text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors"
-              >
-                View all tasks →
-              </button>
+              <div className="pt-6 flex justify-center">
+                <button
+                  onClick={() => router.push('/dashboard/tasks')}
+                  className="px-6 py-2 text-sm text-brand-500 hover:text-brand-600 font-black uppercase tracking-widest transition-all hover:gap-2 flex items-center gap-1"
+                >
+                  Full Mission Log <span>→</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <FlightPlan />
-
-          <div className="glass rounded-2xl p-6">
-            <h2 className="text-lg font-black uppercase tracking-tight text-foreground mb-4">Quick Actions</h2>
-            <div className="space-y-2">
-              <QuickAction
-                label="Add a new task"
-                id="quick-action-add-task"
-                onClick={() => router.push('/dashboard/tasks')}
-                icon={
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                }
-              />
-              <QuickAction
-                label="Set a new goal"
-                id="quick-action-set-goal"
-                onClick={() => router.push('/dashboard/goals')}
-                icon={
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <circle cx="12" cy="12" r="6" />
-                    <circle cx="12" cy="12" r="2" />
-                  </svg>
-                }
-              />
-              <QuickAction
-                label="Start focus timer"
-                id="quick-action-focus-timer"
-                onClick={() => router.push('/dashboard/focus')}
-                icon={
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                }
-              />
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <TaskHistory />
+        <TrashBin />
       </div>
+
+      <CommandCenter />
     </div>
   );
 }

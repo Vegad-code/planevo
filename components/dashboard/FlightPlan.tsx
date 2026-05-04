@@ -108,11 +108,11 @@ export default function FlightPlan() {
       <div className="p-6">
         <h2 className="text-xl font-black uppercase tracking-tighter text-surface-900 mb-4 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <span className="text-2xl">🚀</span> Flight Deck
+            <span className="text-2xl">🚀</span> Schedule
           </span>
           {plan && (
             <span className="text-[10px] bg-accent-500 text-surface-900 px-2 py-0.5 rounded-none border border-surface-900 animate-pulse">
-              Active Briefing
+              Active Blueprint
             </span>
           )}
         </h2>
@@ -253,7 +253,7 @@ export default function FlightPlan() {
             <div className="text-4xl mb-4 animate-bounce">💎</div>
             <h4 className="text-lg font-black uppercase tracking-widest text-surface-900 mb-2">Daily Quota Reached</h4>
             <p className="text-xs font-bold text-surface-500 uppercase leading-relaxed mb-6">
-              Your flight deck is at capacity. Upgrade to Elite for 200+ daily missions and full priority tactical support.
+              Your schedule is at capacity. Upgrade to Elite for 200+ daily missions and full priority tactical support.
             </p>
             <div className="flex flex-col gap-3">
               <Link 

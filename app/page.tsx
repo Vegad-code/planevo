@@ -143,7 +143,7 @@ export default function LandingPage() {
             <ul className="space-y-6 pt-4">
               {[
                 { text: 'Auto-Sync: Canvas & Google link in seconds', color: 'bg-brand-300' },
-                { text: 'Dynamic Briefing: AI builds your Flight Plan daily', color: 'bg-accent-300' },
+                { text: 'Dynamic Blueprint: AI builds your Daily Plan daily', color: 'bg-accent-300' },
                 { text: 'No-Shame Rollover: Chaos is handled automatically', color: 'bg-success' }
               ].map((feature, i) => (
                 <motion.li 
@@ -203,7 +203,7 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             {[
-              { icon: CalendarBlank, color: 'bg-brand-300', title: "Unified Briefing", desc: "Connect your academic world in one click. Ollie understands your deadlines and meetings automatically." },
+              { icon: CalendarBlank, color: 'bg-brand-300', title: "Unified Blueprint", desc: "Connect your academic world in one click. Ollie understands your deadlines and meetings automatically." },
               { icon: Target, color: 'bg-accent-300', title: "Smart Rollover", desc: "Life happens. Ollie finds the next open slot for missed tasks so you never feel behind." },
               { icon: ChatCircleDots, color: 'bg-success', title: "Deep Work Pilot", desc: "Ollie monitors your progress during focus sessions, keeping you anchored to the task at hand." }
             ].map((feature, i) => (
@@ -291,7 +291,7 @@ export default function LandingPage() {
             
             {[
               { step: "01", title: "Connect", desc: "Link Canvas and Google in one click. Ollie understands your world instantly." },
-              { step: "02", title: "Briefing", desc: "Ollie builds your daily Flight Plan every morning based on your energy and deadlines." },
+              { step: "02", title: "Blueprint", desc: "Ollie builds your Daily Plan every morning based on your energy and deadlines." },
               { step: "03", title: "Execution", desc: "Follow the plan. If life changes, Ollie handles the reorganization so you don't have to." }
             ].map((item, i) => (
               <motion.div 

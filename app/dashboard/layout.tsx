@@ -3,9 +3,11 @@
 import Sidebar from '@/components/dashboard/Sidebar';
 import AcademicSearch from '@/components/dashboard/AcademicSearch';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import OllieChat from '@/components/ollie/OllieChat';
+import OmniBox from '@/components/dashboard/OmniBox';
 import { useUIStore } from '@/lib/store/ui-store';
 
 export default function DashboardLayout({
@@ -14,6 +16,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { sidebarCollapsed } = useUIStore();
+  const pathname = usePathname();
+  const isCalendar = pathname === '/dashboard/calendar';
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -47,17 +51,22 @@ export default function DashboardLayout({
           <div className="flex-1 max-w-md">
             <AcademicSearch />
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-black text-surface-400 uppercase tracking-widest shrink-0">
+          <div className="flex items-center gap-3 text-[10px] font-black text-surface-400 uppercase tracking-widest shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-surface-100 border border-surface-200 rounded-lg cursor-default" title="Quick Capture: Add tasks from anywhere">
+              <kbd className="text-surface-500">⌘J</kbd>
+              <span className="text-surface-300">Quick Add</span>
+            </div>
             <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
             Ollie Online
           </div>
         </div>
 
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className={isCalendar ? "h-[calc(100vh-64px)] w-full" : "p-6 lg:p-8 max-w-7xl mx-auto"}>
           {children}
         </div>
       </main>
       <OllieChat />
+      <OmniBox />
     </div>
   );
 }

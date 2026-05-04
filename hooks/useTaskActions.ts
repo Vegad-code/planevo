@@ -77,8 +77,26 @@ export function useTaskActions(onRefresh: () => void) {
     onRefresh();
   }, [supabase, onRefresh]);
 
-  // Delete a task
+  // Soft delete a task
   const deleteTask = useCallback(async (taskId: string) => {
+    await supabase
+      .from('tasks')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', taskId);
+    onRefresh();
+  }, [supabase, onRefresh]);
+
+  // Restore a soft-deleted task
+  const restoreTask = useCallback(async (taskId: string) => {
+    await supabase
+      .from('tasks')
+      .update({ deleted_at: null })
+      .eq('id', taskId);
+    onRefresh();
+  }, [supabase, onRefresh]);
+
+  // Permanently delete a task
+  const permanentlyDeleteTask = useCallback(async (taskId: string) => {
     await supabase.from('tasks').delete().eq('id', taskId);
     onRefresh();
   }, [supabase, onRefresh]);
@@ -153,6 +171,8 @@ export function useTaskActions(onRefresh: () => void) {
     addTask,
     toggleComplete,
     deleteTask,
+    restoreTask,
+    permanentlyDeleteTask,
     rescheduleTask,
     moveToWaiting,
     breakDownTask,

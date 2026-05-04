@@ -6,7 +6,7 @@ import { MagnifyingGlass, X, File, Target, GraduationCap, SpinnerGap, LockKey } 
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SearchResult {
-  type: 'task' | 'goal' | 'assignment';
+  type: 'task' | 'project' | 'assignment';
   id: string;
   title: string;
   subtitle: string;
@@ -106,7 +106,7 @@ export default function AcademicSearch() {
   const typeIcon = (type: string) => {
     switch (type) {
       case 'task': return <File weight="bold" className="w-4 h-4" />;
-      case 'goal': return <Target weight="bold" className="w-4 h-4" />;
+      case 'project': return <Target weight="bold" className="w-4 h-4" />;
       case 'assignment': return <GraduationCap weight="bold" className="w-4 h-4" />;
       default: return <File weight="bold" className="w-4 h-4" />;
     }
@@ -115,7 +115,7 @@ export default function AcademicSearch() {
   const typeColor = (type: string) => {
     switch (type) {
       case 'task': return 'bg-brand-300';
-      case 'goal': return 'bg-accent-300';
+      case 'project': return 'bg-accent-300';
       case 'assignment': return 'bg-success';
       default: return 'bg-surface-300';
     }
@@ -134,7 +134,7 @@ export default function AcademicSearch() {
         className="flex items-center gap-3 px-4 py-2.5 bg-surface-100 border-2 border-surface-900 text-surface-500 hover:text-surface-900 hover:bg-surface-200 transition-all shadow-[3px_3px_0_0_var(--surface-900)] active:shadow-none active:translate-x-[3px] active:translate-y-[3px] rounded-xl w-full max-w-md"
       >
         <MagnifyingGlass weight="bold" className="w-4 h-4 shrink-0" />
-        <span className="text-xs font-black uppercase tracking-widest flex-1 text-left">Search tasks, goals, assignments…</span>
+        <span className="text-xs font-black uppercase tracking-widest flex-1 text-left">Search tasks, projects, assignments…</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 bg-surface-200 border border-surface-300 text-[10px] font-black text-surface-500 rounded">
           ⌘K
         </kbd>
@@ -205,7 +205,7 @@ export default function AcademicSearch() {
                   {!error && query.length < 2 && (
                     <div className="px-6 py-10 text-center">
                       <p className="text-xs font-black text-surface-400 uppercase tracking-widest">
-                        Type to search across tasks, goals, and Canvas assignments
+                        Type to search across tasks, projects, and Canvas assignments
                       </p>
                     </div>
                   )}

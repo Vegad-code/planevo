@@ -5,7 +5,7 @@ import { checkRateLimit } from '@/lib/auth/rateLimit';
 /**
  * Academic Search API
  * 
- * Searches across the user's tasks, goals, and (if Canvas is connected)
+ * Searches across the user's tasks, projects, and (if Canvas is connected)
  * synced assignments. Returns ranked results. Uses one AI quota unit
  * when the query is non-trivial.
  */
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       .ilike('title', `%${query}%`)
       .limit(10);
 
-    // Search goals
+    // Search projects (stored in goals table)
     const { data: goals } = await supabase
       .from('goals')
       .select('id, title, status')
@@ -82,12 +82,12 @@ export async function POST(request: NextRequest) {
         href: '/dashboard/tasks',
       })),
       ...(goals || []).map(g => ({
-        type: 'goal' as const,
+        type: 'project' as const,
         id: g.id,
         title: g.title,
-        subtitle: `Goal · ${g.status}`,
+        subtitle: `Project · ${g.status}`,
         due: null,
-        href: '/dashboard/goals',
+        href: '/dashboard/projects',
       })),
       ...(assignments || []).map(a => ({
         type: 'assignment' as const,

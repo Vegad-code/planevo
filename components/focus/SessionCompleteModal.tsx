@@ -27,7 +27,7 @@ export default function SessionCompleteModal() {
         <div className="flex flex-col items-center text-center">
           <OllieAvatar mood="celebrating" size="lg" />
           <h2 className="mt-6 text-2xl font-black uppercase text-surface-900">Mission Accomplished!</h2>
-          <p className="text-surface-500 mt-2 text-sm italic">Ollie here for your post-flight briefing.</p>
+          <p className="text-surface-500 mt-2 text-sm italic">Ollie here for your session summary.</p>
 
           <div className="mt-8 w-full">
             <label className="text-xs font-black uppercase text-surface-400 block mb-4">
@@ -52,7 +52,7 @@ export default function SessionCompleteModal() {
             onClick={handleSubmit}
             className="mt-8 w-full py-4 bg-accent-600 text-surface-50 font-black uppercase border-2 border-surface-900 shadow-[4px_4px_0_0_var(--shadow-color)] hover:bg-accent-500 active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
           >
-            Submit Briefing
+            Save Summary
           </button>
         </div>
       </div>

@@ -20,7 +20,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'Briefing',
+    label: 'Blueprint',
     href: '/dashboard/briefing',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,8 +41,8 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'Goals',
-    href: '/dashboard/goals',
+    label: 'Projects',
+    href: '/dashboard/projects',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -60,6 +60,16 @@ const NAV_ITEMS = [
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
         <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Calendar',
+    href: '/dashboard/calendar',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+        <circle cx="12" cy="16" r="1" />
       </svg>
     ),
   },

@@ -12,6 +12,7 @@ import TaskGroup from './TaskGroup';
 import ShameFreeRescheduleModal from './ShameFreeRescheduleModal';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import GardenOfDone from './GardenOfDone';
+import TrashBin from '@/components/dashboard/TrashBin';
 import { calculateUserStats } from '@/lib/stats';
 import { useFocusStore } from '@/store/useFocusStore';
 import { useRouter } from 'next/navigation';
@@ -44,6 +45,7 @@ export default function EnhancedTasks() {
     const { data } = await supabase
       .from('tasks')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (data) setTasks(data as Task[]);
     setLoading(false);
@@ -54,7 +56,7 @@ export default function EnhancedTasks() {
     fetchTasks();
   }, [invalidateCache, fetchTasks]);
 
-  const { saving, addTask, toggleComplete, deleteTask, rescheduleTask: doReschedule, moveToWaiting, breakDownTask, startFresh } = useTaskActions(handleRefresh);
+  const { saving, addTask, toggleComplete, deleteTask, restoreTask, permanentlyDeleteTask, rescheduleTask: doReschedule, moveToWaiting, breakDownTask, startFresh } = useTaskActions(handleRefresh);
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);
@@ -238,6 +240,11 @@ export default function EnhancedTasks() {
 
       {/* Garden of Done */}
       <GardenOfDone completedTasks={tasks} />
+
+      {/* Recovery Section */}
+      <div className="mt-12">
+        <TrashBin />
+      </div>
 
       {/* Reschedule Modal */}
       <ShameFreeRescheduleModal

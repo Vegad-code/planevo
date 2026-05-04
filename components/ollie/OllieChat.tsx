@@ -36,7 +36,7 @@ export default function OllieChat() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear the deck today?" }
+    { role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear your schedule today?" }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -89,7 +89,7 @@ export default function OllieChat() {
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([{ role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear the deck today?" }]);
+    setMessages([{ role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear your schedule today?" }]);
     setShowHistory(false);
   };
 

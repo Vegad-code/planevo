@@ -72,7 +72,7 @@ export default function SettingsPage() {
     <div className="space-y-12 animate-fade-in text-foreground max-w-5xl mx-auto pb-20">
       <header>
         <h1 className="text-5xl font-black uppercase tracking-tighter">Command Center</h1>
-        <p className="text-surface-500 mt-2 text-base font-bold uppercase tracking-tight">Configure your flight deck and integrations.</p>
+        <p className="text-surface-500 mt-2 text-base font-bold uppercase tracking-tight">Configure your schedule and integrations.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

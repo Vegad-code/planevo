@@ -73,11 +73,215 @@ export type Database = {
           },
         ]
       }
+      calendar_events: {
+        Row: {
+          color: string | null
+          completed_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          end_time: string | null
+          energy_level: string | null
+          external_id: string | null
+          icon: string | null
+          id: string
+          is_all_day: boolean | null
+          is_completed: boolean | null
+          is_deleted: boolean | null
+          linked_task_id: string | null
+          location: string | null
+          metadata: Json | null
+          ollie_notes: string | null
+          recurrence_rule: string | null
+          source: string | null
+          start_time: string
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          energy_level?: string | null
+          external_id?: string | null
+          icon?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_completed?: boolean | null
+          is_deleted?: boolean | null
+          linked_task_id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          ollie_notes?: string | null
+          recurrence_rule?: string | null
+          source?: string | null
+          start_time: string
+          title: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          energy_level?: string | null
+          external_id?: string | null
+          icon?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_completed?: boolean | null
+          is_deleted?: boolean | null
+          linked_task_id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          ollie_notes?: string | null
+          recurrence_rule?: string | null
+          source?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_preferences: {
+        Row: {
+          created_at: string | null
+          default_view: string | null
+          end_hour: number | null
+          id: string
+          show_completed: boolean | null
+          show_gaps: boolean | null
+          start_hour: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          default_view?: string | null
+          end_hour?: number | null
+          id?: string
+          show_completed?: boolean | null
+          show_gaps?: boolean | null
+          start_hour?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          default_view?: string | null
+          end_hour?: number | null
+          id?: string
+          show_completed?: boolean | null
+          show_gaps?: boolean | null
+          start_hour?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_assignments: {
+        Row: {
+          course_name: string | null
+          due_at: string | null
+          html_url: string | null
+          id: string
+          name: string
+          points_possible: number | null
+          synced_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          course_name?: string | null
+          due_at?: string | null
+          html_url?: string | null
+          id: string
+          name: string
+          points_possible?: number | null
+          synced_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          course_name?: string | null
+          due_at?: string | null
+          html_url?: string | null
+          id?: string
+          name?: string
+          points_possible?: number | null
+          synced_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_active: string | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_active?: string | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_active?: string | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           created_at: string
           deadline: string | null
           id: string
+          notes: string | null
           status: string
           title: string
           user_id: string
@@ -86,6 +290,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           id?: string
+          notes?: string | null
           status?: string
           title: string
           user_id: string
@@ -94,6 +299,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           id?: string
+          notes?: string | null
           status?: string
           title?: string
           user_id?: string
@@ -169,6 +375,7 @@ export type Database = {
       ollie_messages: {
         Row: {
           content: string
+          conversation_id: string | null
           created_at: string
           id: string
           message_type: string
@@ -176,6 +383,7 @@ export type Database = {
         }
         Insert: {
           content: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           message_type: string
@@ -183,12 +391,20 @@ export type Database = {
         }
         Update: {
           content?: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           message_type?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ollie_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ollie_messages_user_id_fkey"
             columns: ["user_id"]
@@ -277,6 +493,7 @@ export type Database = {
           completed_at: string | null
           consistency_score: number | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           due_date: string | null
           energy_level_required: string | null
@@ -285,6 +502,7 @@ export type Database = {
           is_ai_suggested: boolean | null
           is_recurring: boolean | null
           last_ai_scheduling_at: string | null
+          notes: string | null
           parent_task_id: string | null
           priority: string
           recurrence_pattern: string | null
@@ -301,6 +519,7 @@ export type Database = {
           completed_at?: string | null
           consistency_score?: number | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           energy_level_required?: string | null
@@ -309,6 +528,7 @@ export type Database = {
           is_ai_suggested?: boolean | null
           is_recurring?: boolean | null
           last_ai_scheduling_at?: string | null
+          notes?: string | null
           parent_task_id?: string | null
           priority?: string
           recurrence_pattern?: string | null
@@ -325,6 +545,7 @@ export type Database = {
           completed_at?: string | null
           consistency_score?: number | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           energy_level_required?: string | null
@@ -333,6 +554,7 @@ export type Database = {
           is_ai_suggested?: boolean | null
           is_recurring?: boolean | null
           last_ai_scheduling_at?: string | null
+          notes?: string | null
           parent_task_id?: string | null
           priority?: string
           recurrence_pattern?: string | null
@@ -367,12 +589,17 @@ export type Database = {
           created_at: string
           email: string
           energy_preference: string | null
+          google_calendar_connected: boolean | null
+          google_calendar_id: string | null
+          google_calendar_refresh_token: string | null
           google_classroom_connected: boolean | null
           id: string
+          n8n_webhook_token: string | null
           name: string | null
           onboarding_complete: boolean
           plan_type: string
           preferred_morning_time: string | null
+          scheduling_preferences: Json | null
         }
         Insert: {
           avatar_url?: string | null
@@ -381,12 +608,17 @@ export type Database = {
           created_at?: string
           email: string
           energy_preference?: string | null
+          google_calendar_connected?: boolean | null
+          google_calendar_id?: string | null
+          google_calendar_refresh_token?: string | null
           google_classroom_connected?: boolean | null
           id: string
+          n8n_webhook_token?: string | null
           name?: string | null
           onboarding_complete?: boolean
           plan_type?: string
           preferred_morning_time?: string | null
+          scheduling_preferences?: Json | null
         }
         Update: {
           avatar_url?: string | null
@@ -395,12 +627,17 @@ export type Database = {
           created_at?: string
           email?: string
           energy_preference?: string | null
+          google_calendar_connected?: boolean | null
+          google_calendar_id?: string | null
+          google_calendar_refresh_token?: string | null
           google_classroom_connected?: boolean | null
           id?: string
+          n8n_webhook_token?: string | null
           name?: string | null
           onboarding_complete?: boolean
           plan_type?: string
           preferred_morning_time?: string | null
+          scheduling_preferences?: Json | null
         }
         Relationships: []
       }
@@ -417,6 +654,7 @@ export type Database = {
         Args: { p_feature: string; p_limit: number; p_user_id: string }
         Returns: boolean
       }
+      get_ollie_chat_context: { Args: { p_feature: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
@@ -549,36 +787,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
-// Helper types for easier use in the app
-export type User = Tables<"users">;
-export type TaskPriority = "low" | "medium" | "high";
-export type BestTimeOfDay = "morning" | "afternoon" | "evening" | "anytime";
-export type EnergyLevel = "low" | "medium" | "high";
-
-export type Task = Tables<"tasks">;
-export type OllieMood = "happy" | "thinking" | "encouraging" | "celebrating" | "sleepy" | "focused" | "gentle";
-
-export interface TaskGroup {
-  id: string;
-  title: string;
-  icon: string;
-  ai_generated: boolean;
-  sort_order: number;
-  is_collapsed: boolean;
-  tasks: Task[];
-}
-
-export interface AITaskResponse {
-  today_focus: string[];
-  this_week: string[];
-  waiting: string[];
-  recommendations: Record<string, {
-    task_id: string;
-    best_time_of_day: string;
-    estimated_minutes: number;
-    priority: string;
-    reasoning: string;
-  }>;
-  encouraging_message: string;
-}

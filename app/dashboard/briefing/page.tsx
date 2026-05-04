@@ -8,9 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, GraduationCap, Clock, CheckCircle, Warning, FlyingSaucer, RocketLaunch } from '@phosphor-icons/react';
 import { format } from 'date-fns';
-import { generateDeadlineFirstSchedule, ScheduleBlock } from '@/lib/ai/scheduler';
+import { generateAgenticSchedule, SchedulingPreferences } from '@/lib/ai/agentic-scheduler';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
+
+const DEFAULT_PREFERENCES: SchedulingPreferences = {
+  unavailable_blocks: [
+    { label: 'School', start: '08:00', end: '15:00', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] }
+  ],
+  preferred_focus_time: 'afternoon',
+  pomodoro_length: 50,
+  break_length: 15,
+  sleep_start: '22:30',
+  sleep_end: '07:00'
+};
 
 export default function BriefingPage() {
   const supabase = createClient();
@@ -22,8 +33,9 @@ export default function BriefingPage() {
   const [assignments, setAssignments] = useState<CanvasAssignment[]>([]);
   const [milestones, setMilestones] = useState<CanvasAssignment[]>([]);
   const [events, setEvents] = useState<any[]>([]);
-  const [generatedSchedule, setGeneratedSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [generatedSchedule, setGeneratedSchedule] = useState<any[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [energyLevel, setEnergyLevel] = useState<string>('medium');
   const router = useRouter();
 
   useEffect(() => {
@@ -38,7 +50,7 @@ export default function BriefingPage() {
           .single();
         setProfile(profileData);
 
-        // Fetch existing assignments from DB so search focus works immediately
+        // Fetch existing assignments from DB
         const { data: dbAssignments } = await supabase
           .from('canvas_assignments')
           .select('*')
@@ -63,26 +75,17 @@ export default function BriefingPage() {
   const handleFetchAll = async () => {
     setFetching(true);
     try {
-      // 1. Fetch Canvas if connected
       if (profile?.canvas_url && profile?.canvas_token) {
         let upcoming = await fetchCanvasUpcomingAction(profile.canvas_url, profile.canvas_token);
-        
-        // Fallback to todo items if upcoming is empty
         if (upcoming.length === 0) {
           upcoming = await fetchCanvasTodoAction(profile.canvas_url, profile.canvas_token);
         }
-
-        // Sort by due date
         const sorted = upcoming.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
-        
-        // Split into assignments and milestones
         const actualAssignments = sorted.filter(item => item.type !== 'milestone');
         const schoolMilestones = sorted.filter(item => item.type === 'milestone');
-        
         setAssignments(actualAssignments);
         setMilestones(schoolMilestones);
-
-        // 1.5 Persist to database for search and Ollie
+        
         const { data: { user } } = await supabase.auth.getUser();
         if (user && actualAssignments.length > 0) {
           const toUpsert = actualAssignments.map(a => ({
@@ -93,12 +96,10 @@ export default function BriefingPage() {
             html_url: a.html_url,
             synced_at: new Date().toISOString()
           }));
-
           await supabase.from('canvas_assignments').upsert(toUpsert);
         }
       }
 
-      // 2. Fetch Google Calendar
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.provider_token) {
         const now = new Date().toISOString();
@@ -108,7 +109,6 @@ export default function BriefingPage() {
         );
         if (response.ok) {
           const data = await response.json();
-          // Filter out birthdays and clutter
           const filtered = (data.items || []).filter((event: any) => {
             const summary = event.summary?.toLowerCase() || '';
             return !summary.includes('birthday');
@@ -118,7 +118,7 @@ export default function BriefingPage() {
       }
     } catch (error: any) {
       console.error('Fetch error:', error);
-      setErrorMsg('Failed to sync with external sources. Please check your credentials in Settings.');
+      setErrorMsg('Failed to sync. Check settings.');
     } finally {
       setFetching(false);
     }
@@ -127,14 +127,39 @@ export default function BriefingPage() {
   const handleFinalize = async () => {
     setFetching(true);
     try {
-      const schedule = generateDeadlineFirstSchedule({
-        assignments,
-        milestones,
+      // 1. Prepare Scheduler Input
+      const preferences = profile?.scheduling_preferences || DEFAULT_PREFERENCES;
+      
+      const rawSchedule = generateAgenticSchedule({
+        tasks: assignments.map(a => ({
+          id: a.id,
+          title: a.name,
+          due_at: a.due_at,
+          priority: 'medium', // Default
+          estimated_minutes: 60 // Default
+        })),
         calendarEvents: events,
-        preferredStartTime: profile?.preferred_morning_time?.substring(0, 5) || '07:00'
+        preferences,
+        date: new Date()
       });
 
-      // Save to database
+      // 2. Refine with LLM (v2 logic)
+      let finalSchedule = rawSchedule;
+      try {
+        const refineRes = await fetch('/api/ai/schedule-refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedule: rawSchedule, energyLevel }),
+        });
+        if (refineRes.ok) {
+          const refined = await refineRes.json();
+          if (refined.refined) finalSchedule = refined.refined;
+        }
+      } catch (err) {
+        console.error('Refine failed, using raw:', err);
+      }
+
+      // 3. Save to database
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { error } = await supabase
@@ -142,18 +167,17 @@ export default function BriefingPage() {
           .insert({
             user_id: user.id,
             date: format(new Date(), 'yyyy-MM-dd'),
-            schedule_json: schedule
+            schedule_json: finalSchedule
           });
 
         if (!error) {
-          setGeneratedSchedule(schedule);
-          // Redirect after a short delay to show success
-          setTimeout(() => router.push('/dashboard/schedule'), 1500);
+          setGeneratedSchedule(finalSchedule);
+          setTimeout(() => router.push('/dashboard/schedule'), 1000);
         }
       }
     } catch (error: any) {
       console.error('Error finalizing schedule:', error);
-      setErrorMsg('Ollie encountered turbulence while building your schedule. Try again or use a fallback.');
+      setErrorMsg('Ollie encountered turbulence. Try again.');
     } finally {
       setFetching(false);
     }
@@ -177,212 +201,107 @@ export default function BriefingPage() {
         <div>
           <h1 className="text-4xl font-black uppercase tracking-tighter flex items-center gap-3">
             <RocketLaunch weight="fill" className="text-accent-600" />
-            The Briefing Room
+            The Blueprint
           </h1>
           <p className="text-surface-600 font-bold uppercase text-sm mt-1">
-            {format(new Date(), 'EEEE, MMMM do')} — Synchronizing flight data.
+            {format(new Date(), 'EEEE, MMMM do')} — Preparing your day.
           </p>
         </div>
         <Button 
           onClick={handleFetchAll} 
           disabled={fetching}
-          className="bg-surface-900 text-surface-100 font-black uppercase tracking-widest px-8 shadow-[4px_4px_0px_0px_var(--accent-600)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
+          className="bg-surface-900 text-surface-100 font-black uppercase tracking-widest px-8 shadow-[4px_4px_0px_0px_var(--accent-600)]"
         >
           {fetching ? 'Syncing...' : 'Sync All Sources'}
         </Button>
       </header>
 
-      {/* Focus Target from Search */}
-      {focusId && (
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }} 
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-accent-500 p-6 border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-surface-900 text-accent-500 p-3 rounded-full">
-              <RocketLaunch weight="fill" className="size-8" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] font-black uppercase text-surface-900 tracking-widest mb-1">Priority Target Identified</p>
-              <h2 className="text-2xl font-black uppercase text-surface-900 leading-tight">
-                {assignments.find(a => String(a.id) === focusId)?.name || 'Analyzing Assignment...'}
-              </h2>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                className="bg-surface-100 border-2 border-surface-900 text-surface-900 font-black uppercase"
-                onClick={() => {
-                  const target = assignments.find(a => String(a.id) === focusId);
-                  if (target) {
-                    window.dispatchEvent(new CustomEvent('ollie-deconstruct', { 
-                      detail: { name: target.name } 
-                    }));
-                  }
-                }}
-              >
-                Ollie, Deconstruct
-              </Button>
-              <Button 
-                variant="outline" 
-                className="bg-surface-900 text-white border-2 border-surface-900 font-black uppercase hover:bg-accent-500 hover:text-surface-900"
-                onClick={handleFetchAll}
-              >
-                Update Sync
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {errorMsg && (
-        <div className="bg-red-500/10 border-2 border-red-500 p-4 flex items-center justify-between text-red-500 font-bold uppercase text-xs animate-shake">
-          <div className="flex items-center gap-2">
-            <Warning weight="fill" />
-            {errorMsg}
-          </div>
-          <button onClick={() => setErrorMsg(null)} className="hover:scale-110 transition-transform">×</button>
-        </div>
-      )}
-
-      {/* Main Grid */}
+      {/* Main Sync Cards (Events, Milestones, Canvas) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Calendar Events */}
         <Card className="bg-surface-100 border-2 border-surface-900 shadow-md">
           <CardHeader className="border-b-2 border-surface-900 bg-surface-200/50">
             <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
               <Calendar weight="bold" className="text-accent-600" />
-              Calendar Events
+              Calendar
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            {events.length === 0 ? (
-              <div className="p-8 text-center text-surface-400 font-bold uppercase text-xs">
-                No upcoming events synced.
-              </div>
-            ) : (
+          <CardContent className="p-0 max-h-60 overflow-y-auto">
+            {events.length === 0 ? <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">Empty</div> : (
               <ul className="divide-y-2 divide-surface-900">
-                {events.map((event) => (
-                  <li key={event.id} className="p-4 flex items-start gap-3 hover:bg-surface-200 transition-colors">
-                    <Clock weight="bold" className="size-4 mt-0.5 text-surface-500" />
-                    <div>
-                      <p className="text-sm font-black uppercase leading-none">{event.summary}</p>
-                      <p className="text-[10px] font-bold text-surface-500 mt-1">
-                        {event.start?.dateTime ? format(new Date(event.start.dateTime), 'h:mm a') : 'All Day'}
-                      </p>
-                    </div>
-                  </li>
+                {events.map((e) => (
+                  <li key={e.id} className="p-3 text-xs font-bold uppercase">{e.summary}</li>
                 ))}
               </ul>
             )}
           </CardContent>
         </Card>
-
-        {/* School Milestones */}
+        
         <Card className="bg-surface-100 border-2 border-surface-900 shadow-md">
           <CardHeader className="border-b-2 border-surface-900 bg-surface-200/50">
             <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
               <CheckCircle weight="bold" className="text-accent-600" />
-              School Calendar
+              School
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            {milestones.length === 0 ? (
-              <div className="p-8 text-center text-surface-400 font-bold uppercase text-xs">
-                No school milestones found.
-              </div>
-            ) : (
+          <CardContent className="p-0 max-h-60 overflow-y-auto">
+            {milestones.length === 0 ? <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">Empty</div> : (
               <ul className="divide-y-2 divide-surface-900">
-                {milestones.map((milestone) => (
-                  <li key={milestone.id} className="p-4 flex items-start gap-3 hover:bg-surface-200 transition-colors">
-                    <Warning weight="fill" className="size-4 mt-0.5 text-accent-600" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black uppercase leading-tight truncate">{milestone.name}</p>
-                      <p className="text-[10px] font-bold text-surface-500 mt-1">
-                        {format(new Date(milestone.due_at), 'MMM do, yyyy')}
-                      </p>
-                    </div>
-                  </li>
+                {milestones.map((m) => (
+                  <li key={m.id} className="p-3 text-xs font-bold uppercase">{m.name}</li>
                 ))}
               </ul>
             )}
           </CardContent>
         </Card>
 
-        {/* Canvas Assignments */}
         <Card className="bg-surface-100 border-2 border-surface-900 shadow-md">
           <CardHeader className="border-b-2 border-surface-900 bg-surface-200/50">
             <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
               <GraduationCap weight="bold" className="text-accent-600" />
-              Canvas Assignments
+              Canvas
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            {!profile?.canvas_token ? (
-              <div className="p-8 text-center">
-                <p className="text-xs font-black uppercase text-surface-400 mb-4">Canvas not connected.</p>
-                <Button variant="outline" className="text-[10px] font-black uppercase" asChild>
-                  <a href="/dashboard/settings">Connect in Settings</a>
-                </Button>
-              </div>
-            ) : assignments.length === 0 ? (
-              <div className="p-8 text-center text-surface-400 font-bold uppercase text-xs">
-                No upcoming assignments found.
-              </div>
-            ) : (
+          <CardContent className="p-0 max-h-60 overflow-y-auto">
+            {assignments.length === 0 ? <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">Empty</div> : (
               <ul className="divide-y-2 divide-surface-900">
-                {assignments.map((task) => {
-                  const priority = getPriority(task.due_at);
-                  return (
-                    <li key={task.id} className="p-4 flex items-start gap-3 hover:bg-surface-200 transition-colors group">
-                      <GraduationCap weight="bold" className="size-4 mt-0.5 text-accent-600" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className="text-sm font-black uppercase leading-tight truncate">{task.name}</p>
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${priority.color}`}>
-                            {priority.label}
-                          </span>
-                        </div>
-                        <p className="text-[10px] font-bold text-surface-500">
-                          Due {format(new Date(task.due_at), 'MMM do @ h:mm a')}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
+                {assignments.map((a) => (
+                  <li key={a.id} className="p-3 text-xs font-bold uppercase">{a.name}</li>
+                ))}
               </ul>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* The AI Action Area */}
-      <div className="bg-surface-900 p-8 border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--accent-500)] text-surface-100 transition-all">
-        {generatedSchedule ? (
-          <div className="text-center space-y-4 py-4">
-            <RocketLaunch weight="fill" className="size-16 text-accent-500 mx-auto animate-pulse" />
-            <h3 className="text-3xl font-black uppercase tracking-tighter">Flight Plan Locked!</h3>
-            <p className="text-surface-400 font-bold uppercase text-xs">Redirecting you to your curated daily schedule...</p>
+      <div className="bg-surface-900 p-8 border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--accent-500)] text-surface-100">
+        <div className="flex flex-col gap-6">
+          <h3 className="text-2xl font-black uppercase tracking-tighter">Ollie is ready to pilot.</h3>
+          <p className="text-surface-400 font-bold uppercase text-[10px]">
+            Building a constraint-aware schedule for your day.
+          </p>
+          
+          <div className="flex flex-wrap gap-2">
+            {(['low', 'medium', 'high'] as const).map((level) => (
+              <button
+                key={level}
+                onClick={() => setEnergyLevel(level)}
+                className={`px-4 py-2 text-xs font-black uppercase border-2 transition-all ${
+                  energyLevel === level ? 'bg-accent-500 text-surface-900 border-accent-500' : 'text-surface-500 border-surface-700'
+                }`}
+              >
+                {level}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="flex flex-col md:flex-row items-center gap-6 justify-between">
-            <div className="space-y-2 text-center md:text-left">
-              <h3 className="text-2xl font-black uppercase tracking-tighter">Ollie is ready to pilot.</h3>
-              <p className="text-surface-400 font-bold uppercase text-xs">
-                Based on your {events.length} events, {milestones.length} milestones, and {assignments.length} assignments, Ollie will build your curated schedule.
-              </p>
-            </div>
-            <Button 
-              onClick={handleFinalize}
-              disabled={fetching || (events.length === 0 && assignments.length === 0)}
-              className="bg-accent-500 hover:bg-accent-400 text-surface-900 font-black uppercase px-12 py-6 text-lg tracking-widest shadow-[4px_4px_0px_0px_var(--shadow-color-inverse)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all disabled:opacity-50"
-            >
-              Finalize Flight Plan
-            </Button>
-          </div>
-        )}
+
+          <Button 
+            onClick={handleFinalize}
+            disabled={fetching}
+            className="bg-accent-500 hover:bg-accent-400 text-surface-900 font-black uppercase py-8 text-xl tracking-widest shadow-[4px_4px_0px_0px_white]"
+          >
+            {fetching ? 'Building Flight Plan...' : 'Finalize Flight Plan'}
+          </Button>
+        </div>
       </div>
     </div>
   );

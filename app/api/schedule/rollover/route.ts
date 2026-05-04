@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       moved: movedCount, 
-      message: `Ollie moved ${movedCount} tasks to your deck today. No sweat! 🌿` 
+      message: `Ollie moved ${movedCount} tasks to your schedule today. No sweat! 🌿` 
     });
 
   } catch (error: any) {

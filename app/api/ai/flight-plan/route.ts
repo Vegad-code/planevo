@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const prompt = `You are Ollie, the AI Life Pilot. You are preparing a "Strategic Mission Briefing" for the user. 
+    const prompt = `You are Ollie, the AI Life Pilot. You are preparing a "Strategic Daily Blueprint" for the user. 
     
 User Energy Level: ${energyLevel}
 Current Time: ${new Date().toLocaleTimeString()}

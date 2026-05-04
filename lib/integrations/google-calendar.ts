@@ -53,33 +53,50 @@ export async function syncGoogleCalendar(userId: string) {
     throw new Error('Failed to fetch Google events');
   }
 
-  // 4. Transform and Upsert to calendar_events
-  const events = eventsData.items.map((item: any) => ({
-    user_id: userId,
-    title: item.summary || 'Untitled Event',
-    start_time: item.start.dateTime || item.start.date,
-    end_time: item.end.dateTime || item.end.date,
-    source: 'google_calendar',
-    metadata: {
-      google_event_id: item.id,
-      description: item.description,
-      location: item.location
-    }
-  }));
+  // 4. Transform to calendar_events format
+  const events = eventsData.items.map((item: any) => {
+    const isAllDay = !!item.start.date;
+    return {
+      user_id: userId,
+      title: item.summary || 'Untitled Event',
+      start_time: item.start.dateTime || `${item.start.date}T00:00:00.000Z`,
+      end_time: item.end.dateTime || `${item.end.date}T23:59:59.999Z`,
+      is_all_day: isAllDay,
+      source: 'google_calendar',
+      external_id: item.id,
+      description: item.description || null,
+      location: item.location || null,
+      icon: null,
+      color: null,
+      energy_level: null,
+      is_completed: false,
+      is_deleted: false,
+    };
+  });
 
-  // Simple clean up and insert (or upsert if we had an external ID mapping)
-  // For now, let's just clear future google events and re-insert
+  if (events.length === 0) return 0;
+
+  // 5. Upsert into calendar_events
+  // Since we don't have a unique constraint on (user_id, external_id, source) right now 
+  // without changing schema or writing an RPC, we'll do the simple clean & insert approach
+  // for future events to avoid duplicates.
+  const now = new Date().toISOString();
   await supabase
     .from('calendar_events')
     .delete()
     .eq('user_id', userId)
-    .eq('source', 'google_calendar');
+    .eq('source', 'google_calendar')
+    .gte('start_time', now);
 
-  const { error: insertError } = await supabase
-    .from('calendar_events')
-    .insert(events);
+  const futureEvents = events.filter((e: any) => new Date(e.start_time) >= new Date(now));
 
-  if (insertError) throw insertError;
+  if (futureEvents.length > 0) {
+    const { error: insertError } = await supabase
+      .from('calendar_events')
+      .insert(futureEvents);
 
-  return events.length;
+    if (insertError) throw insertError;
+  }
+
+  return futureEvents.length;
 }
