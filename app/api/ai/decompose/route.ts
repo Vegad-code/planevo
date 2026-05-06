@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 import { z } from 'zod';
 
 // Tier-based configuration
@@ -15,6 +16,10 @@ const requestSchema = z.object({
   projectId: z.string().uuid(),
   projectTitle: z.string().trim().min(1).max(500),
   deadline: z.string().nullable().optional(),
+  context: z.array(z.object({
+    question: z.string(),
+    answer: z.string(),
+  })).optional(),
 });
 
 const decomposeTaskSchema = z.object({
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (plan === 'free') {
       return NextResponse.json({
         error: 'Premium Required',
-        message: 'The Decompose engine is available for Pro and Elite users. Upgrade to unlock daily roadmaps, verified resources, and intelligent scheduling.',
+        message: 'The Breakdown tool is available for Pro and Elite users. Upgrade to unlock daily plans, verified resources, and intelligent scheduling.',
         upgrade: true,
       }, { status: 403 });
     }
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
 
-    const { projectId, projectTitle, deadline } = parsedBody.data;
+    const { projectId, projectTitle, deadline, context } = parsedBody.data;
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
@@ -103,7 +108,18 @@ export async function POST(request: NextRequest) {
       ? `The user's target deadline is: ${deadline || project.deadline}. Today is ${today}.`
       : `No specific deadline has been set. Today is ${today}. Suggest a reasonable timeline.`;
 
-    const systemPrompt = `You are the Decompose Engine for Plan Pilot, a productivity tool for students and professionals.
+    const userContext = context && context.length > 0
+      ? `\n\nUSER CONTEXT (PRIORITIZE THIS):\n${context.map(c => `Q: ${c.question}\nA: ${c.answer}`).join('\n')}`
+      : '';
+
+    // Get learned memory
+    const memory = await getUserAIMemory(supabase, user.id);
+    const memoryContext = buildMemoryContext(memory);
+
+    const systemPrompt = `You are the Breakdown Engine for Plan Pilot, a productivity tool for students and professionals.
+
+USER MEMORY (Apply these preferences):
+${memoryContext}
 
 CRITICAL SAFETY RULES — FOLLOW THESE ABSOLUTELY:
 1. NEVER recommend extreme diets, fasting protocols, dangerous supplements, or any activity that could cause physical harm.
@@ -133,10 +149,11 @@ SAFETY DISCLAIMER:
 - If the project involves health, fitness, medical, legal, or financial topics, include a safety_disclaimer advising the user to consult professionals.
 - For other topics, set safety_disclaimer to null.`;
 
-    const userPrompt = `Decompose this project into a daily roadmap:
+    const userPrompt = `Break down this project into a daily plan:
 
 Project: "${projectTitle}"
 ${deadlineInfo}
+${userContext}
 
 Return a JSON object with:
 - realism_check: { is_realistic, suggested_timeline (if not realistic), reasoning }
@@ -178,68 +195,33 @@ Return a JSON object with:
 
     const result = parsedAi.data;
 
-    // If the plan is realistic, insert tasks into the database
-    if (result.realism_check.is_realistic) {
-      const tasksToInsert = result.tasks.map((t) => {
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + t.day);
-        return {
-          user_id: user.id,
-          title: t.title,
-          description: t.description || null,
-          priority: t.priority || 'medium',
-          energy_level_required: t.energy_level_required || 'medium',
-          estimated_minutes: t.estimated_minutes || 30,
-          status: 'todo',
-          is_ai_suggested: true,
-          due_date: targetDate.toISOString().split('T')[0],
-        };
-      });
+    // Update goal blueprint instead of inserting tasks
+    const { error: updateError } = await supabase
+      .from('goals')
+      .update({ 
+        blueprint: { 
+          ...result,
+          generated_at: new Date().toISOString(),
+          type: 'architect_roadmap'
+        } 
+      })
+      .eq('id', projectId)
+      .eq('user_id', user.id);
 
-      const { data: insertedTasks, error: taskError } = await supabase
-        .from('tasks')
-        .insert(tasksToInsert)
-        .select();
-
-      if (taskError) {
-        console.error('Error inserting decomposed tasks:', taskError);
-        return NextResponse.json({ error: 'Failed to create tasks' }, { status: 500 });
-      }
-
-      // Link tasks to project via subtasks table
-      if (insertedTasks) {
-        const subtasks = insertedTasks.map((t: { id: string }, index: number) => ({
-          goal_id: projectId,
-          task_id: t.id,
-          order: index,
-        }));
-        const { error: subtaskError } = await supabase.from('subtasks').insert(subtasks);
-        if (subtaskError) {
-          await supabase.from('tasks').delete().in('id', insertedTasks.map((t: { id: string }) => t.id));
-          console.error('Error linking subtasks:', subtaskError);
-          return NextResponse.json({ error: 'Failed to link tasks to project' }, { status: 500 });
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        count: insertedTasks?.length || 0,
-        realism_check: result.realism_check,
-        resources: result.resources,
-        safety_disclaimer: result.safety_disclaimer,
-      });
-    } else {
-      // Plan is not realistic — return the warning without creating tasks
-      return NextResponse.json({
-        success: false,
-        needs_adjustment: true,
-        realism_check: result.realism_check,
-        resources: result.resources,
-        safety_disclaimer: result.safety_disclaimer,
-      });
+    if (updateError) {
+      console.error('Error updating goal blueprint (decompose):', updateError);
+      return NextResponse.json({ error: 'Failed to save blueprint' }, { status: 500 });
     }
+
+    return NextResponse.json({
+      success: true,
+      count: result.tasks.length,
+      realism_check: result.realism_check,
+      resources: result.resources,
+      safety_disclaimer: result.safety_disclaimer,
+    });
   } catch (error) {
     console.error('Error in Decompose Engine:', error);
-    return NextResponse.json({ error: 'Failed to decompose project' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to break down project' }, { status: 500 });
   }
 }

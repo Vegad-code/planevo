@@ -9,6 +9,14 @@ import TimeGrid from '../timeline/TimeGrid';
 import EventCard from '../cards/EventCard';
 import type { CalendarEvent } from '@/types/calendar';
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_minutes?: number;
+  energy_level_required?: string;
+}
+
 interface WeekViewProps {
   date: Date;
   events: CalendarEvent[];
@@ -20,7 +28,7 @@ interface WeekViewProps {
   onEmptySlotClick?: (time: Date) => void;
   onEventReschedule?: (eventId: string, newStart: Date, newEnd: Date) => void;
   onEventResize?: (eventId: string, newEnd: Date) => void;
-  onTaskDrop?: (task: any, time: Date) => void;
+  onTaskDrop?: (task: Task, time: Date) => void;
 }
 
 const HOUR_HEIGHT = 72;
@@ -190,8 +198,8 @@ export default function WeekView({
                           dropTime.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0);
                           onTaskDrop(task, dropTime);
                         }
-                      } catch (err) {
-                        console.error('Failed to parse dropped task in week view', err);
+                      } catch (err: unknown) {
+                        console.error('Failed to parse dropped task in week view', err as Error);
                       }
                     }
                   }}

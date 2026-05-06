@@ -22,45 +22,120 @@ const Plant = ({ task, index }: { task: Task; index: number }) => {
   
   return (
     <motion.div
-      initial={{ scale: 0, y: 20 }}
-      animate={{ scale: 1, y: 0 }}
-      transition={{ delay: index * 0.1, type: 'spring', stiffness: 100 }}
+      initial={{ scale: 0, y: 40, rotate: -10 }}
+      animate={{ scale: 1, y: 0, rotate: 0 }}
+      whileHover={{ 
+        scale: 1.1, 
+        rotate: [0, -2, 2, 0],
+        transition: { duration: 0.3 } 
+      }}
+      transition={{ 
+        delay: index * 0.08, 
+        type: 'spring', 
+        stiffness: 120, 
+        damping: 12 
+      }}
       className="relative flex flex-col items-center group"
     >
       <div className="relative cursor-help" title={task.title}>
-        <svg width={size * 1.5} height={size * 2} viewBox="0 0 100 150" fill="none">
-          {variant === 0 && (
-            <>
-              <rect x="45" y="80" width="10" height="70" fill="#333" />
-              <rect x="25" y="30" width="50" height="50" fill={color} className="opacity-80" />
-              <rect x="35" y="10" width="30" height="30" fill={color} />
-            </>
-          )}
-          {variant === 1 && (
-            <>
-              <rect x="48" y="60" width="4" height="90" fill="#333" />
-              <circle cx="50" cy="50" r="40" fill={color} className="opacity-60" />
-              <circle cx="50" cy="50" r="20" fill={color} />
-            </>
-          )}
-          {variant === 2 && (
-            <>
-              <path d="M50 150L50 60" stroke="#333" strokeWidth="8" />
-              <path d="M10 60L50 10L90 60H10Z" fill={color} />
-              <rect x="30" y="70" width="40" height="10" fill={color} className="opacity-50" />
-            </>
-          )}
-          {variant === 3 && (
-            <>
-              <rect x="45" y="100" width="10" height="50" fill="#333" />
-              <rect x="20" y="20" width="60" height="80" fill={color} className="opacity-70" transform="rotate(45 50 60)" />
-              <circle cx="50" cy="60" r="15" fill={color} />
-            </>
-          )}
-        </svg>
+        <motion.div
+          animate={{ 
+            y: [0, -4, 0],
+            rotate: [0, 1, -1, 0]
+          }}
+          transition={{ 
+            duration: 4 + (hash % 3), 
+            repeat: Infinity, 
+            ease: "easeInOut" 
+          }}
+        >
+          <svg width={size * 1.5} height={size * 2} viewBox="0 0 100 150" fill="none" className="drop-shadow-lg">
+            {variant === 0 && (
+              <>
+                <motion.rect 
+                  initial={{ height: 0 }} 
+                  animate={{ height: 70 }} 
+                  x="45" y="80" width="10" fill="#3A3A3A" 
+                />
+                <motion.rect 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  x="25" y="30" width="50" height="50" fill={color} className="opacity-80" 
+                />
+                <motion.rect 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  transition={{ delay: index * 0.1 + 0.2 }}
+                  x="35" y="10" width="30" height="30" fill={color} 
+                />
+              </>
+            )}
+            {variant === 1 && (
+              <>
+                <motion.rect 
+                  initial={{ height: 0 }} 
+                  animate={{ height: 90 }} 
+                  x="48" y="60" width="4" fill="#3A3A3A" 
+                />
+                <motion.circle 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  cx="50" cy="50" r="40" fill={color} className="opacity-60" 
+                />
+                <motion.circle 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  transition={{ delay: index * 0.1 + 0.2 }}
+                  cx="50" cy="50" r="20" fill={color} 
+                />
+              </>
+            )}
+            {variant === 2 && (
+              <>
+                <motion.path 
+                  initial={{ pathLength: 0 }} 
+                  animate={{ pathLength: 1 }} 
+                  d="M50 150L50 60" stroke="#3A3A3A" strokeWidth="8" 
+                />
+                <motion.path 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  d="M10 60L50 10L90 60H10Z" fill={color} 
+                />
+                <motion.rect 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  transition={{ delay: index * 0.1 + 0.2 }}
+                  x="30" y="70" width="40" height="10" fill={color} className="opacity-50" 
+                />
+              </>
+            )}
+            {variant === 3 && (
+              <>
+                <motion.rect 
+                  initial={{ height: 0 }} 
+                  animate={{ height: 50 }} 
+                  x="45" y="100" width="10" fill="#3A3A3A" 
+                />
+                <motion.rect 
+                  initial={{ scale: 0, rotate: 0 }} 
+                  animate={{ scale: 1, rotate: 45 }} 
+                  x="20" y="20" width="60" height="80" fill={color} className="opacity-70" transform="rotate(45 50 60)" 
+                />
+                <motion.circle 
+                  initial={{ scale: 0 }} 
+                  animate={{ scale: 1 }} 
+                  transition={{ delay: index * 0.1 + 0.2 }}
+                  cx="50" cy="60" r="15" fill={color} 
+                />
+              </>
+            )}
+          </svg>
+        </motion.div>
       </div>
-      <div className="opacity-0 group-hover:opacity-100 absolute -bottom-8 bg-[#1e1e1e] border border-border px-2 py-1 text-[10px] whitespace-nowrap z-10 transition-opacity">
+      <div className="opacity-0 group-hover:opacity-100 absolute -top-10 bg-surface-900 text-white border border-surface-700 px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap z-20 transition-all transform translate-y-2 group-hover:translate-y-0 shadow-xl pointer-events-none">
         {task.title}
+        <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-surface-900 rotate-45 border-r border-b border-surface-700"></div>
       </div>
     </motion.div>
   );

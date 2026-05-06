@@ -6,6 +6,7 @@ import {
   createAiLatencyTimer,
   shouldReportLatencyDiagnostic,
 } from '@/lib/diagnostics/aiLatency';
+import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 import { z } from 'zod';
 
 const messageSchema = z.object({
@@ -84,41 +85,24 @@ export async function POST(request: NextRequest) {
       .single();
     latencyTimer.mark('profile');
 
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('title, status, priority, due_date')
-      .eq('user_id', user.id)
-      .eq('completed', false)
-      .limit(10);
-    const { data: assignments } = await supabase
-      .from('canvas_assignments')
-      .select('name, due_at, course_name')
-      .eq('user_id', user.id)
-      .gte('due_at', new Date().toISOString())
-      .order('due_at', { ascending: true })
-      .limit(5);
     latencyTimer.mark('assignments');
 
-    const hasCanvas = !!profile?.canvas_token;
+    // Get learned memory
+    const memory = await getUserAIMemory(supabase, user.id);
+    const memoryContext = buildMemoryContext(memory);
+    latencyTimer.mark('memory');
 
-    const systemPrompt = `You are Ollie, the AI navigator for "Plan Pilot", an active cockpit for productivity. 
-Your tone is encouraging, tactical, and clear. You act with "Active Agency" - you are here to offload cognitive burden.
-User Name: ${profile?.name || 'Pilot'}
-Active Sensors: ${hasCanvas ? 'Canvas LMS (Connected)' : 'None'}
-Current Tasks: ${tasks?.map(t => `${t.title} (${t.priority}, due ${t.due_date || 'soon'})`).join(', ') || 'No active tasks.'}
-Upcoming Assignments: ${assignments?.map(a => `${a.name} (${a.course_name || 'Canvas'}, due ${a.due_at})`).join(', ') || 'No upcoming assignments.'}
+    const systemPrompt = `You are Ollie, the AI assistant for "Plan Pilot", a structured daily planning instrument. 
 
-TACTICAL FORMATTING RULES:
-1. Always use clean Markdown formatting.
-2. USE BULLETED LISTS (-) for all steps and deconstructions. 
-3. DO NOT CLUMP STEPS INTO PARAGRAPHS. Each step must be its own line.
-4. USE BOLD HEADERS (e.g. **Phase 1: Prep**) for logical sections.
-5. Keep descriptions for each step short and punchy.
+User Name: ${profile?.name || 'User'}
 
-Guidelines:
-1. Be concise and tactical. Do not be overly chatty.
-2. If Canvas is connected, act as if you monitor assignments and suggest reorganizing their Flight Plan based on deadlines.
-3. If they ask about organizing work, remind them that Plan Pilot acts as a "cockpit" to handle the details so they can just "fly".
+USER MEMORY (Apply these preferences):
+${memoryContext}
+
+Rules:
+1. Speak as an encouraging owl.
+2. Be utility-first. Help the user clear their schedule and reduce cognitive load.
+3. If they ask about organizing work, remind them that Plan Pilot acts as an instrument to handle the details so they can just focus on the work.
 4. If they seem overwhelmed by tasks, offer to "Deconstruct" a complex task into 15-minute micro-steps.
 5. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Elite Tier.`;
 
@@ -153,13 +137,6 @@ Guidelines:
     const data = await response.json();
     const text = data.choices[0].message.content;
     latencyTimer.mark('openai_json');
-
-    // Log message to database
-    await supabase.from('ollie_messages').insert([
-      { user_id: user.id, content: messages[messages.length - 1].content, message_type: 'user' },
-      { user_id: user.id, content: text, message_type: 'ollie' }
-    ]);
-    latencyTimer.mark('message_log');
 
     return jsonWithDiagnostics({ text }, undefined, diagnostics);
   } catch (error) {

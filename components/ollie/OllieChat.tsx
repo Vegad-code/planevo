@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import OllieAvatar from './OllieAvatar';
 import { createClient } from '@/lib/supabase/client';
-import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus, Trash } from '@phosphor-icons/react';
+import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
 import {
   buildChatClientLatencyDiagnostic,
@@ -36,7 +36,7 @@ export default function OllieChat() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear your schedule today?" }
+    { role: 'ollie', content: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,26 +45,16 @@ export default function OllieChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
+    requestAnimationFrame(() => {
+      setMounted(true);
+    });
   }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    const handleDeconstruct = (e: any) => {
-      const { name } = e.detail;
-      setIsOpen(true);
-      setInput(`Deconstruct assignment: "${name}". Break it into manageable steps.`);
-    };
-
-    window.addEventListener('ollie-deconstruct', handleDeconstruct);
-    fetchConversations();
-    return () => window.removeEventListener('ollie-deconstruct', handleDeconstruct);
-  }, []);
-
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -84,12 +74,27 @@ export default function OllieChat() {
       .eq('user_id', user.id)
       .order('last_active', { ascending: false });
 
-    if (data) setConversations(data);
-  };
+    if (data) setConversations(data as Conversation[]);
+  }, [supabase]);
+
+  useEffect(() => {
+    const handleDeconstruct = (e: Event) => {
+      const customEvent = e as CustomEvent<{ name: string }>;
+      const { name } = customEvent.detail;
+      setIsOpen(true);
+      setInput(`Deconstruct assignment: "${name}". Break it into manageable steps.`);
+    };
+
+    window.addEventListener('ollie-deconstruct', handleDeconstruct);
+    requestAnimationFrame(() => {
+      void fetchConversations();
+    });
+    return () => window.removeEventListener('ollie-deconstruct', handleDeconstruct);
+  }, [fetchConversations]);
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([{ role: 'ollie', content: "Systems online. Ready for tactical support, Pilot. How can I help you clear your schedule today?" }]);
+    setMessages([{ role: 'ollie', content: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }]);
     setShowHistory(false);
   };
 
@@ -207,7 +212,7 @@ export default function OllieChat() {
         throw new Error(data.error || 'Connection lost');
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'ollie', content: "Sorry Pilot, I hit some signal interference. Could you repeat that?" }]);
+      setMessages(prev => [...prev, { role: 'ollie', content: "Sorry, I hit a slight connection issue. Could you repeat that?" }]);
     } finally {
       setLoading(false);
     }
@@ -224,7 +229,7 @@ export default function OllieChat() {
         <div className="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 rounded-full border-2 border-surface-900 animate-bounce" />
         <OllieAvatar mood="happy" size="md" />
         <div className="absolute right-20 bg-surface-900 text-white px-3 py-1 text-[10px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border-2 border-surface-900">
-          Tactical Support
+          Ollie Assistant
         </div>
       </button>
     );
@@ -240,11 +245,11 @@ export default function OllieChat() {
         <div className="flex items-center gap-3">
           <OllieAvatar mood={loading ? "thinking" : "happy"} size="sm" />
           <div>
-            <h3 className="text-sm font-black text-white uppercase tracking-widest">Ollie Navigator</h3>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Ollie Assistant</h3>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
               <span className="text-[8px] font-black text-[#888] uppercase tracking-widest">
-                {currentConversationId ? 'MISSION ACTIVE' : 'STANDBY MODE'}
+                {currentConversationId ? 'ACTIVE' : 'READY'}
               </span>
             </div>
           </div>
@@ -253,7 +258,7 @@ export default function OllieChat() {
           <button 
             onClick={() => setShowHistory(!showHistory)} 
             className={`p-1.5 rounded transition-colors ${showHistory ? 'bg-accent-500 text-surface-900' : 'text-[#888] hover:text-white'}`}
-            title="Mission History"
+            title="Chat History"
           >
             <ClockCounterClockwise weight="bold" size={20} />
           </button>
@@ -274,15 +279,15 @@ export default function OllieChat() {
       {showHistory && (
         <div className="absolute inset-0 z-30 bg-surface-900 flex flex-col animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="p-4 border-b border-surface-700 flex items-center justify-between">
-            <h4 className="text-xs font-black text-white uppercase tracking-widest">Mission Logs</h4>
+            <h4 className="text-xs font-black text-white uppercase tracking-widest">Recent Chats</h4>
             <button onClick={startNewConversation} className="bg-accent-500 text-surface-900 p-1.5 rounded flex items-center gap-2 text-[10px] font-black uppercase">
-              <Plus weight="bold" /> New Link
+              <Plus weight="bold" /> New Chat
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {conversations.length === 0 ? (
               <div className="text-center py-10 opacity-30">
-                <p className="text-[10px] font-black text-white uppercase tracking-widest">No Logged Missions</p>
+                <p className="text-[10px] font-black text-white uppercase tracking-widest">No Recent Chats</p>
               </div>
             ) : (
               conversations.map(c => (
@@ -303,7 +308,7 @@ export default function OllieChat() {
             onClick={() => setShowHistory(false)}
             className="p-4 text-[10px] font-black text-surface-400 hover:text-white uppercase tracking-widest border-t border-surface-700"
           >
-            Close Logs
+            Close Chats
           </button>
         </div>
       )}
@@ -347,7 +352,7 @@ export default function OllieChat() {
               <div className="text-4xl mb-4 animate-bounce">💎</div>
               <h4 className="text-sm font-black uppercase tracking-widest text-surface-900 mb-2">Daily Quota Reached</h4>
               <p className="text-[10px] font-bold text-surface-500 uppercase leading-relaxed mb-6">
-                Your tactical support link is at capacity. Upgrade to Elite for 200+ daily missions and full priority.
+                Your daily AI usage is at capacity. Upgrade to Elite for 1000+ daily requests and full priority.
               </p>
               <div className="flex flex-col gap-3">
                 <Link 
@@ -360,7 +365,7 @@ export default function OllieChat() {
                   onClick={() => setShowPaywall(false)}
                   className="text-[10px] font-black uppercase tracking-widest text-surface-400 hover:text-surface-900 transition-colors"
                 >
-                  Maybe later, Pilot
+                  Maybe later
                 </button>
               </div>
             </div>
@@ -374,7 +379,7 @@ export default function OllieChat() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Request tactical support..."
+          placeholder="Ask Ollie anything..."
           className="flex-1 bg-white border-2 border-[#121212] px-4 py-2 text-xs font-bold uppercase text-black placeholder:text-[#888] focus:outline-none focus:ring-2 focus:ring-accent-500 transition-all"
         />
         <button

@@ -14,6 +14,14 @@ import { Plus } from 'lucide-react';
 
 type CalendarView = 'day' | 'week' | 'month' | 'list';
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_minutes?: number;
+  energy_level_required?: string;
+}
+
 interface CalendarShellProps {
   events: CalendarEvent[];
   preferences: CalendarPreferences;
@@ -22,7 +30,7 @@ interface CalendarShellProps {
   onCreateEvent?: (time?: Date) => void;
   onEventReschedule?: (eventId: string, newStart: Date, newEnd: Date) => void;
   onEventResize?: (eventId: string, newEnd: Date) => void;
-  onTaskDrop?: (task: any, time: Date) => void;
+  onTaskDrop?: (task: Task, time: Date) => void;
 }
 
 export default function CalendarShell({

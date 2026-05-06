@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeClosed } from "@phosphor-icons/react";
 import Link from "next/link";
-import { JSX, SVGProps } from "react";
+
 
 export default function SignIn() {
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
@@ -87,7 +87,7 @@ export default function SignIn() {
           <div>
             <h2 className="text-2xl font-bold uppercase tracking-tight">Sign in to Plant Pilot</h2>
             <p className="text-surface-600 text-sm mt-1 font-bold">
-              Welcome back! Let's get things done.
+              Welcome back! Let&apos;s get things done.
             </p>
           </div>
         </CardHeader>

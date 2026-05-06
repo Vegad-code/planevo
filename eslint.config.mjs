@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "mcp-servers/**",
+    "scratch/**",
+    "dist/**",
+    "node_modules/**",
+    "check_encoding.js",
   ]),
 ]);
 

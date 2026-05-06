@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, CalendarBlank, GithubLogo, Kanban, Lightning, CheckCircle, Warning, PlugsConnected, LockKey, X, MagnifyingGlass } from '@phosphor-icons/react';
+import { GraduationCap, CalendarBlank, GithubLogo, Kanban, Lightning, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass } from '@phosphor-icons/react';
 import { testCanvasConnectionAction } from '@/lib/canvas/actions';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,7 +22,7 @@ export default function Integrations() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   
   // Connection states
   const [canvasUrl, setCanvasUrl] = useState('');
@@ -33,12 +33,13 @@ export default function Integrations() {
   const [activeConfig, setActiveConfig] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean, message: string } | null>(null);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    requestAnimationFrame(() => {
+      setMounted(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function Integrations() {
       setLoading(false);
     }
     getProfile();
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const handleSaveCanvas = async () => {
     if (!canvasUrl.startsWith('https://')) {
@@ -84,7 +85,7 @@ export default function Integrations() {
     if (error) {
       setTestResult({ success: false, message: 'Failed to save Canvas settings.' });
     } else {
-      setTestResult({ success: true, message: 'Canvas settings locked in. Sensors active.' });
+      setTestResult({ success: true, message: 'Canvas settings saved. Sources active.' });
       setProfile({ ...profile, canvas_token: canvasToken, canvas_url: canvasUrl });
       setTimeout(() => {
         setActiveConfig(null);
@@ -115,7 +116,7 @@ export default function Integrations() {
     const isOk = await testCanvasConnectionAction(canvasUrl, canvasToken);
     
     if (isOk) {
-      setTestResult({ success: true, message: 'Connection verified! Flight data syncing.' });
+      setTestResult({ success: true, message: 'Connection verified! Data syncing.' });
     } else {
       setTestResult({ success: false, message: 'Connection failed. Check your URL and Token.' });
     }
@@ -133,8 +134,8 @@ export default function Integrations() {
       } else {
         setTestResult({ success: false, message: data.error || 'Sync failed' });
       }
-    } catch (err) {
-      setTestResult({ success: false, message: 'Tactical link failure. Try again.' });
+    } catch {
+      setTestResult({ success: false, message: 'Sync failure. Try again.' });
     } finally {
       setSyncing(false);
     }
@@ -210,17 +211,17 @@ export default function Integrations() {
     <div className="space-y-12">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-black text-surface-900 uppercase tracking-tighter mb-2">Integration Command Center</h2>
+        <h2 className="text-3xl font-black text-surface-900 uppercase tracking-tighter mb-2">Integration Hub</h2>
         <p className="text-surface-600 font-bold max-w-2xl">
-          Plug your tools into Ollie's sensory array. The more data silos you connect, the more accurately your daily Flight Plan can be constructed.
+          Connect your tools to Ollie. The more sources you link, the more accurately your Daily Plan can be constructed.
         </p>
       </div>
 
       {/* Global Settings */}
       <div className="bg-surface-100 p-6 border-2 border-surface-900 shadow-[6px_6px_0_0_var(--surface-900)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="font-black text-surface-900 uppercase tracking-tight">Blueprint Refresh Time</h3>
-          <p className="text-xs font-bold text-surface-600">When should Ollie pull from sensors and build your plan?</p>
+          <h3 className="font-black text-surface-900 uppercase tracking-tight">Schedule Refresh Time</h3>
+          <p className="text-xs font-bold text-surface-600">When should Ollie pull from sources and build your plan?</p>
         </div>
         <div className="flex items-center gap-3">
           <Input
@@ -237,11 +238,11 @@ export default function Integrations() {
 
       <hr className="border-t-2 border-surface-900" />
 
-      {/* Academic Sensors */}
+      {/* Academic Sources */}
       <div className="space-y-6">
         <h3 className="text-xl font-black text-surface-900 uppercase tracking-tight flex items-center gap-2">
           <div className="w-3 h-3 bg-brand-500 border-2 border-surface-900 rounded-full" />
-          Academic Sensors
+          Academic Sources
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {academicSensors.map(renderSensorCard)}
@@ -309,7 +310,7 @@ export default function Integrations() {
                       variant="outline"
                       className="flex-1 uppercase font-black tracking-widest text-[10px]"
                     >
-                      {testing ? 'Pinging...' : 'Test Sensor'}
+                      {testing ? 'Pinging...' : 'Test Connection'}
                     </Button>
                     <Button 
                       onClick={handleSaveCanvas} 
@@ -332,7 +333,7 @@ export default function Integrations() {
                     <li>Go to <strong className="text-surface-900">Settings</strong>.</li>
                     <li>Scroll down to <strong className="text-surface-900">Approved Integrations</strong>.</li>
                     <li>Click <strong className="text-surface-900">+ New Access Token</strong>.</li>
-                    <li>Name it "Plan Pilot" and copy the token immediately.</li>
+                    <li>Name it &quot;Plan Pilot&quot; and copy the token immediately.</li>
                   </ol>
                 </div>
               </div>
@@ -370,7 +371,7 @@ export default function Integrations() {
                   </p>
                   <ul className="text-[10px] font-bold text-surface-500 space-y-2 uppercase">
                     <li className="flex items-center gap-2"><CheckCircle className="text-accent-500" /> Read-only access to primary calendar</li>
-                    <li className="flex items-center gap-2"><CheckCircle className="text-accent-500" /> Automatic Flight Plan ingestion</li>
+                    <li className="flex items-center gap-2"><CheckCircle className="text-accent-500" /> Automatic schedule ingestion</li>
                     <li className="flex items-center gap-2"><CheckCircle className="text-accent-500" /> Secure encrypted storage</li>
                   </ul>
                 </div>
@@ -387,7 +388,7 @@ export default function Integrations() {
                           disabled={syncing}
                           onClick={handleSyncGoogle}
                         >
-                          {syncing ? 'PULLING DATA...' : 'SYNC SIGNAL NOW'}
+                          {syncing ? 'PULLING DATA...' : 'SYNC DATA NOW'}
                         </Button>
                         <Button 
                           variant="outline" 
@@ -401,7 +402,7 @@ export default function Integrations() {
                             if (!error) setProfile({ ...profile, google_calendar_connected: false });
                           }}
                         >
-                          Disconnect Signal
+                          Disconnect Integration
                         </Button>
                       </div>
                     </div>
@@ -469,10 +470,10 @@ export default function Integrations() {
                       </div>
                       <div>
                         <h3 className="text-3xl font-black uppercase tracking-tighter text-white mb-2">
-                          Elite Sensor Locked
+                          Elite Integration Locked
                         </h3>
                         <p className="text-sm font-bold text-surface-400 max-w-md mx-auto leading-relaxed">
-                          Professional integrations like <span className="text-white">{activeIntegration?.name}</span> are reserved for Elite Pilots. Upgrade your flight plan to unlock this sensor.
+                          Professional integrations like <span className="text-white">{activeIntegration?.name}</span> are reserved for Elite users. Upgrade your plan to unlock this source.
                         </p>
                       </div>
                       <Button className="bg-accent-500 hover:bg-accent-400 text-surface-900 font-black uppercase tracking-widest px-8 py-6 text-sm border-2 border-surface-900 shadow-[4px_4px_0_0_#ffffff]">
@@ -487,7 +488,7 @@ export default function Integrations() {
                     <div className="flex items-center gap-3 mb-6">
                       <Lightning weight="fill" className="w-8 h-8 text-accent-500" />
                       <h3 className="text-2xl font-black uppercase tracking-tighter text-white">
-                        N8N Tactical Signal Link
+                        Signal Integration Hub
                       </h3>
                     </div>
                     
@@ -498,7 +499,7 @@ export default function Integrations() {
                         </p>
                         
                         <div className="space-y-3 p-4 bg-surface-800 border-2 border-surface-700 rounded-xl">
-                          <Label className="text-[10px] font-black uppercase text-accent-500">Your Tactical Token</Label>
+                          <Label className="text-[10px] font-black uppercase text-accent-500">Your Integration Token</Label>
                           <div className="flex gap-2">
                             <Input
                               readOnly
@@ -517,7 +518,7 @@ export default function Integrations() {
                             </Button>
                           </div>
                           <p className="text-[8px] font-bold text-surface-500 uppercase">
-                            DO NOT SHARE. This token allows external tools to pipe data into your cockpit.
+                            DO NOT SHARE. This token allows external tools to send data to your account.
                           </p>
                         </div>
                       </div>
@@ -549,7 +550,7 @@ export default function Integrations() {
         <div className="flex justify-between items-end">
           <h3 className="text-xl font-black text-surface-900 uppercase tracking-tight flex items-center gap-2">
             <div className="w-3 h-3 bg-accent-500 border-2 border-surface-900 rounded-full" />
-            Professional Hub
+            Professional Sources
           </h3>
           <span className="bg-surface-900 text-surface-100 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-[2px_2px_0_0_var(--accent-500)]">
             Elite Tier Exclusive

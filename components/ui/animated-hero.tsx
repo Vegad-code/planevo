@@ -63,9 +63,8 @@ function Hero() {
             </h1>
 
             <p className="text-lg md:text-xl leading-relaxed tracking-tight text-surface-600 max-w-2xl text-center mx-auto mt-6">
-              Get your life together, even when you don&apos;t feel like it. 
-              The only productivity app that proactively nudges you, adapts your schedule when you miss tasks, 
-              and coaches you through your day without the guilt trips.
+              All your planning inputs. One next action.
+              Plan Pilot turns scattered tasks, deadlines, projects, and calendar chaos into one calm Daily Plan.
             </p>
           </div>
           <div className="flex flex-row gap-4 mt-8">

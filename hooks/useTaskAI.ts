@@ -70,7 +70,7 @@ export function useTaskAI() {
     aiError,
     fetchAIPriorities,
     invalidateCache,
-    logFeedback: async (feature: string, suggestion: any, action: 'accept' | 'reject', correction?: string) => {
+    logFeedback: async (feature: string, suggestion: unknown, action: 'accept' | 'reject', correction?: string) => {
       setFeedbackLoading(true);
       try {
         const response = await fetch('/api/ai/feedback', {

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 /**
  * Adaptive Rescheduling (Step 4 of Phase Two)
  * Moves all incomplete tasks with a past due_date to 'today' without shame.
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
       message: `Ollie moved ${movedCount} tasks to your schedule today. No sweat! 🌿` 
     });
 
-  } catch (error: any) {
-    console.error('Rollover Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Rollover Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { 
   CheckCircle2, History, Archive, RotateCcw, 
-  ChevronDown, ChevronUp, Calendar, Trophy,
-  Rocket
+  ChevronDown, ChevronUp, Trophy, Rocket
 } from 'lucide-react';
 import type { Task } from '@/types/database';
 import { useTaskActions } from '@/hooks/useTaskActions';
@@ -18,8 +17,6 @@ export default function TaskHistory() {
   const [expanded, setExpanded] = useState(false);
   const [showFullArchive, setShowFullArchive] = useState(false);
   const supabase = createClient();
-  const { toggleComplete } = useTaskActions(() => loadHistory());
-
   const loadHistory = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -46,8 +43,12 @@ export default function TaskHistory() {
     setLoading(false);
   }, [supabase]);
 
+  const { toggleComplete } = useTaskActions(() => loadHistory());
+
   useEffect(() => {
-    loadHistory();
+    requestAnimationFrame(() => {
+      void loadHistory();
+    });
   }, [loadHistory]);
 
   if (loading) return null;
@@ -67,10 +68,10 @@ export default function TaskHistory() {
           </div>
           <div className="text-left">
             <h3 className="text-sm font-black text-surface-900 uppercase tracking-widest">
-              Mission Progress
+              Task Progress
             </h3>
             <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wide">
-              {recentTasks.length} deployed in last 4 days • {totalCompleted} total
+              {recentTasks.length} completed in last 4 days • {totalCompleted} total
             </p>
           </div>
         </div>
@@ -104,7 +105,7 @@ export default function TaskHistory() {
                 <div className="flex items-center gap-2 mb-3 px-1">
                   <Rocket className="w-4 h-4 text-brand-500" />
                   <h4 className="text-[10px] font-black text-surface-400 uppercase tracking-widest">
-                    Recent Deployments (4 Days)
+                    Recent Completions (4 Days)
                   </h4>
                 </div>
                 
@@ -151,7 +152,7 @@ export default function TaskHistory() {
                     <div className="flex items-center gap-2">
                       <Archive className="w-4 h-4 text-surface-400" />
                       <h4 className="text-[10px] font-black text-surface-500 uppercase tracking-widest text-left">
-                        Mission Archives ({archivedTasks.length})
+                        Completed Tasks ({archivedTasks.length})
                       </h4>
                     </div>
                     {showFullArchive ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

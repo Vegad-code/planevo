@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS public.users (
   preferred_morning_time TIME,
   onboarding_complete BOOLEAN NOT NULL DEFAULT false,
   energy_preference TEXT CHECK (energy_preference IN ('morning', 'afternoon', 'evening')),
+  google_calendar_connected BOOLEAN DEFAULT false,
+  google_calendar_id TEXT,
+  google_calendar_refresh_token TEXT,
+  google_classroom_connected BOOLEAN DEFAULT false,
+  n8n_webhook_token TEXT,
+  scheduling_preferences JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -26,6 +32,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
+  notes TEXT,
   due_date TIMESTAMPTZ,
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done', 'missed')),
@@ -35,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   ai_confidence_score INTEGER DEFAULT 0,
   completed BOOLEAN DEFAULT false,
   completed_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
   parent_task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
   is_recurring BOOLEAN DEFAULT false,
   recurrence_pattern TEXT,
@@ -53,6 +61,7 @@ CREATE TABLE IF NOT EXISTS public.goals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
+  notes TEXT,
   deadline TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'archived')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -108,9 +117,114 @@ CREATE TABLE IF NOT EXISTS public.ollie_messages (
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   message_type TEXT NOT NULL CHECK (message_type IN (
     'greeting', 'nudge', 'celebration', 'reschedule',
-    'weekly_review', 'encouragement', 'tip'
+    'weekly_review', 'encouragement', 'tip', 'user', 'ollie', 'assistant'
   )),
   content TEXT NOT NULL,
+  conversation_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- AI FEEDBACK TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.ai_feedback (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  feature_name TEXT NOT NULL,
+  action TEXT NOT NULL,
+  suggestion_json JSONB NOT NULL,
+  correction_text TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- CALENDAR EVENTS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.calendar_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ,
+  is_all_day BOOLEAN DEFAULT false,
+  color TEXT,
+  icon TEXT,
+  source TEXT DEFAULT 'manual',
+  external_id TEXT,
+  recurrence_rule TEXT,
+  linked_task_id UUID REFERENCES public.tasks(id) ON DELETE SET NULL,
+  ollie_notes TEXT,
+  metadata JSONB DEFAULT '{}',
+  is_completed BOOLEAN DEFAULT false,
+  completed_at TIMESTAMPTZ,
+  is_deleted BOOLEAN DEFAULT false,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- CALENDAR PREFERENCES TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.calendar_preferences (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  default_view TEXT DEFAULT 'day',
+  start_hour INTEGER DEFAULT 8,
+  end_hour INTEGER DEFAULT 22,
+  show_completed BOOLEAN DEFAULT true,
+  show_gaps BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- CANVAS ASSIGNMENTS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.canvas_assignments (
+  id TEXT PRIMARY KEY, -- Canvas uses its own IDs
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  course_name TEXT,
+  due_at TIMESTAMPTZ,
+  points_possible REAL,
+  html_url TEXT,
+  synced_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- CHAT CONVERSATIONS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.chat_conversations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'New Conversation',
+  last_active TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- OLLIE MESSAGES TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.ollie_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  conversation_id UUID REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
+  message_type TEXT NOT NULL CHECK (message_type IN ('user', 'assistant', 'ollie')),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- FOCUS SESSIONS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.focus_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  was_interrupted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -122,6 +236,27 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_logs (
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   feature TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- USER AI MEMORY TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.user_ai_memory (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  preferred_focus_windows JSONB NOT NULL DEFAULT '[]'::jsonb,
+  avoided_focus_windows JSONB NOT NULL DEFAULT '[]'::jsonb,
+  break_preference JSONB NOT NULL DEFAULT '{}'::jsonb,
+  planning_style JSONB NOT NULL DEFAULT '{}'::jsonb,
+  tone_preference JSONB NOT NULL DEFAULT '{}'::jsonb,
+  task_detail_preference JSONB NOT NULL DEFAULT '{}'::jsonb,
+  recurring_constraints JSONB NOT NULL DEFAULT '[]'::jsonb,
+  learned_rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  disliked_patterns JSONB NOT NULL DEFAULT '[]'::jsonb,
+  accepted_patterns JSONB NOT NULL DEFAULT '[]'::jsonb,
+  source_counters JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_compacted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ============================================================
@@ -189,6 +324,7 @@ CREATE INDEX idx_habit_logs_habit_id ON public.habit_logs(habit_id);
 CREATE INDEX idx_schedules_user_id ON public.schedules(user_id);
 CREATE INDEX idx_schedules_date ON public.schedules(date);
 CREATE INDEX idx_ollie_messages_user_id ON public.ollie_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_ai_memory_updated_at ON public.user_ai_memory(updated_at);
 
 -- ============================================================
 -- ROW LEVEL SECURITY POLICIES
@@ -196,6 +332,7 @@ CREATE INDEX idx_ollie_messages_user_id ON public.ollie_messages(user_id);
 
 -- Enable RLS on all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ollie_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subtasks ENABLE ROW LEVEL SECURITY;
@@ -204,6 +341,7 @@ ALTER TABLE public.habit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ollie_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_ai_memory ENABLE ROW LEVEL SECURITY;
 
 -- USERS: Users can only read and update their own profile
 CREATE POLICY "Users can view own profile"
@@ -398,6 +536,52 @@ CREATE POLICY "Users can view own AI logs"
 CREATE POLICY "Users can create own AI logs"
   ON public.ai_usage_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+-- USER AI MEMORY: Users can view/create/update own memory
+CREATE POLICY "Users can view own AI memory" ON public.user_ai_memory FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own AI memory" ON public.user_ai_memory FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own AI memory" ON public.user_ai_memory FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.ai_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.calendar_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canvas_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.focus_sessions ENABLE ROW LEVEL SECURITY;
+
+-- AI FEEDBACK: Users can view/create own feedback
+CREATE POLICY "Users can view own feedback" ON public.ai_feedback FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own feedback" ON public.ai_feedback FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- CALENDAR EVENTS: Users can CRUD own events
+CREATE POLICY "Users can view own calendar events" ON public.calendar_events FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own calendar events" ON public.calendar_events FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own calendar events" ON public.calendar_events FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own calendar events" ON public.calendar_events FOR DELETE USING (auth.uid() = user_id);
+
+-- CALENDAR PREFERENCES: Users can CRUD own preferences
+CREATE POLICY "Users can view own calendar preferences" ON public.calendar_preferences FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own calendar preferences" ON public.calendar_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own calendar preferences" ON public.calendar_preferences FOR UPDATE USING (auth.uid() = user_id);
+
+-- CANVAS ASSIGNMENTS: Users can view own assignments
+CREATE POLICY "Users can view own canvas assignments" ON public.canvas_assignments FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own canvas assignments" ON public.canvas_assignments FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- CHAT CONVERSATIONS: Users can CRUD own conversations
+CREATE POLICY "Users can view own chat conversations" ON public.chat_conversations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own chat conversations" ON public.chat_conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own chat conversations" ON public.chat_conversations FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own chat conversations" ON public.chat_conversations FOR DELETE USING (auth.uid() = user_id);
+
+-- OLLIE MESSAGES: Users can CRUD own messages
+CREATE POLICY "Users can view own ollie messages" ON public.ollie_messages FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own ollie messages" ON public.ollie_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own ollie messages" ON public.ollie_messages FOR DELETE USING (auth.uid() = user_id);
+
+-- FOCUS SESSIONS: Users can view/create own sessions
+CREATE POLICY "Users can view own focus sessions" ON public.focus_sessions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own focus sessions" ON public.focus_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================
 -- TRIGGER: Auto-create user profile on signup

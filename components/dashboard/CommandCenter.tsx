@@ -1,20 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { showToast } from '@/hooks/use-toast';
 import { 
   Plus, 
   Target, 
   Timer, 
-  Rocket, 
+  Sparkles, 
   X, 
   ChevronRight,
-  Zap,
   CheckCircle2,
   Clock,
-  Layout,
-  AlertCircle
 } from 'lucide-react';
 import OllieAvatar from '../ollie/OllieAvatar';
 import { createClient } from '@/lib/supabase/client';
@@ -22,27 +20,27 @@ import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useFocusStore } from '@/store/useFocusStore';
 import type { Task } from '@/types/database';
 
-// Modularized Flight Plan Logic
-interface FlightPlanItem {
+// Modularized Daily Plan Logic
+interface DailyPlanItem {
   id: string;
   title: string;
   reason: string;
 }
 
-interface FlightPlanData {
-  plan: FlightPlanItem[];
+interface DailyPlanData {
+  plan: DailyPlanItem[];
   message: string;
-  mission_name: string;
+  plan_name: string;
   vibe: string;
   focus_score: number;
 }
 
 export default function CommandCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<'menu' | 'flight-deck' | 'add-task' | 'add-project' | 'start-focus'>('menu');
+  const [mode, setMode] = useState<'menu' | 'daily-plan' | 'add-task' | 'add-project' | 'start-focus'>('menu');
   const [energy, setEnergy] = useState<'low' | 'medium' | 'high'>('medium');
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<FlightPlanData | null>(null);
+  const [plan, setPlan] = useState<DailyPlanData | null>(null);
   
   // Inline Form States
   const [taskTitle, setTaskTitle] = useState('');
@@ -53,7 +51,7 @@ export default function CommandCenter() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
 
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const focusStore = useFocusStore();
 
   const toggleOpen = () => {
@@ -101,9 +99,10 @@ export default function CommandCenter() {
       
       toggleOpen();
       router.refresh(); // Refresh dashboard to show new task
+      showToast.success('Task Added', `"${taskTitle.trim()}" is now in your task list.`);
     } catch (err) {
       console.error(err);
-      alert('Failed to add task');
+      showToast.error('Action Failed', 'Failed to add task to the list.');
     } finally {
       setLoading(false);
     }
@@ -127,9 +126,10 @@ export default function CommandCenter() {
 
       toggleOpen();
       router.refresh();
+      showToast.success('Project Created', `"${projectTitle.trim()}" is now active.`);
     } catch (err) {
       console.error(err);
-      alert('Failed to create project');
+      showToast.error('Creation Failed', 'Failed to create the project.');
     } finally {
       setLoading(false);
     }
@@ -148,13 +148,16 @@ export default function CommandCenter() {
   const generatePlan = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ai/flight-plan', {
+      const res = await fetch('/api/ai/daily-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ energyLevel: energy }),
       });
       const data = await res.json();
-      setPlan(data);
+      setPlan({
+        ...data,
+        plan_name: data.schedule_name // Map API schedule_name to internal plan_name
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -170,7 +173,7 @@ export default function CommandCenter() {
       color: 'bg-brand-500' 
     },
     { 
-      label: 'Launch Project', 
+      label: 'Start Project', 
       icon: <Target className="w-5 h-5" />, 
       mode: 'add-project' as const, 
       color: 'bg-accent-500' 
@@ -205,13 +208,13 @@ export default function CommandCenter() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.8, opacity: 0, y: 20 }}
               className={`absolute bottom-0 right-0 origin-bottom-right overflow-hidden ${
-                ['flight-deck', 'add-task', 'add-project', 'start-focus'].includes(mode) ? 'w-[400px]' : 'w-72'
+                ['daily-plan', 'add-task', 'add-project', 'start-focus'].includes(mode) ? 'w-[400px]' : 'w-72'
               } bg-white border-4 border-surface-900 shadow-[12px_12px_0_0_#22201e] rounded-[2.5rem]`}
             >
               {mode === 'menu' ? (
                 <div className="p-6 space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-black uppercase tracking-tighter text-xl">Quick Actions</h3>
+                    <h3 className="font-black uppercase tracking-tighter text-xl">Planning Tools</h3>
                     <button onClick={toggleOpen} className="p-2 hover:bg-surface-100 rounded-full transition-colors">
                       <X className="w-5 h-5" />
                     </button>
@@ -240,11 +243,11 @@ export default function CommandCenter() {
 
                   <div className="pt-4 border-t-2 border-surface-100">
                     <button
-                      onClick={() => setMode('flight-deck')}
+                      onClick={() => setMode('daily-plan')}
                       className="w-full flex items-center justify-center gap-3 p-5 bg-surface-900 text-white font-black uppercase tracking-widest text-sm border-2 border-surface-900 hover:bg-surface-800 transition-all shadow-[6px_6px_0_0_#ff6b00] active:shadow-none active:translate-x-1 active:translate-y-1"
                     >
-                      <Rocket className="w-5 h-5 text-accent-500" />
-                      Assemble Flight Plan
+                      <Sparkles className="w-5 h-5 text-accent-500" />
+                      Generate Daily Plan
                     </button>
                   </div>
                 </div>
@@ -263,17 +266,17 @@ export default function CommandCenter() {
                     <form onSubmit={handleAddTask} className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                       <div>
                         <h4 className="font-black uppercase tracking-tighter text-2xl">Create Task</h4>
-                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Adding to your mission log</p>
+                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Adding to your task list</p>
                       </div>
 
                       <div className="space-y-4">
                         <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1.5 block">Mission Title</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1.5 block">Task Title</label>
                           <input 
                             autoFocus
                             value={taskTitle}
                             onChange={(e) => setTaskTitle(e.target.value)}
-                            placeholder="e.g. Design tactical dashboard"
+                            placeholder="e.g. Study for biology midterm"
                             className="w-full p-4 border-2 border-surface-900 rounded-xl font-bold placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                         </div>
@@ -297,7 +300,7 @@ export default function CommandCenter() {
                               disabled={loading || !taskTitle}
                               className="w-full py-4 bg-brand-600 text-white border-2 border-surface-900 rounded-xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0_0_#22201e] hover:bg-brand-500 disabled:opacity-50 transition-all"
                             >
-                              {loading ? 'Saving...' : 'Deploy Task'}
+                              {loading ? 'Saving...' : 'Save Task'}
                             </button>
                           </div>
                         </div>
@@ -308,8 +311,8 @@ export default function CommandCenter() {
                   {mode === 'add-project' && (
                     <form onSubmit={handleAddProject} className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                       <div>
-                        <h4 className="font-black uppercase tracking-tighter text-2xl text-accent-600">Launch Project</h4>
-                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Define your next big mission</p>
+                        <h4 className="font-black uppercase tracking-tighter text-2xl text-accent-600">Start Project</h4>
+                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Define your next big objective</p>
                       </div>
 
                       <div className="space-y-4">
@@ -339,7 +342,7 @@ export default function CommandCenter() {
                           disabled={loading || !projectTitle}
                           className="w-full py-5 bg-accent-600 text-white border-2 border-surface-900 rounded-2xl font-black uppercase tracking-widest text-sm shadow-[6px_6px_0_0_#22201e] hover:bg-accent-500 disabled:opacity-50 transition-all"
                         >
-                          {loading ? 'Launching...' : 'Start Project'}
+                          {loading ? 'Saving...' : 'Start Project'}
                         </button>
                       </div>
                     </form>
@@ -349,13 +352,13 @@ export default function CommandCenter() {
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                       <div>
                         <h4 className="font-black uppercase tracking-tighter text-2xl text-info">Deep Focus</h4>
-                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Engaging cognitive dampeners</p>
+                        <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Minimizing distractions</p>
                       </div>
 
                       <div className="space-y-4">
                         {availableTasks.length > 0 ? (
                           <>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1.5 block">Select Mission for Focus</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1.5 block">Select Task for Focus</label>
                             <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                               {availableTasks.map(task => (
                                 <button
@@ -380,7 +383,7 @@ export default function CommandCenter() {
                               disabled={!selectedTaskId}
                               className="w-full py-5 bg-info text-white border-2 border-surface-900 rounded-2xl font-black uppercase tracking-widest text-sm shadow-[6px_6px_0_0_#22201e] hover:bg-blue-600 disabled:opacity-50 transition-all"
                             >
-                              Engage Focus Mode →
+                              Start Focus Mode →
                             </button>
                           </>
                         ) : (
@@ -399,12 +402,12 @@ export default function CommandCenter() {
                     </div>
                   )}
 
-                  {mode === 'flight-deck' && (
+                  {mode === 'daily-plan' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
                       <div className="text-center">
                         <OllieAvatar mood="thinking" size="md" />
-                        <h4 className="mt-4 font-black uppercase tracking-tighter text-2xl">Schedule</h4>
-                        <p className="text-xs font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Ready for tactical assessment</p>
+                        <h4 className="mt-4 font-black uppercase tracking-tighter text-2xl">Daily Plan</h4>
+                        <p className="text-xs font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Ready for optimization</p>
                       </div>
 
                       <div className="space-y-4">
@@ -436,23 +439,23 @@ export default function CommandCenter() {
                         disabled={loading}
                         className="w-full py-5 bg-surface-900 text-white font-black uppercase tracking-widest text-sm border-2 border-surface-900 hover:bg-surface-800 transition-all shadow-[6px_6px_0_0_#ff6b00] active:shadow-none active:translate-x-1 active:translate-y-1 disabled:opacity-50 rounded-2xl"
                       >
-                        {loading ? 'Analyzing Biometrics...' : 'Launch Mission Assembly'}
+                        {loading ? 'Building Plan...' : 'Generate Daily Plan'}
                       </button>
                     </div>
                   )}
 
-                  {mode === 'flight-deck' && plan && (
+                  {mode === 'daily-plan' && plan && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 mt-6">
                       <div className="bg-surface-900 text-white p-5 rounded-2xl border-2 border-surface-900 shadow-[6px_6px_0_0_#ff6b00]">
-                        <span className="text-[10px] font-black uppercase text-accent-500 tracking-widest">Active Blueprint</span>
-                        <h3 className="text-2xl font-black uppercase tracking-tighter mt-1">{plan.mission_name}</h3>
-                        <p className="text-[10px] font-bold text-surface-400 uppercase italic mt-1">{plan.vibe}</p>
+                        <span className="text-[10px] font-black uppercase text-accent-500 tracking-widest">Active Plan</span>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter mt-1">{plan.plan_name}</h3>
+                        <p className="text-[10px] font-bold text-surface-400 uppercase italic mt-1">Suggested Plan</p>
                       </div>
 
                       <div className="max-h-[300px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                         {plan.plan.map((item, idx) => (
                           <div key={idx} className="p-4 border-2 border-surface-900 bg-white rounded-xl shadow-[4px_4px_0_0_#22201e]">
-                            <h5 className="font-black uppercase text-xs text-brand-600 mb-1">Phase 0{idx + 1}</h5>
+                            <h5 className="font-black uppercase text-xs text-brand-600 mb-1">Step 0{idx + 1}</h5>
                             <h4 className="font-black uppercase text-sm">{item.title}</h4>
                             <p className="text-[10px] font-medium text-surface-500 mt-1">{item.reason}</p>
                           </div>
@@ -464,16 +467,16 @@ export default function CommandCenter() {
                           onClick={() => setPlan(null)}
                           className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-surface-400 hover:text-surface-900 transition-colors"
                         >
-                          Recalibrate
+                          Adjust Plan
                         </button>
                         <button
                           onClick={() => {
-                            router.push('/dashboard/focus');
+                            router.push('/dashboard/daily-plan');
                             toggleOpen();
                           }}
                           className="flex-[2] py-4 bg-brand-600 text-white border-2 border-surface-900 rounded-xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0_0_#22201e] hover:bg-brand-500 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
                         >
-                          Execute Plan →
+                          Start Plan →
                         </button>
                       </div>
                     </div>

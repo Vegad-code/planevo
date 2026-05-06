@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +15,11 @@ export async function POST(request: NextRequest) {
       }, { status: limitError === 'Unauthorized' ? 401 : 403 });
     }
     // -----------------------------------------
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const memory = user ? await getUserAIMemory(supabase, user.id) : null;
+    const memoryContext = memory ? buildMemoryContext(memory) : 'No user memory available.';
 
     const { title, description } = await request.json();
 
@@ -30,6 +37,9 @@ export async function POST(request: NextRequest) {
 
 Task: ${title}
 ${description ? `Notes: ${description}` : ''}
+
+USER MEMORY (Apply these preferences):
+${memoryContext}
 
 Break this task down into 2 to 5 extremely specific, actionable subtasks. Make them simple enough that the user can just execute without thinking.
 

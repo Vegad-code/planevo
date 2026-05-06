@@ -8,13 +8,24 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar, Clock, RotateCcw, Plus, ListTodo, Palette, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
+
+interface QuickAddData {
+  title: string;
+  start_time: string;
+  end_time: string;
+  description: string;
+  is_all_day: boolean;
+  is_completed: boolean;
+  source: string;
+  metadata: {
+    subtasks: Array<{ title: string; completed: boolean }>;
+  };
+}
 
 interface QuickAddSidebarProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: any) => void;
+  onSave: (data: QuickAddData) => void;
   defaultDate?: Date;
 }
 
@@ -69,18 +80,18 @@ export default function QuickAddSidebar({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md p-0 bg-[#121212] border-none flex flex-col h-full shadow-2xl">
         <SheetHeader className="p-8 pb-4">
-          <SheetTitle className="text-3xl font-black text-white uppercase tracking-tighter">New Mission</SheetTitle>
-          <SheetDescription className="text-white/40 font-medium">Configure your deployment details below.</SheetDescription>
+          <SheetTitle className="text-3xl font-black text-white uppercase tracking-tighter">New Task</SheetTitle>
+          <SheetDescription className="text-white/40 font-medium">Configure your task details below.</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-4 space-y-8">
-          {/* Mission Name Section */}
+          {/* Task Name Section */}
           <section className="space-y-4">
              <div className="flex items-center gap-3 text-white/40 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                    <Plus className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Mission Name</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Task Name</span>
              </div>
              <Input
                 placeholder="What are we focusing on?"
@@ -97,14 +108,14 @@ export default function QuickAddSidebar({
                 <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                    <Calendar className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Deployment Schedule</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Task Schedule</span>
              </div>
              
              <div className="grid grid-cols-1 gap-4">
                 <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4 group focus-within:border-brand-500/50 transition-colors">
                    <Calendar className="w-5 h-5 text-brand-500" />
                    <div className="flex-1">
-                      <Label className="text-[10px] uppercase text-white/40 font-black block mb-0.5">Deployment Date</Label>
+                      <Label className="text-[10px] uppercase text-white/40 font-black block mb-0.5">Task Date</Label>
                       <input 
                         type="date" 
                         value={date}
@@ -147,7 +158,7 @@ export default function QuickAddSidebar({
           <section className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
              <div className="flex items-center gap-4">
                 <RotateCcw className="w-5 h-5 text-white/40" />
-                <span className="text-sm text-white/80 font-bold uppercase tracking-wide">Repeat Mission</span>
+                <span className="text-sm text-white/80 font-bold uppercase tracking-wide">Repeat Task</span>
              </div>
              <Checkbox 
                 checked={repeat} 
@@ -162,7 +173,7 @@ export default function QuickAddSidebar({
                 <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                    <ListTodo className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Tactical Steps</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Steps</span>
              </div>
              
              <div className="space-y-2">
@@ -214,7 +225,7 @@ export default function QuickAddSidebar({
               disabled={!title}
               className="w-full h-16 bg-brand-500 hover:bg-brand-600 text-white text-lg font-black uppercase tracking-widest rounded-[20px] shadow-2xl shadow-brand-500/20 active:scale-[0.98] transition-all"
            >
-              Launch Mission
+              Add Task
            </Button>
         </div>
       </SheetContent>

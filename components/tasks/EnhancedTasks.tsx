@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import type { Task, BestTimeOfDay, EnergyLevel } from '@/types/database';
 import { useTaskGroups } from '@/hooks/useTaskGroups';
 import { useTaskAI } from '@/hooks/useTaskAI';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import { showToast } from '@/hooks/use-toast';
 import TaskGroup from './TaskGroup';
 import ShameFreeRescheduleModal from './ShameFreeRescheduleModal';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
@@ -21,7 +21,6 @@ export default function EnhancedTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   // Reschedule modal
   const [rescheduleTaskId, setRescheduleTaskId] = useState<string | null>(null);
@@ -56,13 +55,17 @@ export default function EnhancedTasks() {
     fetchTasks();
   }, [invalidateCache, fetchTasks]);
 
-  const { saving, addTask, toggleComplete, deleteTask, restoreTask, permanentlyDeleteTask, rescheduleTask: doReschedule, moveToWaiting, breakDownTask, startFresh } = useTaskActions(handleRefresh);
+  const { saving, addTask, toggleComplete, deleteTask, doReschedule, moveToWaiting, breakDownTask, startFresh } = useTaskActions(handleRefresh);
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);
 
   // Fetch tasks on mount
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => { 
+    requestAnimationFrame(() => {
+      fetchTasks(); 
+    });
+  }, [fetchTasks]);
 
   // Fetch AI priorities when tasks change
   useEffect(() => {
@@ -71,14 +74,6 @@ export default function EnhancedTasks() {
 
   // Groups for the list view
   const groups = useTaskGroups(tasks, aiResponse);
-
-  const allTasksDone = tasks.filter(t => !t.completed).length === 0;
-
-  // Toast helper
-  const showCompletionToast = useCallback((message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 2000);
-  }, []);
 
   // Handlers
   const handleAddTask = async (e: React.FormEvent) => {
@@ -93,7 +88,7 @@ export default function EnhancedTasks() {
       due_date: newDueDate || undefined,
     });
     if (result.error) {
-      alert(result.error);
+      showToast.error('Task Action Failed', result.error);
     } else {
       setNewTitle(''); setNewDescription(''); setNewEstimatedMinutes(30);
       setNewBestTime('anytime'); setNewEnergy('medium'); setNewDueDate('');
@@ -105,14 +100,11 @@ export default function EnhancedTasks() {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
-    setToast('AI is breaking down your task...');
-    const result = await breakDownTask(task);
-    
+    const result = await breakDownTask(taskId);
     if (result.error) {
-      alert(result.error);
-      setToast(null);
+      showToast.error('Task Action Failed', result.error);
     } else {
-      showCompletionToast('Task broken down into subtasks! 🌱');
+      showToast.success('Task broken down into subtasks! 🌱');
     }
   };
 
@@ -124,19 +116,13 @@ export default function EnhancedTasks() {
   const handleStartFresh = async () => {
     if (tasks.length === 0) return;
     
-    const confirm1 = confirm('Are you sure you want to delete ALL tasks and start fresh?');
-    if (!confirm1) return;
-    
-    const confirm2 = confirm('This cannot be undone. Are you absolutely sure?');
-    if (!confirm2) return;
+    if (!window.confirm('Are you sure you want to delete ALL tasks and start fresh? This cannot be undone.')) return;
 
-    setToast('Starting fresh...');
     const result = await startFresh();
     if (result.error) {
-      alert(result.error);
-      setToast(null);
+      showToast.error('Fresh Start Failed', result.error);
     } else {
-      showCompletionToast('Your workspace has been cleared! 🌱');
+      showToast.success('Your workspace has been cleared! 🌱');
     }
   };
 
@@ -232,7 +218,6 @@ export default function EnhancedTasks() {
               onBreakDown={handleBreakDown}
               onMoveToWaiting={moveToWaiting}
               onFocus={handleFocus}
-              showCompletionToast={showCompletionToast}
             />
           ))}
         </div>
@@ -254,18 +239,7 @@ export default function EnhancedTasks() {
         taskTitle={rescheduleTask?.title || ''}
       />
 
-      {/* Completion Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }} transition={{ duration: 0.2 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 bg-[#4ECDC4] text-white font-bold text-sm border-2 border-[#45b8b0] shadow-lg"
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Add Task Modal */}
       {showAddModal && (

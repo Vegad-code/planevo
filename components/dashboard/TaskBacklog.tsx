@@ -4,18 +4,18 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { 
-  Package, ChevronDown, ChevronUp, Zap, Clock, 
-  ArrowRight, Rocket, GripVertical, Plus
+  Package, ChevronDown, ChevronUp, Clock, 
+  ArrowRight, GripVertical, ExternalLink
 } from 'lucide-react';
 import type { Task } from '@/types/database';
 
-interface CargoBayProps {
-  onDockAll: (tasks: Task[]) => void;
-  onDockOne: (task: Task) => void;
+interface TaskBacklogProps {
+  onScheduleAll: (tasks: Task[]) => void;
+  onScheduleOne: (task: Task) => void;
   isProcessing: boolean;
 }
 
-function CargoItem({ task, onDock, index }: { task: Task; onDock: (t: Task) => void; index: number }) {
+function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: Task) => void; index: number }) {
   const ref = useRef(null);
   const inView = useInView(ref, { amount: 0.05, once: true });
 
@@ -29,7 +29,7 @@ function CargoItem({ task, onDock, index }: { task: Task; onDock: (t: Task) => v
     <motion.div
       ref={ref}
       draggable
-      onDragStart={(e: any) => {
+      onDragStart={(e: React.DragEvent) => {
         // We set the drag data to the task JSON so the drop target knows what task it is
         e.dataTransfer.setData('application/json', JSON.stringify(task));
         e.dataTransfer.effectAllowed = 'move';
@@ -37,7 +37,7 @@ function CargoItem({ task, onDock, index }: { task: Task; onDock: (t: Task) => v
         // Optional: create a drag image or just rely on default element dragging
         e.currentTarget.style.opacity = '0.5';
       }}
-      onDragEnd={(e: any) => {
+      onDragEnd={(e: React.DragEvent) => {
         e.currentTarget.style.opacity = '1';
       }}
       initial={{ scale: 0.95, opacity: 0, y: 8 }}
@@ -62,15 +62,27 @@ function CargoItem({ task, onDock, index }: { task: Task; onDock: (t: Task) => v
             {task.energy_level_required || 'med'}
           </span>
           {task.due_date && (
-            <span className="text-[10px] font-bold text-surface-400">
-              Due {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            <span className="flex items-center gap-1 text-[10px] font-bold text-surface-400 bg-surface-50 px-1.5 py-0.5 rounded-full border border-surface-100">
+              {task.due_date}
             </span>
+          )}
+          {task.external_url && (
+            <a
+              href={task.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-600 hover:text-brand-700 transition-colors ml-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="w-3 h-3" />
+              Source
+            </a>
           )}
         </div>
       </div>
       
       <button
-        onClick={() => onDock(task)}
+        onClick={() => onSchedule(task)}
         className="p-2 rounded-xl bg-brand-50 text-brand-600 hover:bg-brand-100 transition-all active:scale-90 opacity-0 group-hover:opacity-100 border border-brand-200"
         title="Send to Schedule"
       >
@@ -80,7 +92,7 @@ function CargoItem({ task, onDock, index }: { task: Task; onDock: (t: Task) => v
   );
 }
 
-export default function CargoBay({ onDockAll, onDockOne, isProcessing }: CargoBayProps) {
+export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing }: TaskBacklogProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
@@ -103,18 +115,20 @@ export default function CargoBay({ onDockAll, onDockOne, isProcessing }: CargoBa
   }, [supabase]);
 
   useEffect(() => {
-    loadUnscheduledTasks();
+    requestAnimationFrame(() => {
+      void loadUnscheduledTasks();
+    });
   }, [loadUnscheduledTasks]);
 
-  const handleDockOne = (task: Task) => {
-    onDockOne(task);
-    // Optimistically remove from Cargo Bay
+  const handleScheduleOne = (task: Task) => {
+    onScheduleOne(task);
+    // Optimistically remove from Backlog
     setTasks(prev => prev.filter(t => t.id !== task.id));
   };
 
-  const handleDockAll = () => {
+  const handleScheduleAll = () => {
     if (tasks.length === 0) return;
-    onDockAll(tasks);
+    onScheduleAll(tasks);
     // Optimistically clear
     setTasks([]);
   };
@@ -134,10 +148,10 @@ export default function CargoBay({ onDockAll, onDockOne, isProcessing }: CargoBa
           </div>
           <div className="text-left">
             <h3 className="text-sm font-black text-surface-900 uppercase tracking-widest">
-              Cargo Bay
+              Task Backlog
             </h3>
             <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wide">
-              {unscheduledCount} task{unscheduledCount !== 1 ? 's' : ''} waiting for deployment
+              {unscheduledCount} task{unscheduledCount !== 1 ? 's' : ''} waiting to be scheduled
             </p>
           </div>
         </div>
@@ -173,33 +187,33 @@ export default function CargoBay({ onDockAll, onDockOne, isProcessing }: CargoBa
                 </div>
               ) : tasks.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm font-bold text-surface-400">Cargo Bay is clear! ✅</p>
+                  <p className="text-sm font-bold text-surface-400">Backlog is clear! ✅</p>
                   <p className="text-[10px] text-surface-300 mt-1">
-                    All tasks are docked or completed.
+                    All tasks are scheduled or completed.
                   </p>
                 </div>
               ) : (
                 tasks.map((task, i) => (
-                  <CargoItem
+                  <BacklogItem
                     key={task.id}
                     task={task}
-                    onDock={handleDockOne}
+                    onSchedule={handleScheduleOne}
                     index={i}
                   />
                 ))
               )}
             </div>
             
-            {/* Auto-Dock Button */}
+            {/* Auto-Schedule Button */}
             {tasks.length > 0 && (
               <div className="p-4 pt-0">
                 <button
-                  onClick={handleDockAll}
+                  onClick={handleScheduleAll}
                   disabled={isProcessing}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-surface-900 hover:bg-surface-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Rocket className="w-4 h-4" />
-                  {isProcessing ? 'Docking...' : `Auto-Dock All (${unscheduledCount})`}
+                  <Clock className="w-4 h-4" />
+                  {isProcessing ? 'Scheduling...' : `Schedule All (${unscheduledCount})`}
                 </button>
               </div>
             )}

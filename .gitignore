@@ -48,3 +48,6 @@ tsc_clean_check.txt
 scratch/
 mcp-servers/
 canvas_debug.json
+*.log
+*.txt
+check_encoding.*

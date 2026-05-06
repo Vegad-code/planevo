@@ -5,7 +5,7 @@ This document tracks the long-term vision for Plan Pilot, moving from a smart ta
 ## Phase 2: Proactive Pilot (CURRENT)
 **Focus:** Stability and Core AI Utilities.
 - [x] Google Calendar Integration (OAuth + Sync).
-- [x] AI Flight Plans (Energy-aware scheduling).
+- [x] AI Daily Plans (Energy-aware scheduling).
 - [x] No-Shame Rollover (Adaptive rescheduling).
 - [x] Middleware Stability (Invalid token handling).
 - [x] Industrial Brutalist UI Refinement.
@@ -13,9 +13,9 @@ This document tracks the long-term vision for Plan Pilot, moving from a smart ta
 ## Phase 3: Personalization & Monetization (NEXT)
 **Focus:** Business Model and User Retention.
 - [ ] **Tiered Pricing Implementation:**
-    - **Foundations ($0):** Basic task management + 5 AI Flight Plans/mo.
-    - **Personal Pilot ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync.
-    - **Elite Pilot ($22.99/mo):** The AI Command Center (Intro offer: $19.99 for 3 months).
+    - **Foundations ($0):** Basic task management + 5 AI Daily Plans/mo.
+    - **Personal Plan ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync.
+    - **Elite Plan ($22.99/mo):** The AI Executive Dashboard (Intro offer: $19.99 for 3 months).
 - [ ] **The Feedback Loop:**
     - Add Accept/Reject buttons to all AI suggestions.
     - Log "Correction Data" to Supabase for future training.

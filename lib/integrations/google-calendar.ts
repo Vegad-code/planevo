@@ -54,18 +54,20 @@ export async function syncGoogleCalendar(userId: string) {
   }
 
   // 4. Transform to calendar_events format
-  const events = eventsData.items.map((item: any) => {
-    const isAllDay = !!item.start.date;
+  const events = eventsData.items.map((item: Record<string, unknown>) => {
+    const start = item.start as Record<string, unknown>;
+    const end = item.end as Record<string, unknown>;
+    const isAllDay = !!start.date;
     return {
       user_id: userId,
-      title: item.summary || 'Untitled Event',
-      start_time: item.start.dateTime || `${item.start.date}T00:00:00.000Z`,
-      end_time: item.end.dateTime || `${item.end.date}T23:59:59.999Z`,
+      title: (item.summary as string) || 'Untitled Event',
+      start_time: (start.dateTime as string) || `${start.date}T00:00:00.000Z`,
+      end_time: (end.dateTime as string) || `${end.date}T23:59:59.999Z`,
       is_all_day: isAllDay,
       source: 'google_calendar',
-      external_id: item.id,
-      description: item.description || null,
-      location: item.location || null,
+      external_id: item.id as string,
+      description: (item.description as string) || null,
+      location: (item.location as string) || null,
       icon: null,
       color: null,
       energy_level: null,
@@ -88,7 +90,7 @@ export async function syncGoogleCalendar(userId: string) {
     .eq('source', 'google_calendar')
     .gte('start_time', now);
 
-  const futureEvents = events.filter((e: any) => new Date(e.start_time) >= new Date(now));
+  const futureEvents = events.filter((e: Record<string, unknown>) => new Date(e.start_time as string) >= new Date(now));
 
   if (futureEvents.length > 0) {
     const { error: insertError } = await supabase

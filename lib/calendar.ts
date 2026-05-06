@@ -17,7 +17,7 @@ export interface TimeGap {
  * Fetches events from Google Calendar for the current user.
  * Requires the user to have logged in via Google OAuth with the calendar scope.
  */
-export async function getCalendarEvents(timeMin?: string, timeMax?: string): Promise<{ events: CalendarEvent[], error: any }> {
+export async function getCalendarEvents(timeMin?: string, timeMax?: string): Promise<{ events: CalendarEvent[], error: unknown }> {
   const supabase = await createClient();
   
   // Get the session to retrieve the provider_token
@@ -59,36 +59,57 @@ export async function getCalendarEvents(timeMin?: string, timeMax?: string): Pro
   }
 }
 
+export interface TimeWindow {
+  start: Date;
+  end: Date;
+}
+
 /**
- * Identifies gaps between events for today.
+ * Identifies gaps between events for today, respecting forbidden windows/constraints.
  */
-export function findGaps(events: CalendarEvent[], dayStart: Date, dayEnd: Date): TimeGap[] {
+export function findGaps(
+  events: CalendarEvent[], 
+  dayStart: Date, 
+  dayEnd: Date,
+  constraints: TimeWindow[] = []
+): TimeGap[] {
   const gaps: TimeGap[] = [];
   
-  // Filter and sort events that have dateTime (ignore all-day events for now)
-  const sortedEvents = events
-    .filter(e => e.start.dateTime && e.end.dateTime)
-    .map(e => ({
-      start: new Date(e.start.dateTime!),
-      end: new Date(e.end.dateTime!)
-    }))
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  // 1. Combine events and constraints into a single list of "Blockers"
+  const blockers = [
+    ...events
+      .filter(e => e.start.dateTime && e.end.dateTime)
+      .map(e => ({
+        start: new Date(e.start.dateTime!),
+        end: new Date(e.end.dateTime!)
+      })),
+    ...constraints
+  ].sort((a, b) => a.start.getTime() - b.start.getTime());
 
   let lastEnd = dayStart;
 
-  for (const event of sortedEvents) {
-    if (event.start > lastEnd) {
-      const duration = (event.start.getTime() - lastEnd.getTime()) / (1000 * 60);
-      if (duration >= 15) { // Minimum 15 min gap
-        gaps.push({
-          start: lastEnd,
-          end: event.start,
-          durationMinutes: Math.floor(duration)
-        });
+  for (const blocker of blockers) {
+    // If the blocker starts after our lastEnd, there's a potential gap
+    if (blocker.start > lastEnd) {
+      // Ensure we don't start a gap before dayStart or end it after dayEnd
+      const gapStart = lastEnd < dayStart ? dayStart : lastEnd;
+      const gapEnd = blocker.start > dayEnd ? dayEnd : blocker.start;
+
+      if (gapEnd > gapStart) {
+        const duration = (gapEnd.getTime() - gapStart.getTime()) / (1000 * 60);
+        if (duration >= 15) { // Minimum 15 min gap
+          gaps.push({
+            start: gapStart,
+            end: gapEnd,
+            durationMinutes: Math.floor(duration)
+          });
+        }
       }
     }
-    if (event.end > lastEnd) {
-      lastEnd = event.end;
+    
+    // Update lastEnd to the end of this blocker, but only if it's further than current lastEnd
+    if (blocker.end > lastEnd) {
+      lastEnd = blocker.end;
     }
   }
 

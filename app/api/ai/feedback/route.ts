@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { recordScheduleBlockFeedbackInMemory } from '@/lib/ai/memory';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +30,15 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error logging AI feedback:', error);
       return NextResponse.json({ error: 'Failed to log feedback' }, { status: 500 });
+    }
+
+    if (feature_name === 'daily_plan_schedule_block') {
+      await recordScheduleBlockFeedbackInMemory(
+        supabase,
+        user.id,
+        action,
+        suggestion_json as Record<string, unknown>
+      );
     }
 
     return NextResponse.json({ success: true });

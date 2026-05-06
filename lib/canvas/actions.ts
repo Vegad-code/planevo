@@ -1,8 +1,6 @@
 'use server';
 
-import { CanvasCourse, CanvasAssignment } from './api';
-import * as fs from 'fs';
-import * as path from 'path';
+import { CanvasAssignment } from './api';
 
 /**
  * Server-side proxy for Canvas API calls to avoid CORS issues.
@@ -39,9 +37,9 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     
     let contextCodes: string[] = [];
     if (coursesRes.ok) {
-      const cards = await coursesRes.json();
+      const cards = await coursesRes.json() as Array<{ assetString?: string }>;
       // Extract the true course ID from the assetString (e.g. "course_179010000001161785")
-      contextCodes = cards.filter((c: any) => c.assetString?.startsWith('course_')).map((c: any) => c.assetString);
+      contextCodes = cards.filter((c) => c.assetString?.startsWith('course_')).map((c) => c.assetString as string);
     }
 
     if (contextCodes.length === 0) {
@@ -93,19 +91,19 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     const todoData = results[3].status === 'fulfilled' ? results[3].value : [];
     const upcomingData = results[4].status === 'fulfilled' ? results[4].value : [];
     
-    const todos = Array.isArray(todoData) ? todoData.map((t: any) => t.assignment || t.quiz || t) : [];
-    const upcoming = Array.isArray(upcomingData) ? upcomingData.map((u: any) => u.assignment || u) : [];
+    const todos = Array.isArray(todoData) ? todoData.map((t: Record<string, unknown>) => (t.assignment || t.quiz || t) as Record<string, unknown>) : [];
+    const upcoming = Array.isArray(upcomingData) ? upcomingData.map((u: Record<string, unknown>) => (u.assignment || u) as Record<string, unknown>) : [];
 
-    let combinedItems: any[] = [...allAssignments, ...allEvents, ...todos, ...upcoming];
+    let combinedItems: Record<string, unknown>[] = [...allAssignments, ...allEvents, ...todos, ...upcoming] as Record<string, unknown>[];
     
     if (Array.isArray(allPlannerItems)) {
-      const unwrapped = allPlannerItems.map(p => ({
-        ...p.plannable,
+      const unwrapped = allPlannerItems.map((p: Record<string, unknown>) => ({
+        ...(p.plannable as Record<string, unknown>),
         context_name: p.context_name,
         html_url: p.html_url,
         plannable_type: p.plannable_type
       }));
-      combinedItems = [...combinedItems, ...unwrapped];
+      combinedItems = [...combinedItems, ...unwrapped] as Record<string, unknown>[];
     }
 
     // Deduplicate by ID
@@ -120,7 +118,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     
     // Filter out irrelevant staff events from the school district
     const clutterKeywords = ['support professionals', 'administrators', 'licensed employees', 'staff development day - no school'];
-    const filteredItems = uniqueItems.filter((target: any) => {
+    const filteredItems = uniqueItems.filter((target: Record<string, unknown>) => {
       const title = (target.title || target.name || '').toLowerCase();
       // Always keep events explicitly meant for students
       if (title.includes('no school students')) return true;
@@ -136,7 +134,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     });
     
     // Map them to our standard format and categorize
-    const mappedItems = filteredItems.map((target: any) => {
+    const mappedItems = filteredItems.map((target: Record<string, unknown>) => {
       let itemType: 'assignment' | 'milestone' | 'event' = 'event';
       const title = (target.title || target.name || '').toLowerCase();
       
@@ -146,7 +144,11 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
         target.points_possible !== undefined || 
         target.plannable_type === 'assignment' || 
         target.plannable_type === 'quiz' ||
-        target.type === 'assignment'
+        target.type === 'assignment' ||
+        title.includes('assignment') ||
+        title.includes('homework') ||
+        title.includes('quiz') ||
+        title.includes('exam')
       ) {
         itemType = 'assignment';
       } 
@@ -158,9 +160,14 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
         title.includes('semester') ||
         title.includes('break') ||
         title.includes('closed') ||
-        title.includes('no school')
+        title.includes('no school') ||
+        title.includes('holiday')
       ) {
         itemType = 'milestone'; 
+      }
+      // If it doesn't fit the above, it's a standard event (e.g. a class meeting)
+      else {
+        itemType = 'event';
       }
       
       return {
@@ -209,8 +216,8 @@ export async function fetchCanvasTodoAction(url: string, token: string): Promise
     if (!response.ok) throw new Error('Failed to fetch todo items');
     const items = await response.json();
     
-    return items.map((i: any) => {
-      const target = i.assignment || i;
+    return items.map((i: Record<string, unknown>) => {
+      const target = (i.assignment || i) as Record<string, unknown>;
       return {
         id: target.id,
         name: target.title || target.name,

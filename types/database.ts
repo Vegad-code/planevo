@@ -73,6 +73,68 @@ export type Database = {
           },
         ]
       }
+      user_ai_memory: {
+        Row: {
+          accepted_patterns: Json
+          avoided_focus_windows: Json
+          break_preference: Json
+          created_at: string
+          disliked_patterns: Json
+          last_compacted_at: string | null
+          learned_rules: Json
+          planning_style: Json
+          preferred_focus_windows: Json
+          recurring_constraints: Json
+          source_counters: Json
+          task_detail_preference: Json
+          tone_preference: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_patterns?: Json
+          avoided_focus_windows?: Json
+          break_preference?: Json
+          created_at?: string
+          disliked_patterns?: Json
+          last_compacted_at?: string | null
+          learned_rules?: Json
+          planning_style?: Json
+          preferred_focus_windows?: Json
+          recurring_constraints?: Json
+          source_counters?: Json
+          task_detail_preference?: Json
+          tone_preference?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_patterns?: Json
+          avoided_focus_windows?: Json
+          break_preference?: Json
+          created_at?: string
+          disliked_patterns?: Json
+          last_compacted_at?: string | null
+          learned_rules?: Json
+          planning_style?: Json
+          preferred_focus_windows?: Json
+          recurring_constraints?: Json
+          source_counters?: Json
+          task_detail_preference?: Json
+          tone_preference?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ai_memory_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_events: {
         Row: {
           color: string | null
@@ -276,8 +338,41 @@ export type Database = {
           },
         ]
       }
+      focus_sessions: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          user_id: string
+          was_interrupted: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes: number
+          id?: string
+          user_id: string
+          was_interrupted?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          user_id?: string
+          was_interrupted?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "focus_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
+          blueprint: Json | null
           created_at: string
           deadline: string | null
           id: string
@@ -287,6 +382,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          blueprint?: Json | null
           created_at?: string
           deadline?: string | null
           id?: string
@@ -296,6 +392,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          blueprint?: Json | null
           created_at?: string
           deadline?: string | null
           id?: string
@@ -498,6 +595,7 @@ export type Database = {
           due_date: string | null
           energy_level_required: string | null
           estimated_minutes: number | null
+          external_url: string | null
           id: string
           is_ai_suggested: boolean | null
           is_recurring: boolean | null
@@ -524,6 +622,7 @@ export type Database = {
           due_date?: string | null
           energy_level_required?: string | null
           estimated_minutes?: number | null
+          external_url?: string | null
           id?: string
           is_ai_suggested?: boolean | null
           is_recurring?: boolean | null
@@ -550,6 +649,7 @@ export type Database = {
           due_date?: string | null
           energy_level_required?: string | null
           estimated_minutes?: number | null
+          external_url?: string | null
           id?: string
           is_ai_suggested?: boolean | null
           is_recurring?: boolean | null

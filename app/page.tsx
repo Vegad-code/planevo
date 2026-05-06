@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { Hero } from '@/components/ui/animated-hero';
 import Pricing from '@/components/ui/pricing-base';
@@ -23,14 +23,7 @@ const staggerContainer = {
   viewport: { once: true }
 };
 
-const cardHover = {
-  whileHover: { 
-    scale: 1.03, 
-    y: -5,
-    transition: { type: "spring", stiffness: 300 }
-  },
-  whileTap: { scale: 0.98 }
-};
+
 
 export default function LandingPage() {
   const navItems = [
@@ -86,13 +79,13 @@ export default function LandingPage() {
           {...fadeInUp}
         >
           <div className="inline-flex items-center gap-2 bg-brand-300 text-surface-900 px-4 py-1.5 text-xs font-black uppercase tracking-widest mb-8 border-2 border-surface-900 shadow-[2px_2px_0_0_var(--surface-900)]">
-            The Student Reality
+            One Next Action
           </div>
           <h2 className="text-4xl md:text-6xl font-black text-surface-900 mb-6 uppercase tracking-tighter leading-none">
-            Your brain wasn't built to store deadlines.
+            Your brain wasn&apos;t built to store deadlines.
           </h2>
           <p className="text-xl text-surface-600 mb-16 font-bold max-w-2xl mx-auto leading-relaxed">
-            The weight of 5 classes, 12 projects, and 30 deadlines is what causes burnout. You don't need a passive database — you need an active cockpit that clears your mind.
+            The constant mental load of projects, deadlines, and daily tasks is what causes burnout. You don&apos;t need a passive database — you need a system that clarifies your next move.
           </p>
           <motion.div 
             className="grid md:grid-cols-3 gap-8 text-left"
@@ -102,7 +95,7 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             {[
-              { title: "Cognitive Load", desc: "Constant mental tracking of 'what's next' drains your energy before you even start the work." },
+              { title: "Cognitive Load", desc: "Constant mental tracking of &apos;what&apos;s next&apos; drains your energy before you even start the work." },
               { title: "Decision Fatigue", desc: "Spending 30 minutes deciding what to study is 30 minutes of lost progress." },
               { title: "The Anxiety Loop", desc: "Missed tasks turn into red badges that make you want to avoid your planner entirely." }
             ].map((item, i) => (
@@ -133,18 +126,18 @@ export default function LandingPage() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <div className="text-surface-900 font-black tracking-widest text-sm uppercase border-b-4 border-accent-500 inline-block pb-1">The Pilot Protocol</div>
+            <div className="text-surface-900 font-black tracking-widest text-sm uppercase border-b-4 border-accent-500 inline-block pb-1">The Daily Plan</div>
             <h2 className="text-4xl md:text-7xl font-black text-surface-900 leading-[0.9] uppercase tracking-tighter">
-              Stop organizing.<br /><span className="text-accent-500">Start flying.</span>
+              Less setup.<br /><span className="text-accent-500">More clarity.</span>
             </h2>
             <p className="text-xl text-surface-600 leading-relaxed font-bold">
-              Plan Pilot doesn't just store your tasks. It reads your Canvas assignments, Google Calendar, and deadlines — then Ollie builds your entire day for you.
+              Plan Pilot brings Canvas, calendar, tasks, and projects into one Daily Plan. Stop staring at a list of 50 things and start focusing on the one that matters.
             </p>
             <ul className="space-y-6 pt-4">
               {[
-                { text: 'Auto-Sync: Canvas & Google link in seconds', color: 'bg-brand-300' },
-                { text: 'Dynamic Blueprint: AI builds your Daily Plan daily', color: 'bg-accent-300' },
-                { text: 'No-Shame Rollover: Chaos is handled automatically', color: 'bg-success' }
+                { text: 'Unified View: Canvas, Calendar, and Tasks in one place', color: 'bg-brand-300' },
+                { text: 'Daily Plan: Generate a schedule around your energy and availability', color: 'bg-accent-300' },
+                { text: 'No-Shame Rollover: When plans slip, roll work forward without guilt', color: 'bg-success' }
               ].map((feature, i) => (
                 <motion.li 
                   key={i} 
@@ -171,13 +164,13 @@ export default function LandingPage() {
             <div className="relative bg-surface-100 p-12 border-4 border-surface-900 shadow-[12px_12px_0_0_var(--surface-900)] flex flex-col items-center text-center rounded-[3rem] overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 via-accent-500 to-success" />
               <OllieAvatar mood="celebrating" size="xl" className="mb-8 scale-125" />
-              <h3 className="text-2xl font-black text-surface-900 mb-4 uppercase tracking-tighter">Systems Check: Green.</h3>
+              <h3 className="text-2xl font-black text-surface-900 mb-4 uppercase tracking-tighter">Status: Optimized.</h3>
               <p className="text-surface-600 font-bold leading-relaxed text-lg">
-                "I've analyzed your 3 new Canvas assignments. Your Flight Plan for today has been adjusted to ensure you finish early."
+                &quot;I&apos;ve brought in your new deadlines and meetings. Your Daily Plan is ready for today — organized to help you stay focused.&quot;
               </p>
               <div className="mt-8 flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-success animate-ping" />
-                <span className="text-xs font-black uppercase tracking-widest text-surface-400">Live Optimization Active</span>
+                <div className="w-3 h-3 rounded-full bg-success animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-widest text-surface-400">System Ready</span>
               </div>
             </div>
           </motion.div>
@@ -191,7 +184,7 @@ export default function LandingPage() {
             className="text-center max-w-2xl mx-auto mb-20"
             {...fadeInUp}
           >
-            <h2 className="text-4xl md:text-6xl font-black text-surface-900 mb-6 uppercase tracking-tighter leading-none">The Engine of Clarity.</h2>
+            <h2 className="text-4xl md:text-6xl font-black text-surface-900 mb-6 uppercase tracking-tighter leading-none">The Heart of Your Day.</h2>
             <p className="text-xl text-surface-600 font-bold">Features built to remove friction, not add to it.</p>
           </motion.div>
           
@@ -203,9 +196,9 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             {[
-              { icon: CalendarBlank, color: 'bg-brand-300', title: "Unified Blueprint", desc: "Connect your academic world in one click. Ollie understands your deadlines and meetings automatically." },
-              { icon: Target, color: 'bg-accent-300', title: "Smart Rollover", desc: "Life happens. Ollie finds the next open slot for missed tasks so you never feel behind." },
-              { icon: ChatCircleDots, color: 'bg-success', title: "Deep Work Pilot", desc: "Ollie monitors your progress during focus sessions, keeping you anchored to the task at hand." }
+              { icon: CalendarBlank, color: 'bg-brand-300', title: "All Your Inputs", desc: "Connect Canvas, Google Calendar, and your task lists. See everything in one unified timeline." },
+              { icon: Target, color: 'bg-accent-300', title: "Guilt-Free Rollover", desc: "Missed a task? No problem. Roll it forward with one click and let Ollie find the next best time." },
+              { icon: ChatCircleDots, color: 'bg-success', title: "Focus Mode", desc: "Dedicated space for your deep work sessions. No distractions, just you and the next action." }
             ].map((feature, i) => (
               <motion.div 
                 key={i} 
@@ -236,14 +229,14 @@ export default function LandingPage() {
           className="max-w-4xl mx-auto px-6 text-center"
           {...fadeInUp}
         >
-          <h2 className="text-4xl md:text-5xl font-black text-surface-900 mb-10 uppercase tracking-tighter">Complexity, Deconstructed.</h2>
+          <h2 className="text-4xl md:text-5xl font-black text-surface-900 mb-10 uppercase tracking-tighter">One Task at a Time.</h2>
           
           <div className="bg-surface-100 p-2 border-2 border-surface-900 flex flex-col md:flex-row items-center gap-2 max-w-2xl mx-auto shadow-[8px_8px_0_0_var(--surface-900)] rounded-xl">
             <div className="flex-1 w-full px-6 py-3 text-left">
-              <span className="text-surface-900 font-bold truncate block font-mono">"Write my final history paper by Friday"</span>
+              <span className="text-surface-900 font-bold truncate block font-mono">&quot;Launch my portfolio website by Friday&quot;</span>
             </div>
             <Button size="lg" className="w-full md:w-auto uppercase font-black tracking-widest">
-              Ollie, Deconstruct
+              Ollie, Breakdown
             </Button>
           </div>
 
@@ -276,7 +269,7 @@ export default function LandingPage() {
             className="text-center mb-20"
             {...fadeInUp}
           >
-            <h2 className="text-4xl md:text-6xl font-black text-surface-900 uppercase tracking-tighter">Your Flight Path</h2>
+            <h2 className="text-4xl md:text-6xl font-black text-surface-900 uppercase tracking-tighter">How it Works</h2>
           </motion.div>
           
           <motion.div 
@@ -290,9 +283,9 @@ export default function LandingPage() {
             <div className="hidden md:block absolute top-10 left-[15%] right-[15%] h-1 bg-surface-900 opacity-20" />
             
             {[
-              { step: "01", title: "Connect", desc: "Link Canvas and Google in one click. Ollie understands your world instantly." },
-              { step: "02", title: "Blueprint", desc: "Ollie builds your Daily Plan every morning based on your energy and deadlines." },
-              { step: "03", title: "Execution", desc: "Follow the plan. If life changes, Ollie handles the reorganization so you don't have to." }
+              { step: "01", title: "Connect", desc: "Bring in your Canvas assignments, Google Calendar events, and personal tasks." },
+              { step: "02", title: "Plan", desc: "Generate your Daily Plan based on your current energy and available time." },,
+              { step: "03", title: "Execute", desc: "Follow the plan. If things change, roll work forward without the guilt of a 'failed' list." }
             ].map((item, i) => (
               <motion.div 
                 key={i} 
@@ -318,7 +311,7 @@ export default function LandingPage() {
             className="text-3xl text-surface-900 font-black mb-16 uppercase tracking-tight"
             {...fadeInUp}
           >
-            Validated by Students.
+            Loved by High-Achievers.
           </motion.h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <motion.div 
@@ -329,7 +322,7 @@ export default function LandingPage() {
                 {[1,2,3,4,5].map(s => <Sparkle key={s} weight="fill" className="w-5 h-5" />)}
               </div>
               <p className="text-surface-600 font-bold text-xl mb-8 leading-relaxed italic">
-                "I have ADHD and usually abandon planners after a week. Plan Pilot is different because when I mess up, it doesn't judge. It just reorganizes tomorrow."
+                &quot;I have ADHD and usually abandon planners after a week. Plan Pilot is different because when I mess up, it doesn&apos;t judge. It just reorganizes tomorrow.&quot;
               </p>
               <p className="text-surface-900 font-black uppercase tracking-widest">— Sarah T., CS Major</p>
             </motion.div>
@@ -341,7 +334,7 @@ export default function LandingPage() {
                 {[1,2,3,4,5].map(s => <Sparkle key={s} weight="fill" className="w-5 h-5" />)}
               </div>
               <p className="text-surface-600 font-bold text-xl mb-8 leading-relaxed italic">
-                "The smart deconstruction feature is a game-changer. I used to stare at 'Write Thesis' for weeks. Now I just follow the 15-minute steps Ollie gives me."
+                &quot;The smart deconstruction feature is a game-changer. I used to stare at &apos;Write Thesis&apos; for weeks. Now I just follow the 15-minute steps Ollie gives me.&quot;
               </p>
               <p className="text-surface-900 font-black uppercase tracking-widest">— Mark R., Grad Student</p>
             </motion.div>
@@ -366,7 +359,7 @@ export default function LandingPage() {
             Take Back Your Brain.
           </h2>
           <p className="text-2xl text-surface-900 font-bold mb-12 max-w-xl mx-auto">
-            Stop fighting your calendar. Let Ollie do the planning so you can do the doing.
+            Less setup than Notion. Less guilt than a to-do list. More guidance than a calendar.
           </p>
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -376,10 +369,10 @@ export default function LandingPage() {
                 href="/signup"
                 className="inline-flex items-center justify-center px-12 py-6 text-xl font-black text-surface-100 bg-surface-900 hover:bg-surface-800 transition-all border-2 border-surface-900 shadow-[10px_10px_0_0_var(--accent-500)] uppercase rounded-2xl"
             >
-                Start Free Flight
+                Get Started Free
             </Link>
           </motion.div>
-          <p className="mt-8 text-xs text-surface-900 font-black uppercase tracking-widest">No credit card required. Clear for takeoff in 60 seconds.</p>
+          <p className="mt-8 text-xs text-surface-900 font-black uppercase tracking-widest">No credit card required. Ready to start in 60 seconds.</p>
         </motion.div>
       </section>
 
@@ -396,7 +389,7 @@ export default function LandingPage() {
             <Link href="/privacy" className="hover:text-surface-900 transition-colors">Privacy</Link>
           </div>
           <div className="text-surface-400 font-black text-xs uppercase tracking-widest">
-            © {new Date().getFullYear()} Plan Pilot. All rights reserved.
+            (c) {new Date().getFullYear()} Plan Pilot. All rights reserved.
           </div>
         </div>
       </footer>

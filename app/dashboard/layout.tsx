@@ -21,7 +21,7 @@ export default function DashboardLayout({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    requestAnimationFrame(() => setMounted(true));
     const supabase = createClient();
     ensureUserProfile(supabase).catch(console.error);
   }, []);
@@ -38,7 +38,7 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       <Sidebar />
 
-      {/* Main content area — offset by sidebar width */}
+      {/* Main content area - offset by sidebar width */}
       <main
         className={`
           transition-all duration-300 ease-in-out
@@ -57,7 +57,7 @@ export default function DashboardLayout({
               <span className="text-surface-300">Quick Add</span>
             </div>
             <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-            Ollie Online
+            Ollie Assistant
           </div>
         </div>
 

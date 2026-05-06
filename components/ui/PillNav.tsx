@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { gsap } from 'gsap';
 import './PillNav.css';
@@ -251,9 +252,9 @@ const PillNav = ({
           ref={logoRef}
         >
           {logo ? (
-            <img src={logo} alt={logoAlt} ref={logoImgRef as any} />
+            <Image src={logo} alt={logoAlt} width={32} height={32} unoptimized ref={(el) => { logoImgRef.current = el; }} />
           ) : (
-            <span className="logo-content" ref={logoImgRef as any}>{logoEmoji}</span>
+            <span className="logo-content" ref={(el) => { logoImgRef.current = el; }}>{logoEmoji}</span>
           )}
         </Link>
 

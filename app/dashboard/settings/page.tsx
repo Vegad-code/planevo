@@ -3,7 +3,8 @@
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import ColorSchemeToggle from '@/components/ui/ColorSchemeToggle';
 import Integrations from '@/components/settings/Integrations';
-import { useState, useEffect } from 'react';
+import OllieBrain from '@/components/settings/OllieBrain';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { User, Palette, Globe, CreditCard, Warning } from '@phosphor-icons/react';
@@ -13,7 +14,7 @@ export default function SettingsPage() {
   const [planType, setPlanType] = useState('free');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -51,8 +52,9 @@ export default function SettingsPage() {
 
       if (error) throw error;
       toast.success('Settings updated!');
-    } catch (error: any) {
-      console.error('Error saving settings:', error);
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Error saving settings:', err);
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);
@@ -61,17 +63,17 @@ export default function SettingsPage() {
 
   const getPlanDisplay = (type: string) => {
     switch (type) {
-      case 'elite': return 'ELITE PILOT';
-      case 'team': return 'TEAM PILOT';
-      case 'pro': return 'PRO PILOT';
-      default: return 'STANDARD PILOT';
+      case 'elite': return 'ELITE';
+      case 'team': return 'TEAM';
+      case 'pro': return 'PRO';
+      default: return 'STANDARD';
     }
   };
 
   return (
     <div className="space-y-12 animate-fade-in text-foreground max-w-5xl mx-auto pb-20">
       <header>
-        <h1 className="text-5xl font-black uppercase tracking-tighter">Command Center</h1>
+        <h1 className="text-5xl font-black uppercase tracking-tighter">Settings</h1>
         <p className="text-surface-500 mt-2 text-base font-bold uppercase tracking-tight">Configure your schedule and integrations.</p>
       </header>
 
@@ -101,7 +103,7 @@ export default function SettingsPage() {
         <section className="glass p-8 space-y-8 border-2 border-surface-900 shadow-[4px_4px_0px_0px_var(--surface-900)]">
           <div className="flex items-center gap-3 border-b-2 border-surface-900 pb-4">
             <User weight="fill" className="size-6 text-accent-600" />
-            <h2 className="text-2xl font-black uppercase">Pilot Profile</h2>
+            <h2 className="text-2xl font-black uppercase">User Profile</h2>
           </div>
           
           <div className="space-y-6">
@@ -114,7 +116,7 @@ export default function SettingsPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Callsign..."
+                placeholder="Name..."
                 disabled={loading}
                 className="w-full px-4 py-3 bg-surface-100 border-2 border-surface-900 font-bold focus:outline-none focus:shadow-[4px_4px_0px_0px_var(--accent-500)] transition-all disabled:opacity-50"
               />
@@ -125,7 +127,7 @@ export default function SettingsPage() {
               disabled={saving || loading}
               className="w-full py-4 bg-surface-900 text-surface-100 font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_var(--accent-600)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all disabled:opacity-50"
             >
-              {saving ? 'Syncing...' : 'Update Callsign'}
+              {saving ? 'Saving...' : 'Save Profile'}
             </button>
           </div>
         </section>
@@ -138,6 +140,15 @@ export default function SettingsPage() {
           <h2 className="text-2xl font-black uppercase">Academic Data Links</h2>
         </div>
         <Integrations />
+      </section>
+      
+      {/* Ollie Brain - Memory Management */}
+      <section>
+        <header className="mb-8">
+          <h2 className="text-4xl font-black uppercase tracking-tighter">Ollie's Brain</h2>
+          <p className="text-surface-500 mt-2 text-base font-bold uppercase tracking-tight">Transparency and control over how Ollie learns your habits.</p>
+        </header>
+        <OllieBrain />
       </section>
 
       {/* Subscription & Danger Zone */}
@@ -169,13 +180,13 @@ export default function SettingsPage() {
         <section className="glass p-8 border-2 border-error/30 hover:border-error transition-colors">
           <div className="flex items-center gap-3 mb-4">
             <Warning weight="fill" className="size-6 text-error" />
-            <h2 className="text-2xl font-black uppercase text-error">Eject</h2>
+            <h2 className="text-2xl font-black uppercase text-error">Danger Zone</h2>
           </div>
           <p className="text-surface-500 text-sm font-bold uppercase mb-6">
-            Permanently delete your profile and all flight data.
+            Permanently delete your profile and all account data.
           </p>
           <button className="px-6 py-3 border-2 border-error text-error font-black uppercase text-xs hover:bg-error hover:text-white transition-all">
-            Initiate Account Deletion
+            Delete Account
           </button>
         </section>
       </div>

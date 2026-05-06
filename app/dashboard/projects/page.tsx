@@ -1,10 +1,39 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import { showToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ClarificationForm } from '@/components/goals/ClarificationForm';
+import OllieAvatar from '@/components/ollie/OllieAvatar';
+
+interface Question {
+  id: string;
+  text: string;
+  type: string;
+  options?: string[];
+}
+
+interface Blueprint {
+  tasks: Array<{
+    title: string;
+    description: string;
+    priority: string;
+    estimated_minutes: number;
+    day: number;
+  }>;
+  realism_check?: {
+    is_realistic: boolean;
+    suggested_timeline?: string | null;
+    reasoning: string;
+  };
+  resources?: Array<{
+    title: string;
+    url: string;
+    description: string;
+  }>;
+}
 
 interface Project {
   id: string;
@@ -12,22 +41,7 @@ interface Project {
   deadline: string | null;
   status: 'active' | 'completed' | 'archived';
   created_at: string;
-}
-
-interface DecomposeResult {
-  success: boolean;
-  needs_adjustment?: boolean;
-  count?: number;
-  realism_check?: {
-    is_realistic: boolean;
-    suggested_timeline?: string | null;
-    reasoning: string;
-  };
-  resources?: Array<{ title: string; url: string; description: string }>;
-  safety_disclaimer?: string | null;
-  upgrade?: boolean;
-  error?: string;
-  message?: string;
+  blueprint: Blueprint | null;
 }
 
 interface SubtaskCount {
@@ -109,13 +123,22 @@ export default function ProjectsPage() {
   const [userPlan, setUserPlan] = useState<string>('free');
   const [activeCategory, setActiveCategory] = useState(0);
 
-  // Decompose states
+  // Blueprint states
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
-  const [decomposeResult, setDecomposeResult] = useState<DecomposeResult | null>(null);
-  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCount>>({});
   const [architectingId, setArchitectingId] = useState<string | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [reviewingProject, setReviewingProject] = useState<Project | null>(null);
+  const [isClarifying, setIsClarifying] = useState(false);
+  const [clarificationData, setClarificationData] = useState<{
+    questions: Question[];
+    ollieMessage: string;
+    type: 'quick' | 'architect';
+    project: Project;
+  } | null>(null);
+  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCount>>({});
+  const [isFetchingClarification, setIsFetchingClarification] = useState(false);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchProjects = useCallback(async () => {
     const { data } = await supabase
@@ -172,9 +195,11 @@ export default function ProjectsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    fetchProjects();
-    fetchSubtaskCounts();
-    fetchUserPlan();
+    requestAnimationFrame(() => {
+      void fetchProjects();
+      void fetchSubtaskCounts();
+      void fetchUserPlan();
+    });
   }, [fetchProjects, fetchSubtaskCounts, fetchUserPlan]);
 
   async function handleAddProject(e: React.FormEvent) {
@@ -187,7 +212,7 @@ export default function ProjectsPage() {
       if (userPlan === 'free') {
         const activeCount = projects.filter(p => p.status === 'active').length;
         if (activeCount >= 1) {
-          alert('Free plan is limited to 1 active project. Upgrade to Pro for unlimited projects!');
+          showToast.warning('Project Limit Reached', 'Free plan is limited to 1 active project. Upgrade to Pro for unlimited projects!');
           setSaving(false);
           return;
         }
@@ -195,7 +220,7 @@ export default function ProjectsPage() {
 
       const { user, error: profileError } = await ensureUserProfile(supabase);
       if (profileError || !user) {
-        alert('Please log in again.');
+        showToast.error('Session Expired', 'Please log in again.');
         return;
       }
 
@@ -208,7 +233,7 @@ export default function ProjectsPage() {
 
       if (error) {
         console.error('Insert error:', JSON.stringify(error, null, 2));
-        alert('Failed to create project: ' + (error.message || error.details || JSON.stringify(error)));
+        showToast.error('Creation Failed', error.message || error.details || JSON.stringify(error));
       } else {
         setNewTitle('');
         setNewTargetDate('');
@@ -217,7 +242,7 @@ export default function ProjectsPage() {
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      alert('An unexpected error occurred.');
+      showToast.error('Error', 'An unexpected error occurred.');
     } finally {
       setSaving(false);
     }
@@ -235,32 +260,77 @@ export default function ProjectsPage() {
     fetchProjects();
   }
 
-  async function architectProject(project: Project) {
+  async function startClarification(project: Project, type: 'quick' | 'architect') {
+    setIsFetchingClarification(true);
+
+    try {
+      const response = await fetch('/api/ai/clarify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectTitle: project.title }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Clarify API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.questions || data.questions.length === 0) {
+        throw new Error('No questions returned');
+      }
+
+      setClarificationData({
+        questions: data.questions,
+        ollieMessage: data.ollie_message || `Let me ask you a few quick questions to personalize your plan for "${project.title}"!`,
+        type,
+        project
+      });
+      setIsClarifying(true);
+    } catch (err) {
+      console.error('Clarification error:', err);
+      // Only fall back on network errors, not rate limits
+      showToast.error('Ollie hit a snag', 'Had trouble preparing your questions. Please try again.');
+    } finally {
+      setIsFetchingClarification(false);
+    }
+  }
+
+  async function architectProject(project: Project, context?: Record<string, string | number | boolean>[]) {
     setArchitectingId(project.id);
     try {
       const response = await fetch('/api/ai/architect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goalId: project.id, goalTitle: project.title }),
+        body: JSON.stringify({ 
+          goalId: project.id, 
+          goalTitle: project.title,
+          context 
+        }),
       });
       const data = await response.json();
       if (data.success) {
-        alert(`Ollie has created ${data.count} tasks for this project! Check your task list.`);
-        fetchSubtaskCounts();
+        await fetchProjects();
+        // Fetch the specific updated project to avoid stale state
+        const { data: updatedGoal } = await supabase
+          .from('goals')
+          .select('*')
+          .eq('id', project.id)
+          .single();
+        if (updatedGoal) setReviewingProject(updatedGoal as Project);
       } else {
-        alert('Ollie hit some turbulence. Try again later.');
+        showToast.error('Ollie hit a snag', 'Try again later.');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to connect to the Architect.');
+      showToast.error('Connection Error', 'Failed to connect to the Architect.');
     } finally {
       setArchitectingId(null);
     }
   }
 
-  async function decomposeProject(project: Project) {
+  async function decomposeProject(project: Project, context?: Record<string, string | number | boolean>[]) {
     setDecomposingId(project.id);
-    setDecomposeResult(null);
     try {
       const response = await fetch('/api/ai/decompose', {
         method: 'POST',
@@ -269,20 +339,57 @@ export default function ProjectsPage() {
           projectId: project.id,
           projectTitle: project.title,
           deadline: project.deadline,
+          context
         }),
       });
-      const data: DecomposeResult = await response.json();
-      setDecomposeResult(data);
+      const data = await response.json();
 
-      if (data.success && data.count) {
-        fetchSubtaskCounts();
-        fetchProjects();
+      if (data.success) {
+        await fetchProjects();
+        // Fetch the specific updated project to avoid stale state
+        const { data: updatedGoal } = await supabase
+          .from('goals')
+          .select('*')
+          .eq('id', project.id)
+          .single();
+        if (updatedGoal) setReviewingProject(updatedGoal as Project);
+      } else if (data.upgrade) {
+        showToast.warning('Pro Feature', 'This feature requires a Pro plan.');
+      } else {
+        showToast.error('Breakdown Failed', data.error || 'Failed to break down project.');
       }
     } catch (err) {
       console.error(err);
-      setDecomposeResult({ success: false, error: 'Failed to connect' });
+      showToast.error('Connection Error', 'Failed to connect to the Architect.');
     } finally {
       setDecomposingId(null);
+    }
+  }
+
+  async function importBlueprint(projectId: string) {
+    setImportingId(projectId);
+    try {
+      const response = await fetch('/api/ai/import-blueprint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goalId: projectId }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast.success('Plan Ready!', 'Your tasks are now in your Daily Plan.');
+        setReviewingProject(null);
+        // Seamless transition to the Daily Plan to see the new tasks
+        setTimeout(() => {
+          router.push('/dashboard/daily-plan?launch=true');
+        }, 1500);
+      } else {
+        showToast.error('Import Failed', data.error || 'Failed to import tasks.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast.error('Import Failed', 'Failed to import plan.');
+    } finally {
+      setImportingId(null);
     }
   }
 
@@ -294,10 +401,13 @@ export default function ProjectsPage() {
 
   function getProjectStatus(project: Project): { label: string; color: string } {
     if (project.status === 'completed') return { label: 'Completed', color: 'text-brand-500 bg-brand-500/10' };
+    if (project.blueprint) return { label: 'Pending Plan', color: 'text-brand-500 bg-brand-500/10 border border-brand-500 animate-pulse' };
     const counts = subtaskCounts[project.id];
     if (!counts || counts.total === 0) return { label: 'Needs Planning', color: 'text-amber-500 bg-amber-500/10' };
     if (project.deadline) {
-      const daysLeft = Math.ceil((new Date(project.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      // Use a stable reference for "now" during this render tick to satisfy purity rules
+      const now = new Date().getTime();
+      const daysLeft = Math.ceil((new Date(project.deadline).getTime() - now) / (1000 * 60 * 60 * 24));
       if (daysLeft < 0) return { label: 'Overdue', color: 'text-red-500 bg-red-500/10' };
       if (daysLeft <= 3) return { label: 'Due Soon', color: 'text-orange-500 bg-orange-500/10' };
     }
@@ -313,7 +423,7 @@ export default function ProjectsPage() {
         <h1 className="text-2xl font-bold text-surface-900 uppercase tracking-tight">Projects</h1>
         <button
           id="projects-add-button"
-          onClick={() => canAddMore ? setShowAddModal(true) : alert('Free plan is limited to 1 active project. Upgrade to Pro for unlimited projects!')}
+          onClick={() => canAddMore ? setShowAddModal(true) : showToast.warning('Project Limit Reached', 'Free plan is limited to 1 active project. Upgrade to Pro for unlimited projects!')}
           className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 active:scale-[0.98] flex items-center gap-2 ${
             canAddMore
               ? 'bg-brand-600 hover:bg-brand-500 text-white hover:shadow-[var(--shadow-glow)]'
@@ -334,13 +444,49 @@ export default function ProjectsPage() {
           <span className="text-xl">🔒</span>
           <div className="flex-1">
             <p className="text-sm font-bold text-accent-900">Free plan: 1 Active Project</p>
-            <p className="text-xs text-accent-700 mt-0.5">Upgrade to Pro to unlock unlimited projects + the Decompose engine.</p>
+            <p className="text-xs text-accent-700 mt-0.5">Upgrade to Pro to unlock unlimited projects + the Breakdown tool.</p>
           </div>
           <a href="/pricing" className="px-4 py-2 bg-accent-600 text-white text-xs font-black uppercase rounded-xl hover:bg-accent-500 transition-colors">
             Upgrade
           </a>
         </div>
       )}
+
+        {/* Clarification Modal */}
+        <AnimatePresence>
+          {isClarifying && clarificationData && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
+            >
+              <div className="absolute inset-0 bg-surface-900/60 backdrop-blur-md" onClick={() => setIsClarifying(false)} />
+              <motion.div
+                initial={{ y: 20, opacity: 0, scale: 0.95 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 20, opacity: 0, scale: 0.95 }}
+                className="relative w-full max-w-3xl bg-surface-100 border-4 border-surface-900 shadow-[20px_20px_0_0_rgba(0,0,0,0.2)] rounded-[3rem] p-10 overflow-hidden"
+              >
+                <ClarificationForm
+                  questions={clarificationData.questions}
+                  ollieMessage={clarificationData.ollieMessage}
+                  isSubmitting={decomposingId !== null || architectingId !== null}
+                  onCancel={() => setIsClarifying(false)}
+                  onComplete={async (answers) => {
+                    if (clarificationData.type === 'quick') {
+                      await decomposeProject(clarificationData.project, answers);
+                    } else {
+                      await architectProject(clarificationData.project, answers);
+                    }
+                    setIsClarifying(false);
+                    setClarificationData(null);
+                  }}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       {loading ? (
         <div className="bg-surface-100 border-2 border-surface-900 rounded-2xl p-12 flex items-center justify-center">
@@ -428,36 +574,42 @@ export default function ProjectsPage() {
 
                     {project.status !== 'completed' && (
                       <>
-                        <button
-                          onClick={() => architectProject(project)}
-                          disabled={architectingId === project.id}
-                          className="text-[10px] font-black uppercase tracking-widest text-accent-600 hover:text-accent-500 flex items-center gap-1 disabled:opacity-50"
-                        >
-                          {architectingId === project.id ? (
-                            <span className="flex items-center gap-1">
-                              <div className="w-2 h-2 border border-accent-500 border-t-transparent rounded-full animate-spin" />
-                              Architecting...
-                            </span>
-                          ) : (
-                            '🏗️ Architect'
-                          )}
-                        </button>
-
-                        {isPro && (
+                        {project.blueprint ? (
                           <button
-                            onClick={() => decomposeProject(project)}
-                            disabled={decomposingId === project.id}
-                            className="text-[10px] font-black uppercase tracking-widest text-brand-600 hover:text-brand-500 flex items-center gap-1 disabled:opacity-50"
+                            onClick={() => setReviewingProject(project)}
+                            className="text-[10px] font-black uppercase tracking-widest text-brand-600 hover:text-brand-500 flex items-center gap-1"
                           >
-                            {decomposingId === project.id ? (
-                              <span className="flex items-center gap-1">
-                                <div className="w-2 h-2 border border-brand-500 border-t-transparent rounded-full animate-spin" />
-                                Decomposing...
-                              </span>
-                            ) : (
-                              '⚡ Decompose'
-                            )}
+                            👁️ Review Plan
                           </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startClarification(project, 'quick')}
+                              disabled={isFetchingClarification || decomposingId === project.id}
+                              className="flex-1 py-3 bg-white border-2 border-surface-200 hover:border-brand-500 hover:text-brand-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              {(isFetchingClarification || decomposingId === project.id) ? (
+                                <div className="w-3 h-3 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+                              ) : 'Quick Task'}
+                            </button>
+
+                            {isPro && (
+                              <button
+                                onClick={() => startClarification(project, 'architect')}
+                                disabled={isFetchingClarification || architectingId === project.id}
+                                className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_4px_0_0_var(--brand-900)] active:shadow-none active:translate-y-1 disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {(isFetchingClarification || architectingId === project.id) ? (
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <span className="text-xs">✨</span>
+                                    Architect
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </>
                         )}
                       </>
                     )}
@@ -474,119 +626,143 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Decompose Result Modal */}
+      {/* Blueprint Review Modal */}
       <AnimatePresence>
-        {decomposeResult && (
+        {reviewingProject && reviewingProject.blueprint && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            className="fixed inset-0 z-[110] flex items-start justify-center pt-24 sm:pt-32 px-4 pb-12"
           >
-            <div className="absolute inset-0 bg-surface-900/40 backdrop-blur-sm" onClick={() => setDecomposeResult(null)} />
+            <div className="absolute inset-0 bg-surface-900/60 backdrop-blur-md" onClick={() => setReviewingProject(null)} />
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-surface-100 border-4 border-surface-900 shadow-[12px_12px_0_0_var(--shadow-color)] rounded-2xl p-8 animate-fade-in-up max-h-[80vh] overflow-y-auto"
+              initial={{ y: -60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -60, opacity: 0 }}
+              transition={{ type: "spring", damping: 30, stiffness: 250 }}
+              className="relative w-full max-w-5xl bg-surface-100 border-4 border-surface-900 shadow-[24px_24px_0_0_rgba(0,0,0,0.15)] rounded-[3rem] max-h-[calc(100vh-180px)] flex flex-col overflow-hidden"
             >
-              {decomposeResult.upgrade ? (
-                /* Premium upsell */
-                <div className="text-center space-y-4">
-                  <span className="text-4xl">🔒</span>
-                  <h2 className="text-xl font-black text-surface-900 uppercase">Decompose — Pro Feature</h2>
-                  <p className="text-sm text-surface-600">{decomposeResult.message}</p>
-                  <a href="/pricing" className="inline-block px-6 py-3 bg-brand-600 text-white font-black uppercase text-sm rounded-xl hover:bg-brand-500 transition-colors">
-                    View Plans
-                  </a>
-                </div>
-              ) : decomposeResult.needs_adjustment ? (
-                /* Reality check warning */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <OllieAvatar mood="thinking" size="sm" />
-                    <h2 className="text-xl font-black text-surface-900 uppercase">Reality Check</h2>
+              {/* Sticky Header */}
+              <div className="sticky top-0 bg-surface-100 z-20 p-8 sm:p-10 border-b-4 border-surface-900/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-6">
+                  <OllieAvatar mood="happy" size="md" />
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-black text-surface-900 uppercase tracking-tight leading-none italic">The Plan</h2>
+                    <p className="text-[10px] text-surface-400 font-black uppercase tracking-[0.3em] mt-3 flex items-center gap-2">
+                      <span className="w-8 h-0.5 bg-brand-500" />
+                      {reviewingProject.title}
+                    </p>
                   </div>
-                  <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4">
-                    <p className="text-sm font-bold text-amber-900">{decomposeResult.realism_check?.reasoning}</p>
-                    {decomposeResult.realism_check?.suggested_timeline && (
-                      <p className="text-sm text-amber-700 mt-2">
-                        <strong>Suggested timeline:</strong> {decomposeResult.realism_check.suggested_timeline}
-                      </p>
+                </div>
+                <button onClick={() => setReviewingProject(null)} className="p-2 hover:bg-surface-200 rounded-xl transition-colors">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 custom-scrollbar">
+                {reviewingProject.blueprint.realism_check && (
+                  <div className="bg-amber-50 border-2 border-amber-900/10 rounded-2xl p-4 mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base">⚖️</span>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-900">Realism Check</h3>
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold text-amber-900 leading-relaxed">{reviewingProject.blueprint.realism_check.reasoning}</p>
+                    {reviewingProject.blueprint.realism_check.suggested_timeline && (
+                      <div className="mt-3 pt-3 border-t border-amber-900/10 flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 opacity-60">Verdict:</span>
+                        <span className="text-xs font-black text-amber-900">{reviewingProject.blueprint.realism_check.suggested_timeline}</span>
+                      </div>
                     )}
                   </div>
-                  {decomposeResult.safety_disclaimer && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs text-blue-800 font-medium">⚕️ {decomposeResult.safety_disclaimer}</p>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setDecomposeResult(null)}
-                    className="w-full py-3 bg-surface-900 text-white font-black uppercase text-sm rounded-xl hover:bg-surface-800 transition-colors"
-                  >
-                    Adjust & Try Again
-                  </button>
-                </div>
-              ) : decomposeResult.success ? (
-                /* Success */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <OllieAvatar mood="happy" size="sm" />
-                    <div>
-                      <h2 className="text-xl font-black text-surface-900 uppercase">Decomposed! 🎯</h2>
-                      <p className="text-xs text-surface-500 font-bold uppercase">{decomposeResult.count} tasks added to your schedule</p>
+                )}
+
+                <div className="space-y-8 mb-16">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-[0.4em] text-surface-400">Project Plan</h3>
+                    <div className="h-0.5 flex-1 bg-surface-900/5 ml-6" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {reviewingProject.blueprint.tasks?.map((task, i: number) => (
+                      <div key={i} className="p-6 bg-white border-3 border-surface-200 rounded-[2.5rem] flex flex-col hover:border-brand-500 hover:shadow-2xl transition-all group relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-start gap-4 mb-4">
+                          <div className="w-6 h-6 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center text-[10px] font-black shrink-0">
+                            {i + 1}
+                          </div>
+                          <h4 className="text-sm font-black text-surface-900 leading-tight uppercase line-clamp-2">{task.title}</h4>
+                        </div>
+                        <p className="text-[11px] text-surface-500 leading-relaxed font-bold opacity-70 mb-6 flex-1 line-clamp-3">{task.description}</p>
+                          <div className="flex items-center gap-4 pt-4 border-t-2 border-surface-50">
+                            <span className="text-[9px] font-black uppercase text-brand-600 px-3 py-1 bg-brand-50 border-2 border-brand-100 rounded-xl">
+                              {task.priority || 'Med'}
+                            </span>
+                            <span className="text-[9px] font-black uppercase text-surface-400 flex items-center gap-2">
+                              ⏱️ {task.estimated_minutes || 30}M
+                            </span>
+                            {task.day && (
+                              <span className="text-[9px] font-black uppercase text-surface-400 ml-auto flex items-center gap-1.5">
+                                📅 Day {task.day}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {decomposeResult.safety_disclaimer && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs text-blue-800 font-medium">⚕️ {decomposeResult.safety_disclaimer}</p>
-                    </div>
-                  )}
+              {reviewingProject.blueprint.resources && reviewingProject.blueprint.resources.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-3">Verified Resources</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {reviewingProject.blueprint.resources.map((res, i: number) => (
+                      <a
+                        key={i}
+                        href={res.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-4 border-2 border-surface-200 rounded-2xl hover:border-brand-500 hover:bg-brand-50 transition-all group"
+                      >
+                        <h4 className="text-xs font-black text-surface-900 group-hover:text-brand-600 uppercase mb-1">{res.title}</h4>
+                        <p className="text-[10px] text-surface-400 font-medium line-clamp-2">{res.description}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+                )}
+              </div>
 
-                  {decomposeResult.resources && decomposeResult.resources.length > 0 && (
-                    <div>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-2">Verified Resources</h3>
-                      <div className="space-y-2">
-                        {decomposeResult.resources.map((r, i) => (
-                          <a
-                            key={i}
-                            href={r.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block p-3 border-2 border-surface-200 rounded-xl hover:border-brand-300 hover:bg-brand-50/50 transition-all group"
-                          >
-                            <h4 className="text-sm font-bold text-surface-900 group-hover:text-brand-600 transition-colors">{r.title}</h4>
-                            <p className="text-xs text-surface-500 mt-0.5">{r.description}</p>
-                            <span className="text-[10px] text-brand-500 font-bold uppercase mt-1 inline-block">↗ Visit Resource</span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
+                {/* Sticky Footer */}
+                <div className="sticky bottom-0 bg-white/80 backdrop-blur-xl px-10 py-10 border-t-4 border-surface-900 flex gap-6 shrink-0">
                   <button
-                    onClick={() => setDecomposeResult(null)}
-                    className="w-full py-3 bg-brand-600 text-white font-black uppercase text-sm rounded-xl hover:bg-brand-500 transition-colors"
+                    onClick={() => setReviewingProject(null)}
+                    className="flex-1 py-5 bg-surface-200 hover:bg-surface-300 text-surface-900 font-black uppercase text-sm tracking-[0.2em] rounded-[1.5rem] transition-all border-b-6 border-surface-400 active:border-b-0 active:translate-y-[4px]"
                   >
-                    Done
+                    Save for Later
+                  </button>
+                  <button
+                    onClick={() => importBlueprint(reviewingProject.id)}
+                    disabled={importingId === reviewingProject.id}
+                    className="flex-[2] py-5 bg-brand-600 hover:bg-brand-500 text-white font-black uppercase text-sm tracking-[0.2em] rounded-[1.5rem] transition-all shadow-[0_8px_0_0_var(--brand-900)] active:shadow-none active:translate-y-[6px] disabled:opacity-50 flex items-center justify-center gap-3"
+                  >
+                    {importingId === reviewingProject.id ? (
+                      <>
+                        <div className="w-4 h-4 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                        Initializing...
+                      </>
+                    ) : (
+                      <>
+                        <span>🚀 Activate Plan</span>
+                      </>
+                    )}
                   </button>
                 </div>
-              ) : (
-                /* Error */
-                <div className="text-center space-y-4">
-                  <OllieAvatar mood="thinking" size="sm" />
-                  <p className="text-sm text-surface-600">{decomposeResult.error || 'Something went wrong. Please try again.'}</p>
-                  <button
-                    onClick={() => setDecomposeResult(null)}
-                    className="px-6 py-2 bg-surface-200 text-surface-900 font-bold text-sm rounded-xl hover:bg-surface-300 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              )}
+              </motion.div>
             </motion.div>
-          </motion.div>
         )}
       </AnimatePresence>
 

@@ -26,7 +26,7 @@ export default function AcademicSearch() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    requestAnimationFrame(() => setMounted(true));
   }, []);
 
 
@@ -50,9 +50,11 @@ export default function AcademicSearch() {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
-      setQuery('');
-      setResults([]);
-      setError(null);
+      requestAnimationFrame(() => {
+        setQuery('');
+        setResults([]);
+        setError(null);
+      });
     }
   }, [isOpen]);
 
@@ -98,7 +100,7 @@ export default function AcademicSearch() {
   const handleResultClick = (result: SearchResult) => {
     setIsOpen(false);
     const url = result.type === 'assignment' 
-      ? `/dashboard/briefing?assignmentId=${result.id}`
+      ? `/dashboard/daily-plan?assignmentId=${result.id}`
       : result.href;
     router.push(url);
   };
@@ -134,7 +136,7 @@ export default function AcademicSearch() {
         className="flex items-center gap-3 px-4 py-2.5 bg-surface-100 border-2 border-surface-900 text-surface-500 hover:text-surface-900 hover:bg-surface-200 transition-all shadow-[3px_3px_0_0_var(--surface-900)] active:shadow-none active:translate-x-[3px] active:translate-y-[3px] rounded-xl w-full max-w-md"
       >
         <MagnifyingGlass weight="bold" className="w-4 h-4 shrink-0" />
-        <span className="text-xs font-black uppercase tracking-widest flex-1 text-left">Search tasks, projects, assignments…</span>
+        <span className="text-xs font-black uppercase tracking-widest flex-1 text-left">Search tasks, projects, assignments&hellip;</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 bg-surface-200 border border-surface-300 text-[10px] font-black text-surface-500 rounded">
           ⌘K
         </kbd>
@@ -172,7 +174,7 @@ export default function AcademicSearch() {
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Search across all your data…"
+                    placeholder="Search across all your data&hellip;"
                     value={query}
                     onChange={(e) => handleInputChange(e.target.value)}
                     className="flex-1 bg-transparent text-surface-900 font-bold text-lg placeholder:text-surface-400 outline-none"
@@ -191,14 +193,14 @@ export default function AcademicSearch() {
                     <div className="px-6 py-8 text-center">
                       <LockKey weight="bold" className="w-10 h-10 text-accent-500 mx-auto mb-3" />
                       <p className="text-sm font-black text-surface-900 uppercase">{error}</p>
-                      <p className="text-xs text-surface-500 font-bold mt-1">Flight Tier users get 100 searches/day.</p>
+                      <p className="text-xs text-surface-500 font-bold mt-1">Pro Plan users get 100 searches/day.</p>
                     </div>
                   )}
 
                   {!error && results.length === 0 && query.length >= 2 && !loading && (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-sm font-black text-surface-500 uppercase">No results found for "{query}"</p>
-                      <p className="text-xs text-surface-400 font-bold mt-2">Try a different search term, or connect more sensors in Settings.</p>
+                      <p className="text-sm font-black text-surface-500 uppercase">No results found for &quot;{query}&quot;</p>
+                      <p className="text-xs text-surface-400 font-bold mt-2">Try a different search term, or connect more sources in Settings.</p>
                     </div>
                   )}
 

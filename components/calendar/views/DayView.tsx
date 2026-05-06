@@ -10,6 +10,14 @@ import EventCard from '../cards/EventCard';
 import type { CalendarEvent } from '@/types/calendar';
 import { CloudSun } from 'lucide-react';
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_minutes?: number;
+  energy_level_required?: string;
+}
+
 interface DayViewProps {
   date: Date;
   events: CalendarEvent[];
@@ -21,11 +29,10 @@ interface DayViewProps {
   onEmptySlotClick?: (time: Date) => void;
   onEventReschedule?: (eventId: string, newStart: Date, newEnd: Date) => void;
   onEventResize?: (eventId: string, newEnd: Date) => void;
-  onTaskDrop?: (task: any, time: Date) => void;
+  onTaskDrop?: (task: Task, time: Date) => void;
 }
 
 const HOUR_HEIGHT = 72;
-const SNAP_PX = HOUR_HEIGHT / 4; // 15-minute snap
 
 export default function DayView({
   date,
@@ -217,8 +224,8 @@ export default function DayView({
                   const time = pixelToTime(y, HOUR_HEIGHT, dayStartHour, date);
                   onTaskDrop(task, time);
                 }
-              } catch (err) {
-                console.error('Failed to parse dropped task', err);
+              } catch (err: unknown) {
+                console.error('Failed to parse dropped task', err as Error);
               }
             }
           }}
@@ -311,10 +318,10 @@ export default function DayView({
                 <CloudSun className="w-6 h-6 text-brand-500" />
               </div>
               <h3 className="text-lg font-black uppercase tracking-tight text-white mb-1">
-                Clear skies today, Pilot
+                Nothing scheduled yet
               </h3>
               <p className="text-xs text-white/40 leading-relaxed">
-                Your timeline is wide open. Tap anywhere or hit the <span className="text-brand-500 font-bold">+</span> to deploy your first mission.
+                Your timeline is wide open. Tap anywhere or hit the <span className="text-brand-500 font-bold">+</span> to add your first task.
               </p>
             </div>
           </motion.div>

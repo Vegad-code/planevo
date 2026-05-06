@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { 
   Trash2, RotateCcw, XCircle, AlertCircle,
-  ChevronDown, ChevronUp, RefreshCw
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import type { Task } from '@/types/database';
 import { useTaskActions } from '@/hooks/useTaskActions';
@@ -15,8 +15,6 @@ export default function TrashBin() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const supabase = createClient();
-  const { restoreTask, permanentlyDeleteTask } = useTaskActions(() => loadTrash());
-
   const loadTrash = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -39,8 +37,12 @@ export default function TrashBin() {
     setLoading(false);
   }, [supabase]);
 
+  const { restoreTask, permanentlyDeleteTask } = useTaskActions(() => loadTrash());
+
   useEffect(() => {
-    loadTrash();
+    requestAnimationFrame(() => {
+      void loadTrash();
+    });
   }, [loadTrash]);
 
   if (loading || (deletedTasks.length === 0 && !expanded)) return null;

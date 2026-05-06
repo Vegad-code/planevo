@@ -3,36 +3,21 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import OllieBubble from '@/components/ollie/OllieBubble';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
-import { getRandomGreeting, getTimeOfDay } from '@/lib/ollie';
+import { getRandomGreeting } from '@/lib/ollie';
 import CommandCenter from '@/components/dashboard/CommandCenter';
 import TaskHistory from '@/components/dashboard/TaskHistory';
 import TrashBin from '@/components/dashboard/TrashBin';
+import OllieSuggestionCard from '@/components/ollie/OllieSuggestionCard';
+import WeeklyReviewCard from '@/components/ollie/WeeklyReviewCard';
 import { format } from 'date-fns';
-import { Calendar } from 'lucide-react';
+import { Calendar, Pulse, Rocket, Sparkle, ArrowRight, Clock, Archive, CaretDown, Lightning } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
+import GardenOfDone from '@/components/tasks/GardenOfDone';
+import type { ScheduleBlock } from '@/lib/ai/agentic-scheduler';
 
 // Stats card component
-function StatCard({
-  label,
-  value,
-  icon,
-  trend,
-  color,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  trend?: string;
-  color: 'brand' | 'accent' | 'info' | 'success';
-}) {
-  const colorMap = {
-    brand: 'from-brand-600/20 to-brand-600/5 border-brand-600/20',
-    accent: 'from-accent-500/20 to-accent-500/5 border-accent-500/20',
-    info: 'from-info/20 to-info/5 border-info/20',
-    success: 'from-success/20 to-success/5 border-success/20',
-  };
-
+function StatCard({ label, value, icon, trend }: { label: string; value: string | number; icon: React.ReactNode; trend?: string }) {
   return (
     <div
       className={`
@@ -54,33 +39,7 @@ function StatCard({
   );
 }
 
-// Quick action button
-function QuickAction({
-  label,
-  icon,
-  onClick,
-  id,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onClick?: () => void;
-  id: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      id={id}
-      className="flex items-center gap-3 px-4 py-3 border-2 border-border bg-card hover:bg-muted/10 transition-all duration-200 group w-full text-left shadow-[2px_2px_0px_0px_var(--border)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-    >
-      <span className="p-2 border-2 border-border bg-brand-50 text-brand-600 group-hover:bg-brand-100 transition-colors">
-        {icon}
-      </span>
-      <span className="text-sm font-black uppercase tracking-tight text-foreground">
-        {label}
-      </span>
-    </button>
-  );
-}
+
 
 interface Task {
   id: string;
@@ -100,32 +59,60 @@ export default function DashboardPage() {
   const [activeProjects, setActiveProjects] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
   const [rolloverMessage, setRolloverMessage] = useState<string | null>(null);
+  const [systemStatus, setSystemStatus] = useState<'nominal' | 'degraded' | 'offline'>('nominal');
+  const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [showArchives, setShowArchives] = useState(false);
+  const [allCompletedTasks, setAllCompletedTasks] = useState<any[]>([]);
+  const [currentEnergy, setCurrentEnergy] = useState<'low' | 'medium' | 'high'>('medium');
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  const fetchStats = useCallback(async () => {
-    // Get all tasks
+  const fetchStats = useCallback(async (existingUser?: any) => {
+    // 1. Get User
+    const user = existingUser || (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+
+    // 2. Get all tasks
     const { data: tasks } = await supabase
       .from('tasks')
       .select('id, title, status, priority, completed, completed_at, deleted_at')
       .is('deleted_at', null)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (tasks) {
-      const incompleteTasks = tasks.filter((t: any) => !t.completed);
-      setTodayTasks(incompleteTasks.slice(0, 5) as Task[]);
+      const allTasks = tasks as unknown as any[];
+      const incompleteTasks = allTasks.filter((t) => !t.completed);
+      setTodayTasks(incompleteTasks.slice(0, 5));
       setTotalTasks(incompleteTasks.length);
-      setCompletedTasks(tasks.filter((t: any) => t.completed).length);
+      setCompletedTasks(allTasks.filter((t) => t.completed).length);
+      setAllCompletedTasks(allTasks.filter((t) => t.completed));
     }
 
-    // Get active goals count
+    // 3. Get active goals count
     const { count } = await supabase
       .from('goals')
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .eq('status', 'active');
     
     setActiveProjects(count || 0);
     setStatsLoading(false);
+
+    // 4. Fetch today's schedule
+    const { data: scheduleData } = await supabase
+      .from('schedules')
+      .select('schedule_json')
+      .eq('user_id', user.id)
+      .eq('date', format(new Date(), 'yyyy-MM-dd'))
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (scheduleData?.[0]) {
+      setSchedule(scheduleData[0].schedule_json as ScheduleBlock[]);
+    }
+    setScheduleLoading(false);
   }, [supabase]);
 
   const performRollover = useCallback(async () => {
@@ -140,41 +127,67 @@ export default function DashboardPage() {
         setRolloverMessage(data.message);
         fetchStats();
       }
-    } catch (err) {
-      console.error('Rollover failed:', err);
+    } catch {
+      console.error('Rollover failed');
     }
   }, [fetchStats]);
+ 
+  const checkSystemHealth = useCallback(async () => {
+    try {
+      const start = Date.now();
+      const { error } = await supabase.from('tasks').select('id').limit(1);
+      const latency = Date.now() - start;
+      
+      if (error) {
+        setSystemStatus('offline');
+      } else if (latency > 1000) {
+        setSystemStatus('degraded');
+      } else {
+        setSystemStatus('nominal');
+      }
+    } catch {
+      setSystemStatus('offline');
+    }
+  }, [supabase]);
 
   useEffect(() => {
-    const hours = new Date().getHours();
-    if (hours < 12) setTimeOfDay('morning');
-    else if (hours < 17) setTimeOfDay('afternoon');
-    else setTimeOfDay('evening');
+    requestAnimationFrame(() => {
+      const hours = new Date().getHours();
+      if (hours < 12) setTimeOfDay('morning');
+      else if (hours < 17) setTimeOfDay('afternoon');
+      else setTimeOfDay('evening');
 
-    // Fetch user name
-    const fetchUserData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('users')
-          .select('name')
-          .eq('id', user.id)
-          .single();
-        if (data?.name) {
-          setUserName(data.name);
-          setGreeting(getRandomGreeting(data.name));
+      // Fetch user data and stats
+      const fetchData = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Profile data
+          const { data } = await supabase
+            .from('users')
+            .select('name')
+            .eq('id', user.id)
+            .single();
+          if (data?.name) {
+            setUserName(data.name);
+            setGreeting(getRandomGreeting(data.name));
+          } else {
+            setGreeting(getRandomGreeting());
+          }
+
+          // Stats data (passing user to avoid second getUser)
+          await fetchStats(user);
         } else {
           setGreeting(getRandomGreeting());
+          setStatsLoading(false);
+          setScheduleLoading(false);
         }
-      } else {
-        setGreeting(getRandomGreeting());
-      }
-    };
+      };
 
-    fetchUserData();
-    fetchStats();
-    performRollover();
-  }, [fetchStats, performRollover, supabase]);
+      void fetchData();
+      void performRollover();
+      void checkSystemHealth();
+    });
+  }, [fetchStats, performRollover, checkSystemHealth, supabase]);
 
   async function toggleTask(taskId: string, currentlyCompleted: boolean) {
     const updates = currentlyCompleted
@@ -195,6 +208,27 @@ export default function DashboardPage() {
 
   const ollieMood = timeOfDay === 'evening' ? 'gentle' as const : 'happy' as const;
 
+  // Next Action Logic
+  const currentOrNext = useMemo(() => {
+    if (!schedule) return null;
+    const now = new Date();
+    
+    // Parse strings to Dates if necessary
+    const blocks = schedule.map(b => ({
+      ...b,
+      startTime: new Date(b.startTime),
+      endTime: new Date(b.endTime)
+    }));
+
+    const current = blocks.find(b => now >= b.startTime && now < b.endTime);
+    if (current) return { ...current, status: 'NOW' };
+
+    const next = blocks.find(b => b.startTime > now);
+    if (next) return { ...next, status: 'UP NEXT' };
+
+    return null;
+  }, [schedule]);
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header with time-based greeting */}
@@ -205,41 +239,133 @@ export default function DashboardPage() {
             {timeOfDay === 'afternoon' && `🌤️ Good afternoon${userName ? `, ${userName.trim().split(' ')[0]}` : ''}`}
             {timeOfDay === 'evening' && `🌙 Good evening${userName ? `, ${userName.trim().split(' ')[0]}` : ''}`}
           </h1>
-          <p className="text-muted mt-1 font-medium italic">Here&apos;s what&apos;s on your radar today.</p>
+          <p className="text-muted mt-1 font-medium italic">Your brain wasn&apos;t built to store deadlines. It was built to solve them.</p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted">
-          <Calendar className="w-4 h-4" />
-          <span>{format(new Date(), 'EEEE, MMMM do')}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-card border-2 border-border p-1 rounded-2xl shadow-sm">
+            {(['low', 'medium', 'high'] as const).map((e) => (
+              <button
+                key={e}
+                onClick={() => setCurrentEnergy(e)}
+                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  currentEnergy === e 
+                    ? 'bg-surface-900 text-white shadow-md scale-105' 
+                    : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted bg-card border-2 border-border px-4 py-2 rounded-2xl shadow-sm">
+            <Calendar className="w-4 h-4" />
+            <span>{format(new Date(), 'EEEE, MMMM do')}</span>
+          </div>
         </div>
       </div>
 
-      {/* Navigator blueprint bubble */}
-      {greeting && (
-        <div className="animate-fade-in-up space-y-4 max-w-2xl">
-          <OllieBubble message={greeting} mood={ollieMood} size="sm" />
-          
-          {rolloverMessage && (
-            <div className="flex items-center gap-3 p-4 bg-brand-50 border-2 border-brand-200 rounded-2xl animate-bounce-subtle">
-              <span className="text-xl">🌿</span>
-              <p className="text-sm font-bold text-brand-900 italic">{rolloverMessage}</p>
-              <button 
-                onClick={() => setRolloverMessage(null)}
-                className="ml-auto text-brand-400 hover:text-brand-600"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-          )}
+      {/* Energy Status Pill */}
+      <div className="flex items-center gap-2 animate-fade-in">
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 font-black text-[10px] uppercase tracking-widest ${
+          currentEnergy === 'low' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+          currentEnergy === 'high' ? 'bg-green-50 border-green-200 text-green-700' :
+          'bg-brand-50 border-brand-200 text-brand-700'
+        }`}>
+          <Lightning weight="fill" className={currentEnergy === 'high' ? 'animate-pulse' : ''} />
+          Current Vibe: {currentEnergy} Energy
         </div>
-      )}
+        {currentEnergy === 'low' && (
+          <span className="text-[10px] text-muted font-bold italic animate-pulse">Ollie is filtering for low-lift work.</span>
+        )}
+      </div>
+
+      {/* Daily Plan Preview - The "What now?" answer */}
+      <div className="animate-fade-in-up">
+        {scheduleLoading ? (
+          <div className="h-48 glass animate-pulse flex items-center justify-center rounded-3xl border-2 border-dashed border-surface-200">
+            <span className="text-muted font-bold uppercase tracking-widest text-xs">Scanning schedule...</span>
+          </div>
+        ) : (
+          <div className="glass p-8 border-brand-200 bg-brand-50/30 group relative overflow-hidden rounded-3xl shadow-[8px_8px_0_0_var(--brand-100)]">
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-all duration-500 translate-x-4 -translate-y-4 group-hover:translate-x-0 group-hover:translate-y-0">
+               <Rocket size={120} weight="fill" className="text-brand-500" />
+            </div>
+
+            <div className="relative z-10">
+              <h2 className="text-xs font-black uppercase tracking-widest text-brand-500 mb-6 flex items-center gap-2">
+                <Pulse size={18} weight="bold" />
+                The Daily Plan
+              </h2>
+
+              {!currentOrNext ? (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="text-3xl font-black text-foreground tracking-tight uppercase">Ready to focus?</h3>
+                    <p className="text-muted font-bold max-w-md italic leading-relaxed text-lg">No Daily Plan found for today. Generate one in seconds to clear your mental clutter.</p>
+                  </div>
+                  <Button 
+                    size="lg" 
+                    onClick={() => router.push('/dashboard/daily-plan')}
+                    className="h-14 px-8 text-lg gap-3 bg-brand-500 hover:bg-brand-600 text-white border-none shadow-[4px_4px_0px_0px_var(--brand-700)] rounded-2xl active:translate-y-1 active:shadow-none transition-all"
+                  >
+                    <Sparkle size={24} weight="fill" />
+                    Create Daily Plan
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  <div className="flex items-center gap-6 flex-wrap">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-400 mb-1">
+                        {currentOrNext.status}
+                      </span>
+                      <h3 className="text-4xl font-black text-foreground tracking-tighter uppercase leading-none">
+                        {currentOrNext.title}
+                      </h3>
+                    </div>
+                    <div className="ml-auto flex items-center gap-4 bg-white/50 px-6 py-3 rounded-2xl border-2 border-brand-100">
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-black text-muted uppercase tracking-widest">Target Start</span>
+                        <span className="text-2xl font-black text-brand-600 tracking-tighter">
+                          {format(new Date(currentOrNext.startTime), 'h:mm a')}
+                        </span>
+                      </div>
+                      <Clock size={32} weight="duotone" className="text-brand-400" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <Button 
+                      onClick={() => router.push('/dashboard/daily-plan')}
+                      className="h-12 px-6 gap-2 bg-surface-900 text-white rounded-xl shadow-[4px_4px_0_0_var(--surface-500)]"
+                    >
+                      View Full Timeline
+                      <ArrowRight size={20} weight="bold" />
+                    </Button>
+                    
+                    {currentOrNext.taskId && (
+                      <Button 
+                        variant="outline"
+                        className="h-12 border-2 border-surface-200 rounded-xl"
+                        onClick={() => toggleTask(currentOrNext.taskId!, false)}
+                      >
+                        Mark as Done
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Stress Relief"
+          label="Active Tasks"
           value={statsLoading ? '...' : totalTasks}
-          color="brand"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M9 11l3 3L22 4" />
@@ -248,10 +374,9 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Flight Velocity"
+          label="Completed Today"
           value={statsLoading ? '...' : completedTasks}
-          color="success"
-          trend="Clearance"
+          trend="Tasks Cleared"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <polyline points="20 6 9 17 4 12" />
@@ -261,7 +386,6 @@ export default function DashboardPage() {
         <StatCard
           label="Active Projects"
           value={statsLoading ? '...' : activeProjects}
-          color="accent"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" />
@@ -272,9 +396,8 @@ export default function DashboardPage() {
         />
         <StatCard
           label="System Status"
-          value="Nominal"
-          color="info"
-          trend="All clear"
+          value={systemStatus === 'nominal' ? 'Stable' : systemStatus === 'degraded' ? 'Slow' : 'Offline'}
+          trend={systemStatus === 'nominal' ? 'System healthy' : systemStatus === 'degraded' ? 'High latency' : 'Database error'}
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" />
@@ -284,15 +407,15 @@ export default function DashboardPage() {
         />
       </div>
 
-        {/* Today's tasks — centered and cleaner */}
+      {/* Ollie's Suggestions — constraint mining results */}
+      <OllieSuggestionCard />
+
+        {/* Today's tasks - centered and cleaner */}
         <div className="lg:col-span-3 glass p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-              </svg>
-              Active Flight Plan
+              <Clock weight="bold" className="size-6" />
+              Next Actions
             </h2>
           </div>
 
@@ -300,7 +423,7 @@ export default function DashboardPage() {
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <OllieAvatar mood="happy" size="lg" />
               <p className="mt-6 text-slate-400 text-base max-w-xs font-medium">
-                The horizon is clear. Add a task from the Command Center to begin your mission.
+                The horizon is clear. Add a task from the Quick Add menu to begin.
               </p>
             </div>
           ) : (
@@ -337,15 +460,42 @@ export default function DashboardPage() {
                   onClick={() => router.push('/dashboard/tasks')}
                   className="px-6 py-2 text-sm text-brand-500 hover:text-brand-600 font-black uppercase tracking-widest transition-all hover:gap-2 flex items-center gap-1"
                 >
-                  Full Mission Log <span>→</span>
+                  View All Tasks <span>→</span>
                 </button>
               </div>
             </div>
           )}
         </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <TaskHistory />
-        <TrashBin />
+
+      {/* Garden of Done — Abstract Visual Momentum */}
+      <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+        <GardenOfDone completedTasks={allCompletedTasks} />
+      </div>
+
+      {/* Weekly Review Card */}
+      <WeeklyReviewCard />
+
+      {/* System Archives - De-emphasized */}
+      <div className="space-y-4">
+        <button 
+          onClick={() => setShowArchives(!showArchives)}
+          className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted hover:text-foreground transition-colors group"
+        >
+          <Archive size={16} />
+          <span>Archives</span>
+          <CaretDown size={14} className={`transition-transform duration-300 ${showArchives ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showArchives && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+            <div className="opacity-70 grayscale hover:grayscale-0 transition-all duration-300">
+              <TaskHistory />
+            </div>
+            <div className="opacity-70 grayscale hover:grayscale-0 transition-all duration-300">
+              <TrashBin />
+            </div>
+          </div>
+        )}
       </div>
 
       <CommandCenter />

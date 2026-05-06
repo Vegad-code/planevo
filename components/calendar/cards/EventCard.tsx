@@ -112,15 +112,7 @@ export default function EventCard({
     [event.id, onResizeEnd, resizeDelta]
   );
 
-  // Swipe-left to complete (mobile)
-  const handleSwipeDragEnd = useCallback(
-    (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-      if (info.offset.x < -100 && onComplete) {
-        onComplete(event.id);
-      }
-    },
-    [event.id, onComplete]
-  );
+
 
   return (
     <motion.div

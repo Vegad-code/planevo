@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error && data.session) {
-      const { provider_token, provider_refresh_token, user } = data.session;
+      const { provider_refresh_token, user } = data.session;
 
       // Persist the Google Refresh Token so we can sync offline
       if (provider_refresh_token) {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, User, Terminal } from 'lucide-react';
+import { Send } from 'lucide-react';
 import OllieAvatar from '../ollie/OllieAvatar';
 
 interface Message {
@@ -17,7 +17,7 @@ interface OllieChatSidebarProps {
 
 export default function OllieChatSidebar({ onCommand, isProcessing }: OllieChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'ollie', content: "Hey Pilot! I've drafted your flight plan. Need to change anything? Just say the word." }
+    { role: 'ollie', content: "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }
   ]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -48,11 +48,11 @@ export default function OllieChatSidebar({ onCommand, isProcessing }: OllieChatS
       <div className="p-4 bg-surface-800 flex items-center gap-3 border-b border-surface-700">
         <OllieAvatar mood={isProcessing ? 'thinking' : 'happy'} size="sm" />
         <div>
-          <h3 className="text-sm font-black text-white uppercase tracking-widest">Ollie Co-Pilot</h3>
+          <h3 className="text-sm font-black text-white uppercase tracking-widest">Ollie Intelligence</h3>
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
             <span className="text-[10px] text-surface-400 font-bold uppercase">
-              {isProcessing ? 'Analyzing Flight Path...' : 'Live In Cockpit'}
+              {isProcessing ? 'Analyzing schedule...' : 'Active & Ready'}
             </span>
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function OllieChatSidebar({ onCommand, isProcessing }: OllieChatS
           </button>
         </div>
         <p className="mt-2 text-[10px] text-surface-500 text-center uppercase font-bold tracking-tighter">
-          Voice commands coming soon to cockpit
+          Voice commands coming soon
         </p>
       </form>
     </div>

@@ -89,7 +89,9 @@ export function useCalendarPreferences() {
   }, [supabase, preferences]);
 
   useEffect(() => {
-    loadPreferences();
+    requestAnimationFrame(() => {
+      loadPreferences();
+    });
   }, [loadPreferences]);
 
   return {

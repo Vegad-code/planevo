@@ -5,7 +5,7 @@
  * and "Fixed Events" (Calendar). Designed for the "Ultimate" visual timeline.
  */
 
-import { addMinutes, format, parse, parseISO, isAfter, isBefore, startOfDay, endOfDay, setHours, setMinutes } from 'date-fns';
+import { addMinutes, format, parseISO, isAfter, isBefore, startOfDay, endOfDay, setHours, setMinutes } from 'date-fns';
 
 export interface UnavailableBlock {
   label: string;
@@ -32,13 +32,33 @@ export interface ScheduleBlock {
   type: 'focus' | 'break' | 'event' | 'constraint' | 'buffer';
   duration: number; // minutes
   description: string;
+  specific_action?: string;
+  success_condition?: string;
+  why_now?: string;
+  fallback_if_stuck?: string;
+  materials_needed?: string[];
+  break_reason?: string;
   originalTitle?: string; // Raw task name
   taskId?: string; // If linked to a DB task
+  externalUrl?: string; // Canvas or other external links
+  status?: 'pending' | 'confirmed' | 'rejected';
+  is_ai_suggested?: boolean;
 }
 
 export interface AgenticSchedulerInput {
-  tasks: any[];
-  calendarEvents: any[];
+  tasks: Array<{
+    id?: string;
+    title: string;
+    priority: 'low' | 'medium' | 'high';
+    estimated_minutes?: number;
+    description?: string;
+    external_url?: string;
+  }>;
+  calendarEvents: Array<{
+    summary: string;
+    start: { dateTime?: string; date?: string };
+    end: { dateTime?: string; date?: string };
+  }>;
   preferences: SchedulingPreferences;
   date: Date;
 }
@@ -91,6 +111,8 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
 
   // 4. Fill gaps with tasks
   let currentTime = dayStart;
+  let focusedMinutesSinceBreak = 0;
+  let focusBlocksSinceBreak = 0;
   const activeTasks = [...tasks].sort((a, b) => {
     // Priority sorting: High > Medium > Low
     const pMap = { high: 3, medium: 2, low: 1 };
@@ -113,9 +135,18 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
         title: block.title,
         type: block.type,
         duration: Math.round((block.end.getTime() - currentTime.getTime()) / 60000),
-        description: block.type === 'constraint' ? 'Locked period (School/Sleep)' : 'Calendar Event'
+        description: block.type === 'constraint' ? 'Locked period (School/Sleep)' : 'Calendar Event',
+        specific_action: block.type === 'constraint'
+          ? `Keep this time protected for ${block.title}.`
+          : `Attend ${block.title}.`,
+        success_condition: block.type === 'constraint'
+          ? 'This protected time stays unscheduled.'
+          : 'The event is attended or intentionally skipped.',
+        why_now: 'This time is already fixed on your calendar.',
       });
       currentTime = block.end;
+      focusedMinutesSinceBreak = 0;
+      focusBlocksSinceBreak = 0;
       continue;
     }
 
@@ -127,38 +158,62 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
     if (gapMinutes > 15 && activeTasks.length > 0) {
       const task = activeTasks.shift();
       const taskDuration = Math.min(gapMinutes, task.estimated_minutes || 60);
+      const plannedEnd = addMinutes(currentTime, taskDuration);
       
       schedule.push({
         id: task.id || Math.random().toString(36).substr(2, 9),
         time: format(currentTime, 'h:mm a'),
         startTime: currentTime,
-        endTime: addMinutes(currentTime, taskDuration),
+        endTime: plannedEnd,
         title: task.title,
         type: 'focus',
         duration: taskDuration,
-        description: task.description || 'Focus session',
+        description: task.description || `Work on ${task.title} for ${taskDuration} minutes.`,
+        specific_action: buildSpecificAction(task.title, task.description),
+        success_condition: buildSuccessCondition(task.title, taskDuration),
+        why_now: buildWhyNow(task.priority, taskDuration, gapMinutes, preferences.preferred_focus_time),
+        fallback_if_stuck: 'Spend five minutes listing the next visible step, then do only that step.',
+        materials_needed: inferMaterials(task.title, task.external_url),
         originalTitle: task.title,
-        taskId: task.id
+        taskId: task.id,
+        externalUrl: task.external_url
       });
-      currentTime = addMinutes(currentTime, taskDuration);
+      currentTime = plannedEnd;
+      focusedMinutesSinceBreak += taskDuration;
+      focusBlocksSinceBreak += 1;
 
-      // Add a break if there's space
-      if (isBefore(addMinutes(currentTime, 15), gapEnd)) {
+      // Add a break only after real focus load, not as filler after every task.
+      const breakDuration = preferences.break_length || 15;
+      const needsBreak = shouldAddBreak({
+        focusedMinutesSinceBreak,
+        focusBlocksSinceBreak,
+        gapEnd,
+        currentTime,
+        breakDuration,
+      });
+
+      if (needsBreak) {
         schedule.push({
           id: Math.random().toString(36).substr(2, 9),
           time: format(currentTime, 'h:mm a'),
           startTime: currentTime,
-          endTime: addMinutes(currentTime, 15),
-          title: 'Quick Break',
+          endTime: addMinutes(currentTime, breakDuration),
+          title: 'Recovery Break',
           type: 'break',
-          duration: 15,
-          description: 'Recharge before the next session.'
+          duration: breakDuration,
+          description: 'Step away briefly so the next focus block starts clean.',
+          specific_action: 'Stand up, get water, and reset your workspace.',
+          success_condition: 'You return ready to start the next block.',
+          why_now: `You have completed ${focusedMinutesSinceBreak} minutes of focused work.`,
+          break_reason: 'Added after a sustained focus stretch, not as filler.',
         });
-        currentTime = addMinutes(currentTime, 15);
+        currentTime = addMinutes(currentTime, breakDuration);
+        focusedMinutesSinceBreak = 0;
+        focusBlocksSinceBreak = 0;
       }
     } else {
       // Small gap or no tasks left
-      if (gapMinutes > 0) {
+      if (gapMinutes >= 20) {
         schedule.push({
           id: Math.random().toString(36).substr(2, 9),
           time: format(currentTime, 'h:mm a'),
@@ -167,7 +222,10 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
           title: 'Buffer Time',
           type: 'buffer',
           duration: gapMinutes,
-          description: 'Rest or catch up on minor items.'
+          description: 'Use this open space intentionally instead of cramming in another task.',
+          specific_action: 'Catch up, reset, or leave this slot open.',
+          success_condition: 'You use the time deliberately or keep it protected.',
+          why_now: 'The remaining gap is not a good fit for a focused task.',
         });
       }
       currentTime = gapEnd;
@@ -185,4 +243,64 @@ function parseTime(timeStr: string, date: Date): Date {
 
 function isSameDay(d1: Date, d2: Date): boolean {
   return startOfDay(d1).getTime() === startOfDay(d2).getTime();
+}
+
+function shouldAddBreak({
+  focusedMinutesSinceBreak,
+  focusBlocksSinceBreak,
+  gapEnd,
+  currentTime,
+  breakDuration,
+}: {
+  focusedMinutesSinceBreak: number;
+  focusBlocksSinceBreak: number;
+  gapEnd: Date;
+  currentTime: Date;
+  breakDuration: number;
+}): boolean {
+  const hasRoomForBreakAndNextBlock = isBefore(addMinutes(currentTime, breakDuration + 25), gapEnd);
+  if (!hasRoomForBreakAndNextBlock) return false;
+  return focusedMinutesSinceBreak >= 75 || (focusBlocksSinceBreak >= 2 && focusedMinutesSinceBreak >= 60);
+}
+
+function buildSpecificAction(title: string, description?: string): string {
+  if (description && description.trim().length > 0) {
+    return `Work through: ${description.trim()}`;
+  }
+
+  return `Open the materials for "${title}" and complete the next concrete deliverable.`;
+}
+
+function buildSuccessCondition(title: string, duration: number): string {
+  if (duration <= 30) {
+    return `A small, visible piece of "${title}" is finished or ready to submit.`;
+  }
+
+  return `You can point to clear progress on "${title}" before this block ends.`;
+}
+
+function buildWhyNow(
+  priority: 'low' | 'medium' | 'high',
+  taskDuration: number,
+  gapMinutes: number,
+  preferredFocusTime: SchedulingPreferences['preferred_focus_time']
+): string {
+  if (priority === 'high') return 'This is high priority, so it gets protected time before easier work.';
+  if (taskDuration >= gapMinutes - 15) return 'This task fits the available calendar gap cleanly.';
+  return `This slot matches your ${preferredFocusTime} planning preference.`;
+}
+
+function inferMaterials(title: string, externalUrl?: string): string[] {
+  const materials = ['Task notes'];
+  const lowerTitle = title.toLowerCase();
+
+  if (externalUrl) materials.push('Linked assignment page');
+  if (lowerTitle.includes('study') || lowerTitle.includes('exam') || lowerTitle.includes('quiz')) {
+    materials.push('Class notes');
+  }
+  if (lowerTitle.includes('write') || lowerTitle.includes('essay') || lowerTitle.includes('draft')) {
+    materials.push('Draft document');
+  }
+
+  return materials;
 }

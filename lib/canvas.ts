@@ -34,15 +34,18 @@ export async function fetchCanvasUpcoming(url: string, token: string): Promise<C
     
     // Filter for assignments with due dates
     return items
-      .filter((item: any) => item.plannable_type === 'assignment' && item.plannable.due_at)
-      .map((item: any) => ({
-        id: item.plannable_id,
-        name: item.plannable.title || item.plannable.name,
-        description: item.plannable.description || '',
-        due_at: item.plannable.due_at,
-        course_id: item.course_id,
-        html_url: item.html_url
-      }));
+      .filter((item: Record<string, unknown>) => item.plannable_type === 'assignment' && (item.plannable as Record<string, unknown>)?.due_at)
+      .map((item: Record<string, unknown>) => {
+        const plannable = item.plannable as Record<string, unknown>;
+        return {
+          id: item.plannable_id as number,
+          name: (plannable.title || plannable.name) as string,
+          description: (plannable.description as string) || '',
+          due_at: plannable.due_at as string,
+          course_id: item.course_id as number,
+          html_url: item.html_url as string
+        };
+      });
 
   } catch (error) {
     console.error('Error fetching Canvas data:', error);

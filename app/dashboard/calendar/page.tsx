@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useCalendarPreferences } from '@/hooks/useCalendarPreferences';
 import CalendarShell from '@/components/calendar/CalendarShell';
-import CargoBay from '@/components/dashboard/CargoBay';
+import TaskBacklog from '@/components/dashboard/TaskBacklog';
 import EventDialog from '@/components/calendar/dialogs/EventDialog';
 import { Button } from '@/components/ui/button';
 import { RefreshCcw } from 'lucide-react';
@@ -12,6 +12,27 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { CalendarEvent } from '@/types/calendar';
 import QuickAddSidebar from '@/components/calendar/dialogs/QuickAddSidebar';
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_minutes?: number;
+  energy_level_required?: string;
+}
+
+interface QuickAddData {
+  title: string;
+  start_time: string;
+  end_time: string;
+  description: string;
+  is_all_day: boolean;
+  is_completed: boolean;
+  source: string;
+  metadata: {
+    subtasks: Array<{ title: string; completed: boolean }>;
+  };
+}
 
 
 export default function CalendarPage() {
@@ -41,7 +62,7 @@ export default function CalendarPage() {
     await completeEvent(id);
     const event = events.find(e => e.id === id);
     if (event && !event.is_completed) {
-      toast.success('Mission complete! 🎯', {
+      toast.success('Task complete! 🎯', {
         description: event.title,
       });
     }
@@ -51,7 +72,7 @@ export default function CalendarPage() {
     if (time) {
       const endTime = new Date(time.getTime() + 60 * 60 * 1000); // 1 hour default
       const newEvent = await createEvent({
-        title: 'New Mission',
+        title: 'New Event',
         start_time: time.toISOString(),
         end_time: endTime.toISOString(),
         source: 'manual',
@@ -64,10 +85,10 @@ export default function CalendarPage() {
     }
   };
 
-  const handleQuickAddSave = async (data: any) => {
+  const handleQuickAddSave = async (data: QuickAddData) => {
     const newEvent = await createEvent(data);
     if (newEvent) {
-      toast.success('Mission deployed to timeline');
+      toast.success('Event scheduled to timeline');
     }
   };
 
@@ -98,7 +119,7 @@ export default function CalendarPage() {
     toast.success("Event updated");
   };
 
-  const handleTaskDrop = async (task: any, time: Date) => {
+  const handleTaskDrop = async (task: Task, time: Date) => {
     // 1 hour default
     const endTime = new Date(time.getTime() + (task.estimated_minutes || 60) * 60 * 1000); 
     const newEvent = await createEvent({
@@ -112,7 +133,7 @@ export default function CalendarPage() {
     });
     
     if (newEvent) {
-      toast.success('Deployed from Cargo Bay', {
+      toast.success('Scheduled from Backlog', {
         description: `${task.title} at ${time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
       });
       // Mark task as scheduled/completed in DB so it doesn't show in CargoBay anymore
@@ -141,7 +162,7 @@ export default function CalendarPage() {
               Calendar
             </h1>
             <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">
-              Your unified mission timeline
+              Your unified timeline
             </p>
           </div>
           <Button 
@@ -169,12 +190,12 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Cargo Bay Sidebar */}
+      {/* Task Backlog Sidebar */}
       <div className="w-[320px] shrink-0 border-l border-border bg-surface-50/50 flex flex-col h-full overflow-hidden hidden xl:flex">
         <div className="p-4 h-full flex flex-col">
-          <CargoBay 
-            onDockAll={() => toast.info('Auto-dock disabled in calendar view')}
-            onDockOne={() => toast.info('Drag item onto the calendar')}
+          <TaskBacklog 
+            onScheduleAll={() => toast.info('Auto-schedule disabled in calendar view')}
+            onScheduleOne={() => toast.info('Drag item onto the calendar')}
             isProcessing={false}
           />
         </div>

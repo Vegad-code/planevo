@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { getOllieMasterContext } from '@/lib/ai/orchestrator';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +11,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: limitError }, { status: 403 });
     }
 
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ nudge: "Stay focused, Pilot. You're doing great! 🚀" });
+    }
+
     const { taskTitle, timeLeft, totalTime, isReturning } = await request.json();
+
+    // Get Unified World State
+    const worldState = await getOllieMasterContext(user.id);
+    const memoryContext = worldState.memoryContext;
 
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (!openAiApiKey) {
@@ -26,9 +39,13 @@ Context:
 - Task: "${taskTitle || 'Working'}"
 - Time Remaining: ${minutesLeft} minutes (${progressPercent}% through session)
 - Scenario: ${isReturning ? 'User just returned to the tab after being away.' : 'Periodic check-in.'}
+- Current Vibe: ${worldState.energyLevel} Energy
+
+USER MEMORY (Apply tone/style):
+${memoryContext}
 
 Rules:
-- Be punchy, encouraging, and slightly "pilot" themed (e.g., using terms like "orbit", "mission", "cockpit", "trajectory").
+- Be punchy, encouraging, and keep the Plan Pilot vibe (e.g., "steady rhythm", "on track", "clear horizon").
 - Max 15 words.
 - If they just returned (isReturning: true), acknowledge they're back.
 - If they are near the end (>80% progress), push them to the finish line.
@@ -58,6 +75,6 @@ Respond with ONLY the nudge text.`;
 
   } catch (error) {
     console.error('Nudge Error:', error);
-    return NextResponse.json({ nudge: "Stay focused, Pilot. The mission continues! 🚀" });
+    return NextResponse.json({ nudge: "Stay focused, Pilot. You're doing great! 🚀" });
   }
 }

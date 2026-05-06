@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     // Future: Handle github_pr, jira_task
 
     return NextResponse.json({ success: true, message: 'Signal received and logged.' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('N8N Webhook Error:', error);
     return NextResponse.json({ error: 'Internal Signal Error' }, { status: 500 });
   }

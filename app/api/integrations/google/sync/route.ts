@@ -18,10 +18,11 @@ export async function POST() {
       message: `Synchronized ${count} events from Google Calendar.`,
       count 
     });
-  } catch (error: any) {
-    console.error('Google Sync Error:', error);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Google Sync Error:', err);
     return NextResponse.json({ 
-      error: error.message || 'Failed to synchronize calendar' 
+      error: err.message || 'Failed to synchronize calendar' 
     }, { status: 500 });
   }
 }

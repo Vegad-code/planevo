@@ -75,16 +75,19 @@ export async function fetchCanvasUpcoming(url: string, token: string): Promise<C
     const events = await response.json();
     
     // Filter for assignment types and transform
-    return events
-      .filter((e: any) => e.assignment)
-      .map((e: any) => ({
-        id: e.assignment.id,
-        name: e.assignment.name,
-        description: e.assignment.description || '',
-        due_at: e.assignment.due_at,
-        course_id: e.assignment.course_id,
-        html_url: e.assignment.html_url
-      }));
+    return (events as Record<string, unknown>[])
+      .filter((e) => !!e.assignment)
+      .map((e) => {
+        const a = e.assignment as Record<string, unknown>;
+        return {
+          id: a.id as number,
+          name: a.name as string,
+          description: (a.description as string) || '',
+          due_at: a.due_at as string,
+          course_id: a.course_id as number | string,
+          html_url: a.html_url as string
+        };
+      });
   } catch (error) {
     console.error('Error fetching Canvas assignments:', error);
     return [];

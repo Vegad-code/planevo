@@ -14,7 +14,7 @@ export const FOCUS_SOUNDS: FocusSound[] = [
   },
   {
     id: 'deep-space',
-    name: 'Space Cockpit',
+    name: 'Deep Space',
     url: 'https://www.orangefreesounds.com/wp-content/uploads/2014/11/Brown-noise.mp3',
     icon: '🚀',
   },

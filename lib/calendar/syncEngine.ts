@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { fetchCanvasUpcoming, validateCanvasConnection } from '@/lib/canvas';
+import { fetchCanvasUpcoming } from '@/lib/canvas';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 
 export async function syncCanvasEvents(userId: string) {
@@ -79,17 +79,7 @@ export async function processOllieRollover(userId: string) {
   if (error || !pastEvents || pastEvents.length === 0) return 0;
 
   // We move them to today, starting from current time
-  const rolloverEvents = pastEvents.map((event, index) => {
-    // Schedule them back-to-back starting now
-    const start = new Date(now.getTime() + index * 60 * 60 * 1000); // 1 hour intervals
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-    return {
-      ...event,
-      id: undefined, // let supabase generate a new id or just update the existing one?
-      // Actually, we should UPDATE the existing event to be a 'rollover' source and new time.
-    };
-  });
 
   // Let's just update the existing events
   let updatedCount = 0;
@@ -125,20 +115,20 @@ export async function runFullSync(userId: string) {
 
   try {
     results.google = await syncGoogleCalendar(userId);
-  } catch (err: any) {
-    results.errors.push(`Google Sync: ${err.message}`);
+  } catch (err: unknown) {
+    results.errors.push(`Google Sync: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   try {
     results.canvas = await syncCanvasEvents(userId);
-  } catch (err: any) {
-    results.errors.push(`Canvas Sync: ${err.message}`);
+  } catch (err: unknown) {
+    results.errors.push(`Canvas Sync: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   try {
     results.rollover = await processOllieRollover(userId);
-  } catch (err: any) {
-    results.errors.push(`Rollover: ${err.message}`);
+  } catch (err: unknown) {
+    results.errors.push(`Rollover: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return results;

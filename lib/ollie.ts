@@ -3,17 +3,17 @@
 
 export const OLLIE_GREETINGS = {
   morning: [
-    "Rise and shine! 🌅 Let's make today count — one step at a time.",
+    "Rise and shine! 🌅 Let's make today count - one step at a time.",
     "Good morning! I've got your day mapped out. Ready when you are.",
     "Morning! You've got this. Let me show you what's on the schedule.",
     "Hey early bird! Let's get the big stuff done while your energy's fresh.",
-    "Good morning! Remember — progress, not perfection. Let's go.",
+    "Good morning! Remember - progress, not perfection. Let's go.",
   ],
   afternoon: [
     "Afternoon check-in! You're doing great. What's next on the list?",
     "Hey! Halfway through the day. Let's keep the momentum going.",
     "Good afternoon! Time to tackle something satisfying.",
-    "The afternoon stretch — wise move checking in. What can I help with?",
+    "The afternoon stretch - wise move checking in. What can I help with?",
     "Afternoon! Let's zoom in on what matters most right now.",
   ],
   evening: [

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { buildMemoryContext, getUserAIMemory, updateUserAIMemory } from '@/lib/ai/memory';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,13 +15,15 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { currentSchedule, userMessage, userPreferences } = await request.json();
+    const memory = await getUserAIMemory(supabase, user.id);
+    const memoryContext = buildMemoryContext(memory);
 
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (!openAiApiKey) {
       return NextResponse.json({ error: 'AI key not configured' }, { status: 500 });
     }
 
-    const systemPrompt = `You are Ollie, the AI Life Pilot. You help users manage their daily schedule visually and conversationally.
+    const systemPrompt = `You are Ollie, the AI Planning Instrument. You help users manage their daily schedule visually and conversationally.
     
 Current Schedule (JSON):
 ${JSON.stringify(currentSchedule)}
@@ -28,12 +31,16 @@ ${JSON.stringify(currentSchedule)}
 User Preferences/Constraints:
 ${JSON.stringify(userPreferences)}
 
+User AI Memory:
+${memoryContext}
+
 Rules:
 1. Interpret the user's command to mutate the current schedule.
 2. Commands might be: "move X to 4 PM", "clear my afternoon", "make my breaks longer", "I need 2 hours for X at 1 PM".
-3. Maintain the JSON structure of the schedule blocks.
+3. Maintain the JSON structure of the schedule blocks, including specific_action, success_condition, why_now, fallback_if_stuck, materials_needed, and break_reason.
 4. IMPORTANT: If the user expresses a general preference (e.g. "I hate working before 9 AM", "I want more breaks", "School is until 4 PM now"), extract it into 'learned_preference'.
-5. Always return a conversational 'ollie_response' explaining what you did.
+5. Apply User AI Memory unless the user's new command overrides it.
+6. Always return a conversational 'ollie_response' explaining what you did.
 
 Respond ONLY with JSON:
 {
@@ -92,6 +99,24 @@ Respond ONLY with JSON:
         .from('users')
         .update({ scheduling_preferences: updatedPrefs })
         .eq('id', user.id);
+
+      await updateUserAIMemory(supabase, user.id, {
+        learned_rules: [
+          ...memory.learned_rules,
+          {
+            id: `schedule-agent-${Date.now()}`,
+            text: `${result.learned_preference.rule}: ${result.learned_preference.value}`,
+            feature: 'schedule_agent',
+            confidence: 0.7,
+            evidence_count: 1,
+            last_seen_at: new Date().toISOString(),
+          },
+        ].slice(-30),
+        source_counters: {
+          ...memory.source_counters,
+          schedule_agent_learned_preference: (memory.source_counters.schedule_agent_learned_preference || 0) + 1,
+        },
+      });
     }
 
     return NextResponse.json({ ...result, learned_preference: result.learned_preference });

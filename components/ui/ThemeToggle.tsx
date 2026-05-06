@@ -12,7 +12,9 @@ export default function ThemeToggle() {
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     const initialTheme = savedTheme || systemTheme;
     
-    setTheme(initialTheme);
+    requestAnimationFrame(() => {
+      setTheme(initialTheme);
+    });
     document.documentElement.setAttribute('data-theme', initialTheme);
   }, []);
 

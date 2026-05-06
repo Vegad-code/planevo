@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, useInView } from 'framer-motion';
 import './AnimatedList.css';
 
-const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick }) => {
+const AnimatedItem = ({ children, index, onMouseEnter, onClick }) => {
   const ref = useRef(null);
   const inView = useInView(ref, { amount: 0.05, once: true });
   return (

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Check, Warning, X, Lightning, GraduationCap, Briefcase, CaretDown } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,16 +18,15 @@ const staggerContainer = {
   viewport: { once: true }
 };
 
-const notionComparison = [
-  { feature: 'Canvas LMS Auto-Sync', us: true, notion: false },
-  { feature: 'Google Calendar Auto-Sync', us: true, notion: false },
-  { feature: 'AI Flight Plan (Daily Schedule)', us: true, notion: false },
-  { feature: 'No-Shame Rollover System', us: true, notion: false },
-  { feature: 'Academic Search (AI)', us: 'Pro', notion: '$20/mo' },
-  { feature: 'AI Meeting / Lecture Notes', us: 'Pro', notion: '$20/mo' },
-  { feature: 'Agentic AI Actions', us: 'Elite', notion: '$20/mo' },
-  { feature: 'GitHub / Slack / Jira Sync', us: 'Elite', notion: '$20/mo' },
-  { feature: 'Price to unlock all above', us: '$14.99', notion: '$20.00+' },
+const comparisonData = [
+  { feature: 'Unified Daily Plan (Schedule)', us: true, others: false },
+  { feature: 'No-Shame Rollover System', us: true, others: false },
+  { feature: 'Canvas & Google Auto-Sync', us: 'Pro', others: false },
+  { feature: 'Academic Search (AI)', us: 'Pro', others: false },
+  { feature: 'Task Breakdown (AI)', us: 'Pro', others: false },
+  { feature: 'Lecture Insights', us: 'Coming Soon', others: false },
+  { feature: 'Professional Integrations', us: 'Coming Soon', others: false },
+  { feature: 'Ollie Actions (Agentic)', us: 'Coming Soon', others: false },
 ];
 
 export default function Pricing() {
@@ -38,27 +36,29 @@ export default function Pricing() {
     useEffect(() => {
         const userAgent = window.navigator.userAgent.toLowerCase();
         if (userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ipod')) {
-            setIsIOS(true);
+            requestAnimationFrame(() => {
+                setIsIOS(true);
+            });
         }
     }, []);
 
     const tiers = [
         {
-            name: 'Standard Pilot',
+            name: 'Standard',
             price: '$0',
             period: '/ mo',
-            description: 'Your launchpad. Clear for takeoff.',
+            description: 'Foundations for a calm, organized day.',
             icon: <GraduationCap weight="bold" className="size-6" />,
             features: [
-                'Unified Dashboard (Command Center)',
-                'Canvas & Google Auto-Sync',
-                'No-Shame Rollover System',
+                'Unified Dashboard',
+                'Daily Plan & Calendar',
                 'Basic Task Management',
-                '5 AI Tactical Requests / day',
+                'No-Shame Rollover System',
+                '5 AI Quick Tasks / day',
             ],
             limitations: [
-                'No Academic Search',
-                'No Professional Integrations',
+                'No Auto-Sync Integrations',
+                'Limited AI Actions',
             ],
             buttonText: 'Get Started Free',
             href: '/signup',
@@ -67,22 +67,21 @@ export default function Pricing() {
             color: 'bg-brand-100',
         },
         {
-            name: 'Flight Pilot',
+            name: 'Pro',
             price: '$7.99',
             period: '/ mo',
-            description: 'The self-driving academic assistant.',
+            description: 'More power, more clarity.',
             icon: <Lightning weight="bold" className="size-6" />,
             features: [
                 'Everything in Standard',
-                'Real-time Auto-Sync (15 min)',
-                '100 AI Tactical Requests / day',
+                'Canvas & Google Auto-Sync',
                 'Academic Search (AI-powered)',
-                'Lecture AI Summaries',
-                'Zotero & Google Drive Sync',
-                'Smart Focus Mode',
+                'Advanced Task Breakdown',
+                'Smart Focus Tools',
+                '100 AI Quick Tasks / day',
             ],
             limitations: [],
-            buttonText: 'Upgrade to Flight',
+            buttonText: 'Upgrade to Pro',
             href: '/signup',
             highlight: false,
             badge: 'RECOMMENDED',
@@ -90,26 +89,25 @@ export default function Pricing() {
             color: 'bg-accent-50',
         },
         {
-            name: 'Elite Squadron',
+            name: 'Elite',
             price: '$14.99',
             period: '/ mo',
-            description: 'Full autonomy. Ollie acts for you.',
+            description: 'Advanced support for peak performance.',
             icon: <Briefcase weight="bold" className="size-6" />,
             features: [
-                'Everything in Flight Pilot',
-                '1000 AI Requests / day (Unlimited)',
-                'Agentic Command (Ollie acts)',
-                'GitHub, Slack & Jira Sync',
-                'Goal Architect (AI Breakdown)',
-                'Weekly Flight Audits',
-                'Custom Ollie Personas',
+                'Everything in Pro',
+                'Unlimited AI Planning',
                 'Priority Support',
+                'Ollie Actions (Coming Soon)',
+                'Professional Sync (Coming Soon)',
+                'Weekly Progress Audits (Coming Soon)',
+                'Custom Ollie Personas (Coming Soon)',
             ],
             limitations: [],
             buttonText: 'Join Elite',
             href: '/signup',
             highlight: true,
-            badge: 'MAX POWER',
+            badge: 'ADVANCED',
             badgeColor: 'bg-surface-900 text-surface-100',
             color: 'bg-surface-900',
         },
@@ -125,13 +123,13 @@ export default function Pricing() {
                 >
                     <div className="inline-flex items-center gap-2 bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
                         <Lightning weight="fill" className="size-3" />
-                        Flight Clearance
+                        Membership
                     </div>
                     <h2 className="text-4xl font-black lg:text-7xl text-surface-900 uppercase tracking-tighter leading-none">
-                        Simple Tiers.<br />Serious Power.
+                        Simple Tiers.<br />Clearer Focus.
                     </h2>
                     <p className="text-surface-600 text-xl font-bold leading-relaxed">
-                        Choose the level of autonomy that fits your semester. No hidden fees, no complexity. Just clarity.
+                        Choose the level of support that fits your needs. No hidden fees, no complexity. Just clarity.
                     </p>
                 </motion.div>
 
@@ -259,7 +257,7 @@ export default function Pricing() {
                         onClick={() => setShowCompare(!showCompare)}
                         className="group inline-flex flex-col items-center gap-3 text-sm font-black uppercase tracking-widest text-surface-400 hover:text-surface-900 transition-all"
                     >
-                        <span>How we compare to the "Ground" apps</span>
+                        <span>A workspace that works for you</span>
                         <motion.div 
                             className="p-3 rounded-full border-2 border-surface-200 group-hover:border-surface-900 group-hover:bg-surface-100"
                             animate={{ rotate: showCompare ? 180 : 0 }}
@@ -279,7 +277,7 @@ export default function Pricing() {
                             transition={{ duration: 0.4, ease: "circOut" }}
                         >
                             <div className="bg-surface-900 text-surface-100 px-10 py-6 flex items-center justify-between">
-                                <span className="font-black uppercase tracking-[0.2em] text-sm">Automated Pilot vs. Passive Workspace</span>
+                                <span className="font-black uppercase tracking-[0.2em] text-sm">Automated Assistance vs. Passive Workspace</span>
                                 <div className="flex gap-2">
                                     <div className="w-2 h-2 rounded-full bg-accent-500" />
                                     <div className="w-2 h-2 rounded-full bg-brand-500" />
@@ -290,13 +288,13 @@ export default function Pricing() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-surface-50 border-b-4 border-surface-900">
-                                            <th className="text-left px-10 py-6 font-black uppercase text-xs text-surface-400 tracking-widest">Efficiency Benchmark</th>
+                                            <th className="text-left px-10 py-6 font-black uppercase text-xs text-surface-400 tracking-widest">Comparison</th>
                                             <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-900 tracking-tighter">🦉 Plan Pilot</th>
-                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-400 tracking-tighter italic">Notion</th>
+                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-400 tracking-tighter italic">Passive Apps</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y-2 divide-surface-100">
-                                        {notionComparison.map((row, i) => (
+                                        {comparisonData.map((row, i) => (
                                             <tr key={i} className="hover:bg-accent-50/30 transition-colors">
                                                 <td className="px-10 py-5 font-black text-surface-900 uppercase tracking-tight text-xs">{row.feature}</td>
                                                 <td className="px-10 py-5 text-center">
@@ -309,12 +307,12 @@ export default function Pricing() {
                                                     )}
                                                 </td>
                                                 <td className="px-10 py-5 text-center">
-                                                    {row.notion === false ? (
+                                                    {row.others === false ? (
                                                         <div className="w-8 h-8 bg-surface-100 text-surface-300 rounded-lg flex items-center justify-center mx-auto border-2 border-surface-200">
                                                             <X weight="bold" className="size-4" />
                                                         </div>
                                                     ) : (
-                                                        <span className="font-black text-[10px] text-surface-400 bg-surface-50 px-3 py-1 border-2 border-surface-200 rounded-full">{row.notion}</span>
+                                                        <span className="font-black text-[10px] text-surface-400 bg-surface-50 px-3 py-1 border-2 border-surface-200 rounded-full">{row.others}</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -323,7 +321,7 @@ export default function Pricing() {
                                 </table>
                             </div>
                             <div className="bg-accent-500 border-t-4 border-surface-900 px-10 py-6 text-center">
-                                <p className="font-black uppercase text-base text-surface-900 tracking-tight">The Decision is Simple: Why pay more for a manual workspace? 🚀</p>
+                                <p className="font-black uppercase text-base text-surface-900 tracking-tight">Focus on what matters. Let Plan Pilot handle the rest. 🦉</p>
                             </div>
                         </motion.div>
                     )}

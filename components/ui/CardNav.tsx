@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState, FC, ReactNode } from 'react';
+import Image from 'next/image';
 import { gsap } from 'gsap';
 import { GoArrowUpRight } from 'react-icons/go';
 import './CardNav.css';
@@ -182,7 +183,7 @@ const CardNav: FC<CardNavProps> = ({
 
           <div className="logo-container">
             {typeof logo === 'string' ? (
-              <img src={logo} alt={logoAlt} className="logo" />
+              <Image src={logo} alt={logoAlt} className="logo" width={32} height={32} unoptimized />
             ) : (
               logo
             )}

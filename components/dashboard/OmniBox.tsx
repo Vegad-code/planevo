@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { Command, Plus, Zap, Clock, Calendar, X, Package } from 'lucide-react';
+import { Plus, Zap, Clock, Calendar, X } from 'lucide-react';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import { toast } from 'sonner';
 
@@ -95,9 +95,9 @@ export default function OmniBox() {
 
       if (error) throw error;
 
-      toast.success('Loaded into Cargo Bay', {
+      toast.success('Added to Backlog', {
         description: title || raw,
-        icon: <Package className="w-4 h-4" />,
+        icon: <Plus className="w-4 h-4" />,
       });
 
       setInput('');
@@ -169,10 +169,10 @@ export default function OmniBox() {
                   {/* Smart Hints */}
                   <div className="flex items-center gap-3 mt-3 px-1">
                     <span className="flex items-center gap-1 text-[10px] font-bold text-surface-300">
-                      <Clock className="w-3 h-3" /> "30m" or "1h"
+                      <Clock className="w-3 h-3" /> &quot;30m&quot; or &quot;1h&quot;
                     </span>
                     <span className="flex items-center gap-1 text-[10px] font-bold text-surface-300">
-                      <Calendar className="w-3 h-3" /> "today" or "tomorrow"
+                      <Calendar className="w-3 h-3" /> &quot;today&quot; or &quot;tomorrow&quot;
                     </span>
                     <span className="flex items-center gap-1 text-[10px] font-bold text-surface-300">
                       <Zap className="w-3 h-3" /> Enter to save

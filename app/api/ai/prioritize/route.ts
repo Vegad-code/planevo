@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +15,15 @@ export async function POST(request: NextRequest) {
       }, { status: limitError === 'Unauthorized' ? 401 : 403 });
     }
     // -----------------------------------------
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { tasks } = await request.json();
+    // 1. Get Unified World State
+    const body = await request.json();
+    const { energyLevel = 'medium' } = body;
+    const worldState = await getOllieMasterContext(authUser.id, energyLevel);
 
-    if (!tasks || tasks.length === 0) {
+    if (worldState.tasks.length === 0) {
       return NextResponse.json({
         today_focus: [],
         this_week: [],
@@ -46,8 +53,13 @@ export async function POST(request: NextRequest) {
 Current time: ${currentTime}
 Time of day: ${timeContext}
 
+USER MEMORY (Apply these preferences):
+${worldState.memoryContext}
+
+CURRENT ENERGY: ${energyLevel}
+
 Tasks (incomplete only):
-${JSON.stringify(tasks.map((t: Record<string, unknown>) => ({
+${JSON.stringify(worldState.tasks.map((t: any) => ({
   id: t.id,
   title: t.title,
   description: t.description,
@@ -56,9 +68,6 @@ ${JSON.stringify(tasks.map((t: Record<string, unknown>) => ({
   priority: t.priority,
   due_date: t.due_date,
   energy_level_required: t.energy_level_required,
-  is_recurring: t.is_recurring,
-  consistency_score: t.consistency_score,
-  rescheduled_count: t.rescheduled_count,
 })), null, 2)}
 
 Rules:
@@ -100,7 +109,7 @@ Respond ONLY with valid JSON (no markdown, no code fences):
 
     if (!response.ok) {
       console.error('OpenAI API error:', response.status, await response.text());
-      return NextResponse.json(buildFallbackResponse(tasks));
+      return NextResponse.json(buildFallbackResponse(worldState.tasks));
     }
 
     const data = await response.json();
@@ -115,7 +124,7 @@ Respond ONLY with valid JSON (no markdown, no code fences):
       return NextResponse.json(aiResponse);
     } catch {
       console.error('Failed to parse OpenAI response:', aiText);
-      return NextResponse.json(buildFallbackResponse(tasks));
+      return NextResponse.json(buildFallbackResponse(worldState.tasks));
     }
   } catch (error) {
     console.error('AI prioritization route error:', error);

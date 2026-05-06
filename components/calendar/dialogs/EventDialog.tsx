@@ -4,14 +4,12 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Trash2, 
   Calendar as CalendarIcon, 
   Clock, 
-  Repeat, 
   X, 
   Check, 
   Palette,
@@ -30,20 +28,27 @@ interface EventDialogProps {
   onDelete: (id: string) => void;
 }
 
+interface Subtask {
+  title: string;
+  completed: boolean;
+}
+
 export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDelete }: EventDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isAllDay, setIsAllDay] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [subtasks, setSubtasks] = useState<any[]>([]);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
 
   useEffect(() => {
     if (event) {
-      setTitle(event.title);
-      setDescription(event.description || '');
-      setIsAllDay(event.is_all_day || false);
-      setIsCompleted(event.is_completed || false);
-      setSubtasks(event.metadata?.subtasks || []);
+      requestAnimationFrame(() => {
+        setTitle(event.title);
+        setDescription(event.description || '');
+        setIsAllDay(event.is_all_day || false);
+        setIsCompleted(event.is_completed || false);
+        setSubtasks(event.metadata?.subtasks || []);
+      });
     }
   }, [event]);
 
@@ -79,8 +84,8 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
       <DialogContent className="p-0 overflow-hidden w-[95vw] sm:max-w-[520px] bg-[#1A1A1A] border-none shadow-2xl rounded-[24px] sm:rounded-[32px] max-h-[90vh] flex flex-col">
         {/* Accessibility labels */}
         <DialogHeader className="sr-only">
-          <DialogTitle>{title || 'Edit Mission'}</DialogTitle>
-          <DialogDescription>Modify your calendar event details</DialogDescription>
+          <DialogTitle>{title || 'Edit Task'}</DialogTitle>
+          <DialogDescription>Modify your task details</DialogDescription>
         </DialogHeader>
 
         {/* Banner Section */}
@@ -128,7 +133,7 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Mission Title"
+                placeholder="Task Title"
                 className="bg-transparent border-none text-white text-2xl sm:text-4xl font-black p-0 h-auto focus-visible:ring-0 placeholder:text-white/40 caret-white selection:bg-white/30 color-scheme-dark truncate"
                 autoFocus
               />
@@ -188,7 +193,7 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
             <div className="bg-[#2A2A2A] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3 border border-white/5">
               <div className="flex items-center gap-2 sm:gap-3 text-white/40 mb-1">
                 <ListTodo className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Tactical Steps</span>
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Steps</span>
               </div>
               {subtasks.map((task, i) => (
                 <div key={i} className="flex items-center gap-3 group">

@@ -4,7 +4,7 @@
  * This module handles the "Deadline-First" scheduling logic with
  * dynamic block lengths, contextual breaks, and energy awareness.
  * It takes external data (Canvas, Google Calendar) and transforms it into 
- * a structured daily flight plan that feels human, not robotic.
+ * a structured daily schedule that feels human, not robotic.
  */
 
 import { CanvasAssignment } from '../canvas/api';
@@ -16,7 +16,7 @@ export interface ScheduleBlock {
   type: 'focus' | 'break' | 'event' | 'buffer';
   duration: number; // minutes — stored for the refinement layer
   description: string;
-  [key: string]: any; // Ensure compatibility with Json type
+  [key: string]: unknown; // Ensure compatibility with Json type
 }
 
 export type EnergyLevel = 'low' | 'medium' | 'high';
@@ -24,7 +24,7 @@ export type EnergyLevel = 'low' | 'medium' | 'high';
 export interface SchedulerInput {
   assignments: CanvasAssignment[];
   milestones: CanvasAssignment[];
-  calendarEvents: any[];
+  calendarEvents: Record<string, unknown>[];
   preferredStartTime: string; // e.g. "08:00"
   energyLevel?: EnergyLevel;
 }
@@ -206,7 +206,7 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
       if (isNoSchoolDay) {
         schedule.push({
           time: format(currentTime, 'h:mm a'),
-          title: 'Off-Duty',
+          title: 'Personal Time',
           type: 'break',
           duration: 0,
           description: 'No school today and no immediate deadlines. Enjoy your rest!'

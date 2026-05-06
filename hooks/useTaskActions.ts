@@ -158,9 +158,10 @@ export function useTaskActions(onRefresh: () => void) {
         }
       }
       return { error: null };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      return { error: err.message || 'Failed to break down task' };
+      const message = err instanceof Error ? err.message : 'Failed to break down task';
+      return { error: message };
     } finally {
       setSaving(false);
     }
@@ -187,9 +188,10 @@ export function useTaskActions(onRefresh: () => void) {
 
         onRefresh();
         return { error: null };
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Start fresh error:', err);
-        return { error: err.message };
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return { error: message };
       } finally {
         setSaving(false);
       }

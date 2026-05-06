@@ -26,12 +26,12 @@ export default function SessionCompleteModal() {
       <div className="bg-surface-50 border-4 border-surface-900 p-8 rounded-3xl max-w-md w-full shadow-[12px_12px_0_0_var(--shadow-color)] animate-bounce-subtle">
         <div className="flex flex-col items-center text-center">
           <OllieAvatar mood="celebrating" size="lg" />
-          <h2 className="mt-6 text-2xl font-black uppercase text-surface-900">Mission Accomplished!</h2>
-          <p className="text-surface-500 mt-2 text-sm italic">Ollie here for your session summary.</p>
+          <h2 className="mt-6 text-2xl font-black uppercase text-surface-900 tracking-tighter">Session Complete!</h2>
+          <p className="text-surface-500 mt-2 text-sm italic font-medium">Excellent work. Your focus session is in the books.</p>
 
           <div className="mt-8 w-full">
-            <label className="text-xs font-black uppercase text-surface-400 block mb-4">
-              How much of "{activeTask?.title || 'the mission'}" is finished?
+            <label className="text-xs font-black uppercase text-surface-400 block mb-4 tracking-widest">
+              How much of &quot;{activeTask?.title || 'your task'}&quot; is finished?
             </label>
             <input 
               type="range" 

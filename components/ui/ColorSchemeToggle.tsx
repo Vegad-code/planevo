@@ -15,7 +15,9 @@ export default function ColorSchemeToggle() {
 
   useEffect(() => {
     const savedScheme = localStorage.getItem('theme-color') || 'forest';
-    setActiveScheme(savedScheme);
+    requestAnimationFrame(() => {
+      setActiveScheme(savedScheme);
+    });
     document.documentElement.setAttribute('data-theme-color', savedScheme);
   }, []);
 

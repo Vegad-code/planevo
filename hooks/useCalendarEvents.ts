@@ -41,7 +41,7 @@ export function useCalendarEvents() {
       } else {
         setEvents((data || []) as CalendarEvent[]);
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load calendar events');
     } finally {
       setLoading(false);
@@ -274,7 +274,10 @@ export function useCalendarEvents() {
 
   // Initial load
   useEffect(() => {
-    loadEvents();
+    // Wrap in requestAnimationFrame to avoid synchronous setState warning
+    requestAnimationFrame(() => {
+      loadEvents();
+    });
   }, [loadEvents]);
 
   return {
