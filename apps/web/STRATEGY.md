@@ -280,6 +280,8 @@ This section grows over time. Every strategic decision and its date is logged so
 | 2026-01 | Use Termly/Iubenda for legal docs (no lawyer until ~500 paying users or first school B2B) | Sufficient for pre-launch; stops 404s on footer links |
 | 2026-01 | **Block B shipped** — 15 AI routes archived, dashboard radically rewritten to "One Next Action", sidebar trimmed to 4 items, feature flag system added, ~14 dead components archived | Eliminates AI cost overhead, focuses ICP on the painkiller, reversible via `_archive/` folder |
 | 2026-01 | Keep WeeklyReview as future email job, not dashboard widget | Reduces UI noise; matches retention strategy in STRATEGY.md §8 |
+| 2026-01 | **Block B patched** — added Connection Status pill (Canvas + Google), context-aware empty state when nothing connected, "View today's full plan" expander, regenerate-plan button | Block B over-trimmed visibility of core painkillers (Daily Plan, Canvas sync, Google sync). Surface area was right; visibility was wrong. |
+| 2026-01 | Added §16 "Painkiller Visibility Rule" to this doc | Permanent guardrail so the same mistake doesn't repeat in Blocks C–G. |
 
 ---
 
@@ -289,6 +291,27 @@ This section grows over time. Every strategic decision and its date is logged so
 - **Before any pricing change:** update §7 first, get founder sign-off, then ship.
 - **Before any pivot pressure:** re-read §2 (who we are not for).
 - **Every quarter:** review §11 (success targets). If we hit them, scope can grow modestly. If we miss, we narrow further.
+
+---
+
+## 16. The Painkiller Visibility Rule
+
+**Every feature in §4's painkiller list MUST be discoverable from the dashboard within ONE click. No exceptions.**
+
+This rule exists because Block B initially over-trimmed the dashboard and made Daily Plan / Canvas sync / Google Calendar sync (all painkillers) invisible to new users. Reducing surface area is good. Hiding the core value prop is not.
+
+**Non-negotiable surfaces on `/dashboard`:**
+- Today's Daily Plan (current block + ability to view full day)
+- Canvas connection state (visible chip, one click to connect/disconnect)
+- Google Calendar connection state (same treatment)
+- "Generate today's plan" CTA when none exists
+
+**Where the rule applies:**
+- Adding a new feature → if it's in §4 painkillers, it must surface on the dashboard
+- Removing/refactoring UI → if you'd hide a painkiller below a fold, scroll, or extra click, stop and find another way
+- Onboarding (Block C) → first-run flow must walk users through ALL painkiller surfaces in <90 seconds
+
+**Vitamins ≠ Painkillers.** Vitamins like Garden of Done, Habits, Focus Mode CAN and SHOULD stay archived behind feature flags. Don't conflate the two.
 
 ---
 
