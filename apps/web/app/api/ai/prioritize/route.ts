@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (currentHour >= 12 && currentHour < 17) timeContext = 'afternoon';
     else if (currentHour >= 17) timeContext = 'evening';
 
-    const prompt = `You are the AI Life Pilot for Plant Pilot, a shame-free time management app. Analyze these tasks and create an optimal daily plan.
+    const prompt = `You are the AI Life Pilot for Plan Pilot, a shame-free time management app. Analyze these tasks and create an optimal daily plan.
 
 Current time: ${currentTime}
 Time of day: ${timeContext}

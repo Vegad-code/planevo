@@ -1,4 +1,4 @@
--- Plant Pilot — Robust Migration Script (v2)
+-- Plan Pilot — Robust Migration Script (v2)
 -- Use this script if you already have some tables and want to update them without errors.
 
 -- 1. Create Tables safely

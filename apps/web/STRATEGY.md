@@ -276,6 +276,8 @@ This section grows over time. Every strategic decision and its date is logged so
 | 2026-01 | Single price $9.99/mo + $79/yr + $4.99 .edu | Simple positioning, captures real ICP affordability |
 | 2026-01 | Card-required 14-day trial | Filters tire-kickers, lifts D14 conversion |
 | 2026-01 | Mobile app is a v1 launch requirement, not a v2 | ICP lives on their phone |
+| 2026-01 | **Block A shipped** — P0 crash fix, brand rename, testimonials removed, legal stubs created | Cleanup pass before strategic cuts |
+| 2026-01 | Use Termly/Iubenda for legal docs (no lawyer until ~500 paying users or first school B2B) | Sufficient for pre-launch; stops 404s on footer links |
 
 ---
 

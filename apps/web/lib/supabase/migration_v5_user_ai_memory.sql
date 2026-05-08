@@ -1,4 +1,4 @@
--- Plant Pilot - User AI Memory (v5)
+-- Plan Pilot - User AI Memory (v5)
 -- Stores learned user preferences that Ollie can apply across AI features.
 
 CREATE TABLE IF NOT EXISTS public.user_ai_memory (

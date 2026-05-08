@@ -43,9 +43,9 @@ export default function ForgotPasswordPage() {
       {/* Logo */}
       <div className="mb-8 animate-fade-in">
         <Link href="/" className="flex items-center gap-2 group" id="forgot-logo-link">
-          <span className="text-2xl">🌱</span>
+          <span className="text-2xl">🦉</span>
           <span className="text-xl font-bold text-white group-hover:text-brand-400 transition-colors">
-            Plant Pilot
+            Plan Pilot
           </span>
         </Link>
       </div>

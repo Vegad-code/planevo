@@ -1,4 +1,4 @@
--- Plant Pilot - AI security hardening (v4)
+-- Plan Pilot - AI security hardening (v4)
 -- Adds atomic quota consumption and tightens cross-table ownership checks.
 
 ALTER TABLE public.users

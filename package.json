@@ -1,5 +1,5 @@
 {
-  "name": "plant-pilot-monorepo",
+  "name": "plan-pilot-monorepo",
   "private": true,
   "packageManager": "npm@11.9.0",
   "workspaces": [
@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace plant-pilot",
+    "dev": "npm run dev --workspace plan-pilot",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },

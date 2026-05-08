@@ -1,4 +1,4 @@
-// Plant Pilot — Task Helper Utilities
+// Plan Pilot — Task Helper Utilities
 // Priority colors, time-of-day icons, and formatting helpers
 
 import type { TaskPriority, BestTimeOfDay, EnergyLevel } from '@/types/database';

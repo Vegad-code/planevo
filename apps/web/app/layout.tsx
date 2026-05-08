@@ -16,22 +16,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Plant Pilot — The only productivity app that works even when you don't want to",
+  title: "Plan Pilot — The shame-free planner for ADHD students drowning in Canvas deadlines",
   description:
-    "Plant Pilot is a proactive AI-powered time management app. Meet Ollie, your AI life coach who adapts your schedule, nudges you gently, and coaches you through your day.",
+    "Plan Pilot is the calm AI co-pilot for ADHD college students. Connect Canvas, generate a daily plan around your energy, and let Ollie reorganize tomorrow whenever life slips — without the guilt.",
   keywords: [
-    "productivity",
+    "ADHD planner",
+    "student productivity",
+    "Canvas LMS",
+    "AI scheduler",
+    "shame-free planner",
     "time management",
-    "AI coach",
-    "task manager",
-    "habit tracker",
-    "focus timer",
-    "Plant Pilot",
+    "Ollie",
+    "Plan Pilot",
   ],
   openGraph: {
-    title: "Plant Pilot — AI-Powered Productivity",
+    title: "Plan Pilot — Shame-free planning for ADHD students",
     description:
-      "Meet Ollie, your AI life coach. Plant Pilot actively nudges you, adapts your schedule, and coaches you through your day.",
+      "Connect Canvas, generate an energy-aware daily plan, and let Ollie reorganize tomorrow when life slips. Built for brains that don't run on willpower.",
     type: "website",
   },
 };

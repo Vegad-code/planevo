@@ -99,7 +99,7 @@ export const useFocusStore = create<FocusState>()(
       setVolume: (v) => set({ volume: v }),
     }),
     {
-      name: 'plant-pilot-focus-storage',
+      name: 'plan-pilot-focus-storage',
       // Only persist certain fields to avoid weird timer jumps if they refresh while running
       partialize: (state) => ({ 
         activeTask: state.activeTask,

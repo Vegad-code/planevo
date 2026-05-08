@@ -82,10 +82,10 @@ export default function SignIn() {
       <Card className="w-full max-w-md mx-4 pb-0 bg-surface-100 border-2 border-surface-900 shadow-[8px_8px_0_0_var(--shadow-color)] text-surface-900">
         <CardHeader className="space-y-1 text-center mb-2 mt-4">
           <div className="flex justify-center text-surface-900 mb-4">
-            <span className="text-4xl hover:scale-110 transition-transform">🌱</span>
+            <span className="text-4xl hover:scale-110 transition-transform">🦉</span>
           </div>
           <div>
-            <h2 className="text-2xl font-bold uppercase tracking-tight">Sign in to Plant Pilot</h2>
+            <h2 className="text-2xl font-bold uppercase tracking-tight">Sign in to Plan Pilot</h2>
             <p className="text-surface-600 text-sm mt-1 font-bold">
               Welcome back! Let&apos;s get things done.
             </p>
@@ -177,7 +177,7 @@ export default function SignIn() {
         </form>
         <CardFooter className="flex justify-center border-t-2 border-surface-900 bg-surface-200 !py-6">
           <p className="text-center text-sm font-bold text-surface-900 uppercase">
-            New to Plant Pilot?{" "}
+            New to Plan Pilot?{" "}
             <Link href="/signup" className="text-surface-900 hover:underline underline-offset-4">
               Sign up
             </Link>

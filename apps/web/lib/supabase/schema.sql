@@ -1,4 +1,4 @@
--- Plant Pilot — Database Schema Migration
+-- Plan Pilot — Database Schema Migration
 -- Run this in the Supabase SQL Editor to create all tables.
 
 -- ============================================================

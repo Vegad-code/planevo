@@ -7,7 +7,7 @@ import { Hero } from '@/components/ui/animated-hero';
 import Pricing from '@/components/ui/pricing-base';
 import CardNav from '@/components/ui/CardNav';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, CalendarBlank, Target, ChatCircleDots, ArrowRight, Sparkle } from '@phosphor-icons/react';
+import { CheckCircle, CalendarBlank, Target, ChatCircleDots, ArrowRight } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const fadeInUp = {
@@ -284,7 +284,7 @@ export default function LandingPage() {
             
             {[
               { step: "01", title: "Connect", desc: "Bring in your Canvas assignments, Google Calendar events, and personal tasks." },
-              { step: "02", title: "Plan", desc: "Generate your Daily Plan based on your current energy and available time." },,
+              { step: "02", title: "Plan", desc: "Generate your Daily Plan based on your current energy and available time." },
               { step: "03", title: "Execute", desc: "Follow the plan. If things change, roll work forward without the guilt of a 'failed' list." }
             ].map((item, i) => (
               <motion.div 
@@ -301,44 +301,6 @@ export default function LandingPage() {
               </motion.div>
             ))}
           </motion.div>
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <section className="py-24 relative bg-background border-b-2 border-surface-900 overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <motion.h2 
-            className="text-3xl text-surface-900 font-black mb-16 uppercase tracking-tight"
-            {...fadeInUp}
-          >
-            Loved by High-Achievers.
-          </motion.h2>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <motion.div 
-              className="bg-surface-100 p-10 text-left border-2 border-surface-900 shadow-[10px_10px_0_0_var(--surface-900)] rounded-3xl"
-              whileHover={{ rotate: -1, scale: 1.02 }}
-            >
-              <div className="flex gap-1 text-accent-500 mb-6">
-                {[1,2,3,4,5].map(s => <Sparkle key={s} weight="fill" className="w-5 h-5" />)}
-              </div>
-              <p className="text-surface-600 font-bold text-xl mb-8 leading-relaxed italic">
-                &quot;I have ADHD and usually abandon planners after a week. Plan Pilot is different because when I mess up, it doesn&apos;t judge. It just reorganizes tomorrow.&quot;
-              </p>
-              <p className="text-surface-900 font-black uppercase tracking-widest">— Sarah T., CS Major</p>
-            </motion.div>
-            <motion.div 
-              className="bg-surface-100 p-10 text-left border-2 border-surface-900 shadow-[10px_10px_0_0_var(--surface-900)] rounded-3xl"
-              whileHover={{ rotate: 1, scale: 1.02 }}
-            >
-              <div className="flex gap-1 text-accent-500 mb-6">
-                {[1,2,3,4,5].map(s => <Sparkle key={s} weight="fill" className="w-5 h-5" />)}
-              </div>
-              <p className="text-surface-600 font-bold text-xl mb-8 leading-relaxed italic">
-                &quot;The smart deconstruction feature is a game-changer. I used to stare at &apos;Write Thesis&apos; for weeks. Now I just follow the 15-minute steps Ollie gives me.&quot;
-              </p>
-              <p className="text-surface-900 font-black uppercase tracking-widest">— Mark R., Grad Student</p>
-            </motion.div>
-          </div>
         </div>
       </section>
 
@@ -387,6 +349,8 @@ export default function LandingPage() {
             <Link href="#features" className="hover:text-surface-900 transition-colors">Features</Link>
             <Link href="/pricing" className="hover:text-surface-900 transition-colors">Pricing</Link>
             <Link href="/privacy" className="hover:text-surface-900 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-surface-900 transition-colors">Terms</Link>
+            <Link href="/cookies" className="hover:text-surface-900 transition-colors">Cookies</Link>
           </div>
           <div className="text-surface-400 font-black text-xs uppercase tracking-widest">
             (c) {new Date().getFullYear()} Plan Pilot. All rights reserved.
