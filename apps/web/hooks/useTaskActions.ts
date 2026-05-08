@@ -131,41 +131,16 @@ export function useTaskActions(onRefresh: () => void) {
     onRefresh();
   }, [supabase, onRefresh]);
 
-  // Break down a task via AI
-  const breakDownTask = useCallback(async (task: Task) => {
-    setSaving(true);
-    try {
-      const res = await fetch('/api/ai/breakdown', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: task.title, description: task.description }),
-      });
-
-      if (!res.ok) throw new Error('Failed to break down task');
-
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      if (data.subtasks && Array.isArray(data.subtasks)) {
-        for (const sub of data.subtasks) {
-          await addTask({
-            title: sub.title,
-            estimated_minutes: sub.estimated_minutes,
-            parent_task_id: task.id,
-            best_time_of_day: (task.best_time_of_day as BestTimeOfDay) || undefined,
-            due_date: task.due_date || undefined,
-          });
-        }
-      }
-      return { error: null };
-    } catch (err: unknown) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'Failed to break down task';
-      return { error: message };
-    } finally {
-      setSaving(false);
-    }
-  }, [addTask]);
+  // Break down a task — folded into Ollie Chat in v1 (see STRATEGY.md §6).
+  // The standalone /api/ai/breakdown endpoint is archived. Users now ask
+  // Ollie directly: "Break down [task name] into 15-minute steps."
+  // TODO (Block G): re-wire this to the new Ollie agent's `breakdown` tool call.
+  const breakDownTask = useCallback(async (_task: Task) => {
+    return {
+      error:
+        'Ask Ollie to break this down for you in chat. (AI breakdown is now part of Ollie Chat in v1.)',
+    };
+  }, []);
 
   return {
     saving,

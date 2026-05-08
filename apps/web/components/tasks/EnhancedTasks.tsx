@@ -11,8 +11,6 @@ import { showToast } from '@/hooks/use-toast';
 import TaskGroup from './TaskGroup';
 import ShameFreeRescheduleModal from './ShameFreeRescheduleModal';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
-import GardenOfDone from './GardenOfDone';
-import TrashBin from '@/components/dashboard/TrashBin';
 import { calculateUserStats } from '@/lib/stats';
 import { useFocusStore } from '@/store/useFocusStore';
 import { useRouter } from 'next/navigation';
@@ -223,13 +221,7 @@ export default function EnhancedTasks() {
         </div>
       )}
 
-      {/* Garden of Done */}
-      <GardenOfDone completedTasks={tasks} />
-
-      {/* Recovery Section */}
-      <div className="mt-12">
-        <TrashBin />
-      </div>
+      {/* Garden of Done & Trash Bin moved to v2 (see STRATEGY.md §4 vitamins) */}
 
       {/* Reschedule Modal */}
       <ShameFreeRescheduleModal

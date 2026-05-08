@@ -3,7 +3,6 @@
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import ColorSchemeToggle from '@/components/ui/ColorSchemeToggle';
 import Integrations from '@/components/settings/Integrations';
-import OllieBrain from '@/components/settings/OllieBrain';
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -142,14 +141,7 @@ export default function SettingsPage() {
         <Integrations />
       </section>
       
-      {/* Ollie Brain - Memory Management */}
-      <section>
-        <header className="mb-8">
-          <h2 className="text-4xl font-black uppercase tracking-tighter">Ollie's Brain</h2>
-          <p className="text-surface-500 mt-2 text-base font-bold uppercase tracking-tight">Transparency and control over how Ollie learns your habits.</p>
-        </header>
-        <OllieBrain />
-      </section>
+      {/* Ollie Brain panel archived in v1 — re-introduce in Block G (memory transparency UI). */}
 
       {/* Subscription & Danger Zone */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
