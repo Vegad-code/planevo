@@ -6,10 +6,11 @@ import Integrations from '@/components/settings/Integrations';
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { User, Palette, Globe, CreditCard, Warning } from '@phosphor-icons/react';
+import { User, Palette, Globe, CreditCard, Warning, Lightning } from '@phosphor-icons/react';
 
 export default function SettingsPage() {
   const [name, setName] = useState('');
+  const [assignmentViewPreference, setAssignmentViewPreference] = useState('all');
   const [planType, setPlanType] = useState('free');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -21,7 +22,7 @@ export default function SettingsPage() {
       if (user) {
         const { data } = await supabase
           .from('users')
-          .select('name, plan_type')
+          .select('name, plan_type, assignment_view_preference')
           .eq('id', user.id)
           .single();
         
@@ -30,6 +31,9 @@ export default function SettingsPage() {
         }
         if (data?.plan_type) {
           setPlanType(data.plan_type);
+        }
+        if (data?.assignment_view_preference) {
+          setAssignmentViewPreference(data.assignment_view_preference);
         }
       }
       setLoading(false);
@@ -46,7 +50,10 @@ export default function SettingsPage() {
 
       const { error } = await supabase
         .from('users')
-        .update({ name: name })
+        .update({ 
+          name: name,
+          assignment_view_preference: assignmentViewPreference
+        })
         .eq('id', user.id);
 
       if (error) throw error;
@@ -139,6 +146,58 @@ export default function SettingsPage() {
           <h2 className="text-2xl font-black uppercase">Academic Data Links</h2>
         </div>
         <Integrations />
+      </section>
+
+      {/* Dashboard Preferences */}
+      <section className="glass p-8 border-2 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)]">
+        <div className="flex items-center gap-3 border-b-2 border-surface-900 pb-4 mb-8">
+          <Lightning weight="fill" className="size-6 text-accent-600" />
+          <h2 className="text-2xl font-black uppercase">Dashboard Experience</h2>
+        </div>
+        
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-widest text-surface-400 mb-4">Assignment Visibility</h3>
+            <p className="text-sm font-bold text-surface-500 mb-6">Choose how many assignments Ollie surfaces on your main dashboard.</p>
+            
+            <div className="flex flex-wrap gap-4">
+              {[
+                { id: 'day', label: 'Day', desc: 'Focus on today only' },
+                { id: 'week', label: 'Week', desc: 'See the next 7 days' },
+                { id: 'all', label: 'All', desc: 'Show everything synced' }
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={async () => {
+                    setAssignmentViewPreference(opt.id);
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                      await supabase.from('users').update({ assignment_view_preference: opt.id }).eq('id', user.id);
+                    }
+                  }}
+                  className={`flex-1 min-w-[140px] p-6 border-2 transition-all text-left ${
+                    assignmentViewPreference === opt.id
+                      ? 'border-surface-900 bg-surface-900 text-white shadow-[4px_4px_0px_0px_var(--accent-500)]'
+                      : 'border-surface-200 hover:border-surface-900 bg-transparent text-surface-900'
+                  }`}
+                >
+                  <div className="text-lg font-black uppercase tracking-tighter mb-1">{opt.label}</div>
+                  <div className={`text-[10px] font-bold uppercase tracking-widest ${
+                    assignmentViewPreference === opt.id ? 'text-surface-400' : 'text-surface-500'
+                  }`}>
+                    {opt.desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 p-6 border-2 border-surface-200 bg-surface-50 rounded-2xl max-w-2xl">
+            <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest leading-relaxed">
+              Note: Ollie is designed to pull almost every assignment. However, if a teacher uses non-standard modules or external links, some data may be restricted. If you ever have a doubt, your Canvas link above is the final source of truth.
+            </p>
+          </div>
+        </div>
       </section>
       
       {/* Ollie Brain panel archived in v1 — re-introduce in Block G (memory transparency UI). */}

@@ -26,11 +26,35 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { format, isToday } from 'date-fns';
 import {
-  ArrowRight, Sparkle, Clock, Target, CheckCircle, Lightning,
-  GraduationCap, CalendarBlank, CaretDown,
+  ArrowRight,
+  Sparkle as Sparkles,
+  Clock,
+  Target,
+  CheckCircle,
+  Lightning,
+  GraduationCap,
+  CalendarBlank,
+  CaretDown,
+  Notebook,
+  Pulse as Activity,
+  BatteryMedium,
+  Sliders,
+  FloppyDisk as Save,
+  Plus,
+  ArrowsClockwise
 } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ScheduleTimeline from '@/components/dashboard/ScheduleTimeline';
+import TaskBacklog from '@/components/dashboard/TaskBacklog';
+import AssignmentDetailOverlay from '@/components/dashboard/AssignmentDetailOverlay';
+import OllieChatSidebar from '@/components/dashboard/OllieChatSidebar';
+import { toast } from 'sonner';
+import { CanvasAssignment } from '@/lib/canvas/api';
+import { fetchCanvasUpcomingAction, fetchCanvasTodoAction } from '@/lib/canvas/actions';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getRandomGreeting } from '@/lib/ollie';
+import { useUIStore } from '@/lib/store/ui-store';
 import type { ScheduleBlock } from '@/lib/ai/agentic-scheduler';
 
 interface MiniTask {
@@ -50,6 +74,7 @@ interface ConnectionStatus {
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { sidebarCollapsed } = useUIStore();
 
   // State
   const [userName, setUserName] = useState<string | null>(null);
@@ -62,11 +87,36 @@ export default function DashboardPage() {
     canvasDueCount: 0,
     googleConnected: false,
   });
+  const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [activeTab, setActiveTab] = useState('focus');
   const [showTasks, setShowTasks] = useState(false);
   const [showFullPlan, setShowFullPlan] = useState(false);
+  const [showOllie, setShowOllie] = useState(false);
+  const [ollieInitialMsg, setOllieInitialMsg] = useState('');
+  const [ollieContextId, setOllieContextId] = useState<string | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<CanvasAssignment | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<CanvasAssignment[]>([]);
+
+  const firstName = userName?.split(' ')[0] || '';
+  const greetingEmoji = timeOfDay === 'morning' ? '🌅' : timeOfDay === 'afternoon' ? '☀️' : '🌙';
+  const greetingPrefix = timeOfDay === 'morning' ? 'Good Morning' : timeOfDay === 'afternoon' ? 'Good Afternoon' : 'Good Evening';
+
+  useEffect(() => {
+    // Suppress global Ollie bubble when inline sidebar is active
+    window.dispatchEvent(new CustomEvent('ollie-suppress', { detail: { suppressed: showOllie } }));
+  }, [showOllie]);
+
+  useEffect(() => {
+    // Reset suppression when leaving the dashboard or switching tabs (if desired)
+    // Actually, only suppress when the sidebar IS open.
+    return () => {
+      window.dispatchEvent(new CustomEvent('ollie-suppress', { detail: { suppressed: false } }));
+    };
+  }, []);
 
   // --- Data load ---
   const fetchAll = useCallback(async () => {
@@ -129,6 +179,40 @@ export default function DashboardPage() {
     // Silent rollover (no UI noise)
     fetch('/api/schedule/rollover', { method: 'POST' }).catch(() => {});
 
+    // 4. Also fetch synced data for Sync tab
+    const { data: dbAssignments } = await supabase
+      .from('canvas_assignments')
+      .select('*')
+      .eq('user_id', user.id);
+    
+    if (dbAssignments) {
+      setAssignments(dbAssignments.map(a => ({
+        id: Number(a.id) || a.id,
+        name: a.name,
+        due_at: a.due_at,
+        html_url: a.html_url,
+        course_id: '',
+        description: a.description || ''
+      })));
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.provider_token) {
+      try {
+        const nowIso = new Date().toISOString();
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${nowIso}&singleEvents=true&orderBy=startTime&maxResults=5`,
+          { headers: { Authorization: `Bearer ${session.provider_token}` } }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCalendarEvents(data.items || []);
+        }
+      } catch (e) {
+        console.error('Calendar fetch failed', e);
+      }
+    }
+
     setLoading(false);
   }, [supabase]);
 
@@ -143,11 +227,24 @@ export default function DashboardPage() {
   // --- Derived: parsed schedule blocks (for hero + full-day expander) ---
   const parsedSchedule = useMemo(() => {
     if (!schedule) return null;
-    return schedule.map(b => ({
-      ...b,
-      startTime: new Date(b.startTime),
-      endTime: new Date(b.endTime),
-    }));
+    return schedule
+      .map(b => {
+        const start = b.startTime || b.suggested_start || (b as any).start_time;
+        const end = b.endTime || b.suggested_end || (b as any).end_time;
+        
+        const startDate = start ? new Date(start) : null;
+        const endDate = end ? new Date(end) : null;
+
+        // Skip if date is invalid
+        if (!startDate || isNaN(startDate.getTime())) return null;
+
+        return {
+          ...b,
+          startTime: startDate,
+          endTime: endDate || new Date(startDate.getTime() + (b.duration || 30) * 60000),
+        };
+      })
+      .filter((b): b is any => b !== null);
   }, [schedule]);
 
   // --- Derived: the ONE thing to surface ---
@@ -200,7 +297,36 @@ export default function DashboardPage() {
     fetchAll();
   };
 
-  // --- Render ---
+  const incompleteTasks = useMemo(() => tasks.filter(t => !t.completed), [tasks]);
+
+  const handleOllieCommand = useCallback(async (message: string, history: any[], assignmentId?: string) => {
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: history.map(m => ({
+            role: m.role === 'ollie' ? 'assistant' : m.role,
+            content: m.content
+          })),
+          assignmentId: assignmentId || ollieContextId,
+          diagnostics: true
+        }),
+      });
+
+      if (!response.ok) throw new Error('Ollie is overthinking...');
+      const data = await response.json();
+      return data.text;
+    } catch (error) {
+      console.error('Ollie chat error:', error);
+      toast.error("Ollie had a hiccup. Try again?");
+      return "Sorry, I lost my train of thought. Could you say that again?";
+    } finally {
+      setGenerating(false);
+    }
+  }, [ollieContextId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -209,56 +335,116 @@ export default function DashboardPage() {
     );
   }
 
-  const greetingEmoji = timeOfDay === 'morning' ? '☀️' : timeOfDay === 'afternoon' ? '🌤️' : '🌙';
-  const firstName = userName?.trim().split(' ')[0];
-  const incompleteTasks = tasks.filter(t => !t.completed);
+  const handleSyncAll = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('users').select('*').eq('id', user?.id).single();
+      
+      if (profile?.canvas_url && profile?.canvas_token) {
+        let upcoming = await fetchCanvasUpcomingAction(profile.canvas_url, profile.canvas_token);
+        if (upcoming.length === 0) {
+          upcoming = await fetchCanvasTodoAction(profile.canvas_url, profile.canvas_token);
+        }
+        
+        const assignmentsOnly = upcoming.filter(item => item.type === 'assignment');
+        if (user && assignmentsOnly.length > 0) {
+          const toUpsert = assignmentsOnly.map(a => ({
+            id: String(a.id),
+            user_id: user.id,
+            name: a.name,
+            description: a.description || '',
+            due_at: a.due_at,
+            html_url: a.html_url,
+            synced_at: new Date().toISOString()
+          }));
+          await supabase.from('canvas_assignments').upsert(toUpsert);
+        }
+      }
+      await fetchAll();
+      toast.success("Everything's synced!");
+    } catch (e) {
+      toast.error("Sync failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handleScheduleFeedback = async (feedback: string) => {
+    setGenerating(true);
+    toast.info("Ollie is adjusting your plan...");
+    try {
+      const res = await fetch('/api/ai/daily-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback, currentSchedule: schedule }),
+      });
+      if (res.ok) {
+        await fetchAll();
+        toast.success("Plan updated!");
+      }
+    } catch (e) {
+      toast.error("Failed to update plan");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleAskOllie = (assignment: CanvasAssignment) => {
+    setOllieContextId(String(assignment.id));
+    setOllieInitialMsg(`I'm looking at "${assignment.name}". How can I help you get started?`);
+    setShowOllie(true);
+    setIsDetailOpen(false);
+    setActiveTab('plan');
+    toast.info("Ollie is reading the assignment details...");
+  };
+
   const nothingConnected = !connections.canvasConnected && !connections.googleConnected;
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto" data-testid="dashboard-root">
-      {/* 1. Header */}
+    <div className={`space-y-8 ${sidebarCollapsed ? 'max-w-full' : 'max-w-5xl'} mx-auto transition-all duration-300`} data-testid="dashboard-root">
       <header className="flex items-baseline justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter text-foreground" data-testid="dashboard-greeting">
-            {greetingEmoji} Good {timeOfDay}{firstName ? `, ${firstName}` : ''}
-          </h1>
-          {greeting && (
-            <p className="text-muted mt-1 font-medium italic text-sm">{greeting}</p>
-          )}
+        <div className="flex items-center gap-3">
+          <Notebook className="w-10 h-10 text-brand-600" weight="bold" />
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter text-foreground" data-testid="dashboard-greeting">
+              {greetingEmoji} {greetingPrefix}, {firstName ? firstName : 'Pilot'}
+            </h1>
+          </div>
         </div>
-        <span className="text-xs font-black uppercase tracking-widest text-surface-400">
-          {format(new Date(), 'EEE, MMM d')}
-        </span>
+        <div className="flex flex-col items-end">
+          <span className="text-xs font-black uppercase tracking-widest text-surface-400">
+            {format(new Date(), 'EEEE')}
+          </span>
+          <span className="text-sm font-black text-foreground">
+            {format(new Date(), 'MMM d, yyyy')}
+          </span>
+        </div>
       </header>
 
-      {/* 2. Connection status pill — painkiller visibility */}
-      <section data-testid="connections-pill" className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-widest">
-        <ConnectionChip
-          icon={<GraduationCap weight="bold" className="size-3.5" />}
-          label="Canvas"
-          connected={connections.canvasConnected}
-          detail={connections.canvasConnected
-            ? (connections.canvasDueCount > 0 ? `${connections.canvasDueCount} due` : 'Synced')
-            : 'Connect'}
-          onClick={() => router.push('/dashboard/settings')}
-          testid="connection-canvas"
-        />
-        <ConnectionChip
-          icon={<CalendarBlank weight="bold" className="size-3.5" />}
-          label="Google Calendar"
-          connected={connections.googleConnected}
-          detail={connections.googleConnected ? 'Synced' : 'Connect'}
-          onClick={() => router.push('/dashboard/settings')}
-          testid="connection-google"
-        />
-      </section>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 h-16 bg-surface-100 p-1.5 rounded-[2rem] border-2 border-surface-200">
+          <TabsTrigger value="focus" className="rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <Lightning weight="bold" className="size-4" /> Focus
+          </TabsTrigger>
+          <TabsTrigger value="plan" className="rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <Clock weight="bold" className="size-4" /> Plan
+          </TabsTrigger>
+          <TabsTrigger value="sync" className="rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <ArrowsClockwise weight="bold" className="size-4" /> Sync
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="mt-8">
+          <TabsContent value="focus" className="space-y-8 outline-none">
 
       {/* 3. NEXT ACTION HERO */}
       <section data-testid="next-action-hero" className="relative">
         {!nextAction ? (
           <div className="border-2 border-surface-900 rounded-3xl p-10 bg-brand-50/40 shadow-[8px_8px_0_0_var(--surface-900)]">
             <div className="flex items-center gap-2 mb-3 text-xs font-black uppercase tracking-widest text-brand-500">
-              <Sparkle weight="fill" />
+              <Sparkles weight="fill" />
               {nothingConnected ? 'Start with one connection' : 'No plan yet for today'}
             </div>
 
@@ -482,6 +668,158 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+          </TabsContent>
+
+          <TabsContent value="plan" className="space-y-8 outline-none animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className={showOllie ? "lg:col-span-8 space-y-8" : "lg:col-span-12 max-w-4xl mx-auto w-full space-y-8"}>
+                <div className="bg-white border-4 border-surface-900 rounded-[3rem] overflow-hidden shadow-xl">
+                  <div className="p-6 border-b-2 border-surface-100 bg-surface-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Lightning weight="bold" className="text-brand-500 w-5 h-5" />
+                      <p className="text-xs font-black uppercase tracking-widest text-surface-600">Daily Timeline</p>
+                    </div>
+                    <Button 
+                      variant={showOllie ? "default" : "outline"}
+                      onClick={() => setShowOllie(!showOllie)}
+                      className={`border-2 border-surface-900 rounded-xl text-[10px] font-black uppercase tracking-widest ${showOllie ? 'bg-surface-900 text-white' : ''}`}
+                    >
+                      {showOllie ? 'Close Ollie' : 'Ask Ollie'}
+                    </Button>
+                  </div>
+                  <div className="p-4 md:p-8">
+                    {parsedSchedule && parsedSchedule.length > 0 ? (
+                      <ScheduleTimeline 
+                        initialBlocks={parsedSchedule} 
+                        onUpdate={() => fetchAll()}
+                        onFeedback={handleScheduleFeedback}
+                      />
+                    ) : (
+                      <div className="py-20 text-center space-y-4">
+                        <Sparkles className="w-12 h-12 text-surface-200 mx-auto" />
+                        <p className="text-sm font-bold text-surface-400 uppercase tracking-widest">No plan generated yet.</p>
+                        <Button onClick={generatePlan} disabled={generating} className="bg-surface-900 text-white rounded-xl">
+                          Generate Now
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <TaskBacklog 
+                  isProcessing={generating}
+                  onScheduleOne={async (task) => {
+                    toast.info(`Scheduling "${task.title}"...`);
+                  }}
+                />
+              </div>
+
+              {showOllie && (
+                <div className="lg:col-span-4 sticky top-8 z-10 animate-in slide-in-from-right-4 duration-300">
+                  <OllieChatSidebar 
+                    onCommand={handleOllieCommand}
+                    isProcessing={generating}
+                    initialMessage={ollieInitialMsg}
+                    assignmentId={ollieContextId || undefined}
+                  />
+                  
+                  <div className="mt-6 space-y-3" data-testid="dashboard-stats">
+                    <Stat icon={<Target weight="bold" className="size-4" />} label="Due today" value={stats.dueToday} testid="stat-due-today" />
+                    <Stat icon={<CheckCircle weight="bold" className="size-4" />} label="Done today" value={stats.completedToday} testid="stat-done-today" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="sync" className="space-y-8 outline-none animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black uppercase tracking-tighter">Connected Sources</h2>
+              <Button onClick={handleSyncAll} disabled={loading} className="bg-surface-900 text-white rounded-xl uppercase tracking-widest text-xs font-black px-6">
+                Refresh All
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card className="bg-white border-4 border-surface-900 rounded-[2rem] shadow-md overflow-hidden">
+                <CardHeader className="bg-surface-50 border-b-2 border-surface-900">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-brand-500" />
+                    Canvas Assignments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 max-h-80 overflow-y-auto custom-scrollbar">
+                  {assignments.length === 0 ? (
+                    <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">No tasks synced</div>
+                  ) : (
+                    <ul className="divide-y divide-surface-100">
+                      {assignments.map((a) => (
+                        <li key={a.id} className="p-4 hover:bg-surface-50 transition-colors flex items-center justify-between group">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black text-surface-900 truncate">{a.name}</p>
+                            <p className="text-[10px] font-bold text-surface-400 uppercase">{a.due_at ? format(new Date(a.due_at), 'MMM d') : 'No due date'}</p>
+                          </div>
+                          <Button 
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAssignment(a);
+                              setIsDetailOpen(true);
+                            }}
+                            className="text-[10px] font-black uppercase text-brand-600 h-8"
+                          >
+                            Details
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-4 border-surface-900 rounded-[2rem] shadow-md overflow-hidden">
+                <CardHeader className="bg-surface-50 border-b-2 border-surface-900">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                    <CalendarBlank className="w-4 h-4 text-brand-500" />
+                    Calendar Events
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 max-h-80 overflow-y-auto custom-scrollbar">
+                  {calendarEvents.length === 0 ? (
+                    <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">No events found</div>
+                  ) : (
+                    <ul className="divide-y divide-surface-100">
+                      {calendarEvents.map((e) => (
+                        <li key={e.id} className="p-4">
+                          <p className="text-xs font-black text-surface-900">{e.summary}</p>
+                          <p className="text-[10px] font-bold text-surface-400 uppercase">
+                            {e.start.dateTime ? format(new Date(e.start.dateTime), 'h:mm a') : 'All day'}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="border-4 border-dashed border-surface-200 rounded-[2rem] flex flex-col items-center justify-center p-8 text-center space-y-4">
+                <Plus weight="bold" className="w-8 h-8 text-surface-200" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-surface-400">Add more sources in settings</p>
+                <Button variant="outline" onClick={() => router.push('/dashboard/settings')} className="rounded-xl text-[10px] uppercase font-black">
+                  Settings
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      <AssignmentDetailOverlay 
+        assignment={selectedAssignment}
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        onAskOllie={() => handleAskOllie(selectedAssignment!)}
+      />
     </div>
   );
 }

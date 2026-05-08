@@ -133,12 +133,14 @@ export default function SignIn() {
                   className="absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center text-surface-900 outline-none hover:bg-surface-200 border-l-2 border-transparent hover:border-surface-900"
                   type="button"
                   onClick={togglePasswordVisibility}
+                  suppressHydrationWarning
                   aria-label={
                     isPasswordVisible ? "Hide password" : "Show password"
                   }
                   aria-pressed={isPasswordVisible}
                   aria-controls="password"
                 >
+
                   {isPasswordVisible ? (
                     <EyeClosed weight="bold" size={20} aria-hidden="true" />
                   ) : (

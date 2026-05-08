@@ -24,10 +24,18 @@ export async function POST(request: NextRequest) {
 
     // 1. Get Unified World State
     const body = await request.json();
-    const { energyLevel = 'medium' } = body;
+    const { energyLevel = 'medium', localTime, timezone, todayStart, todayEnd } = body;
     const worldState = await getOllieMasterContext(authUser.id, energyLevel);
     
-    console.log(`[DailyPlan] Processing ${worldState.tasks.length} tasks for user ${authUser.id}`);
+    // Determine "Today" relative to the user's local time
+    const now = localTime ? new Date(localTime) : new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Boundaries for scheduling and cleanup
+    const dayStart = todayStart ? new Date(todayStart) : new Date(now).setHours(0,0,0,0);
+    const dayEnd = todayEnd ? new Date(todayEnd) : new Date(now).setHours(23,59,59,999);
+
+    console.log(`[DailyPlan] Processing ${worldState.tasks.length} tasks for user ${authUser.id}. Local: ${now.toLocaleTimeString()}. Range: ${new Date(dayStart).toISOString()} to ${new Date(dayEnd).toISOString()}`);
 
     if (worldState.tasks.length === 0) {
       return NextResponse.json({
@@ -37,16 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Calculate Gaps with Forbidden Windows
-    const now = new Date();
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
     const constraints = (worldState.memory.avoided_focus_windows as any[])?.map(w => ({
       start: new Date(w.start),
       end: new Date(w.end)
     })) || [];
 
-    const gaps = findGaps(worldState.calendarEvents, now, endOfDay, constraints);
+    const gaps = findGaps(worldState.calendarEvents, now, new Date(dayEnd), constraints);
 
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (!openAiApiKey) {
@@ -59,7 +63,8 @@ export async function POST(request: NextRequest) {
     const prompt = `You are Ollie, a friendly planning assistant. You are preparing a "Daily Plan" for the user. 
     
 User Energy Level: ${energyLevel}
-Current Time: ${now.toLocaleTimeString()}
+User Local Time: ${now.toLocaleTimeString()} (${timezone || 'UTC'})
+Schedule Range: ${new Date(dayStart).toISOString()} to ${new Date(dayEnd).toISOString()}
 Available Calendar Gaps: ${JSON.stringify(gaps)}
 
 User AI Memory:
@@ -72,16 +77,16 @@ ${JSON.stringify(worldState.tasks.map(t => ({
   estimated_minutes: t.estimated_minutes,
   energy_level_required: t.energy_level_required,
   priority: t.priority,
-  due_at: (t as any).due_at || null
+  due_at: (t as any).due_at || null,
+  is_assignment: (t as any).is_assignment || false
 })))}
 
 Rules:
-- Suggest 1-3 tasks.
+- Suggest 1-3 tasks to work on TODAY.
+- PRIORITY 1: Tasks or assignments due TODAY.
+- PRIORITY 2: Tasks or assignments due SOON (next 2-7 days). If the user has a light load today, ALWAYS schedule 1-2 upcoming items to help them get ahead.
 - Match tasks to available gaps and energy level.
 - Apply User AI Memory, especially preferred focus times, break preference, detail level, and disliked patterns.
-- Create a helpful "Daily Plan Title" (e.g. Focused Morning, Steady Afternoon, Evening Wrap-up).
-- Calculate a "Focus Score" (0-100).
-- Define a "Session Vibe" (e.g. "Deep Work Flow", "Quick Sprints").
 - For each task in the plan, you MUST provide a "suggested_start" and "suggested_end" in ISO format within one of the provided gaps.
 
 Respond ONLY with JSON:
@@ -101,7 +106,7 @@ Respond ONLY with JSON:
   "message": "A warm, helpful message from Ollie (1 sentence)"
 }
 
-IMPORTANT: The "suggested_start" and "suggested_end" MUST be for TODAY (${now.toISOString().split('T')[0]}) and include the full date part. Use ISO format.`;
+IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided gaps and MUST be in the FUTURE (after ${now.toISOString()}).`;
 
     const aiApiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -125,15 +130,11 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be for TODAY (${now.to
     const plan = aiResponse.schedule || aiResponse.plan || [];
     
     if (plan.length > 0) {
-      const todayStr = now.toISOString().split('T')[0];
-      
+      const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
       const ghostBlocks = plan.map((item: any) => {
         let startTime = item.suggested_start;
         let endTime = item.suggested_end;
-
-        // Defensive: If AI only returned "HH:MM", prepend today's date
-        if (startTime && startTime.length <= 8) startTime = `${todayStr}T${startTime}`;
-        if (endTime && endTime.length <= 8) endTime = `${todayStr}T${endTime}`;
 
         // Ensure valid date objects
         try {
@@ -141,10 +142,12 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be for TODAY (${now.to
           endTime = new Date(endTime).toISOString();
         } catch (e) {
           console.warn('Invalid date from AI:', item.suggested_start);
-          // Fallback to now + 1hr if invalid
           startTime = now.toISOString();
           endTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
         }
+
+        const taskId = item.id && isUuid(item.id) ? item.id : null;
+        const canvasId = item.id && !isUuid(item.id) ? item.id : null;
 
         return {
           user_id: authUser.id,
@@ -153,11 +156,27 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be for TODAY (${now.to
           end_time: endTime,
           status: 'pending',
           is_ai_suggested: true,
-          linked_task_id: item.id,
-          source: 'ollie_plan',
-          energy_level: energyLevel
+          is_deleted: false,
+          linked_task_id: taskId,
+          external_id: null, // Avoid unique constraint conflicts with real events
+          source: 'schedule',
+          energy_level: energyLevel,
+          metadata: {
+            ...item.metadata,
+            canvas_id: canvasId,
+            reason: item.reason
+          }
         };
       });
+
+      // CLEANUP: Delete old ghost blocks for the range before inserting new ones
+      await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('user_id', authUser.id)
+        .eq('is_ai_suggested', true)
+        .gte('start_time', new Date(dayStart).toISOString())
+        .lte('start_time', new Date(dayEnd).toISOString());
 
       const { error: insertError } = await supabase
         .from('calendar_events')

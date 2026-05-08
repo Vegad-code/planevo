@@ -6,7 +6,17 @@ import { fetchCanvasUpcomingAction, fetchCanvasTodoAction } from '@/lib/canvas/a
 import { CanvasAssignment } from '@/lib/canvas/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, GraduationCap, Sparkles, Activity, BatteryMedium, Sliders, Save } from 'lucide-react';
+import { 
+  Calendar, 
+  GraduationCap, 
+  Sparkle as Sparkles, 
+  Pulse as Activity, 
+  BatteryMedium, 
+  Sliders, 
+  FloppyDisk as Save,
+  Notebook,
+  Target
+} from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { generateAgenticSchedule, SchedulingPreferences, ScheduleBlock } from '@/lib/ai/agentic-scheduler';
 import { useSearchParams } from 'next/navigation';
@@ -17,6 +27,7 @@ import OllieChatSidebar from '@/components/dashboard/OllieChatSidebar';
 import TaskBacklog from '@/components/dashboard/TaskBacklog';
 import OllieAvatar from '@/components/ollie/OllieAvatar';
 import AssignmentDetailOverlay from '@/components/dashboard/AssignmentDetailOverlay';
+import { useUIStore } from '@/lib/store/ui-store';
 import type { UserAiMemory } from '@/lib/ai/memory';
 
 interface OllieMessage {
@@ -59,6 +70,7 @@ interface GoogleCalendarEvent {
 export default function DailyPlanPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const { sidebarCollapsed } = useUIStore();
   const launched = searchParams.get('launch') === 'true';
   
   // View State
@@ -525,11 +537,12 @@ export default function DailyPlanPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in pb-20">
+    <div className={`${sidebarCollapsed ? 'max-w-full' : 'max-w-7xl'} mx-auto animate-fade-in pb-20 transition-all duration-300`}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black text-surface-900 uppercase tracking-tighter leading-none mb-1 flex items-center gap-2">
+            <Notebook className="w-8 h-8 text-brand-500" weight="bold" />
             Daily Plan
             {view === 'schedule' && <span className="text-brand-500 px-2 py-0.5 bg-brand-50 rounded text-xs">Active</span>}
           </h1>

@@ -279,9 +279,9 @@ This section grows over time. Every strategic decision and its date is logged so
 | 2026-01 | **Block A shipped** — P0 crash fix, brand rename, testimonials removed, legal stubs created | Cleanup pass before strategic cuts |
 | 2026-01 | Use Termly/Iubenda for legal docs (no lawyer until ~500 paying users or first school B2B) | Sufficient for pre-launch; stops 404s on footer links |
 | 2026-01 | **Block B shipped** — 15 AI routes archived, dashboard radically rewritten to "One Next Action", sidebar trimmed to 4 items, feature flag system added, ~14 dead components archived | Eliminates AI cost overhead, focuses ICP on the painkiller, reversible via `_archive/` folder |
-| 2026-01 | Keep WeeklyReview as future email job, not dashboard widget | Reduces UI noise; matches retention strategy in STRATEGY.md §8 |
-| 2026-01 | **Block B patched** — added Connection Status pill (Canvas + Google), context-aware empty state when nothing connected, "View today's full plan" expander, regenerate-plan button | Block B over-trimmed visibility of core painkillers (Daily Plan, Canvas sync, Google sync). Surface area was right; visibility was wrong. |
 | 2026-01 | Added §16 "Painkiller Visibility Rule" to this doc | Permanent guardrail so the same mistake doesn't repeat in Blocks C–G. |
+| 2026-05-08 | Implemented "Immersive Dashboard" + Personalized Greetings | Increases "Warm Co-pilot" brand feel; `max-w-full` when sidebar collapsed supports high-density focus without violating minimalism. |
+| 2026-05-08 | Transitioned to Radix UI Tabs for Sync/Plan/Focus workflow | Standardized the 3-pillar dashboard structure (Sync -> Plan -> Focus) per §4. |
 
 ---
 
@@ -315,4 +315,14 @@ This rule exists because Block B initially over-trimmed the dashboard and made D
 
 ---
 
-*Last updated: 2026-01. Next review: after the first 100 paying users.*
+## 17. UI Design Philosophy (The "Immersive Minimalist")
+
+We balance minimalism with utility through these rules:
+
+1. **Warmth by Default**: Greetings MUST include time-of-day awareness (Good morning, afternoon, evening) and the user's name to reinforce the "Ollie is your friend" dynamic.
+2. **Dynamic Density**: The dashboard defaults to a focused, centered layout (`max-w-5xl`) but allows for an "Immersive Mode" (`max-w-full`) when the sidebar is collapsed. This supports students on laptops who need to see their full schedule and backlog simultaneously.
+3. **Transition-First**: Every layout shift (sidebar collapse, tab switch) MUST have a smooth CSS/Framer transition. Plan Pilot should feel like a fluid extension of the OS, not a static website.
+
+---
+
+*Last updated: 2026-05-08. Next review: after the first 100 paying users.*

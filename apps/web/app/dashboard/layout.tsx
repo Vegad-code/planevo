@@ -21,8 +21,13 @@ export default function DashboardLayout({
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
     const supabase = createClient();
-    ensureUserProfile(supabase).catch(console.error);
+    ensureUserProfile(supabase).then(({ profile }) => {
+      if (profile && !profile.onboarding_complete) {
+        window.location.href = '/onboarding';
+      }
+    }).catch(console.error);
   }, []);
+
 
   if (!mounted) {
     return (
@@ -44,7 +49,7 @@ export default function DashboardLayout({
           ${sidebarCollapsed ? 'lg:ml-[68px]' : ''}
         `}
       >
-        <div className={isCalendar ? "h-[calc(100vh-0px)] w-full" : "p-6 lg:p-8 max-w-5xl mx-auto"}>
+        <div className={isCalendar ? "h-[calc(100vh-0px)] w-full" : `p-6 lg:p-8 ${sidebarCollapsed ? 'max-w-full px-12' : 'max-w-5xl'} mx-auto transition-all duration-300`}>
           {children}
         </div>
       </main>

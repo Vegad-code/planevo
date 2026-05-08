@@ -67,7 +67,9 @@ export async function getOllieMasterContext(
     estimated_minutes: 60, // Default for assignments
     priority: 'high', // Syncing is usually high priority for students
     external_url: a.html_url || undefined,
-    energy_level_required: 'medium' as const
+    energy_level_required: 'medium' as const,
+    due_at: a.due_at,
+    is_assignment: true
   }));
 
   const allTasks = [

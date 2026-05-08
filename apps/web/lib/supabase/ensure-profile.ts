@@ -10,30 +10,32 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export async function ensureUserProfile(supabase: SupabaseClient) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    return { user: null, error: authError || new Error('Not authenticated') };
+    return { user: null, profile: null, error: authError || new Error('Not authenticated') };
   }
 
   // Check if the profile already exists
   const { data: existing } = await supabase
     .from('users')
-    .select('id')
+    .select('*')
     .eq('id', user.id)
     .single();
 
   if (!existing) {
     // Create the profile row
-    const { error: insertError } = await supabase.from('users').insert({
+    const { data: inserted, error: insertError } = await supabase.from('users').insert({
       id: user.id,
       email: user.email!,
       name: user.user_metadata?.full_name || user.user_metadata?.name || null,
       avatar_url: user.user_metadata?.avatar_url || null,
-    });
+    }).select('*').single();
 
     if (insertError) {
       console.error('Failed to create user profile:', insertError);
-      // Don't block — it may already exist due to a race condition
+      return { user, profile: null, error: insertError };
     }
+    return { user, profile: inserted, error: null };
   }
 
-  return { user, error: null };
+  return { user, profile: existing, error: null };
 }
+

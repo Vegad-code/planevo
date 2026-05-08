@@ -32,6 +32,7 @@ export default function OllieChat() {
   const supabase = createClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSuppressed, setIsSuppressed] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -85,11 +86,24 @@ export default function OllieChat() {
       setInput(`Deconstruct assignment: "${name}". Break it into manageable steps.`);
     };
 
+    const handleOpen = () => setIsOpen(true);
+    const handleSuppress = (e: Event) => {
+      const customEvent = e as CustomEvent<{ suppressed: boolean }>;
+      setIsSuppressed(customEvent.detail.suppressed);
+    };
+
     window.addEventListener('ollie-deconstruct', handleDeconstruct);
+    window.addEventListener('open-ollie-chat', handleOpen);
+    window.addEventListener('ollie-suppress', handleSuppress);
+    
     requestAnimationFrame(() => {
       void fetchConversations();
     });
-    return () => window.removeEventListener('ollie-deconstruct', handleDeconstruct);
+    return () => {
+      window.removeEventListener('ollie-deconstruct', handleDeconstruct);
+      window.removeEventListener('open-ollie-chat', handleOpen);
+      window.removeEventListener('ollie-suppress', handleSuppress);
+    };
   }, [fetchConversations]);
 
   const startNewConversation = () => {
@@ -218,7 +232,7 @@ export default function OllieChat() {
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted || isSuppressed) return null;
 
   if (!isOpen) {
     return (

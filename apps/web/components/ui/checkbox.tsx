@@ -16,8 +16,10 @@ const Checkbox = React.forwardRef<
       "peer h-5 w-5 shrink-0 border-2 border-surface-900 bg-surface-100 shadow-[2px_2px_0_0_#22201e] ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-surface-900 data-[state=checked]:text-surface-100",
       className,
     )}
+    suppressHydrationWarning
     {...props}
   >
+
     <CheckboxPrimitive.Indicator
       className={cn("flex items-center justify-center text-current")}
     >

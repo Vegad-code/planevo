@@ -6,38 +6,37 @@ import { createClient } from '@/lib/supabase/client';
 import { useUIStore } from '@/lib/store/ui-store';
 import { useState, useEffect } from 'react';
 
+import { 
+  Layout, 
+  Target, 
+  CheckSquare, 
+  Calendar, 
+  Gear, 
+  SignOut,
+  Sparkle,
+  Notebook
+} from '@phosphor-icons/react';
+
 const NAV_ITEMS = [
   {
     label: 'Dashboard',
     href: '/dashboard',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
+    icon: <Layout weight="bold" size={20} />,
+  },
+  {
+    label: 'Daily Plan',
+    href: '/dashboard/daily-plan',
+    icon: <Notebook weight="bold" size={20} />,
   },
   {
     label: 'Tasks',
     href: '/dashboard/tasks',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4" />
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-      </svg>
-    ),
+    icon: <CheckSquare weight="bold" size={20} />,
   },
   {
     label: 'Calendar',
     href: '/dashboard/calendar',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
-        <circle cx="12" cy="16" r="1" />
-      </svg>
-    ),
+    icon: <Calendar weight="bold" size={20} />,
   },
 ];
 
@@ -45,12 +44,7 @@ const BOTTOM_NAV_ITEMS = [
   {
     label: 'Settings',
     href: '/dashboard/settings',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-      </svg>
-    ),
+    icon: <Gear weight="bold" size={20} />,
   },
 ];
 
@@ -254,11 +248,7 @@ export default function Sidebar() {
             `}
           >
             <span className="shrink-0 text-muted group-hover:text-error">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
+              <SignOut weight="bold" size={20} />
             </span>
             {!sidebarCollapsed && (
               <span className="text-xs font-black uppercase">Log out</span>
