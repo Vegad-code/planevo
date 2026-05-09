@@ -6,46 +6,72 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { 
   CheckCircle, 
-  GraduationCap, 
   Lightning, 
-  CalendarBlank, 
   ArrowRight, 
   ShieldCheck, 
-  Users, 
   Warning, 
   CaretRight,
   CaretLeft,
-  LockKey
+  LockKey,
+  GraduationCap,
+  CalendarBlank,
+  Users,
+  Clock,
+  Heart,
+  SealCheck
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-
+import { OllieMascot, OlliePose } from '@/components/OllieMascot';
 
 const STEPS = [
+  'WELCOME',
+  'STRESSOR',
+  'ABANDONMENT',
   'IDENTITY',
   'BELONGING',
-  'PROMISE',
-  'CANVAS',
+  'CANVAS_CONNECT',
+  'PRIORITY_CLASS',
+  'WEEKLY_GOAL',
   'ENERGY',
   'PREVIEW',
+  'TRANSPARENCY',
   'PAYWALL'
 ];
 
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [stressor, setStressor] = useState('');
+  const [abandonmentCount, setAbandonmentCount] = useState<number | null>(null);
   const [identityChecks, setIdentityChecks] = useState<string[]>([]);
   const [canvasUrl, setCanvasUrl] = useState('');
   const [canvasToken, setCanvasToken] = useState('');
+  const [priorityCourse, setPriorityCourse] = useState('');
+  const [weeklyGoal, setWeeklyGoal] = useState<number>(10);
   const [energyPreference, setEnergyPreference] = useState('');
   const [testingCanvas, setTestingCanvas] = useState(false);
-  
   const [canvasItemsCount, setCanvasItemsCount] = useState(0);
   
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+
+  // Sync state with pose
+  const getPose = (): OlliePose => {
+    switch (STEPS[currentStep]) {
+      case 'STRESSOR': return 'thinking';
+      case 'ABANDONMENT': return 'grumpy';
+      case 'CANVAS_CONNECT': return 'syncing';
+      case 'PRIORITY_CLASS': return 'crystals';
+      case 'WEEKLY_GOAL': return 'banner';
+      case 'PREVIEW': return 'calendar';
+      case 'TRANSPARENCY': return 'zen';
+      default: return 'thinking';
+    }
+  };
 
   const nextStep = () => {
     if (currentStep < STEPS.length - 1) {
@@ -59,6 +85,38 @@ export default function OnboardingPage() {
     }
   };
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        // Prevent enter from triggering if input is empty on name step
+        if (STEPS[currentStep] === 'WELCOME' && !userName) return;
+        if (STEPS[currentStep] === 'PRIORITY_CLASS' && !priorityCourse) return;
+        if (STEPS[currentStep] === 'CANVAS_CONNECT' && (!canvasUrl || !canvasToken)) return;
+        
+        // If on the last step, complete onboarding
+        if (currentStep === STEPS.length - 1) {
+          completeOnboarding();
+        } else if (STEPS[currentStep] === 'CANVAS_CONNECT') {
+          handleTestCanvas();
+        } else {
+          nextStep();
+        }
+      }
+      
+      if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+        // Don't go back if in an input (unless it's empty or specific logic)
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' && (target as HTMLInputElement).value !== '') return;
+        
+        prevStep();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentStep, userName, priorityCourse, canvasUrl, canvasToken]);
+
   const completeOnboarding = async () => {
     setLoading(true);
     try {
@@ -69,11 +127,21 @@ export default function OnboardingPage() {
         .from('users')
         .update({
           onboarding_complete: true,
+          name: userName,
           energy_preference: energyPreference,
           canvas_url: canvasUrl,
-          canvas_token: canvasToken
+          canvas_token: canvasToken,
+          scheduling_preferences: {
+            stressor,
+            abandonment_count: abandonmentCount,
+            priority_course: priorityCourse,
+            weekly_goal: weeklyGoal,
+            identity_checks: identityChecks
+          }
         })
         .eq('id', user.id);
+
+      if (error) throw error;
 
       const hasCanvas = !!canvasToken;
       router.push(`/dashboard${hasCanvas ? '' : '?demo=true'}`);
@@ -85,7 +153,6 @@ export default function OnboardingPage() {
     }
   };
 
-
   const handleTestCanvas = async () => {
     if (!canvasUrl || !canvasToken) {
       toast.error('Please provide both URL and Token');
@@ -94,7 +161,6 @@ export default function OnboardingPage() {
     setTestingCanvas(true);
     
     try {
-      // Import action dynamically to avoid SSR issues if any
       const { fetchCanvasUpcomingAction } = await import('@/lib/canvas/actions');
       const items = await fetchCanvasUpcomingAction(canvasUrl, canvasToken);
       
@@ -107,7 +173,6 @@ export default function OnboardingPage() {
         });
         nextStep();
       } else if (items) {
-
         setCanvasItemsCount(0);
         toast.info('Connected, but no upcoming assignments found.');
         nextStep();
@@ -122,53 +187,156 @@ export default function OnboardingPage() {
     }
   };
 
+  const stepName = STEPS[currentStep];
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 overflow-hidden relative">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-500/5 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-500/5 blur-[120px] rounded-full" />
       </div>
 
-      <div className="w-full max-w-2xl relative z-10">
+      <div className="w-full max-w-2xl relative z-10 flex flex-col items-center">
         {/* Progress Bar */}
-        <div className="flex gap-2 mb-12">
+        <div className="w-full flex gap-1 mb-12">
           {STEPS.map((_, i) => (
             <div 
               key={i} 
-              className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+              className={`h-1 flex-1 rounded-full transition-all duration-700 ease-out ${
                 i <= currentStep ? 'bg-brand-500' : 'bg-surface-200'
               }`} 
             />
           ))}
         </div>
 
+        {/* Animated Mascot - Only show if not on purely text steps or paywall */}
+        {['STRESSOR', 'ABANDONMENT', 'CANVAS_CONNECT', 'PRIORITY_CLASS', 'WEEKLY_GOAL', 'PREVIEW', 'TRANSPARENCY'].includes(stepName) && (
+          <OllieMascot pose={getPose()} className="mb-8" />
+        )}
+
         <AnimatePresence mode="wait">
-          {currentStep === 0 && (
+          {/* STEP 0: WELCOME */}
+          {stepName === 'WELCOME' && (
             <motion.div
-              key="step-0"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              key="welcome"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full space-y-8 text-center"
             >
               <div className="space-y-4">
                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
-                  Be honest — does this sound like you?
+                  Welcome to Plan Pilot.
                 </h1>
                 <p className="text-surface-500 font-bold uppercase tracking-tight">
-                  Select all that apply. No judgement here.
+                  First, what should we call you?
                 </p>
+              </div>
+              <Input
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Your Name"
+                className="text-center text-2xl font-black border-2 border-surface-900 py-8 focus:ring-brand-500 uppercase italic"
+              />
+              <Button 
+                onClick={nextStep}
+                disabled={!userName}
+                className="w-full py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+              >
+                Let's Go <ArrowRight weight="bold" className="ml-2" />
+              </Button>
+            </motion.div>
+          )}
+
+          {/* STEP 1: STRESSOR */}
+          {stepName === 'STRESSOR' && (
+            <motion.div
+              key="stressor"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-4 text-center">
+                <h1 className="text-4xl font-black uppercase tracking-tighter">
+                  What's the biggest stressor for you right now, {userName}?
+                </h1>
+              </div>
+              <div className="grid gap-3">
+                {[
+                  "Assignments piling up",
+                  "Unpredictable workload",
+                  "Missing deadlines",
+                  "Just feeling overwhelmed",
+                  "The Canvas 'Red Dot' of doom"
+                ].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setStressor(s); nextStep(); }}
+                    className={`p-6 border-2 text-left transition-all uppercase font-black text-sm tracking-tight ${
+                      stressor === s ? 'border-brand-500 bg-brand-500/5' : 'border-surface-200 hover:border-brand-500'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+              <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
+            </motion.div>
+          )}
+
+          {/* STEP 2: ABANDONMENT */}
+          {stepName === 'ABANDONMENT' && (
+            <motion.div
+              key="abandonment"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.1 }}
+              className="w-full space-y-8 text-center"
+            >
+              <h1 className="text-4xl font-black uppercase tracking-tighter">
+                Be honest: How many planners have you started... then stopped using after 3 days?
+              </h1>
+              <div className="flex justify-center gap-4">
+                {[1, 2, 3, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => { setAbandonmentCount(n); nextStep(); }}
+                    className="size-16 border-4 border-surface-900 flex items-center justify-center text-2xl font-black shadow-[4px_4px_0px_0px_var(--surface-900)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
+              <p className="text-xs font-bold text-surface-400 uppercase tracking-widest">
+                (It's okay. Plan Pilot is designed for the 3-day dropout.)
+              </p>
+            </motion.div>
+          )}
+
+          {/* STEP 3: IDENTITY */}
+          {stepName === 'IDENTITY' && (
+            <motion.div
+              key="identity"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-4">
+                <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
+                  Does this sound like you?
+                </h1>
               </div>
 
               <div className="grid gap-3">
                 {[
-                  "I missed at least one deadline last week.",
                   "I have 47+ browser tabs open right now.",
                   "I feel 'behind' the moment I wake up.",
-                  "Planners usually work for me for exactly 3 days.",
-                  "Canvas notifications feel like a personal attack."
+                  "Canvas notifications feel like a personal attack.",
+                  "I work best under the pressure of a deadline."
                 ].map((item) => (
                   <button
                     key={item}
@@ -179,7 +347,7 @@ export default function OnboardingPage() {
                         setIdentityChecks([...identityChecks, item]);
                       }
                     }}
-                    className={`p-6 border-2 text-left transition-all relative flex items-center gap-4 ${
+                    className={`p-6 border-2 text-left transition-all flex items-center gap-4 ${
                       identityChecks.includes(item)
                         ? 'border-brand-500 bg-brand-500/5 shadow-[4px_4px_0px_0px_var(--brand-500)]'
                         : 'border-surface-200 hover:border-surface-400 bg-surface-50'
@@ -195,19 +363,22 @@ export default function OnboardingPage() {
                 ))}
               </div>
 
-              <Button 
-                onClick={nextStep}
-                disabled={identityChecks.length === 0}
-                className="w-full py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
-              >
-                Continue <ArrowRight weight="bold" className="ml-2" />
-              </Button>
+              <div className="flex gap-4">
+                <Button variant="ghost" onClick={prevStep} className="flex-1">Back</Button>
+                <Button 
+                  onClick={nextStep}
+                  className="flex-[2] py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                >
+                  Continue <ArrowRight weight="bold" className="ml-2" />
+                </Button>
+              </div>
             </motion.div>
           )}
 
-          {currentStep === 1 && (
+          {/* STEP 4: BELONGING */}
+          {stepName === 'BELONGING' && (
             <motion.div
-              key="step-1"
+              key="belonging"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
@@ -219,84 +390,33 @@ export default function OnboardingPage() {
                 </div>
               </div>
               <div className="space-y-6">
-                <h1 className="text-6xl font-black uppercase tracking-tighter leading-none">
+                <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
                   You're exactly who we built this for.
                 </h1>
-                <p className="text-xl font-bold text-surface-600 max-w-lg mx-auto">
+                <p className="text-xl font-bold text-surface-600 max-w-lg mx-auto uppercase">
                   Plan Pilot isn't about "discipline." It's about offloading the mental tax of being a student to an AI that doesn't get tired.
                 </p>
               </div>
-              <Button 
-                onClick={nextStep}
-                className="px-12 py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
-              >
-                I'm ready <ArrowRight weight="bold" className="ml-2" />
-              </Button>
-            </motion.div>
-          )}
-
-          {currentStep === 2 && (
-            <motion.div
-              key="step-2"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-12"
-            >
-              <div className="space-y-4">
-                <span className="px-4 py-1 bg-accent-500 text-surface-900 font-black uppercase text-xs rounded-full">The Promise</span>
-                <h1 className="text-5xl font-black uppercase tracking-tighter leading-tight">
-                  Plan Pilot won't shame you when life slips.
-                </h1>
-              </div>
-
-              <div className="glass p-8 border-2 border-surface-900 shadow-[8px_8px_0px_0px_var(--brand-500)] space-y-6">
-                <div className="flex gap-4">
-                  <div className="size-12 bg-surface-900 rounded-2xl flex items-center justify-center shrink-0">
-                    <ShieldCheck weight="fill" className="text-accent-500 size-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-black uppercase tracking-tight text-lg">Safe Haven Design</h3>
-                    <p className="text-surface-500 font-bold text-sm uppercase leading-relaxed">
-                      If you miss a task, Ollie doesn't send red notifications. He just quietly reorganizes tomorrow.
-                    </p>
-                  </div>
-                </div>
-                <hr className="border-surface-200" />
-                <div className="flex gap-4">
-                  <div className="size-12 bg-surface-900 rounded-2xl flex items-center justify-center shrink-0">
-                    <Lightning weight="fill" className="text-brand-500 size-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-black uppercase tracking-tight text-lg">Zero-Willpower Required</h3>
-                    <p className="text-surface-500 font-bold text-sm uppercase leading-relaxed">
-                      We automate the "what do I do next?" question so you can save your energy for the actual work.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex gap-4">
-                <Button onClick={prevStep} variant="outline" className="px-8 py-8 uppercase font-black border-2">
-                  <CaretLeft weight="bold" />
-                </Button>
+                <Button variant="ghost" onClick={prevStep} className="flex-1">Back</Button>
                 <Button 
                   onClick={nextStep}
-                  className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
+                  className="flex-[2] px-12 py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
                 >
-                  Understood <ArrowRight weight="bold" className="ml-2" />
+                  I'm ready <ArrowRight weight="bold" className="ml-2" />
                 </Button>
               </div>
             </motion.div>
           )}
 
-          {currentStep === 3 && (
+          {/* STEP 5: CANVAS_CONNECT */}
+          {stepName === 'CANVAS_CONNECT' && (
             <motion.div
-              key="step-3"
+              key="canvas"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              className="w-full space-y-8"
             >
               <div className="space-y-4">
                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
@@ -315,7 +435,7 @@ export default function OnboardingPage() {
                     placeholder="https://canvas.youruniversity.edu"
                     value={canvasUrl}
                     onChange={(e) => setCanvasUrl(e.target.value)}
-                    className="border-2 border-surface-900 py-6 font-bold focus:ring-accent-500"
+                    className="border-2 border-surface-900 py-6 font-bold focus:ring-accent-500 uppercase"
                   />
                 </div>
                 <div className="space-y-2">
@@ -329,59 +449,114 @@ export default function OnboardingPage() {
                     className="border-2 border-surface-900 py-6 font-bold focus:ring-accent-500"
                   />
                 </div>
+              </div>
 
-                <div className="bg-surface-50 border-2 border-surface-200 p-4 rounded-2xl space-y-3">
-                  <p className="text-[10px] font-bold text-surface-500 uppercase leading-relaxed">
-                    Account → Settings → Approved Integrations → + New Access Token. 
-                    <br />Name it "Plan Pilot".
-                  </p>
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-4">
+                  <Button variant="ghost" onClick={prevStep}>Back</Button>
                   <Button 
-                    variant="link" 
-                    className="p-0 h-auto text-[10px] font-black uppercase text-brand-500 tracking-widest"
-                    onClick={() => {
-                      toast.info("Instructions sent to your email!", {
-                        description: "Check your inbox for a step-by-step guide on finding your token."
-                      });
-                    }}
+                    onClick={handleTestCanvas}
+                    disabled={testingCanvas || !canvasUrl || !canvasToken}
+                    className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
                   >
-                    Email me the instructions
+                    {testingCanvas ? 'Syncing...' : 'Verify & Sync'} <ArrowRight weight="bold" className="ml-2" />
                   </Button>
                 </div>
-              </div>
-
-              <div className="flex gap-4">
-                <Button onClick={prevStep} variant="outline" className="px-8 py-8 uppercase font-black border-2">
-                  <CaretLeft weight="bold" />
-                </Button>
-                <Button 
-                  onClick={handleTestCanvas}
-                  disabled={testingCanvas || !canvasUrl || !canvasToken}
-                  className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
-                >
-                  {testingCanvas ? 'Syncing...' : 'Verify & Sync'} <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
                 <Button 
                   onClick={() => {
-                    setCanvasItemsCount(12); // Sample count
+                    setCanvasItemsCount(12);
                     nextStep();
                   }} 
                   variant="ghost" 
-                  className="w-full text-xs font-black uppercase text-surface-400 hover:text-surface-900 transition-colors py-4"
+                  className="w-full text-xs font-black uppercase text-surface-400 hover:text-surface-900 py-4"
                 >
-                  I don't have my token handy (Skip for now)
+                  Skip for now (I'll do it later)
                 </Button>
-
+              </div>
             </motion.div>
           )}
 
-          {currentStep === 4 && (
+          {/* STEP 6: PRIORITY_CLASS */}
+          {stepName === 'PRIORITY_CLASS' && (
             <motion.div
-              key="step-4"
+              key="priority"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              className="w-full space-y-8"
+            >
+              <div className="space-y-4 text-center">
+                <h1 className="text-4xl font-black uppercase tracking-tighter">
+                  Which course is giving you the most grief?
+                </h1>
+                <p className="text-surface-500 font-bold uppercase tracking-tight">
+                  Ollie will focus extra energy here.
+                </p>
+              </div>
+              <Input
+                value={priorityCourse}
+                onChange={(e) => setPriorityCourse(e.target.value)}
+                placeholder="e.g. Organic Chemistry, CS101"
+                className="text-center text-xl font-black border-2 border-surface-900 py-8 focus:ring-brand-500 uppercase italic"
+              />
+              <div className="flex gap-4">
+                <Button variant="ghost" onClick={prevStep} className="flex-1">Back</Button>
+                <Button 
+                  onClick={nextStep}
+                  disabled={!priorityCourse}
+                  className="flex-[2] py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                >
+                  Focus on this <ArrowRight weight="bold" className="ml-2" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 7: WEEKLY_GOAL */}
+          {stepName === 'WEEKLY_GOAL' && (
+            <motion.div
+              key="goal"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.1 }}
+              className="w-full space-y-8 text-center"
+            >
+              <h1 className="text-4xl font-black uppercase tracking-tighter">
+                How many assignments do you want to CRUSH this week?
+              </h1>
+              <div className="flex flex-col items-center gap-8">
+                <div className="text-7xl font-black italic tracking-tighter text-brand-500">
+                  {weeklyGoal}
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="30" 
+                  value={weeklyGoal} 
+                  onChange={(e) => setWeeklyGoal(parseInt(e.target.value))}
+                  className="w-full h-4 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
+                />
+              </div>
+              <div className="flex flex-col gap-4">
+                <Button 
+                  onClick={nextStep}
+                  className="w-full py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                >
+                  Set My Target <ArrowRight weight="bold" className="ml-2" />
+                </Button>
+                <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 8: ENERGY */}
+          {stepName === 'ENERGY' && (
+            <motion.div
+              key="energy"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full space-y-8"
             >
               <div className="space-y-4">
                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
@@ -400,10 +575,10 @@ export default function OnboardingPage() {
                 ].map((opt) => (
                   <button
                     key={opt.id}
-                    onClick={() => setEnergyPreference(opt.id)}
+                    onClick={() => { setEnergyPreference(opt.id); nextStep(); }}
                     className={`p-6 border-2 text-left transition-all flex items-center gap-4 ${
                       energyPreference === opt.id
-                        ? 'border-accent-500 bg-accent-500/5 shadow-[4px_4px_0px_0px_var(--accent-500)]'
+                        ? 'border-brand-500 bg-brand-500/5 shadow-[4px_4px_0px_0px_var(--brand-500)]'
                         : 'border-surface-200 hover:border-surface-400 bg-surface-50'
                     }`}
                   >
@@ -415,31 +590,20 @@ export default function OnboardingPage() {
                   </button>
                 ))}
               </div>
-
-              <div className="flex gap-4">
-                <Button onClick={prevStep} variant="outline" className="px-8 py-8 uppercase font-black border-2">
-                  <CaretLeft weight="bold" />
-                </Button>
-                <Button 
-                  onClick={nextStep}
-                  disabled={!energyPreference}
-                  className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
-                >
-                  Lock it in <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
+              <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
             </motion.div>
           )}
 
-          {currentStep === 5 && (
+          {/* STEP 9: PREVIEW */}
+          {stepName === 'PREVIEW' && (
             <motion.div
-              key="step-5"
+              key="preview"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
-              className="space-y-8"
+              className="w-full space-y-8"
             >
-              <div className="space-y-4">
+              <div className="space-y-4 text-center">
                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
                   Look at your week.
                 </h1>
@@ -448,80 +612,118 @@ export default function OnboardingPage() {
                 </p>
               </div>
 
-              <div className="brutalist-card p-8 bg-white border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)] space-y-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-2">
-                  <div className="size-12 bg-brand-500 rounded-full flex items-center justify-center text-white rotate-12 shadow-lg">
-                    <Lightning weight="fill" size={24} />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-black uppercase text-2xl tracking-tighter italic">Your Calm Schedule</h3>
-                  <div className="h-1 w-24 bg-surface-900" />
-                </div>
-
+              <div className="p-8 bg-white border-4 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)] space-y-6 relative overflow-hidden">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4 bg-surface-50 p-4 border-2 border-surface-900/10 rounded-xl">
-                    <div className="size-10 rounded-lg bg-brand-500 flex items-center justify-center text-white shadow-sm">
-                      <CheckCircle weight="bold" size={20} />
-                    </div>
+                  <div className="flex items-center gap-4 bg-brand-500/10 p-4 border-2 border-brand-500 rounded-xl">
+                    <SealCheck weight="fill" className="text-brand-500 size-8" />
                     <div>
                       <p className="font-black uppercase text-sm tracking-tight">
-                        {canvasUrl ? `Found ${canvasItemsCount} Assignments` : `Demo: 12 Sample Assignments`}
+                        {canvasUrl ? `${canvasItemsCount} Assignments Synced` : `Demo Active: 12 Assignments`}
                       </p>
-                      <p className="text-[10px] font-bold text-surface-500 uppercase tracking-widest">
-                        {canvasUrl ? 'Ollie is prioritizing by deadline...' : 'Connect Canvas later to see your real deadlines'}
+                      <p className="text-[10px] font-bold text-surface-500 uppercase">
+                        {priorityCourse} is at the top of the list.
                       </p>
                     </div>
-
                   </div>
 
-                  <div className="space-y-2 opacity-50 grayscale">
-                    <div className="flex gap-3 items-center">
-                      <div className="size-3 bg-surface-200 rounded-full" />
-                      <div className="h-3 w-40 bg-surface-100 rounded-full" />
-                    </div>
-                    <div className="flex gap-3 items-center">
-                      <div className="size-3 bg-brand-500 rounded-full" />
-                      <div className="h-3 w-56 bg-surface-100 rounded-full" />
-                    </div>
+                  <div className="space-y-2 opacity-30 grayscale">
+                    <div className="h-4 w-full bg-surface-100 rounded-full" />
+                    <div className="h-4 w-3/4 bg-surface-100 rounded-full" />
+                    <div className="h-4 w-1/2 bg-surface-100 rounded-full" />
                   </div>
                 </div>
 
-                <div className="p-4 bg-accent-500/10 border-2 border-accent-500 rounded-xl">
-                  <p className="text-xs font-black uppercase tracking-tight text-accent-700">
-                    Ollie's Advice: "Focus on your {energyPreference} peak for the heavy lifting. I've moved everything else out of your way."
-                  </p>
+                <div className="p-4 bg-accent-500 text-surface-900 rounded-xl font-black uppercase text-xs text-center italic">
+                  "I've scheduled your heavy lifting for your {energyPreference} peak." — Ollie
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <Button onClick={prevStep} variant="outline" className="px-8 py-8 uppercase font-black border-2">
-                  <CaretLeft weight="bold" />
-                </Button>
+                <Button variant="ghost" onClick={prevStep} className="flex-1">Back</Button>
                 <Button 
                   onClick={nextStep}
-                  className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] dark:shadow-[6px_6px_0px_0px_white]"
+                  className="flex-[2] py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
                 >
-                  Final Step <ArrowRight weight="bold" className="ml-2" />
+                  See the Mission <ArrowRight weight="bold" className="ml-2" />
                 </Button>
               </div>
             </motion.div>
           )}
 
-          {currentStep === 6 && (
+          {/* STEP 10: TRANSPARENCY */}
+          {stepName === 'TRANSPARENCY' && (
             <motion.div
-              key="step-6"
+              key="transparency"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-8"
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-4 text-center">
+                <h1 className="text-4xl font-black uppercase tracking-tighter">
+                  Transparency & Trust.
+                </h1>
+                <p className="text-surface-500 font-bold uppercase tracking-tight">
+                  No fake social proof. Just our promise to you.
+                </p>
+              </div>
+
+              <div className="grid gap-4">
+                <div className="flex gap-4 items-start p-6 bg-surface-50 border-2 border-surface-200 rounded-2xl">
+                  <ShieldCheck weight="fill" className="text-brand-500 size-8 shrink-0" />
+                  <div>
+                    <h3 className="font-black uppercase text-sm">Your Data is Yours</h3>
+                    <p className="text-xs text-surface-500 font-bold uppercase leading-relaxed">
+                      We never sell your academic data. Your Canvas connection is encrypted and used only to build your schedule.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start p-6 bg-surface-50 border-2 border-surface-200 rounded-2xl">
+                  <Clock weight="fill" className="text-accent-500 size-8 shrink-0" />
+                  <div>
+                    <h3 className="font-black uppercase text-sm">One-Click Cancellation</h3>
+                    <p className="text-xs text-surface-500 font-bold uppercase leading-relaxed">
+                      If Plan Pilot doesn't change your semester, you can cancel in one click from your settings. No hoops.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start p-6 bg-surface-50 border-2 border-surface-200 rounded-2xl">
+                  <Heart weight="fill" className="text-red-500 size-8 shrink-0" />
+                  <div>
+                    <h3 className="font-black uppercase text-sm">Built for ADHD Brains</h3>
+                    <p className="text-xs text-surface-500 font-bold uppercase leading-relaxed">
+                      Designed by former students who struggled with the same "Red Dot" anxiety you feel.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <Button variant="ghost" onClick={prevStep} className="flex-1">Back</Button>
+                <Button 
+                  onClick={nextStep}
+                  className="flex-[2] py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                >
+                  Finish Onboarding <ArrowRight weight="bold" className="ml-2" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 11: PAYWALL */}
+          {stepName === 'PAYWALL' && (
+            <motion.div
+              key="paywall"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full space-y-8"
             >
               <div className="space-y-4 text-center">
                 <h1 className="text-6xl font-black uppercase tracking-tighter leading-none">
                   Ready to fly?
                 </h1>
                 <p className="text-surface-500 font-bold uppercase tracking-tight">
-                  14 days of focus, on us.
+                  14 days of absolute focus, on us.
                 </p>
               </div>
 
@@ -531,8 +733,8 @@ export default function OnboardingPage() {
                 <div className="space-y-8 relative z-10">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h2 className="text-4xl font-black uppercase italic tracking-tighter">Plan Pilot Elite</h2>
-                      <p className="text-accent-400 font-black uppercase text-xs">For Students Who Mean Business</p>
+                      <h2 className="text-4xl font-black uppercase italic tracking-tighter">Elite Pilot</h2>
+                      <p className="text-accent-400 font-black uppercase text-xs">Full Academic Mastery</p>
                     </div>
                     <div className="text-right">
                       <div className="text-3xl font-black">$9.99</div>
@@ -543,10 +745,10 @@ export default function OnboardingPage() {
                   <ul className="space-y-4">
                     {[
                       "Unlimited AI Daily Scheduling",
-                      "Automated Canvas Sync",
-                      "Google Calendar Integration",
-                      "Ollie Chat (Executive Assistant)",
-                      "No-Shame Rollover Logic"
+                      "Full Canvas Mastery Sync",
+                      "Ollie 24/7 Executive Assistant",
+                      "Priority Focus Mode",
+                      "Custom Priority Class Tuning"
                     ].map(item => (
                       <li key={item} className="flex items-center gap-3 text-sm font-black uppercase tracking-tight">
                         <CheckCircle weight="fill" className="text-accent-500 size-5" />
@@ -564,18 +766,21 @@ export default function OnboardingPage() {
                       {loading ? 'Finalizing...' : 'Start 14-Day Free Trial'}
                     </Button>
                     <p className="text-[9px] text-center font-bold text-surface-500 uppercase tracking-widest">
-                      Cancel anytime. No commitment. You'll be notified 2 days before trial ends.
+                      Cancel anytime. No commitment. We'll email you before the trial ends.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <button 
-                onClick={completeOnboarding}
-                className="w-full text-center text-xs font-black uppercase text-surface-400 hover:text-surface-900 transition-colors"
-              >
-                I'll stick with the free version for now
-              </button>
+              <div className="flex flex-col gap-4">
+                <button 
+                  onClick={completeOnboarding}
+                  className="w-full text-center text-xs font-black uppercase text-surface-400 hover:text-surface-900 transition-colors"
+                >
+                  I'll stick with the free version for now
+                </button>
+                <Button variant="ghost" onClick={prevStep} className="w-full text-[10px]">Back to Plan</Button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
