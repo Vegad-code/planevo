@@ -114,7 +114,7 @@ export default function Pricing() {
     ];
 
     return (
-        <section id="pricing" className="py-24 md:py-32 bg-background border-y-2 border-surface-900 relative overflow-hidden">
+        <section id="pricing" className="py-24 md:py-32 bg-surface-900 border-y border-white/10 relative overflow-hidden">
             <div className="mx-auto max-w-6xl px-6 relative z-10">
                 {/* Header */}
                 <motion.div 
@@ -125,10 +125,10 @@ export default function Pricing() {
                         <Lightning weight="fill" className="size-3" />
                         Membership
                     </div>
-                    <h2 className="text-4xl font-black lg:text-7xl text-surface-900 uppercase tracking-tighter leading-none">
+                    <h2 className="text-4xl font-black lg:text-7xl text-white uppercase tracking-tighter leading-none">
                         Simple Tiers.<br />Clearer Focus.
                     </h2>
-                    <p className="text-surface-600 text-xl font-bold leading-relaxed">
+                    <p className="text-surface-400 text-xl font-bold leading-relaxed">
                         Choose the level of support that fits your needs. No hidden fees, no complexity. Just clarity.
                     </p>
                 </motion.div>
@@ -155,17 +155,18 @@ export default function Pricing() {
                     {tiers.map((tier) => (
                         <motion.div
                             key={tier.name}
-                            className={`relative flex flex-col border-4 border-surface-900 rounded-[2rem] overflow-hidden transition-all ${
+                            className={`relative flex flex-col border-2 border-white/10 rounded-[2rem] overflow-hidden transition-all ${
                                 tier.highlight
-                                    ? 'bg-surface-900 text-surface-100 shadow-[12px_12px_0_0_var(--accent-500)]'
-                                    : 'bg-surface-100 shadow-[8px_8px_0_0_var(--surface-900)]'
+                                    ? 'bg-surface-800 text-white shadow-[12px_12px_0_0_rgba(255,255,255,0.05)]'
+                                    : 'bg-surface-800/40 text-surface-400 shadow-[8px_8px_0_0_rgba(0,0,0,0.2)]'
                             }`}
                             variants={fadeInUp}
                             whileHover={{ 
                                 y: -15, 
+                                borderColor: "rgba(255,255,255,0.2)",
                                 shadow: tier.highlight 
-                                    ? "15px 15px 0 0 var(--accent-500)" 
-                                    : "12px 12px 0 0 var(--surface-900)" 
+                                    ? "15px 15px 0 0 rgba(255,255,255,0.1)" 
+                                    : "12px 12px 0 0 rgba(0,0,0,0.4)" 
                             }}
                         >
                             {/* Badge */}
@@ -178,16 +179,16 @@ export default function Pricing() {
                             <div className="p-10 flex-1">
                                 {/* Icon + Name */}
                                 <div className={`flex items-center gap-3 mb-6 ${tier.highlight ? 'text-accent-400' : 'text-accent-500'}`}>
-                                    <div className={`p-3 rounded-xl border-2 border-surface-900 ${tier.highlight ? 'bg-surface-800' : 'bg-white'}`}>
+                                    <div className={`p-3 rounded-xl border border-white/10 ${tier.highlight ? 'bg-surface-700' : 'bg-surface-800'}`}>
                                         {tier.icon}
                                     </div>
-                                    <span className={`font-black uppercase tracking-tight text-xl ${tier.highlight ? 'text-surface-100' : 'text-surface-900'}`}>{tier.name}</span>
+                                    <span className={`font-black uppercase tracking-tight text-xl ${tier.highlight ? 'text-white' : 'text-surface-100'}`}>{tier.name}</span>
                                 </div>
 
                                 {/* Price */}
                                 {!isIOS && (
                                     <div className="mb-4">
-                                        <span className={`text-6xl font-black tracking-tighter ${tier.highlight ? 'text-surface-100' : 'text-surface-900'}`}>{tier.price}</span>
+                                        <span className={`text-6xl font-black tracking-tighter ${tier.highlight ? 'text-white' : 'text-white'}`}>{tier.price}</span>
                                         <span className={`text-xl font-bold ml-2 ${tier.highlight ? 'text-surface-400' : 'text-surface-500'}`}>{tier.period}</span>
                                     </div>
                                 )}
@@ -206,10 +207,10 @@ export default function Pricing() {
                                             whileInView={{ opacity: 1, x: 0 }}
                                             transition={{ delay: index * 0.05 }}
                                         >
-                                            <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 border-surface-900 ${tier.highlight ? 'bg-accent-500 text-surface-900' : 'bg-accent-100 text-accent-700'}`}>
+                                            <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border border-white/10 ${tier.highlight ? 'bg-accent-500 text-surface-900' : 'bg-accent-100/10 text-accent-400'}`}>
                                                 <Check weight="bold" className="size-3" />
                                             </div>
-                                            <span className={tier.highlight ? 'text-surface-100' : 'text-surface-900'}>{feature}</span>
+                                            <span className={tier.highlight ? 'text-white' : 'text-surface-300'}>{feature}</span>
                                         </motion.li>
                                     ))}
                                     {tier.limitations.map((limitation, index) => (
@@ -232,10 +233,10 @@ export default function Pricing() {
                                     >
                                         <Link
                                             href={tier.href}
-                                            className={`flex items-center justify-center w-full py-5 text-base font-black uppercase tracking-[0.15em] border-4 transition-all rounded-2xl ${
+                                            className={`flex items-center justify-center w-full py-5 text-base font-black uppercase tracking-[0.15em] border-2 transition-all rounded-2xl ${
                                                 tier.highlight
-                                                    ? 'bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[6px_6px_0_0_var(--surface-500)]'
-                                                    : 'bg-surface-900 text-surface-100 border-surface-900 hover:bg-surface-800 shadow-[6px_6px_0_0_var(--accent-500)]'
+                                                    ? 'bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[6px_6px_0_0_rgba(0,0,0,0.3)]'
+                                                    : 'bg-white text-surface-900 border-white hover:bg-surface-100 shadow-[6px_6px_0_0_var(--accent-500)]'
                                             }`}
                                         >
                                             {tier.buttonText}
@@ -270,7 +271,7 @@ export default function Pricing() {
                 <AnimatePresence>
                     {showCompare && (
                         <motion.div 
-                            className="mt-12 border-4 border-surface-900 overflow-hidden shadow-[12px_12px_0_0_var(--shadow-color)] rounded-[2.5rem] bg-white"
+                            className="mt-12 border border-white/10 overflow-hidden shadow-[12px_12px_0_0_rgba(0,0,0,0.3)] rounded-[2.5rem] bg-surface-800"
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
@@ -287,23 +288,23 @@ export default function Pricing() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="bg-surface-50 border-b-4 border-surface-900">
-                                            <th className="text-left px-10 py-6 font-black uppercase text-xs text-surface-400 tracking-widest">Comparison</th>
-                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-900 tracking-tighter">🦉 Plan Pilot</th>
-                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-400 tracking-tighter italic">Passive Apps</th>
+                                        <tr className="bg-surface-900/50 border-b border-white/10">
+                                            <th className="text-left px-10 py-6 font-black uppercase text-xs text-surface-500 tracking-widest">Comparison</th>
+                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-white tracking-tighter">🦉 Plan Pilot</th>
+                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-500 tracking-tighter italic">Passive Apps</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y-2 divide-surface-100">
                                         {comparisonData.map((row, i) => (
-                                            <tr key={i} className="hover:bg-accent-50/30 transition-colors">
-                                                <td className="px-10 py-5 font-black text-surface-900 uppercase tracking-tight text-xs">{row.feature}</td>
+                                            <tr key={i} className="hover:bg-white/5 transition-colors border-b border-white/5 last:border-0">
+                                                <td className="px-10 py-5 font-black text-surface-100 uppercase tracking-tight text-xs">{row.feature}</td>
                                                 <td className="px-10 py-5 text-center">
                                                     {row.us === true ? (
                                                         <div className="w-8 h-8 bg-accent-100 text-accent-700 rounded-lg flex items-center justify-center mx-auto border-2 border-accent-200">
                                                             <Check weight="bold" className="size-4" />
                                                         </div>
                                                     ) : (
-                                                        <span className="font-black text-[10px] text-accent-700 bg-accent-50 px-3 py-1 border-2 border-accent-200 rounded-full">{row.us}</span>
+                                                        <span className="font-black text-[10px] text-accent-400 bg-accent-500/10 px-3 py-1 border border-accent-500/20 rounded-full">{row.us}</span>
                                                     )}
                                                 </td>
                                                 <td className="px-10 py-5 text-center">
@@ -320,7 +321,7 @@ export default function Pricing() {
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="bg-accent-500 border-t-4 border-surface-900 px-10 py-6 text-center">
+                            <div className="bg-accent-500 border-t border-white/10 px-10 py-6 text-center">
                                 <p className="font-black uppercase text-base text-surface-900 tracking-tight">Focus on what matters. Let Plan Pilot handle the rest. 🦉</p>
                             </div>
                         </motion.div>

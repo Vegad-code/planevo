@@ -1,84 +1,101 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { ArrowRight, Star } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { motion } from 'framer-motion';
+import { ArrowRight, Sparkle } from '@phosphor-icons/react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { OllieMascot } from '@/components/OllieMascot';
 
-function Hero() {
-  const [titleNumber, setTitleNumber] = useState(0);
-  const titles = useMemo(
-    () => ["smart", "friendly", "adaptive", "proactive", "calm"],
-    []
-  );
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (titleNumber === titles.length - 1) {
-        setTitleNumber(0);
-      } else {
-        setTitleNumber(titleNumber + 1);
-      }
-    }, 2000);
-    return () => clearTimeout(timeoutId);
-  }, [titleNumber, titles]);
-
+export function Hero() {
   return (
-    <div className="w-full bg-background text-foreground border-b-2 border-surface-900">
-      <div className="container mx-auto px-6">
-        <div className="flex gap-8 py-20 lg:py-40 items-center justify-center flex-col">
-          <div>
-            <Button variant="outline" size="sm" className="gap-4 font-black uppercase text-foreground border-2 border-border shadow-[2px_2px_0px_0px_var(--border)]">
-              Introducing Plan Pilot <Star weight="thin" className="w-4 h-4 text-accent-500" />
-            </Button>
-          </div>
-          <div className="flex gap-4 flex-col">
-            <h1 className="text-5xl md:text-7xl max-w-4xl tracking-tighter text-center font-black uppercase">
-              <span className="text-foreground">Plan Pilot is </span>
-              <span className="relative flex w-full justify-center overflow-hidden text-center md:pb-4 md:pt-1 text-accent-500">
-                &nbsp;
-                {titles.map((title, index) => (
-                  <motion.span
-                    key={index}
-                    className="absolute font-bold"
-                    initial={{ opacity: 0, y: "-100" }}
-                    transition={{ type: "spring", stiffness: 50 }}
-                    animate={
-                      titleNumber === index
-                        ? {
-                            y: 0,
-                            opacity: 1,
-                          }
-                        : {
-                            y: titleNumber > index ? -150 : 150,
-                            opacity: 0,
-                          }
-                    }
-                  >
-                    {title}
-                  </motion.span>
-                ))}
-              </span>
-            </h1>
+    <div className="relative w-full min-h-[90vh] flex flex-col items-center justify-center pt-32 pb-20 overflow-hidden bg-surface-900">
+      {/* Background Glows */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-accent-500/5 rounded-full blur-[100px] pointer-events-none" />
 
-            <p className="text-lg md:text-xl leading-relaxed tracking-tight text-surface-600 max-w-2xl text-center mx-auto mt-6">
-              All your planning inputs. One next action.
-              Plan Pilot turns scattered tasks, deadlines, projects, and calendar chaos into one calm Daily Plan.
-            </p>
+      <div className="container mx-auto px-6 relative z-10 flex flex-col items-center text-center">
+        {/* Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-brand-400 text-xs font-black uppercase tracking-widest mb-8">
+            <Sparkle weight="fill" className="w-3 h-3" />
+            Built for ADHD brains
           </div>
-          <div className="flex flex-row gap-4 mt-8">
-            <Button size="lg" className="gap-2 text-base px-8" asChild>
-              <Link href="/signup">Start Free <ArrowRight weight="thin" className="w-5 h-5" /></Link>
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2 text-base px-8" asChild>
-              <a href="#features">See how it works</a>
-            </Button>
+        </motion.div>
+
+        {/* Headline */}
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="text-5xl md:text-8xl font-black text-white tracking-tighter leading-[0.9] max-w-5xl mb-8 uppercase"
+        >
+          Stop missing <span className="text-brand-500">deadlines</span>.<br />
+          Start <span className="text-accent-500">flying</span>.
+        </motion.h1>
+
+        {/* Sub-headline (The Strategy Pitch) */}
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="text-lg md:text-xl text-surface-400 font-medium max-w-2xl mb-12 leading-relaxed"
+        >
+          Plan Pilot is the calm AI co-pilot that automatically reschedules your week without guilt every time life slips. Unlike rigid planners, we&apos;re built for brains that don&apos;t run on willpower.
+        </motion.p>
+
+        {/* CTAs */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="flex flex-col sm:flex-row items-center gap-4 mb-20"
+        >
+          <Button size="lg" className="h-14 px-8 text-lg font-black bg-white text-surface-900 hover:bg-brand-500 hover:text-white transition-all group" asChild>
+            <Link href="/signup">
+              Start Your Free Trial
+              <ArrowRight weight="bold" className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </Button>
+          <Button size="lg" variant="ghost" className="h-14 px-8 text-lg font-bold text-surface-400 hover:text-white hover:bg-white/5" asChild>
+            <a href="#how-it-works">See how it works</a>
+          </Button>
+        </motion.div>
+
+        {/* Visual: Ollie Mascot + App Preview Mockup */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 40 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 100, delay: 0.4 }}
+          className="relative w-full max-w-5xl"
+        >
+          {/* Mockup Container */}
+          <div className="relative aspect-video bg-surface-800 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            {/* Minimal Dashboard Mockup UI */}
+            <div className="absolute inset-0 bg-gradient-to-br from-surface-800 to-surface-900 flex items-center justify-center">
+              <div className="w-[80%] h-[70%] bg-white/5 rounded-2xl border border-white/5 p-8 flex flex-col gap-6">
+                <div className="h-8 w-48 bg-white/10 rounded-lg" />
+                <div className="flex-1 grid grid-cols-2 gap-6">
+                  <div className="bg-white/5 rounded-xl border border-white/5" />
+                  <div className="space-y-4">
+                    <div className="h-20 bg-brand-500/10 rounded-xl border border-brand-500/20" />
+                    <div className="h-20 bg-white/5 rounded-xl border border-white/5" />
+                    <div className="h-20 bg-white/5 rounded-xl border border-white/5" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Ollie Floating over the UI */}
+            <div className="absolute -right-20 -bottom-20 scale-75 md:scale-100">
+               <OllieMascot pose="thinking" className="w-96 h-96" />
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-export { Hero };
