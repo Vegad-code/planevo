@@ -48,17 +48,17 @@ export default function OllieAvatar({ mood = 'happy', size = 'md', className = '
       aria-label={`Ollie the Owl — ${mood} mood`}
     >
       {/* Body */}
-      <ellipse cx="24" cy="28" rx="16" ry="18" fill="#5B4A3F" />
+      <ellipse cx="24" cy="28" rx="16" ry="18" fill="#4a6e52" />
 
       {/* Belly */}
       <ellipse cx="24" cy="32" rx="10" ry="12" fill="#F5E6D3" />
 
       {/* Head */}
-      <circle cx="24" cy="16" r="14" fill="#6B5B50" />
+      <circle cx="24" cy="16" r="14" fill="#5d8a66" />
 
       {/* Ear tufts */}
-      <path d="M12 6 L15 12 L10 10 Z" fill="#5B4A3F" />
-      <path d="M36 6 L33 12 L38 10 Z" fill="#5B4A3F" />
+      <path d="M12 6 L15 12 L10 10 Z" fill="#4a6e52" />
+      <path d="M36 6 L33 12 L38 10 Z" fill="#4a6e52" />
 
       {/* Eye sockets */}
       <circle cx="18" cy="17" r="6" fill="#F5E6D3" />
