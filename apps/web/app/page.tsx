@@ -296,7 +296,7 @@ export default function LandingPage() {
                 Get Started Free
             </Link>
           </motion.div>
-          <p className="mt-8 text-xs text-surface-900 font-black uppercase tracking-widest">No credit card required. Ready to start in 60 seconds.</p>
+          <p className="mt-8 text-xs text-surface-900 font-black uppercase tracking-widest">14-day free trial. Card required. Cancel anytime.</p>
         </motion.div>
       </section>
 

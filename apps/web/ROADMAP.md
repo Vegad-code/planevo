@@ -12,10 +12,10 @@ This document tracks the long-term vision for Plan Pilot, moving from a smart ta
 
 ## Phase 3: Personalization & Monetization (NEXT)
 **Focus:** Business Model and User Retention.
-- [ ] **Tiered Pricing Implementation:**
-    - **Foundations ($0):** Basic task management + 5 AI Daily Plans/mo.
-    - **Personal Plan ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync.
-    - **Elite Plan ($22.99/mo):** The AI Executive Dashboard (Intro offer: $19.99 for 3 months).
+- [ ] **Singular Premium Plan Implementation:**
+    - **Plan Pilot Premium ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync + Persona-specific focus protection.
+    - **Annual Discount ($79/yr):** 34% savings to reward long-term focus.
+    - **Student Discount ($4.99/mo):** Verified .edu access to keep it accessible for learners.
 - [ ] **The Feedback Loop:**
     - Add Accept/Reject buttons to all AI suggestions.
     - Log "Correction Data" to Supabase for future training.

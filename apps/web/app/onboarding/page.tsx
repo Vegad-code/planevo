@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { useSubscription } from '@/hooks/use-subscription';
 import { 
   CheckCircle, 
   Lightning, 
@@ -28,12 +29,13 @@ import { OllieMascot, OlliePose } from '@/components/OllieMascot';
 
 const STEPS = [
   'WELCOME',
+  'PERSONA',
   'STRESSOR',
   'ABANDONMENT',
   'IDENTITY',
   'BELONGING',
   'CANVAS_CONNECT',
-  'PRIORITY_CLASS',
+  'PRIORITY_FOCUS',
   'WEEKLY_GOAL',
   'ENERGY',
   'PREVIEW',
@@ -42,6 +44,7 @@ const STEPS = [
 ];
 
 export default function OnboardingPage() {
+  const [persona, setPersona] = useState<'student' | 'professional' | 'builder' | 'other' | ''>('');
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState('');
@@ -62,10 +65,11 @@ export default function OnboardingPage() {
   // Sync state with pose
   const getPose = (): OlliePose => {
     switch (STEPS[currentStep]) {
+      case 'PERSONA': return 'crystals';
       case 'STRESSOR': return 'thinking';
       case 'ABANDONMENT': return 'grumpy';
       case 'CANVAS_CONNECT': return 'syncing';
-      case 'PRIORITY_CLASS': return 'crystals';
+      case 'PRIORITY_FOCUS': return 'crystals';
       case 'WEEKLY_GOAL': return 'banner';
       case 'PREVIEW': return 'calendar';
       case 'TRANSPARENCY': return 'zen';
@@ -91,12 +95,12 @@ export default function OnboardingPage() {
       if (e.key === 'Enter') {
         // Prevent enter from triggering if input is empty on name step
         if (STEPS[currentStep] === 'WELCOME' && !userName) return;
-        if (STEPS[currentStep] === 'PRIORITY_CLASS' && !priorityCourse) return;
-        if (STEPS[currentStep] === 'CANVAS_CONNECT' && (!canvasUrl || !canvasToken)) return;
+        if (STEPS[currentStep] === 'PRIORITY_FOCUS' && !priorityCourse) return;
+        if (STEPS[currentStep] === 'CANVAS_CONNECT' && persona === 'student' && (!canvasUrl || !canvasToken)) return;
         
-        // If on the last step, complete onboarding
+        // If on the last step, complete onboarding via checkout
         if (currentStep === STEPS.length - 1) {
-          completeOnboarding();
+          handleCheckout();
         } else if (STEPS[currentStep] === 'CANVAS_CONNECT') {
           handleTestCanvas();
         } else {
@@ -117,38 +121,62 @@ export default function OnboardingPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentStep, userName, priorityCourse, canvasUrl, canvasToken]);
 
+  const { redirectToCheckout } = useSubscription();
+
+  const saveOnboardingData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        onboarding_complete: true,
+        name: userName,
+        persona: persona || 'other',
+        energy_preference: energyPreference,
+        canvas_url: canvasUrl,
+        canvas_token: canvasToken,
+        scheduling_preferences: {
+          stressor,
+          abandonment_count: abandonmentCount,
+          priority_course: priorityCourse,
+          weekly_goal: weeklyGoal,
+          identity_checks: identityChecks
+        }
+      })
+      .eq('id', user.id);
+
+    if (error) throw error;
+  };
+
   const completeOnboarding = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          onboarding_complete: true,
-          name: userName,
-          energy_preference: energyPreference,
-          canvas_url: canvasUrl,
-          canvas_token: canvasToken,
-          scheduling_preferences: {
-            stressor,
-            abandonment_count: abandonmentCount,
-            priority_course: priorityCourse,
-            weekly_goal: weeklyGoal,
-            identity_checks: identityChecks
-          }
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
+      await saveOnboardingData();
 
       const hasCanvas = !!canvasToken;
       router.push(`/dashboard${hasCanvas ? '' : '?demo=true'}`);
     } catch (err) {
       console.error(err);
       toast.error('Failed to save onboarding data');
-    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    setLoading(true);
+    try {
+      await saveOnboardingData();
+      
+      const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY;
+      if (!priceId) {
+        throw new Error('Price ID not configured');
+      }
+
+      await redirectToCheckout({ priceId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to start trial');
       setLoading(false);
     }
   };
@@ -211,7 +239,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Animated Mascot - Only show if not on purely text steps or paywall */}
-        {['STRESSOR', 'ABANDONMENT', 'CANVAS_CONNECT', 'PRIORITY_CLASS', 'WEEKLY_GOAL', 'PREVIEW', 'TRANSPARENCY'].includes(stepName) && (
+        {['PERSONA', 'STRESSOR', 'ABANDONMENT', 'CANVAS_CONNECT', 'PRIORITY_FOCUS', 'WEEKLY_GOAL', 'PREVIEW', 'TRANSPARENCY'].includes(stepName) && (
           <OllieMascot pose={getPose()} className="mb-8" />
         )}
 
@@ -249,6 +277,49 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
+          {/* STEP 1: PERSONA */}
+          {stepName === 'PERSONA' && (
+            <motion.div
+              key="persona"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-4 text-center">
+                <h1 className="text-4xl font-black uppercase tracking-tighter">
+                  What's your primary focus?
+                </h1>
+                <p className="text-surface-500 font-bold uppercase tracking-tight">
+                  We'll tailor your experience to match your world.
+                </p>
+              </div>
+              <div className="grid gap-3">
+                {[
+                  { id: 'student', label: 'Student', icon: GraduationCap, desc: 'College, Grad School, or Bootcamp' },
+                  { id: 'professional', label: 'Professional', icon: ShieldCheck, desc: 'Early career, Corporate, or Tech' },
+                  { id: 'builder', label: 'Creative / Builder', icon: Lightning, desc: 'Freelance, Founders, or Makers' },
+                  { id: 'other', label: 'Life Pilot', icon: Heart, desc: 'Just trying to stay organized' }
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setPersona(p.id as any); nextStep(); }}
+                    className={`p-6 border-2 text-left transition-all flex items-center gap-4 ${
+                      persona === p.id ? 'border-brand-500 bg-brand-500/5 shadow-[4px_4px_0px_0px_var(--brand-500)]' : 'border-surface-200 hover:border-brand-500 bg-surface-50'
+                    }`}
+                  >
+                    <p.icon weight="fill" className="text-brand-500 size-8 shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-black uppercase tracking-tight">{p.label}</h3>
+                      <p className="text-[10px] font-bold text-surface-500 uppercase">{p.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
+            </motion.div>
+          )}
+
           {/* STEP 1: STRESSOR */}
           {stepName === 'STRESSOR' && (
             <motion.div
@@ -264,13 +335,22 @@ export default function OnboardingPage() {
                 </h1>
               </div>
               <div className="grid gap-3">
-                {[
+                {(persona === 'student' ? [
                   "Assignments piling up",
                   "Unpredictable workload",
                   "Missing deadlines",
-                  "Just feeling overwhelmed",
                   "The Canvas 'Red Dot' of doom"
-                ].map((s) => (
+                ] : persona === 'professional' ? [
+                  "Back-to-back meetings",
+                  "Slack/Email noise",
+                  "Missing critical tasks",
+                  "Feeling busy but not productive"
+                ] : [
+                  "Creative block",
+                  "Too many ideas, no execution",
+                  "Inconsistent focus",
+                  "Scope creep"
+                ]).map((s) => (
                   <button
                     key={s}
                     onClick={() => { setStressor(s); nextStep(); }}
@@ -286,7 +366,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 2: ABANDONMENT */}
+          {/* STEP 3: ABANDONMENT */}
           {stepName === 'ABANDONMENT' && (
             <motion.div
               key="abandonment"
@@ -311,12 +391,12 @@ export default function OnboardingPage() {
               </div>
               <Button variant="ghost" onClick={prevStep} className="w-full">Back</Button>
               <p className="text-xs font-bold text-surface-400 uppercase tracking-widest">
-                (It's okay. Plan Pilot is designed for the 3-day dropout.)
+                (It's okay. Plan Pilot is designed for the 3-day burnout.)
               </p>
             </motion.div>
           )}
 
-          {/* STEP 3: IDENTITY */}
+          {/* STEP 4: IDENTITY */}
           {stepName === 'IDENTITY' && (
             <motion.div
               key="identity"
@@ -332,12 +412,22 @@ export default function OnboardingPage() {
               </div>
 
               <div className="grid gap-3">
-                {[
+                {(persona === 'student' ? [
                   "I have 47+ browser tabs open right now.",
                   "I feel 'behind' the moment I wake up.",
-                  "Canvas notifications feel like a personal attack.",
+                  "Deadline notifications feel like a personal attack.",
                   "I work best under the pressure of a deadline."
-                ].map((item) => (
+                ] : persona === 'professional' ? [
+                  "I spend my morning planning, but never follow it.",
+                  "I struggle to find time for deep work.",
+                  "My calendar is a source of anxiety.",
+                  "I thrive on clear priorities."
+                ] : [
+                  "I hyperfocus on the wrong things.",
+                  "I hate traditional rigid planners.",
+                  "I need a tool that adapts to my energy.",
+                  "I want to offload the logistics of my day."
+                ]).map((item) => (
                   <button
                     key={item}
                     onClick={() => {
@@ -375,7 +465,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 4: BELONGING */}
+          {/* STEP 5: BELONGING */}
           {stepName === 'BELONGING' && (
             <motion.div
               key="belonging"
@@ -394,7 +484,7 @@ export default function OnboardingPage() {
                   You're exactly who we built this for.
                 </h1>
                 <p className="text-xl font-bold text-surface-600 max-w-lg mx-auto uppercase">
-                  Plan Pilot isn't about "discipline." It's about offloading the mental tax of being a student to an AI that doesn't get tired.
+                  Plan Pilot isn't about "discipline." It's about offloading the mental tax of planning to an AI that doesn't get tired.
                 </p>
               </div>
               <div className="flex gap-4">
@@ -409,7 +499,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 5: CANVAS_CONNECT */}
+          {/* STEP 6: CANVAS_CONNECT */}
           {stepName === 'CANVAS_CONNECT' && (
             <motion.div
               key="canvas"
@@ -420,10 +510,10 @@ export default function OnboardingPage() {
             >
               <div className="space-y-4">
                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
-                  Connect Canvas.
+                  {persona === 'student' ? 'Connect Canvas.' : 'Connect Your Tasks.'}
                 </h1>
                 <p className="text-surface-500 font-bold uppercase tracking-tight">
-                  This is where the magic happens. We'll pull your assignments into a calm, unified view.
+                  This is where the magic happens. We'll pull your {persona === 'student' ? 'assignments' : 'tasks'} into a calm, unified view.
                 </p>
               </div>
 
@@ -454,30 +544,41 @@ export default function OnboardingPage() {
               <div className="flex flex-col gap-4">
                 <div className="flex gap-4">
                   <Button variant="ghost" onClick={prevStep}>Back</Button>
-                  <Button 
-                    onClick={handleTestCanvas}
-                    disabled={testingCanvas || !canvasUrl || !canvasToken}
-                    className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
-                  >
-                    {testingCanvas ? 'Syncing...' : 'Verify & Sync'} <ArrowRight weight="bold" className="ml-2" />
-                  </Button>
+                  {persona === 'student' ? (
+                    <Button 
+                      onClick={handleTestCanvas}
+                      disabled={testingCanvas || !canvasUrl || !canvasToken}
+                      className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                    >
+                      {testingCanvas ? 'Syncing...' : 'Verify & Sync'} <ArrowRight weight="bold" className="ml-2" />
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={nextStep}
+                      className="flex-1 py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
+                    >
+                      Next Step <ArrowRight weight="bold" className="ml-2" />
+                    </Button>
+                  )}
                 </div>
-                <Button 
-                  onClick={() => {
-                    setCanvasItemsCount(12);
-                    nextStep();
-                  }} 
-                  variant="ghost" 
-                  className="w-full text-xs font-black uppercase text-surface-400 hover:text-surface-900 py-4"
-                >
-                  Skip for now (I'll do it later)
-                </Button>
+                {persona === 'student' && (
+                  <Button 
+                    onClick={() => {
+                      setCanvasItemsCount(12);
+                      nextStep();
+                    }} 
+                    variant="ghost" 
+                    className="w-full text-xs font-black uppercase text-surface-400 hover:text-surface-900 py-4"
+                  >
+                    Skip for now (I'll do it later)
+                  </Button>
+                )}
               </div>
             </motion.div>
           )}
 
-          {/* STEP 6: PRIORITY_CLASS */}
-          {stepName === 'PRIORITY_CLASS' && (
+          {/* STEP 7: PRIORITY_FOCUS */}
+          {stepName === 'PRIORITY_FOCUS' && (
             <motion.div
               key="priority"
               initial={{ opacity: 0, y: 20 }}
@@ -487,7 +588,7 @@ export default function OnboardingPage() {
             >
               <div className="space-y-4 text-center">
                 <h1 className="text-4xl font-black uppercase tracking-tighter">
-                  Which course is giving you the most grief?
+                  {persona === 'student' ? 'Which course is giving you the most grief?' : 'What is your highest priority right now?'}
                 </h1>
                 <p className="text-surface-500 font-bold uppercase tracking-tight">
                   Ollie will focus extra energy here.
@@ -496,7 +597,7 @@ export default function OnboardingPage() {
               <Input
                 value={priorityCourse}
                 onChange={(e) => setPriorityCourse(e.target.value)}
-                placeholder="e.g. Organic Chemistry, CS101"
+                placeholder={persona === 'student' ? 'e.g. Organic Chemistry, CS101' : 'e.g. Project Launch, Client Work'}
                 className="text-center text-xl font-black border-2 border-surface-900 py-8 focus:ring-brand-500 uppercase italic"
               />
               <div className="flex gap-4">
@@ -512,7 +613,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 7: WEEKLY_GOAL */}
+          {/* STEP 8: WEEKLY_GOAL */}
           {stepName === 'WEEKLY_GOAL' && (
             <motion.div
               key="goal"
@@ -522,7 +623,7 @@ export default function OnboardingPage() {
               className="w-full space-y-8 text-center"
             >
               <h1 className="text-4xl font-black uppercase tracking-tighter">
-                How many assignments do you want to CRUSH this week?
+                {persona === 'student' ? 'How many assignments do you want to CRUSH this week?' : 'How many tasks do you want to CRUSH this week?'}
               </h1>
               <div className="flex flex-col items-center gap-8">
                 <div className="text-7xl font-black italic tracking-tighter text-brand-500">
@@ -549,7 +650,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 8: ENERGY */}
+          {/* STEP 9: ENERGY */}
           {stepName === 'ENERGY' && (
             <motion.div
               key="energy"
@@ -594,7 +695,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 9: PREVIEW */}
+          {/* STEP 10: PREVIEW */}
           {stepName === 'PREVIEW' && (
             <motion.div
               key="preview"
@@ -618,10 +719,10 @@ export default function OnboardingPage() {
                     <SealCheck weight="fill" className="text-brand-500 size-8" />
                     <div>
                       <p className="font-black uppercase text-sm tracking-tight">
-                        {canvasUrl ? `${canvasItemsCount} Assignments Synced` : `Demo Active: 12 Assignments`}
+                        {canvasUrl ? `${canvasItemsCount} Assignments Synced` : `Demo Active: 12 Tasks`}
                       </p>
                       <p className="text-[10px] font-bold text-surface-500 uppercase">
-                        {priorityCourse} is at the top of the list.
+                        {priorityCourse || (persona === 'student' ? 'Your classes' : 'Your focus')} is at the top of the list.
                       </p>
                     </div>
                   </div>
@@ -650,7 +751,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 10: TRANSPARENCY */}
+          {/* STEP 11: TRANSPARENCY */}
           {stepName === 'TRANSPARENCY' && (
             <motion.div
               key="transparency"
@@ -683,16 +784,16 @@ export default function OnboardingPage() {
                   <div>
                     <h3 className="font-black uppercase text-sm">One-Click Cancellation</h3>
                     <p className="text-xs text-surface-500 font-bold uppercase leading-relaxed">
-                      If Plan Pilot doesn't change your semester, you can cancel in one click from your settings. No hoops.
+                      If Plan Pilot doesn't change your productivity, you can cancel in one click from your settings. No hoops.
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start p-6 bg-surface-50 border-2 border-surface-200 rounded-2xl">
                   <Heart weight="fill" className="text-red-500 size-8 shrink-0" />
                   <div>
-                    <h3 className="font-black uppercase text-sm">Built for ADHD Brains</h3>
+                    <h3 className="font-black uppercase text-sm">Built for Busy Minds</h3>
                     <p className="text-xs text-surface-500 font-bold uppercase leading-relaxed">
-                      Designed by former students who struggled with the same "Red Dot" anxiety you feel.
+                      Designed by high-performers who struggled with the same planning friction you feel.
                     </p>
                   </div>
                 </div>
@@ -759,7 +860,7 @@ export default function OnboardingPage() {
 
                   <div className="pt-6 space-y-4">
                     <Button 
-                      onClick={completeOnboarding}
+                      onClick={handleCheckout}
                       disabled={loading}
                       className="w-full py-8 text-xl font-black uppercase tracking-widest bg-accent-500 hover:bg-accent-400 text-surface-900 shadow-[6px_6px_0px_0px_white]"
                     >
@@ -773,12 +874,6 @@ export default function OnboardingPage() {
               </div>
 
               <div className="flex flex-col gap-4">
-                <button 
-                  onClick={completeOnboarding}
-                  className="w-full text-center text-xs font-black uppercase text-surface-400 hover:text-surface-900 transition-colors"
-                >
-                  I'll stick with the free version for now
-                </button>
                 <Button variant="ghost" onClick={prevStep} className="w-full text-[10px]">Back to Plan</Button>
               </div>
             </motion.div>

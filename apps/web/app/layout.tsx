@@ -16,24 +16,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Plan Pilot — The shame-free planner for ADHD students drowning in Canvas deadlines",
+  title: "Plan Pilot — The proactive AI planner for busy students and high-performers",
   description:
-    "Plan Pilot is the calm AI co-pilot for ADHD college students. Connect Canvas, generate a daily plan around your energy, and let Ollie reorganize tomorrow whenever life slips — without the guilt.",
+    "Plan Pilot is the calm AI co-pilot for high-performers. Sync your tasks, generate a daily plan around your energy, and let Ollie reorganize tomorrow whenever life slips — without the guilt.",
   keywords: [
-    "ADHD planner",
+    "AI planner",
+    "focus assistant",
     "student productivity",
-    "Canvas LMS",
-    "AI scheduler",
-    "shame-free planner",
+    "automatic scheduling",
     "time management",
-    "Ollie",
-    "Plan Pilot",
   ],
+  authors: [{ name: "Plan Pilot Team" }],
   openGraph: {
-    title: "Plan Pilot — Shame-free planning for ADHD students",
+    type: "website",
+    locale: "en_US",
+    url: "https://planpilot.ai",
+    title: "Plan Pilot — Shame-free planning for high-performers",
     description:
       "Connect Canvas, generate an energy-aware daily plan, and let Ollie reorganize tomorrow when life slips. Built for brains that don't run on willpower.",
-    type: "website",
   },
 };
 

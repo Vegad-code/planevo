@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 
-export type PlanType = 'free' | 'pro' | 'team' | 'elite';
+export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled';
 
 export async function getUserPlan() {
   const supabase = await createClient();
@@ -23,7 +23,7 @@ export async function getUserPlan() {
   return { 
     plan: profile.plan_type as PlanType, 
     user, 
-    isPro: profile.plan_type === 'pro' || profile.plan_type === 'elite',
-    isElite: profile.plan_type === 'elite'
+    isPremium: profile.plan_type === 'premium' || profile.plan_type === 'trialing',
+    isTrialing: profile.plan_type === 'trialing'
   };
 }

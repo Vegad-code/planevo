@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Check, Warning, X, Lightning, GraduationCap, Briefcase, CaretDown } from '@phosphor-icons/react';
+import { Check, Warning, Lightning, CaretDown, Student, CircleNotch } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createClient } from '@/lib/supabase/client';
+import { redirectToCheckout } from '@/hooks/use-subscription';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -12,26 +15,12 @@ const fadeInUp = {
   transition: { duration: 0.6, ease: "easeOut" }
 };
 
-const staggerContainer = {
-  initial: { opacity: 0 },
-  whileInView: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  viewport: { once: true }
-};
-
-const comparisonData = [
-  { feature: 'Unified Daily Plan (Schedule)', us: true, others: false },
-  { feature: 'No-Shame Rollover System', us: true, others: false },
-  { feature: 'Canvas & Google Auto-Sync', us: 'Pro', others: false },
-  { feature: 'Academic Search (AI)', us: 'Pro', others: false },
-  { feature: 'Task Breakdown (AI)', us: 'Pro', others: false },
-  { feature: 'Lecture Insights', us: 'Coming Soon', others: false },
-  { feature: 'Professional Integrations', us: 'Coming Soon', others: false },
-  { feature: 'Ollie Actions (Agentic)', us: 'Coming Soon', others: false },
-];
-
 export default function Pricing() {
     const [isIOS, setIsIOS] = useState(false);
-    const [showCompare, setShowCompare] = useState(false);
+    const [isAnnual, setIsAnnual] = useState(true);
+    const [showStudent, setShowStudent] = useState(false);
+    const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
         const userAgent = window.navigator.userAgent.toLowerCase();
@@ -42,75 +31,32 @@ export default function Pricing() {
         }
     }, []);
 
-    const tiers = [
-        {
-            name: 'Standard',
-            price: '$0',
-            period: '/ mo',
-            description: 'Foundations for a calm, organized day.',
-            icon: <GraduationCap weight="bold" className="size-6" />,
-            features: [
-                'Unified Dashboard',
-                'Daily Plan & Calendar',
-                'Basic Task Management',
-                'No-Shame Rollover System',
-                '5 AI Quick Tasks / day',
-            ],
-            limitations: [
-                'No Auto-Sync Integrations',
-                'Limited AI Actions',
-            ],
-            buttonText: 'Get Started Free',
-            href: '/signup',
-            highlight: false,
-            badge: null,
-            color: 'bg-brand-100',
-        },
-        {
-            name: 'Pro',
-            price: '$7.99',
-            period: '/ mo',
-            description: 'More power, more clarity.',
-            icon: <Lightning weight="bold" className="size-6" />,
-            features: [
-                'Everything in Standard',
-                'Canvas & Google Auto-Sync',
-                'Academic Search (AI-powered)',
-                'Advanced Task Breakdown',
-                'Smart Focus Tools',
-                '100 AI Quick Tasks / day',
-            ],
-            limitations: [],
-            buttonText: 'Upgrade to Pro',
-            href: '/signup',
-            highlight: false,
-            badge: 'RECOMMENDED',
-            badgeColor: 'bg-accent-500 text-surface-900',
-            color: 'bg-accent-50',
-        },
-        {
-            name: 'Elite',
-            price: '$14.99',
-            period: '/ mo',
-            description: 'Advanced support for peak performance.',
-            icon: <Briefcase weight="bold" className="size-6" />,
-            features: [
-                'Everything in Pro',
-                'Unlimited AI Planning',
-                'Priority Support',
-                'Ollie Actions (Coming Soon)',
-                'Professional Sync (Coming Soon)',
-                'Weekly Progress Audits (Coming Soon)',
-                'Custom Ollie Personas (Coming Soon)',
-            ],
-            limitations: [],
-            buttonText: 'Join Elite',
-            href: '/signup',
-            highlight: true,
-            badge: 'ADVANCED',
-            badgeColor: 'bg-surface-900 text-surface-100',
-            color: 'bg-surface-900',
-        },
+    const handleCheckout = async () => {
+        setIsCheckoutLoading(true);
+        try {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                // User is logged in, send them straight to Stripe
+                await redirectToCheckout(isAnnual ? 'annual' : 'monthly');
+            } else {
+                // User is not logged in, send them to signup first
+                router.push('/signup');
+            }
+        } catch (error) {
+            console.error('Checkout error:', error);
+            setIsCheckoutLoading(false);
+        }
+    };
+
+    const features = [
+        'Unified Daily Plan & Calendar',
+        'Canvas & Google Auto-Sync',
+        'No-Shame Rollover System',
+        'Unlimited Ollie AI Assistant',
+        'Smart Focus Tools',
+        'Priority Support'
     ];
 
     return (
@@ -118,18 +64,18 @@ export default function Pricing() {
             <div className="mx-auto max-w-6xl px-6 relative z-10">
                 {/* Header */}
                 <motion.div 
-                    className="mx-auto max-w-2xl space-y-6 text-center mb-20"
+                    className="mx-auto max-w-2xl space-y-6 text-center mb-16"
                     {...fadeInUp}
                 >
                     <div className="inline-flex items-center gap-2 bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
                         <Lightning weight="fill" className="size-3" />
-                        Membership
+                        One Membership
                     </div>
                     <h2 className="text-4xl font-black lg:text-7xl text-surface-900 uppercase tracking-tighter leading-none">
-                        Simple Tiers.<br />Clearer Focus.
+                        Everything you need.<br />One simple price.
                     </h2>
                     <p className="text-surface-600 text-xl font-bold leading-relaxed">
-                        Choose the level of support that fits your needs. No hidden fees, no complexity. Just clarity.
+                        No confusing tiers. No hidden limits. Just a clear path to a calmer academic life.
                     </p>
                 </motion.div>
 
@@ -144,185 +90,165 @@ export default function Pricing() {
                     </motion.div>
                 )}
 
-                {/* Tier Cards */}
+                {/* Billing Toggle */}
                 <motion.div 
-                    className="grid gap-8 md:grid-cols-3 items-stretch"
-                    variants={staggerContainer}
-                    initial="initial"
-                    whileInView="whileInView"
-                    viewport={{ once: true }}
+                    className="flex justify-center mb-12"
+                    {...fadeInUp}
                 >
-                    {tiers.map((tier) => (
-                        <motion.div
-                            key={tier.name}
-                            className={`relative flex flex-col border-4 border-surface-900 rounded-[2rem] overflow-hidden transition-all ${
-                                tier.highlight
-                                    ? 'bg-surface-900 text-surface-100 shadow-[12px_12px_0_0_var(--accent-500)]'
-                                    : 'bg-surface-100 shadow-[8px_8px_0_0_var(--surface-900)]'
+                    <div className="relative inline-flex items-center p-1 bg-surface-100 border-4 border-surface-900 rounded-full shadow-[6px_6px_0_0_var(--surface-900)]">
+                        <button
+                            onClick={() => setIsAnnual(false)}
+                            className={`relative px-8 py-3 text-sm font-black uppercase tracking-widest rounded-full transition-colors z-10 ${
+                                !isAnnual ? 'text-surface-100' : 'text-surface-500 hover:text-surface-900'
                             }`}
-                            variants={fadeInUp}
-                            whileHover={{ 
-                                y: -15, 
-                                shadow: tier.highlight 
-                                    ? "15px 15px 0 0 var(--accent-500)" 
-                                    : "12px 12px 0 0 var(--surface-900)" 
-                            }}
                         >
-                            {/* Badge */}
-                            {tier.badge && (
-                                <div className={`absolute top-0 right-0 px-6 py-2 rounded-bl-2xl text-[10px] font-black uppercase tracking-[0.2em] border-l-4 border-b-4 border-surface-900 z-20 ${tier.badgeColor}`}>
-                                    {tier.badge}
-                                </div>
-                            )}
+                            Monthly
+                        </button>
+                        <button
+                            onClick={() => setIsAnnual(true)}
+                            className={`relative px-8 py-3 text-sm font-black uppercase tracking-widest rounded-full transition-colors z-10 flex items-center gap-2 ${
+                                isAnnual ? 'text-surface-100' : 'text-surface-500 hover:text-surface-900'
+                            }`}
+                        >
+                            Annual
+                            <span className={`px-2 py-0.5 text-[10px] rounded-full ${isAnnual ? 'bg-surface-100 text-surface-900' : 'bg-success text-white'}`}>Save 34%</span>
+                        </button>
 
-                            <div className="p-10 flex-1">
-                                {/* Icon + Name */}
-                                <div className={`flex items-center gap-3 mb-6 ${tier.highlight ? 'text-accent-400' : 'text-accent-500'}`}>
-                                    <div className={`p-3 rounded-xl border-2 border-surface-900 ${tier.highlight ? 'bg-surface-800' : 'bg-white'}`}>
-                                        {tier.icon}
-                                    </div>
-                                    <span className={`font-black uppercase tracking-tight text-xl ${tier.highlight ? 'text-surface-100' : 'text-surface-900'}`}>{tier.name}</span>
-                                </div>
-
-                                {/* Price */}
-                                {!isIOS && (
-                                    <div className="mb-4">
-                                        <span className={`text-6xl font-black tracking-tighter ${tier.highlight ? 'text-surface-100' : 'text-surface-900'}`}>{tier.price}</span>
-                                        <span className={`text-xl font-bold ml-2 ${tier.highlight ? 'text-surface-400' : 'text-surface-500'}`}>{tier.period}</span>
-                                    </div>
-                                )}
-
-                                <p className={`text-sm font-bold uppercase mb-8 tracking-wide ${tier.highlight ? 'text-surface-400' : 'text-surface-600'}`}>{tier.description}</p>
-
-                                <div className={`h-1 w-12 mb-8 rounded-full ${tier.highlight ? 'bg-surface-700' : 'bg-surface-200'}`} />
-
-                                {/* Features */}
-                                <ul className="space-y-4 mb-10">
-                                    {tier.features.map((feature, index) => (
-                                        <motion.li 
-                                            key={index} 
-                                            className="flex items-start gap-3 text-sm font-black uppercase tracking-tight"
-                                            initial={{ opacity: 0, x: -10 }}
-                                            whileInView={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                        >
-                                            <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 border-surface-900 ${tier.highlight ? 'bg-accent-500 text-surface-900' : 'bg-accent-100 text-accent-700'}`}>
-                                                <Check weight="bold" className="size-3" />
-                                            </div>
-                                            <span className={tier.highlight ? 'text-surface-100' : 'text-surface-900'}>{feature}</span>
-                                        </motion.li>
-                                    ))}
-                                    {tier.limitations.map((limitation, index) => (
-                                        <li key={`lim-${index}`} className="flex items-start gap-3 text-sm font-black uppercase tracking-tight opacity-30 italic">
-                                            <div className="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 border-surface-900 bg-surface-200 text-surface-400">
-                                                <X weight="bold" className="size-3" />
-                                            </div>
-                                            <span className={tier.highlight ? 'text-surface-400' : 'text-surface-500'}>{limitation}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            {/* CTA */}
-                            <div className="p-10 pt-0 mt-auto">
-                                {!isIOS ? (
-                                    <motion.div
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                    >
-                                        <Link
-                                            href={tier.href}
-                                            className={`flex items-center justify-center w-full py-5 text-base font-black uppercase tracking-[0.15em] border-4 transition-all rounded-2xl ${
-                                                tier.highlight
-                                                    ? 'bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[6px_6px_0_0_var(--surface-500)]'
-                                                    : 'bg-surface-900 text-surface-100 border-surface-900 hover:bg-surface-800 shadow-[6px_6px_0_0_var(--accent-500)]'
-                                            }`}
-                                        >
-                                            {tier.buttonText}
-                                        </Link>
-                                    </motion.div>
-                                ) : (
-                                    <div className="w-full text-center py-5 text-xs font-black uppercase text-surface-400 border-4 border-dashed border-surface-300 rounded-2xl">
-                                        Manage on Web Dashboard
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    ))}
+                        {/* Active Pill Animation */}
+                        <motion.div
+                            className="absolute top-1 bottom-1 w-1/2 bg-surface-900 rounded-full z-0"
+                            animate={{ 
+                                left: isAnnual ? '50%' : '4px',
+                                width: isAnnual ? 'calc(50% - 4px)' : 'calc(50% - 4px)'
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    </div>
                 </motion.div>
 
-                {/* Compare vs Notion Toggle */}
-                <div className="mt-24 text-center">
+                {/* Single Pricing Card */}
+                <motion.div 
+                    className="max-w-2xl mx-auto relative flex flex-col md:flex-row border-4 border-surface-900 rounded-[2rem] overflow-hidden bg-white shadow-[12px_12px_0_0_var(--accent-500)]"
+                    variants={fadeInUp}
+                    whileHover={{ y: -5, shadow: "16px 16px 0 0 var(--accent-500)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
+                    {/* Left Side - Price & CTA */}
+                    <div className="p-10 md:w-1/2 bg-surface-50 border-b-4 md:border-b-0 md:border-r-4 border-surface-900 flex flex-col justify-center">
+                        <div className="mb-2">
+                            <span className="text-surface-900 font-black tracking-widest text-sm uppercase">Plan Pilot Pro</span>
+                        </div>
+                        
+                        <div className="mb-6 min-h-[5rem]">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={isAnnual ? 'annual' : 'monthly'}
+                                    initial={{ opacity: 0, y: -20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 20 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex items-end gap-2"
+                                >
+                                    <span className="text-7xl font-black tracking-tighter text-surface-900">
+                                        ${isAnnual ? '79' : '9.99'}
+                                    </span>
+                                    <span className="text-xl font-bold text-surface-500 mb-2">
+                                        / {isAnnual ? 'yr' : 'mo'}
+                                    </span>
+                                </motion.div>
+                            </AnimatePresence>
+                            {isAnnual && (
+                                <motion.p 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-success font-black text-sm uppercase tracking-widest mt-1"
+                                >
+                                    Billed annually ($6.58/mo)
+                                </motion.p>
+                            )}
+                        </div>
+
+                        {!isIOS ? (
+                            <div className="space-y-4 mt-auto">
+                                <button
+                                    onClick={handleCheckout}
+                                    disabled={isCheckoutLoading}
+                                    className="flex items-center justify-center gap-2 w-full py-5 text-sm font-black uppercase tracking-[0.15em] border-4 transition-all rounded-2xl bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[4px_4px_0_0_var(--surface-900)] active:translate-y-1 active:shadow-none disabled:opacity-50"
+                                >
+                                    {isCheckoutLoading ? (
+                                        <CircleNotch weight="bold" className="size-5 animate-spin" />
+                                    ) : (
+                                        'Start 14-Day Free Trial'
+                                    )}
+                                </button>
+                                <p className="text-center text-xs font-bold text-surface-500 uppercase tracking-widest">
+                                    Card required. Cancel anytime.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="w-full text-center py-5 text-xs font-black uppercase text-surface-400 border-4 border-dashed border-surface-300 rounded-2xl mt-auto">
+                                Manage on Web Dashboard
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Side - Features */}
+                    <div className="p-10 md:w-1/2 bg-white flex flex-col justify-center">
+                        <p className="text-sm font-black uppercase mb-8 tracking-widest text-surface-400">Everything Included</p>
+                        <ul className="space-y-5">
+                            {features.map((feature, index) => (
+                                <motion.li 
+                                    key={index} 
+                                    className="flex items-start gap-3 text-sm font-black uppercase tracking-tight"
+                                    initial={{ opacity: 0, x: -10 }}
+                                    whileInView={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                >
+                                    <div className="mt-0 w-6 h-6 rounded-md flex items-center justify-center shrink-0 border-2 border-surface-900 bg-accent-100 text-surface-900">
+                                        <Check weight="bold" className="size-3.5" />
+                                    </div>
+                                    <span className="text-surface-900 leading-snug pt-0.5">{feature}</span>
+                                </motion.li>
+                            ))}
+                        </ul>
+                    </div>
+                </motion.div>
+
+                {/* Student Discount Toggle */}
+                <div className="mt-16 text-center">
                     <button
-                        onClick={() => setShowCompare(!showCompare)}
+                        onClick={() => setShowStudent(!showStudent)}
                         className="group inline-flex flex-col items-center gap-3 text-sm font-black uppercase tracking-widest text-surface-400 hover:text-surface-900 transition-all"
                     >
-                        <span>A workspace that works for you</span>
+                        <span className="flex items-center gap-2">
+                            <Student weight="bold" className="size-5" />
+                            Are you a verified student?
+                        </span>
                         <motion.div 
-                            className="p-3 rounded-full border-2 border-surface-200 group-hover:border-surface-900 group-hover:bg-surface-100"
-                            animate={{ rotate: showCompare ? 180 : 0 }}
+                            className="p-2 rounded-full border-2 border-surface-200 group-hover:border-surface-900 group-hover:bg-surface-100"
+                            animate={{ rotate: showStudent ? 180 : 0 }}
                         >
-                            <CaretDown weight="bold" className="size-5" />
+                            <CaretDown weight="bold" className="size-4" />
                         </motion.div>
                     </button>
                 </div>
 
                 <AnimatePresence>
-                    {showCompare && (
+                    {showStudent && (
                         <motion.div 
-                            className="mt-12 border-4 border-surface-900 overflow-hidden shadow-[12px_12px_0_0_var(--shadow-color)] rounded-[2.5rem] bg-white"
+                            className="mt-8 max-w-xl mx-auto border-4 border-surface-900 overflow-hidden shadow-[8px_8px_0_0_var(--surface-900)] rounded-2xl bg-brand-50 p-8 text-center"
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.4, ease: "circOut" }}
+                            transition={{ duration: 0.3, ease: "circOut" }}
                         >
-                            <div className="bg-surface-900 text-surface-100 px-10 py-6 flex items-center justify-between">
-                                <span className="font-black uppercase tracking-[0.2em] text-sm">Automated Assistance vs. Passive Workspace</span>
-                                <div className="flex gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-accent-500" />
-                                    <div className="w-2 h-2 rounded-full bg-brand-500" />
-                                    <div className="w-2 h-2 rounded-full bg-success" />
-                                </div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="bg-surface-50 border-b-4 border-surface-900">
-                                            <th className="text-left px-10 py-6 font-black uppercase text-xs text-surface-400 tracking-widest">Comparison</th>
-                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-900 tracking-tighter">🦉 Plan Pilot</th>
-                                            <th className="text-center px-10 py-6 font-black uppercase text-sm text-surface-400 tracking-tighter italic">Passive Apps</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y-2 divide-surface-100">
-                                        {comparisonData.map((row, i) => (
-                                            <tr key={i} className="hover:bg-accent-50/30 transition-colors">
-                                                <td className="px-10 py-5 font-black text-surface-900 uppercase tracking-tight text-xs">{row.feature}</td>
-                                                <td className="px-10 py-5 text-center">
-                                                    {row.us === true ? (
-                                                        <div className="w-8 h-8 bg-accent-100 text-accent-700 rounded-lg flex items-center justify-center mx-auto border-2 border-accent-200">
-                                                            <Check weight="bold" className="size-4" />
-                                                        </div>
-                                                    ) : (
-                                                        <span className="font-black text-[10px] text-accent-700 bg-accent-50 px-3 py-1 border-2 border-accent-200 rounded-full">{row.us}</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-10 py-5 text-center">
-                                                    {row.others === false ? (
-                                                        <div className="w-8 h-8 bg-surface-100 text-surface-300 rounded-lg flex items-center justify-center mx-auto border-2 border-surface-200">
-                                                            <X weight="bold" className="size-4" />
-                                                        </div>
-                                                    ) : (
-                                                        <span className="font-black text-[10px] text-surface-400 bg-surface-50 px-3 py-1 border-2 border-surface-200 rounded-full">{row.others}</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="bg-accent-500 border-t-4 border-surface-900 px-10 py-6 text-center">
-                                <p className="font-black uppercase text-base text-surface-900 tracking-tight">Focus on what matters. Let Plan Pilot handle the rest. 🦉</p>
-                            </div>
+                            <h4 className="font-black uppercase text-xl text-surface-900 mb-2 tracking-tighter">Student Discount</h4>
+                            <p className="text-surface-700 font-bold mb-6 text-sm">
+                                Verify your .edu email during checkout to unlock Plan Pilot Pro for just <strong className="text-surface-900 font-black">$4.99/mo</strong>.
+                            </p>
+                            <Link href="/signup?student=true" className="inline-block border-2 border-surface-900 bg-white text-surface-900 font-black uppercase text-xs tracking-widest px-6 py-3 rounded-xl hover:bg-surface-100 transition-colors shadow-[4px_4px_0_0_var(--surface-900)] active:translate-y-1 active:shadow-none">
+                                Claim Student Rate
+                            </Link>
                         </motion.div>
                     )}
                 </AnimatePresence>

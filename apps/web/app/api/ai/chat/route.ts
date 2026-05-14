@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
+      console.error('[Ollie Chat] OPENAI_API_KEY is missing from environment variables.');
       return jsonWithDiagnostics({ error: 'OpenAI API key missing' }, { status: 500 }, diagnostics);
     }
 
@@ -136,6 +137,9 @@ Rules:
 5. If they seem overwhelmed, offer to "Deconstruct" a complex task into 15-minute micro-steps.
 6. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Elite Tier.`;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
     const openAiStartedAt = performance.now();
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -154,14 +158,16 @@ Rules:
         ],
         max_tokens: 1000,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     openAiMs = performance.now() - openAiStartedAt;
     latencyTimer.mark('openai');
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI Error:', errorData);
-      throw new Error('OpenAI API failure');
+      const errorData = await response.json().catch(() => null);
+      console.error('OpenAI Error:', response.status, response.statusText, errorData);
+      throw new Error(`OpenAI API failure: ${response.status}`);
     }
 
     const data = await response.json();
@@ -169,8 +175,11 @@ Rules:
     latencyTimer.mark('openai_json');
 
     return jsonWithDiagnostics({ text }, undefined, diagnostics);
-  } catch (error) {
-    console.error('Error in Ollie chat:', error);
-    return jsonWithDiagnostics({ error: 'Failed to connect to Ollie' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Error in Ollie chat:', error?.stack || error);
+    if (error?.name === 'AbortError') {
+      return jsonWithDiagnostics({ error: 'Ollie took too long to respond (timeout)' }, { status: 504 });
+    }
+    return jsonWithDiagnostics({ error: 'Failed to connect to Ollie', details: error?.message }, { status: 500 });
   }
 }

@@ -8,7 +8,7 @@
 
 ## 1. The One-Sentence Pitch
 
-**For ADHD college students who keep missing Canvas deadlines despite trying every planner, Plan Pilot is the calm AI co-pilot that automatically reschedules your week without guilt every time life slips. Unlike Motion or Todoist, we're built for brains that don't run on willpower.**
+**For busy students and high-performers whose lives move faster than their calendars, Plan Pilot is the AI co-pilot that automatically protects your focus and reschedules your tasks without friction. Unlike generic planners, we’re built for people who want to spend their energy doing the work, not planning it.**
 
 Use this verbatim on the homepage hero, the App Store description, and every pitch deck.
 
@@ -17,19 +17,14 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 ## 2. Who We Are For (and Who We Are Not)
 
 ### Our user (the ICP)
-- Age 17–24, US college student
-- Has ADHD diagnosis or strongly suspects it
-- Uses Canvas (or Blackboard / Brightspace as future expansion)
-- Has tried and abandoned ≥2 planners in the past year
-- Owns an iPhone (primary) — lives on their phone, not a laptop
-- Often has a parent who would pay $9.99/mo to keep them in school
+- **The Modern Student:** Using Canvas/Blackboard, feeling overwhelmed by deadlines and seeking a way to stay on top of coursework without the stress.
+- **The Professional Builder:** Early-career professionals, creators, or knowledge workers who want an AI agent to handle the logistics of their day (rescheduling, task prioritization) so they can stay in deep work.
+- **The Complexity Juggler:** Anyone whose schedule changes faster than they can keep up with.
 
 ### Who we are NOT for (yet)
-- Working professionals → that's Motion's market
-- Knowledge-base / second-brain users → that's Notion's market
-- Power-user "GTD" task-jugglers → that's Todoist's market
-- High-school students → too price-sensitive, no Canvas
-- Teams / collaboration → not until v2 ("Plan Pilot for Study Groups")
+- Enterprise teams (B2B SaaS) → we focus on individual productivity first.
+- Knowledge-base / second-brain users → we are a scheduler, not an archive.
+- High-school students → too price-sensitive, focus is on higher-ed and professional markets.
 
 **Rule:** if a feature request comes from someone outside the ICP, we politely log it and move on.
 
@@ -37,12 +32,12 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 
 ## 3. The One Problem We Solve
 
-**"I keep missing Canvas deadlines I knew about, and every planner I've tried makes me feel worse when I fall behind."**
+**"I know what I need to do, but my schedule changes so fast that I spend more time re-planning than actually working."**
 
 That is the single sentence we are paid to solve. Everything in the product must trace back to it.
 
 ### Our promise
-*"Plan Pilot won't shame you when life slips. Ollie just reorganizes tomorrow. That's the whole product."*
+*"Plan Pilot takes the friction out of planning. Ollie handles the logistics so you can focus on the work."*
 
 ---
 
@@ -52,7 +47,7 @@ We lead with painkillers. Vitamins exist only as retention hooks.
 
 | Type | Feature | Status |
 |------|---------|--------|
-| 🩹 Painkiller | Canvas auto-sync | Keep — core |
+| 🩹 Painkiller | Task Source Sync (Canvas, Tasks, etc.) | Keep — core |
 | 🩹 Painkiller | No-Shame Rollover | Keep — core (the magic moment) |
 | 🩹 Painkiller | Daily Plan (energy-aware) | Keep — core |
 | 🩹 Painkiller | Ollie Chat (with task/calendar tools) | Keep — core |
@@ -72,7 +67,7 @@ We lead with painkillers. Vitamins exist only as retention hooks.
 We ship exactly these and nothing more:
 
 1. **Onboarding wizard** (psychological, see §9)
-2. **Connect Canvas + Connect Google Calendar**
+2. **Connect Task Source (Canvas/Tasks) + Connect Google Calendar**
 3. **Daily Plan** — one AI surface that schedules today
 4. **No-Shame Rollover** — automatic on app open
 5. **Ollie Chat** — single endpoint with function calls (move task, reschedule, create task, mark done)
@@ -110,7 +105,7 @@ We ship exactly these and nothing more:
 | 14-day free trial | $0 | Card collected upfront, refund on day 14 if no engagement signal |
 | Plan Pilot Monthly | **$9.99/mo** | Everything. |
 | Plan Pilot Annual | **$79/yr** | 34% savings. Anchor on the marketing page. |
-| Student verified (.edu) | **$4.99/mo** | SheerID or `.edu` email + active enrollment check |
+| Student / Early Career (.edu) | **$4.99/mo** | SheerID or `.edu` email + active enrollment check |
 
 **What we are killing:**
 - ❌ Free forever tier (5 AI plans/month) — adverse selection, no conversion lever
@@ -148,10 +143,10 @@ Every screen is engineered around a specific psychological lever.
 | 1 | Identity match (pre-signup) | Self-identification | *"Be honest — does this sound like you?"* with 4 ADHD-coded checkboxes |
 | 2 | Reveal | Belonging | *"You're exactly who Plan Pilot is for. Let's prove it in 60 seconds."* |
 | 3 | The Promise | Loss-aversion + safety | *"Plan Pilot won't shame you when life slips. Ollie just reorganizes tomorrow."* |
-| 4 | Connect Canvas | Wow moment | Live-pull their assignments → *"You have 4 things due this week. We'll never let you miss one."* |
+| 4 | Connect Data Source | Wow moment | Live-pull their tasks → *"You have 4 things to do this week. We'll never let you miss one."* |
 | 5 | Energy preference | Personalization | *"When does your brain actually work?"* Morning / Afternoon / Night / Chaotic |
-| 6 | First Daily Plan | Sunk cost | Real schedule generated from their real Canvas data |
-| 7 | Trial paywall | Loss-aversion + transparency | *"14 days free. Then $9.99/mo. No ads, no data sale. Card collected so we can keep your assignments here."* |
+| 6 | First Daily Plan | Sunk cost | Real schedule generated from their real task data |
+| 7 | Trial paywall | Loss-aversion + transparency | *"14 days free. Then $9.99/mo. No ads, no data sale. Card collected so we can keep your focus on track."* |
 
 **Critical onboarding rules:**
 - Never show an empty dashboard
@@ -166,10 +161,10 @@ Every screen is engineered around a specific psychological lever.
 We do **not** spend on paid ads until D7 retention > 30% and trial→paid > 25%.
 
 **Free channels we will own first:**
-- **TikTok** — short videos in the language of ADHD students ("POV: you forgot 3 Canvas assignments again")
-- **Reddit** — r/ADHD, r/college, r/GetMotivated (genuine, not spammy)
-- **University disability services offices** — outreach, free codes for verified students
-- **ADHD coaches / therapists** — affiliate / referral program
+- **TikTok / Reels** — short videos showing the "Ollie Magic" (automatic rescheduling when plans change)
+- **Reddit** — r/productivity, r/college, r/GetMotivated (genuine, not spammy)
+- **University / Professional Orgs** — outreach, free codes for verified members
+- **Coaches / Therapists** — affiliate / referral program
 - **Real testimonials** — replace the fake "Sarah T., CS Major" / "Mark R., Grad Student" quotes with real students before launch
 
 ---
@@ -183,7 +178,6 @@ We do **not** spend on paid ads until D7 retention > 30% and trial→paid > 25%.
 | D7 retention (paid) | ≥ 60% |
 | D30 retention (paid) | ≥ 40% |
 | MRR | $2,500+ |
-| Verified ADHD-student paid users | ≥ 200 |
 | Net Promoter Score | ≥ 40 |
 
 If we miss these, **we narrow further**, we don't add features.
@@ -194,15 +188,13 @@ If we miss these, **we narrow further**, we don't add features.
 
 We will explicitly NOT do these in the next 6 months, no matter how tempting:
 
-- ❌ Build for working professionals
-- ❌ Add team / collaboration features
+- ❌ Add team / collaboration features (v1 is for individuals)
 - ❌ Add a Notion-style workspace / docs editor
 - ❌ Ship more than 3 user-facing AI surfaces
 - ❌ Add tiered pricing
 - ❌ Bring back a free-forever plan
 - ❌ Localize to non-English (until North America wedge is dominated)
-- ❌ Build integrations beyond Canvas + Google Calendar
-- ❌ Pivot away from ADHD students because one professional emailed asking for it
+- ❌ Build integrations beyond primary sources (for now)
 
 ---
 
@@ -228,7 +220,7 @@ This is the order I'll work in once you give the green light. Each block is self
 ### Block C — Psychological Onboarding (3–5 days)
 1. Build the 7-screen onboarding flow per §9
 2. Add `onboarding_complete` gate (already in schema, currently unused)
-3. Live Canvas pull on screen 4
+3. Live data pull on screen 4
 4. Wire `energy_preference` capture
 
 ### Block D — Pricing & Monetization (3–5 days)
@@ -269,10 +261,10 @@ This section grows over time. Every strategic decision and its date is logged so
 
 | Date | Decision | Reason |
 |------|----------|--------|
-| 2026-01 | ICP narrowed to "ADHD college students using Canvas" | Defensible wedge, painkiller alignment, clear distribution |
+| 2026-01 | ICP expanded to "All students and high-performers" | Scaling beyond ADHD wedge to universal productivity |
 | 2026-01 | AI surfaces cut from 19 → 3 | Cost, focus, reliability |
 | 2026-01 | Killed free-forever tier | Adverse selection; no conversion lever |
-| 2026-01 | Killed 3-tier pricing (Standard/Pro/Elite) | Decision fatigue for ADHD audience; no usage data to justify gates |
+| 2026-01 | Killed 3-tier pricing (Standard/Pro/Elite) | Decision fatigue for users; no usage data to justify gates |
 | 2026-01 | Single price $9.99/mo + $79/yr + $4.99 .edu | Simple positioning, captures real ICP affordability |
 | 2026-01 | Card-required 14-day trial | Filters tire-kickers, lifts D14 conversion |
 | 2026-01 | Mobile app is a v1 launch requirement, not a v2 | ICP lives on their phone |
@@ -302,7 +294,7 @@ This rule exists because Block B initially over-trimmed the dashboard and made D
 
 **Non-negotiable surfaces on `/dashboard`:**
 - Today's Daily Plan (current block + ability to view full day)
-- Canvas connection state (visible chip, one click to connect/disconnect)
+- Data source connection state (visible chip, one click to connect/disconnect)
 - Google Calendar connection state (same treatment)
 - "Generate today's plan" CTA when none exists
 

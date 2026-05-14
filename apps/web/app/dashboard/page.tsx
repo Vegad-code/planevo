@@ -315,12 +315,22 @@ export default function DashboardPage() {
         }),
       });
 
-      if (!response.ok) throw new Error('Ollie is overthinking...');
+      if (!response.ok) {
+        let errorMessage = 'Ollie is overthinking...';
+        try {
+          const errorData = await response.json();
+          if (errorData.message) errorMessage = errorData.message;
+          else if (errorData.error) errorMessage = typeof errorData.error === 'string' ? errorData.error : 'Ollie is overthinking...';
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
       return data.text;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ollie chat error:', error);
-      toast.error("Ollie had a hiccup. Try again?");
+      toast.error(error.message && error.message !== 'Ollie is overthinking...' ? error.message : "Ollie had a hiccup. Try again?");
       return "Sorry, I lost my train of thought. Could you say that again?";
     } finally {
       setGenerating(false);
