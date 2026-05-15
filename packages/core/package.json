@@ -5,6 +5,7 @@
   "types": "src/index.ts",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "typescript": "^5"
   }
 }
