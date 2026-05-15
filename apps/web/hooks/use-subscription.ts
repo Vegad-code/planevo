@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { PlanType } from '@/lib/stripe';
 
+const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
+
 interface SubscriptionState {
   planType: PlanType;
   subscriptionStatus: string;
@@ -39,7 +41,7 @@ export function useSubscription(): SubscriptionState {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile } = await (supabase as any)
         .from('users')
         .select('plan_type, subscription_status, trial_end')
         .eq('id', user.id)
@@ -47,16 +49,21 @@ export function useSubscription(): SubscriptionState {
 
       if (profile) {
         const planType = (profile.plan_type || 'free') as PlanType;
-        const isActive = ['pro_monthly', 'pro_annual'].includes(planType);
-        const isTrialing = planType === 'trialing';
+        const isOwner = user.email === OWNER_EMAIL;
+        
+        // Only the owner can be 'admin'
+        const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' : planType;
+        
+        const isActive = ['pro_monthly', 'pro_annual', 'premium'].includes(effectivePlan) || (effectivePlan === 'admin' && isOwner);
+        const isTrialing = effectivePlan === 'trialing';
 
         setState({
-          planType,
+          planType: effectivePlan,
           subscriptionStatus: profile.subscription_status || 'none',
           trialEnd: profile.trial_end,
           isActive: isActive || isTrialing,
           isTrialing,
-          isFree: planType === 'free',
+          isFree: effectivePlan === 'free',
           loading: false,
         });
       } else {

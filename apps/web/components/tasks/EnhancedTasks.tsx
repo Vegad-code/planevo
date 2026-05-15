@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import type { Task, BestTimeOfDay, EnergyLevel } from '@/types/database';
+import type { Task, BestTimeOfDay, EnergyLevel } from '@/types/tasks';
 import { useTaskGroups } from '@/hooks/useTaskGroups';
 import { useTaskAI } from '@/hooks/useTaskAI';
 import { useTaskActions } from '@/hooks/useTaskActions';
@@ -53,7 +53,16 @@ export default function EnhancedTasks() {
     fetchTasks();
   }, [invalidateCache, fetchTasks]);
 
-  const { saving, addTask, toggleComplete, deleteTask, doReschedule, moveToWaiting, breakDownTask, startFresh } = useTaskActions(handleRefresh);
+  const { 
+    saving, 
+    addTask, 
+    toggleComplete, 
+    deleteTask, 
+    rescheduleTask: doReschedule, 
+    moveToWaiting, 
+    breakDownTask, 
+    startFresh 
+  } = useTaskActions(handleRefresh);
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);

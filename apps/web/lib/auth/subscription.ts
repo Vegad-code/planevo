@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 
-export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled';
+export const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
+
+export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled' | 'admin';
 
 export async function getUserPlan() {
   const supabase = await createClient();
@@ -20,10 +22,15 @@ export async function getUserPlan() {
     return { plan: 'free' as PlanType, user, error: 'Profile not found' };
   }
 
+  const rawPlan = profile.plan_type as PlanType;
+  const isOwner = user.email === OWNER_EMAIL;
+  const plan = (rawPlan === 'admin' && !isOwner) ? 'free' : rawPlan;
+
   return { 
-    plan: profile.plan_type as PlanType, 
+    plan, 
     user, 
-    isPremium: profile.plan_type === 'premium' || profile.plan_type === 'trialing',
-    isTrialing: profile.plan_type === 'trialing'
+    isPremium: plan === 'premium' || plan === 'trialing' || (plan === 'admin' && isOwner),
+    isTrialing: plan === 'trialing',
+    isAdmin: plan === 'admin' && isOwner
   };
 }

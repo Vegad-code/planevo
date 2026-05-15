@@ -109,7 +109,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     // Deduplicate by ID
     const uniqueItemsMap = new Map();
     for (const item of combinedItems) {
-      const target = item.assignment || item;
+      const target = (item.assignment || item) as any;
       if (target && target.id) {
         uniqueItemsMap.set(target.id, target);
       }
@@ -118,7 +118,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     
     // Filter out irrelevant staff events from the school district
     const clutterKeywords = ['support professionals', 'administrators', 'licensed employees', 'staff development day - no school'];
-    const filteredItems = uniqueItems.filter((target: Record<string, unknown>) => {
+    const filteredItems = uniqueItems.filter((target: any) => {
       const title = (target.title || target.name || '').toLowerCase();
       // Always keep events explicitly meant for students
       if (title.includes('no school students')) return true;
@@ -134,7 +134,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
     });
     
     // Map them to our standard format and categorize
-    const mappedItems = filteredItems.map((target: Record<string, unknown>) => {
+    const mappedItems = filteredItems.map((target: any) => {
       let itemType: 'assignment' | 'milestone' | 'event' = 'event';
       const title = (target.title || target.name || '').toLowerCase();
       

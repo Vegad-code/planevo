@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { TaskGroup as TaskGroupType, Task } from '@/types/database';
+import type { TaskGroup as TaskGroupType, Task } from '@/types/tasks';
 import TaskCard from './TaskCard';
 
 // Group icon mapping

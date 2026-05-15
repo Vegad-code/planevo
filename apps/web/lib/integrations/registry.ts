@@ -34,33 +34,64 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     requiresConfig: true,
     premiumOnly: false
   },
+  // ARCHIVED FOR NOW
+  // {
+  //   id: 'github',
+  //   name: 'GitHub',
+  //   category: 'Professional',
+  //   description: 'Sync PRs, issues, and daily commit activity via N8N Signal.',
+  //   icon: 'GithubLogo',
+  //   status: 'disconnected',
+  //   requiresConfig: true,
+  //   premiumOnly: true
+  // },
+  // {
+  //   id: 'jira',
+  //   name: 'Jira',
+  //   category: 'Professional',
+  //   description: 'Sync sprint tasks and issue assignments via N8N Signal.',
+  //   icon: 'Kanban',
+  //   status: 'disconnected',
+  //   requiresConfig: true,
+  //   premiumOnly: true
+  // },
+  // {
+  //   id: 'n8n',
+  //   name: 'N8N Signal Link',
+  //   category: 'Automation',
+  //   description: 'Generate your tactical token to pipe external data into Ollie.',
+  //   icon: 'Lightning',
+  //   status: 'connected',
+  //   requiresConfig: true,
+  //   premiumOnly: true
+  // },
   {
-    id: 'github',
-    name: 'GitHub',
+    id: 'notion',
+    name: 'Notion',
     category: 'Professional',
-    description: 'Sync PRs, issues, and daily commit activity via N8N Signal.',
-    icon: 'GithubLogo',
-    status: 'disconnected',
+    description: 'Sync your Notion databases, tasks, and notes.',
+    icon: 'Notebook',
+    status: 'coming_soon',
     requiresConfig: true,
     premiumOnly: true
   },
   {
-    id: 'jira',
-    name: 'Jira',
+    id: 'slack',
+    name: 'Slack',
     category: 'Professional',
-    description: 'Sync sprint tasks and issue assignments via N8N Signal.',
+    description: 'Sync important messages and channel actions.',
+    icon: 'Hash',
+    status: 'coming_soon',
+    requiresConfig: true,
+    premiumOnly: true
+  },
+  {
+    id: 'monday',
+    name: 'Monday.com',
+    category: 'Professional',
+    description: 'Sync boards, tasks, and project deadlines.',
     icon: 'Kanban',
-    status: 'disconnected',
-    requiresConfig: true,
-    premiumOnly: true
-  },
-  {
-    id: 'n8n',
-    name: 'N8N Signal Link',
-    category: 'Automation',
-    description: 'Generate your tactical token to pipe external data into Ollie.',
-    icon: 'Lightning',
-    status: 'connected',
+    status: 'coming_soon',
     requiresConfig: true,
     premiumOnly: true
   }

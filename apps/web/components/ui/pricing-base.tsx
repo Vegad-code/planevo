@@ -12,7 +12,7 @@ const fadeInUp = {
   initial: { opacity: 0, y: 30 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true },
-  transition: { duration: 0.6, ease: "easeOut" }
+  transition: { duration: 0.6, ease: "easeOut" as any }
 };
 
 export default function Pricing() {
@@ -67,14 +67,14 @@ export default function Pricing() {
                     className="mx-auto max-w-2xl space-y-6 text-center mb-16"
                     {...fadeInUp}
                 >
-                    <div className="inline-flex items-center gap-2 bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
+                    <div className="inline-flex items-center gap-2 bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-accent-700 rounded-full text-meta">
                         <Lightning weight="fill" className="size-3" />
                         One Membership
                     </div>
-                    <h2 className="text-4xl font-black lg:text-7xl text-surface-900 uppercase tracking-tighter leading-none">
+                    <h2 className="text-h2 text-surface-900 leading-none">
                         Everything you need.<br />One simple price.
                     </h2>
-                    <p className="text-surface-600 text-xl font-bold leading-relaxed">
+                    <p className="text-body text-surface-600">
                         No confusing tiers. No hidden limits. Just a clear path to a calmer academic life.
                     </p>
                 </motion.div>
@@ -95,33 +95,34 @@ export default function Pricing() {
                     className="flex justify-center mb-12"
                     {...fadeInUp}
                 >
-                    <div className="relative inline-flex items-center p-1 bg-surface-100 border-4 border-surface-900 rounded-full shadow-[6px_6px_0_0_var(--surface-900)]">
+                    <div className="relative inline-flex items-center p-1 bg-surface-100 border-4 border-surface-900 rounded-full shadow-[6px_6px_0_0_var(--surface-900)] w-full max-w-sm">
                         <button
                             onClick={() => setIsAnnual(false)}
-                            className={`relative px-8 py-3 text-sm font-black uppercase tracking-widest rounded-full transition-colors z-10 ${
-                                !isAnnual ? 'text-surface-100' : 'text-surface-500 hover:text-surface-900'
+                            className={`relative flex-1 py-3 transition-colors z-10 text-meta ${
+                                !isAnnual ? 'text-white' : 'text-surface-500 hover:text-surface-900'
                             }`}
                         >
                             Monthly
                         </button>
                         <button
                             onClick={() => setIsAnnual(true)}
-                            className={`relative px-8 py-3 text-sm font-black uppercase tracking-widest rounded-full transition-colors z-10 flex items-center gap-2 ${
-                                isAnnual ? 'text-surface-100' : 'text-surface-500 hover:text-surface-900'
+                            className={`relative flex-1 py-3 transition-colors z-10 flex items-center justify-center gap-2 text-meta ${
+                                isAnnual ? 'text-white' : 'text-surface-500 hover:text-surface-900'
                             }`}
                         >
                             Annual
-                            <span className={`px-2 py-0.5 text-[10px] rounded-full ${isAnnual ? 'bg-surface-100 text-surface-900' : 'bg-success text-white'}`}>Save 34%</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full transition-colors ${isAnnual ? 'bg-white/20 text-white' : 'bg-success text-white'}`}>Save 34%</span>
                         </button>
-
+                        
                         {/* Active Pill Animation */}
                         <motion.div
-                            className="absolute top-1 bottom-1 w-1/2 bg-surface-900 rounded-full z-0"
+                            className="absolute top-1 bottom-1 bg-surface-900 rounded-full z-0"
+                            initial={false}
                             animate={{ 
                                 left: isAnnual ? '50%' : '4px',
-                                width: isAnnual ? 'calc(50% - 4px)' : 'calc(50% - 4px)'
+                                right: isAnnual ? '4px' : '50%',
                             }}
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 35 }}
                         />
                     </div>
                 </motion.div>
@@ -130,40 +131,39 @@ export default function Pricing() {
                 <motion.div 
                     className="max-w-2xl mx-auto relative flex flex-col md:flex-row border-4 border-surface-900 rounded-[2rem] overflow-hidden bg-white shadow-[12px_12px_0_0_var(--accent-500)]"
                     variants={fadeInUp}
-                    whileHover={{ y: -5, shadow: "16px 16px 0 0 var(--accent-500)" }}
+                    whileHover={{ y: -5, boxShadow: "16px 16px 0 0 var(--accent-500)" }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                     {/* Left Side - Price & CTA */}
                     <div className="p-10 md:w-1/2 bg-surface-50 border-b-4 md:border-b-0 md:border-r-4 border-surface-900 flex flex-col justify-center">
                         <div className="mb-2">
-                            <span className="text-surface-900 font-black tracking-widest text-sm uppercase">Plan Pilot Pro</span>
+                            <span className="text-surface-900 text-meta">Plan Pilot Pro</span>
                         </div>
                         
-                        <div className="mb-6 min-h-[5rem]">
+                        <div className="mb-8 min-h-[6rem]">
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={isAnnual ? 'annual' : 'monthly'}
-                                    initial={{ opacity: 0, y: -20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 20 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex items-end gap-2"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="flex items-baseline gap-1"
                                 >
                                     <span className="text-7xl font-black tracking-tighter text-surface-900">
-                                        ${isAnnual ? '79' : '9.99'}
+                                        ${isAnnual ? '6.58' : '9.99'}
                                     </span>
-                                    <span className="text-xl font-bold text-surface-500 mb-2">
-                                        / {isAnnual ? 'yr' : 'mo'}
+                                    <span className="text-xl font-bold text-surface-500">
+                                        /mo
                                     </span>
                                 </motion.div>
                             </AnimatePresence>
                             {isAnnual && (
                                 <motion.p 
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="text-success font-black text-sm uppercase tracking-widest mt-1"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-success text-meta mt-2"
                                 >
-                                    Billed annually ($6.58/mo)
+                                    Billed annually at $79/year
                                 </motion.p>
                             )}
                         </div>
@@ -173,15 +173,15 @@ export default function Pricing() {
                                 <button
                                     onClick={handleCheckout}
                                     disabled={isCheckoutLoading}
-                                    className="flex items-center justify-center gap-2 w-full py-5 text-sm font-black uppercase tracking-[0.15em] border-4 transition-all rounded-2xl bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[4px_4px_0_0_var(--surface-900)] active:translate-y-1 active:shadow-none disabled:opacity-50"
+                                    className="flex items-center justify-center gap-2 w-full py-6 border-4 transition-all rounded-[1.5rem] bg-accent-500 text-surface-900 border-surface-900 hover:bg-accent-400 shadow-[8px_8px_0_0_var(--surface-900)] active:translate-y-1 active:shadow-none disabled:opacity-50 text-sm font-black uppercase tracking-widest px-4"
                                 >
                                     {isCheckoutLoading ? (
-                                        <CircleNotch weight="bold" className="size-5 animate-spin" />
+                                        <CircleNotch weight="bold" className="size-6 animate-spin" />
                                     ) : (
                                         'Start 14-Day Free Trial'
                                     )}
                                 </button>
-                                <p className="text-center text-xs font-bold text-surface-500 uppercase tracking-widest">
+                                <p className="text-center text-surface-900 font-bold text-xs uppercase tracking-tight">
                                     Card required. Cancel anytime.
                                 </p>
                             </div>
@@ -194,12 +194,12 @@ export default function Pricing() {
 
                     {/* Right Side - Features */}
                     <div className="p-10 md:w-1/2 bg-white flex flex-col justify-center">
-                        <p className="text-sm font-black uppercase mb-8 tracking-widest text-surface-400">Everything Included</p>
+                        <p className="mb-8 text-surface-400 text-meta">Everything Included</p>
                         <ul className="space-y-5">
                             {features.map((feature, index) => (
                                 <motion.li 
                                     key={index} 
-                                    className="flex items-start gap-3 text-sm font-black uppercase tracking-tight"
+                                    className="flex items-start gap-3 text-meta"
                                     initial={{ opacity: 0, x: -10 }}
                                     whileInView={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.05 }}

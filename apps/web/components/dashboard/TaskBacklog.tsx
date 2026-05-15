@@ -7,7 +7,7 @@ import {
   Package, ChevronDown, ChevronUp, Clock, 
   ArrowRight, GripVertical, ExternalLink
 } from 'lucide-react';
-import type { Task } from '@/types/database';
+import { type Task } from '@/types/tasks';
 
 interface TaskBacklogProps {
   onScheduleAll: (tasks: Task[]) => void;
@@ -29,17 +29,17 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
     <motion.div
       ref={ref}
       draggable
-      onDragStart={(e: React.DragEvent) => {
+      onDragStart={((e: React.DragEvent) => {
         // We set the drag data to the task JSON so the drop target knows what task it is
         e.dataTransfer.setData('application/json', JSON.stringify(task));
         e.dataTransfer.effectAllowed = 'move';
         
         // Optional: create a drag image or just rely on default element dragging
-        e.currentTarget.style.opacity = '0.5';
-      }}
-      onDragEnd={(e: React.DragEvent) => {
-        e.currentTarget.style.opacity = '1';
-      }}
+        (e.currentTarget as any).style.opacity = '0.5';
+      }) as any}
+      onDragEnd={((e: React.DragEvent) => {
+        (e.currentTarget as any).style.opacity = '1';
+      }) as any}
       initial={{ scale: 0.95, opacity: 0, y: 8 }}
       animate={inView ? { scale: 1, opacity: 1, y: 0 } : { scale: 0.95, opacity: 0, y: 8 }}
       transition={{ duration: 0.15, delay: Math.min(index * 0.02, 0.15) }}
@@ -48,7 +48,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
       <GripVertical className="w-4 h-4 text-surface-300 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-black uppercase tracking-tight text-surface-900 truncate">
+        <h4 className="text-sm font-display font-bold text-surface-900 truncate">
           {task.title}
         </h4>
         <div className="flex items-center gap-2 mt-1">
@@ -58,7 +58,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
               {task.estimated_minutes}m
             </span>
           )}
-          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full border ${energyColor}`}>
+          <span className={`text-meta px-1.5 py-0.5 rounded-full border ${energyColor}`}>
             {task.energy_level_required || 'med'}
           </span>
           {task.due_date && (
@@ -71,8 +71,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
               href={task.external_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-600 hover:text-brand-700 transition-colors ml-auto"
-              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-[10px] font-bold text-surface-400 hover:text-surface-900 bg-surface-50 px-1.5 py-0.5 rounded-full border border-surface-100 transition-colors"
             >
               <ExternalLink className="w-3 h-3" />
               Source
@@ -147,18 +146,18 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
             <Package className="w-5 h-5 text-white" />
           </div>
           <div className="text-left">
-            <h3 className="text-sm font-black text-surface-900 uppercase tracking-widest">
+            <h3 className="font-display font-bold text-surface-900">
               Task Backlog
             </h3>
-            <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wide">
-              {unscheduledCount} task{unscheduledCount !== 1 ? 's' : ''} waiting to be scheduled
+            <p className="text-meta">
+              {unscheduledCount} task{unscheduledCount !== 1 ? 's' : ''} waiting
             </p>
           </div>
         </div>
         
         <div className="flex items-center gap-3">
           {unscheduledCount > 0 && (
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-600 text-white text-[10px] font-black">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-600 text-white text-meta">
               {unscheduledCount}
             </span>
           )}
@@ -210,7 +209,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
                 <button
                   onClick={handleScheduleAll}
                   disabled={isProcessing}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-surface-900 hover:bg-surface-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-surface-900 hover:bg-surface-800 text-white rounded-2xl text-meta transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Clock className="w-4 h-4" />
                   {isProcessing ? 'Scheduling...' : `Schedule All (${unscheduledCount})`}

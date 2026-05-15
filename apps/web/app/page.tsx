@@ -14,7 +14,7 @@ const fadeInUp = {
   initial: { opacity: 0, y: 30 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true },
-  transition: { duration: 0.6, ease: "easeOut" }
+  transition: { duration: 0.6, ease: "easeOut" as any }
 };
 
 const staggerContainer = {
@@ -40,13 +40,13 @@ export default function LandingPage() {
           className="max-w-4xl mx-auto px-6 text-center"
           {...fadeInUp}
         >
-          <div className="inline-flex items-center gap-2 bg-brand-300 text-surface-900 px-4 py-1.5 text-xs font-black uppercase tracking-widest mb-8 border-2 border-surface-900 shadow-[2px_2px_0_0_var(--surface-900)]">
+          <div className="text-meta bg-brand-300 px-4 py-1.5 mb-8 border-2 border-surface-900 shadow-[2px_2px_0_0_var(--surface-900)] inline-block">
             One Next Action
           </div>
-          <h2 className="text-4xl md:text-6xl font-black text-surface-900 mb-6 uppercase tracking-tighter leading-none">
+          <h2 className="text-h1 mb-6">
             Your brain wasn&apos;t built to store deadlines.
           </h2>
-          <p className="text-xl text-surface-600 mb-16 font-bold max-w-2xl mx-auto leading-relaxed">
+          <p className="text-body max-w-2xl mx-auto mb-16">
             The constant mental load of projects, deadlines, and daily tasks is what causes burnout. You don&apos;t need a passive database — you need a system that clarifies your next move.
           </p>
           <motion.div 
@@ -65,13 +65,13 @@ export default function LandingPage() {
                 key={i} 
                 className="bg-surface-100 p-8 border-2 border-surface-900 shadow-[6px_6px_0_0_var(--surface-900)] rounded-2xl group"
                 variants={fadeInUp}
-                whileHover={{ y: -10, shadow: "10px 10px 0 0 var(--surface-900)" }}
+                whileHover={{ y: -10, boxShadow: "10px 10px 0 0 var(--surface-900)" }}
               >
-                <div className="w-12 h-12 bg-surface-900 text-surface-100 flex items-center justify-center rounded-lg mb-6 group-hover:bg-accent-500 transition-colors">
+                <div className="w-12 h-12 bg-surface-900 text-surface-50 flex items-center justify-center rounded-xl mb-6 group-hover:bg-brand-500 transition-colors shadow-lg">
                   <span className="font-black text-lg">{i + 1}</span>
                 </div>
-                <h3 className="text-surface-900 font-black mb-3 uppercase tracking-tight">{item.title}</h3>
-                <p className="text-surface-600 text-sm leading-relaxed font-bold">{item.desc}</p>
+                <h3 className="text-2xl mb-3 font-display font-bold text-surface-900">{item.title}</h3>
+                <p className="text-surface-700 font-medium leading-relaxed">{item.desc}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -88,11 +88,11 @@ export default function LandingPage() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <div className="text-surface-900 font-black tracking-widest text-sm uppercase border-b-4 border-accent-500 inline-block pb-1">The Daily Plan</div>
-            <h2 className="text-4xl md:text-7xl font-black text-surface-900 leading-[0.9] uppercase tracking-tighter">
+            <div className="text-meta border-b-4 border-accent-500 inline-block pb-1">The Daily Plan</div>
+            <h2 className="text-h1 md:text-7xl">
               Less setup.<br /><span className="text-accent-500">More clarity.</span>
             </h2>
-            <p className="text-xl text-surface-600 leading-relaxed font-bold">
+            <p className="text-body">
               Plan Pilot brings Canvas, calendar, tasks, and projects into one Daily Plan. Stop staring at a list of 50 things and start focusing on the one that matters.
             </p>
             <ul className="space-y-6 pt-4">
@@ -103,7 +103,7 @@ export default function LandingPage() {
               ].map((feature, i) => (
                 <motion.li 
                   key={i} 
-                  className="flex items-center gap-4 text-surface-900 font-black uppercase tracking-tight group"
+                  className="flex items-center gap-4 text-surface-900 font-display font-bold group"
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 + (i * 0.1) }}
@@ -126,7 +126,7 @@ export default function LandingPage() {
             <div className="relative bg-surface-100 p-12 border-4 border-surface-900 shadow-[12px_12px_0_0_var(--surface-900)] flex flex-col items-center text-center rounded-[3rem] overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 via-accent-500 to-success" />
               <OllieAvatar mood="celebrating" size="xl" className="mb-8 scale-125" />
-              <h3 className="text-2xl font-black text-surface-900 mb-4 uppercase tracking-tighter">Status: Optimized.</h3>
+              <h3 className="text-xl mb-4 text-surface-900 text-meta">Status: Optimized.</h3>
               <p className="text-surface-600 font-bold leading-relaxed text-lg">
                 &quot;I&apos;ve brought in your new deadlines and meetings. Your Daily Plan is ready for today — organized to help you stay focused.&quot;
               </p>
@@ -146,8 +146,8 @@ export default function LandingPage() {
             className="text-center max-w-2xl mx-auto mb-20"
             {...fadeInUp}
           >
-            <h2 className="text-4xl md:text-6xl font-black text-surface-900 mb-6 uppercase tracking-tighter leading-none">The Heart of Your Day.</h2>
-            <p className="text-xl text-surface-600 font-bold">Features built to remove friction, not add to it.</p>
+            <h2 className="text-h1 mb-6">The Heart of Your Day.</h2>
+            <p className="text-body">Features built to remove friction, not add to it.</p>
           </motion.div>
           
           <motion.div 
@@ -172,11 +172,11 @@ export default function LandingPage() {
                 <div className={`w-16 h-16 border-2 border-surface-900 ${feature.color} flex items-center justify-center text-surface-900 mb-8 rounded-2xl group-hover:rotate-12 transition-transform`}>
                   <feature.icon weight="bold" className="w-8 h-8" />
                 </div>
-                <h3 className="text-2xl font-black text-surface-900 mb-4 uppercase tracking-tight">{feature.title}</h3>
+                <h3 className="text-xl mb-4 text-surface-900 font-display font-bold">{feature.title}</h3>
                 <p className="text-surface-600 font-bold leading-relaxed">
                   {feature.desc}
                 </p>
-                <div className="mt-8 flex items-center gap-2 text-surface-900 font-black text-sm uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="mt-8 flex items-center gap-2 text-surface-900 text-meta opacity-0 group-hover:opacity-100 transition-opacity">
                   Learn More <ArrowRight weight="bold" className="w-4 h-4" />
                 </div>
               </motion.div>
@@ -197,7 +197,7 @@ export default function LandingPage() {
             <div className="flex-1 w-full px-6 py-3 text-left">
               <span className="text-surface-900 font-bold truncate block font-mono">&quot;Launch my portfolio website by Friday&quot;</span>
             </div>
-            <Button size="lg" className="w-full md:w-auto uppercase font-black tracking-widest">
+            <Button size="lg" className="w-full md:w-auto text-meta">
               Ollie, Breakdown
             </Button>
           </div>
@@ -258,7 +258,7 @@ export default function LandingPage() {
                 <div className="w-20 h-20 bg-surface-900 text-surface-100 flex items-center justify-center text-3xl font-black mx-auto mb-8 rounded-2xl group-hover:bg-accent-500 transition-colors">
                   {item.step}
                 </div>
-                <h3 className="text-2xl font-black text-surface-900 mb-3 uppercase tracking-tight">{item.title}</h3>
+                <h3 className="text-xl mb-3 text-surface-900 font-display font-bold">{item.title}</h3>
                 <p className="text-surface-600 font-bold leading-relaxed">{item.desc}</p>
               </motion.div>
             ))}
@@ -279,10 +279,10 @@ export default function LandingPage() {
             className="max-w-3xl mx-auto px-6 relative z-10"
             {...fadeInUp}
         >
-          <h2 className="text-4xl md:text-7xl font-black text-surface-900 mb-8 uppercase tracking-tighter leading-none">
+          <h2 className="text-h1 mb-8 md:text-7xl">
             Take Back Your Brain.
           </h2>
-          <p className="text-2xl text-surface-900 font-bold mb-12 max-w-xl mx-auto">
+          <p className="text-narrative mb-12 max-w-xl mx-auto text-surface-900">
             Less setup than Notion. Less guilt than a to-do list. More guidance than a calendar.
           </p>
           <motion.div

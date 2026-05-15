@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [name, setName] = useState('');
   const [assignmentViewPreference, setAssignmentViewPreference] = useState('all');
   const [planType, setPlanType] = useState('free');
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const supabase = useMemo(() => createClient(), []);
@@ -20,7 +21,8 @@ export default function SettingsPage() {
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase
+        setUserEmail(user.email ?? null);
+        const { data } = await (supabase as any)
           .from('users')
           .select('name, plan_type, assignment_view_preference')
           .eq('id', user.id)
@@ -48,7 +50,7 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('users')
         .update({ 
           name: name,
@@ -67,14 +69,24 @@ export default function SettingsPage() {
     }
   };
 
+  const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
+  const isOwner = userEmail === OWNER_EMAIL;
+
   const getPlanDisplay = (type: string) => {
+    // Only the owner can see 'PREMIUM' for an 'admin' plan type
+    if (type === 'admin') {
+      return isOwner ? 'PREMIUM' : 'FREE';
+    }
+    
     switch (type) {
-      case 'elite': return 'ELITE';
-      case 'team': return 'TEAM';
-      case 'pro': return 'PRO';
-      default: return 'STANDARD';
+      case 'premium': return 'PREMIUM';
+      case 'trialing': return 'TRIAL';
+      case 'canceled': return 'CANCELED';
+      default: return 'FREE';
     }
   };
+
+  const isPremium = planType === 'premium' || planType === 'trialing' || (planType === 'admin' && isOwner);
 
   return (
     <div className="space-y-12 animate-fade-in text-foreground max-w-5xl mx-auto pb-20">
@@ -143,7 +155,7 @@ export default function SettingsPage() {
       <section className="glass p-8 border-2 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-900)]">
         <div className="flex items-center gap-3 border-b-2 border-surface-900 pb-4 mb-8">
           <Globe weight="fill" className="size-6 text-accent-600" />
-          <h2 className="text-2xl font-black uppercase">Academic Data Links</h2>
+          <h2 className="text-2xl font-black uppercase">Connected Sources</h2>
         </div>
         <Integrations />
       </section>
@@ -172,7 +184,7 @@ export default function SettingsPage() {
                     setAssignmentViewPreference(opt.id);
                     const { data: { user } } = await supabase.auth.getUser();
                     if (user) {
-                      await supabase.from('users').update({ assignment_view_preference: opt.id }).eq('id', user.id);
+                      await (supabase.from('users') as any).update({ assignment_view_preference: opt.id }).eq('id', user.id);
                     }
                   }}
                   className={`flex-1 min-w-[140px] p-6 border-2 transition-all text-left ${
@@ -212,17 +224,17 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-6">
             <div className="p-4 border-2 border-surface-700 bg-[#1a1a1a]">
               <span className="text-xs font-black uppercase text-accent-500">Current Tier</span>
-              <p className={`text-2xl font-black ${planType.toLowerCase() === 'elite' ? 'text-accent-400' : 'text-white'}`}>
+              <p className={`text-2xl font-black ${isPremium ? 'text-accent-400' : 'text-white'}`}>
                 {getPlanDisplay(planType)}
               </p>
             </div>
-            {planType.toLowerCase() !== 'elite' ? (
-              <button className="w-full py-4 bg-accent-500 hover:bg-accent-400 text-white font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_white] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
-                Upgrade to Elite
-              </button>
-            ) : (
+            {isPremium ? (
               <button className="w-full py-4 bg-white text-black font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
                 Manage Subscription
+              </button>
+            ) : (
+              <button className="w-full py-4 bg-accent-500 hover:bg-accent-400 text-white font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_white] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
+                Upgrade to Premium
               </button>
             )}
           </div>

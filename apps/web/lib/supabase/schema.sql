@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS public.user_ai_memory (
 -- ============================================================
 -- RPC: Check AI usage limit
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.can_user_use_ai(p_user_id UUID, p_limit INTEGER)
+CREATE OR REPLACE FUNCTION public.can_user_use_ai(p_user_id UUID, p_feature TEXT, p_limit INTEGER)
 RETURNS BOOLEAN AS $$
 DECLARE
   v_count INTEGER;
@@ -274,6 +274,7 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.ai_usage_logs
   WHERE user_id = p_user_id
+  AND feature = p_feature
   AND created_at > now() - interval '24 hours';
 
   RETURN v_count < p_limit;
@@ -298,6 +299,7 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.ai_usage_logs
   WHERE user_id = p_user_id
+  AND feature = p_feature
   AND created_at > now() - interval '24 hours';
 
   IF v_count >= p_limit THEN

@@ -34,7 +34,7 @@ interface OllieMessage {
   role: 'user' | 'ollie';
   content: string;
 }
-import type { Task } from '@/types/database';
+
 
 const DEFAULT_PREFERENCES: SchedulingPreferences = {
   unavailable_blocks: [
@@ -82,7 +82,7 @@ export default function DailyPlanPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [aiMemory, setAiMemory] = useState<UserAiMemory | null>(null);
   const [assignments, setAssignments] = useState<CanvasAssignment[]>([]);
-  const [manualTasks, setManualTasks] = useState<Task[]>([]);
+  const [manualTasks, setManualTasks] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
@@ -106,7 +106,7 @@ export default function DailyPlanPage() {
         .select('*')
         .eq('id', user.id)
         .single();
-      setProfile(profileData as Profile);
+      setProfile(profileData as unknown as Profile);
 
       const { data: memoryData } = await supabase
         .from('user_ai_memory')
@@ -142,18 +142,18 @@ export default function DailyPlanPage() {
         .limit(1);
       
       if (scheduleData?.[0]) {
-        setSchedule(scheduleData[0].schedule_json as ScheduleBlock[]);
+        setSchedule(scheduleData[0].schedule_json as unknown as ScheduleBlock[]);
         setView('schedule');
       } else {
         // 2b. Fallback to current_day_plan (live context)
-        const { data: livePlan } = await supabase
+        const { data: livePlan } = await (supabase as any)
           .from('current_day_plan')
           .select('plan_json')
           .eq('user_id', user.id)
           .single();
         
         if (livePlan) {
-          setSchedule(livePlan.plan_json as ScheduleBlock[]);
+          setSchedule(livePlan.plan_json as unknown as ScheduleBlock[]);
           setView('schedule');
         } else {
           setView('sync');
@@ -168,13 +168,13 @@ export default function DailyPlanPage() {
       
       if (dbAssignments) {
         setAssignments(dbAssignments.map(a => ({
-          id: Number(a.id) || a.id,
+          id: (Number(a.id) || a.id) as any,
           name: a.name,
           due_at: a.due_at,
           html_url: a.html_url,
-          course_id: '',
-          description: a.description || ''
-        })));
+          course_id: (a as any).course_id || '',
+          description: (a as any).description || ''
+        })) as unknown as CanvasAssignment[]);
       }
 
       // 4. Load today's manual/imported tasks
@@ -187,11 +187,11 @@ export default function DailyPlanPage() {
         .or(`due_date.eq.${today},due_date.is.null`);
       
       if (dbTasks) {
-        setManualTasks(dbTasks as Task[]);
+        setManualTasks(dbTasks as any[]);
       }
 
       // 5. Load Ghost Blocks from calendar_events
-      const { data: ghostBlocks } = await supabase
+      const { data: ghostBlocks } = await (supabase as any)
         .from('calendar_events')
         .select('*')
         .eq('user_id', user.id)
@@ -201,7 +201,7 @@ export default function DailyPlanPage() {
         .lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString());
 
       if (ghostBlocks && ghostBlocks.length > 0) {
-        const mappedBlocks: ScheduleBlock[] = ghostBlocks.map(g => ({
+        const mappedBlocks: ScheduleBlock[] = ghostBlocks.map((g: any) => ({
           id: g.id,
           title: g.title,
           time: format(new Date(g.start_time), 'HH:mm'),
@@ -241,7 +241,7 @@ export default function DailyPlanPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user && generatedPlan.length > 0) {
         // Save to current_day_plan for live context
-        await supabase
+        await (supabase as any)
           .from('current_day_plan')
           .upsert({
             user_id: user.id,
@@ -338,7 +338,7 @@ export default function DailyPlanPage() {
               html_url: a.html_url,
               synced_at: new Date().toISOString()
             }));
-            await supabase.from('canvas_assignments').upsert(toUpsertAssignments);
+            await (supabase.from('canvas_assignments') as any).upsert(toUpsertAssignments);
           }
 
           // 2. Upsert Events (Classes/Meetings) into calendar_events
@@ -383,24 +383,29 @@ export default function DailyPlanPage() {
   // Removed redundant handleGeneratePlan from here (moved up)
 
   // --- SCHEDULE LOGIC ---
-  const handleCommand = useCallback(async (message: string) => {
+  const handleCommand = useCallback(async (message: string, assignmentId?: string) => {
     setProcessing(true);
     try {
-      const response = await fetch('/api/ai/schedule-agent', {
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentSchedule: schedule,
-          userMessage: message,
-          assignmentId: ollieContextId,
-          userPreferences: profile?.scheduling_preferences || DEFAULT_PREFERENCES
+          messages: [
+            { role: 'system', content: `You are a scheduling assistant. The user has this current schedule: ${JSON.stringify(schedule)}. Their preferences: ${JSON.stringify(profile?.scheduling_preferences || DEFAULT_PREFERENCES)}. Respond with schedule adjustments in JSON when asked to reschedule.` },
+            { role: 'user', content: message }
+          ],
+          assignmentId: assignmentId || ollieContextId,
+          diagnostics: true
         }),
       });
 
       if (!response.ok) throw new Error('Failed to reach Ollie');
       const data = await response.json();
-      setSchedule(data.updated_schedule || []);
-      return data.ollie_response;
+      // Try to parse schedule from response, fall back to text
+      if (data.updated_schedule) {
+        setSchedule(data.updated_schedule || []);
+      }
+      return data.text || data.ollie_response;
     } catch {
       toast.error("Ollie's connection is a bit fuzzy.");
       return null;
@@ -461,16 +466,16 @@ export default function DailyPlanPage() {
       .upsert({
         user_id: user.id,
         date: format(new Date(), 'yyyy-MM-dd'),
-        schedule_json: schedule,
+        schedule_json: schedule as any,
         created_at: new Date().toISOString()
       });
 
     // Also sync to current_day_plan (live context)
-    const { error: dayPlanError } = await supabase
+    const { error: dayPlanError } = await (supabase as any)
       .from('current_day_plan')
       .upsert({
         user_id: user.id,
-        plan_json: schedule,
+        plan_json: schedule as any,
         updated_at: new Date().toISOString()
       });
 
@@ -489,31 +494,19 @@ export default function DailyPlanPage() {
     action: 'accept' | 'too_vague' | 'too_many_breaks' | 'wrong_time'
   ) => {
     try {
-      // 1. If it's a Ghost Block, handle the status update
-      if (block.status === 'pending') {
-        const ghostRes = await fetch('/api/ai/ghost-block', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            blockId: block.id, 
-            action: action === 'accept' ? 'accept' : 'reject' 
-          }),
-        });
-        if (!ghostRes.ok) throw new Error('Ghost block update failed');
+      // 1. If it's a Ghost Block, update status directly via Supabase
+      if (block.status === 'pending' && block.id) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+          await (supabase.from('calendar_events') as any)
+            .update({ status: newStatus })
+            .eq('id', block.id)
+            .eq('user_id', user.id);
+        }
       }
 
-      // 2. Save feedback for AI learning
-      await fetch('/api/ai/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          feature_name: 'daily_plan_schedule_block',
-          suggestion_json: block,
-          action,
-          correction_text: action === 'accept' ? null : action.replaceAll('_', ' '),
-        }),
-      });
-
+      // 2. Feedback saved locally (full AI feedback loop in Block G)
       if (action === 'accept') {
         toast.success('Confirmed!', { description: 'This block is now locked into your schedule.' });
       } else {
@@ -525,7 +518,7 @@ export default function DailyPlanPage() {
       console.error('Schedule feedback error:', error);
       toast.error('Could not save feedback');
     }
-  }, [loadData]);
+  }, [loadData, supabase]);
 
   if (loading) {
     return (

@@ -41,21 +41,21 @@ export default function LandingHeader() {
           >
             🦉
           </motion.div>
-          <span className="font-black text-surface-900 uppercase tracking-widest text-lg hidden sm:block">
+          <span className="font-display font-bold text-surface-900 text-lg hidden sm:block">
             Plan Pilot
           </span>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-10">
           {navLinks.map((link) => (
             <Link 
               key={link.name}
               href={link.href}
-              className="font-black text-sm uppercase tracking-widest text-surface-600 hover:text-surface-900 transition-colors relative group"
+              className="text-sm font-black text-surface-900 hover:text-brand-600 transition-colors relative group uppercase tracking-widest"
             >
               {link.name}
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-accent-500 transition-all group-hover:w-full" />
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-500 transition-all group-hover:w-full" />
             </Link>
           ))}
         </nav>
@@ -64,16 +64,16 @@ export default function LandingHeader() {
         <div className="hidden md:flex items-center gap-4">
           <Link 
             href="/login" 
-            className="font-black text-sm uppercase tracking-widest text-surface-900 hover:text-brand-500 transition-colors px-4 py-2"
+            className="text-sm font-black text-surface-900 hover:text-brand-600 transition-colors px-4 py-2 uppercase tracking-widest"
           >
             Sign In
           </Link>
           <Button 
-            className="font-black uppercase tracking-widest text-xs py-5 px-6 border-2 border-surface-900 shadow-[4px_4px_0px_0px_var(--surface-900)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            className="bg-surface-900 text-white text-sm font-black uppercase tracking-widest py-6 px-10 border-2 border-surface-900 shadow-[6px_6px_0px_0px_var(--brand-500)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
             asChild
           >
             <Link href="/signup">
-              Get Started <ArrowRight weight="bold" className="ml-2 w-4 h-4" />
+              Get Started <ArrowRight weight="bold" className="ml-2 w-5 h-5" />
             </Link>
           </Button>
         </div>

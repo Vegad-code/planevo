@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Task, TaskGroup, AITaskResponse } from '@/types/database';
+import type { Task, TaskGroup, AITaskResponse } from '@/types/tasks';
 
 /**
  * Groups tasks into smart categories using AI response data or a sensible fallback.
@@ -101,8 +101,8 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   // Sort by priority weight first
   const priorityWeight: Record<string, number> = { high: 0, medium: 1, low: 2 };
   const sorted = [...tasks].sort((a, b) => {
-    const pa = priorityWeight[a.priority] ?? 1;
-    const pb = priorityWeight[b.priority] ?? 1;
+    const pa = a.priority ? priorityWeight[a.priority] ?? 1 : 1;
+    const pb = b.priority ? priorityWeight[b.priority] ?? 1 : 1;
     if (pa !== pb) return pa - pb;
     // Then by due date (nulls last)
     if (a.due_date && b.due_date) return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();

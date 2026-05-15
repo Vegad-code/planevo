@@ -96,12 +96,14 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
   }
 
   // 2. Add Calendar Events
-  const fixedEvents = calendarEvents.map(event => ({
-    start: parseISO(event.start.dateTime || event.start.date),
-    end: parseISO(event.end.dateTime || event.end.date),
-    title: event.summary,
-    type: 'event' as const
-  })).filter(e => isSameDay(e.start, date));
+  const fixedEvents = calendarEvents
+    .filter(event => (event.start.dateTime || event.start.date) && (event.end.dateTime || event.end.date))
+    .map(event => ({
+      start: parseISO(event.start.dateTime || event.start.date!),
+      end: parseISO(event.end.dateTime || event.end.date!),
+      title: event.summary,
+      type: 'event' as const
+    })).filter(e => isSameDay(e.start, date));
 
   // 3. Merge all "Blocked" times and sort
   const allBlocked = [
@@ -156,7 +158,7 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
     const gapMinutes = Math.round((gapEnd.getTime() - currentTime.getTime()) / 60000);
 
     if (gapMinutes > 15 && activeTasks.length > 0) {
-      const task = activeTasks.shift();
+      const task = activeTasks.shift()!;
       const taskDuration = Math.min(gapMinutes, task.estimated_minutes || 60);
       const plannedEnd = addMinutes(currentTime, taskDuration);
       

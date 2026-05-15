@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, CalendarBlank, GithubLogo, Kanban, Lightning, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass } from '@phosphor-icons/react';
+import { GraduationCap, CalendarBlank, GithubLogo, Kanban, Lightning, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
 import { testCanvasConnectionAction } from '@/lib/canvas/actions';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,9 @@ const iconMap: Record<string, React.ElementType> = {
   CalendarBlank: CalendarBlank,
   GithubLogo: GithubLogo,
   Kanban: Kanban,
-  Lightning: Lightning
+  Lightning: Lightning,
+  Notebook: Notebook,
+  Hash: Hash
 };
 
 export default function Integrations() {
@@ -46,7 +48,7 @@ export default function Integrations() {
     async function getProfile() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from('users')
           .select('*')
           .eq('id', user.id)
@@ -74,7 +76,7 @@ export default function Integrations() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('users')
       .update({
         canvas_url: canvasUrl,
@@ -99,7 +101,7 @@ export default function Integrations() {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from('users').update({ preferred_morning_time: morningTime }).eq('id', user.id);
+      await (supabase as any).from('users').update({ preferred_morning_time: morningTime }).eq('id', user.id);
     }
     setSaving(false);
   };
@@ -196,7 +198,7 @@ export default function Integrations() {
           )}
           {integration.premiumOnly && !isComingSoon && (
             <div className="bg-accent-500 text-surface-900 border-2 border-surface-900 text-[10px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1">
-              <LockKey weight="bold" /> Elite
+              <LockKey weight="bold" /> Premium
             </div>
           )}
         </div>
@@ -395,10 +397,10 @@ export default function Integrations() {
                           size="sm" 
                           className="w-full border-2 border-surface-700 text-[10px] font-black uppercase text-error hover:bg-error hover:text-white transition-all"
                           onClick={async () => {
-                            const { error } = await supabase.from('users').update({ 
+                            const { error } = await (supabase as any).from('users').update({ 
                               google_calendar_connected: false,
                               google_calendar_refresh_token: null 
-                            }).eq('id', profile.id);
+                            }).eq('id', (profile as any).id);
                             if (!error) setProfile({ ...profile, google_calendar_connected: false });
                           }}
                         >
@@ -441,106 +443,7 @@ export default function Integrations() {
           </motion.div>
         )}
 
-        {/* Signal Config (GitHub, Jira, N8N) */}
-        {(activeConfig === 'github' || activeConfig === 'jira' || activeConfig === 'n8n') && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-surface-900 text-surface-100 p-8 border-4 border-surface-900 shadow-[8px_8px_0_0_var(--accent-500)] rounded-3xl mt-2 relative">
-              <button 
-                onClick={() => setActiveConfig(null)}
-                className="absolute top-4 right-4 text-surface-500 hover:text-white transition-colors"
-              >
-                <X weight="bold" className="w-6 h-6" />
-              </button>
-              
-              {(() => {
-                const activeIntegration = INTEGRATION_REGISTRY.find(i => i.id === activeConfig);
-                const isPremiumActiveConfig = activeIntegration?.premiumOnly;
-                const isEliteUser = profile?.plan_type === 'elite';
-
-                if (isPremiumActiveConfig && !isEliteUser) {
-                  return (
-                    <div className="flex flex-col items-center justify-center text-center py-8 space-y-6">
-                      <div className="w-20 h-20 bg-surface-800 border-4 border-surface-700 rounded-2xl flex items-center justify-center">
-                        <LockKey weight="bold" className="w-10 h-10 text-accent-500" />
-                      </div>
-                      <div>
-                        <h3 className="text-3xl font-black uppercase tracking-tighter text-white mb-2">
-                          Elite Integration Locked
-                        </h3>
-                        <p className="text-sm font-bold text-surface-400 max-w-md mx-auto leading-relaxed">
-                          Professional integrations like <span className="text-white">{activeIntegration?.name}</span> are reserved for Elite users. Upgrade your plan to unlock this source.
-                        </p>
-                      </div>
-                      <Button className="bg-accent-500 hover:bg-accent-400 text-surface-900 font-black uppercase tracking-widest px-8 py-6 text-sm border-2 border-surface-900 shadow-[4px_4px_0_0_#ffffff]">
-                        Upgrade to Elite
-                      </Button>
-                    </div>
-                  );
-                }
-
-                return (
-                  <>
-                    <div className="flex items-center gap-3 mb-6">
-                      <Lightning weight="fill" className="w-8 h-8 text-accent-500" />
-                      <h3 className="text-2xl font-black uppercase tracking-tighter text-white">
-                        Signal Integration Hub
-                      </h3>
-                    </div>
-                    
-                    <div className="grid md:grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                        <p className="text-sm font-bold text-surface-400 leading-relaxed">
-                          To bridge <span className="text-white">GitHub</span> or <span className="text-white">Jira</span> into Plan Pilot, you must pipe their data through an N8N workflow.
-                        </p>
-                        
-                        <div className="space-y-3 p-4 bg-surface-800 border-2 border-surface-700 rounded-xl">
-                          <Label className="text-[10px] font-black uppercase text-accent-500">Your Integration Token</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              readOnly
-                              value={profile?.n8n_webhook_token || 'GENERATING...'}
-                              className="bg-surface-900 border-2 border-surface-700 font-mono text-[10px] text-white"
-                            />
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="bg-accent-500 text-surface-900 border-2 border-surface-900 font-black text-[10px]"
-                              onClick={() => {
-                                navigator.clipboard.writeText(profile?.n8n_webhook_token);
-                              }}
-                            >
-                              Copy
-                            </Button>
-                          </div>
-                          <p className="text-[8px] font-bold text-surface-500 uppercase">
-                            DO NOT SHARE. This token allows external tools to send data to your account.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-surface-800 border-2 border-surface-700 p-6 rounded-xl">
-                        <h4 className="font-black uppercase text-accent-500 mb-3 text-sm">Deployment Steps:</h4>
-                        <ol className="text-[10px] font-bold text-surface-400 space-y-3 list-decimal ml-4">
-                          <li>Open your <span className="text-white">N8N Dashboard</span>.</li>
-                          <li>Create a trigger for your source (e.g. <span className="text-white">Google Calendar: On Event Created</span>).</li>
-                          <li>Add an <span className="text-white">HTTP Request</span> node.</li>
-                          <li>Set URL to: <code className="text-accent-500">https://plan-pilot.com/api/integrations/n8n/webhook</code></li>
-                          <li>Method: <code className="text-accent-500">POST</code></li>
-                          <li>Body Content: Include your <code className="text-accent-500">token</code>, <code className="text-accent-500">type</code>, and <code className="text-accent-500">data</code>.</li>
-                        </ol>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          </motion.div>
-        )}
+        {/* Signal Config (Notion, Slack, Monday) removed as they are coming soon */}
       </AnimatePresence>
 
       <hr className="border-t-2 border-surface-900" />
@@ -553,7 +456,7 @@ export default function Integrations() {
             Professional Sources
           </h3>
           <span className="bg-surface-900 text-surface-100 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-[2px_2px_0_0_var(--accent-500)]">
-            Elite Tier Exclusive
+            Premium Tier
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

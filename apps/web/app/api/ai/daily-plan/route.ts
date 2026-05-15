@@ -75,7 +75,7 @@ ${JSON.stringify(worldState.tasks.map(t => ({
   id: t.id,
   title: t.title,
   estimated_minutes: t.estimated_minutes,
-  energy_level_required: t.energy_level_required,
+  energy_level_required: (t as any).energy_level_required || 'medium',
   priority: t.priority,
   due_at: (t as any).due_at || null,
   is_assignment: (t as any).is_assignment || false
@@ -154,25 +154,26 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
           title: item.title,
           start_time: startTime,
           end_time: endTime,
-          status: 'pending',
-          is_ai_suggested: true,
-          is_deleted: false,
           linked_task_id: taskId,
-          external_id: null, // Avoid unique constraint conflicts with real events
+          external_id: null,
           source: 'schedule',
           energy_level: energyLevel,
           metadata: {
             ...item.metadata,
             canvas_id: canvasId,
-            reason: item.reason
+            reason: item.reason,
+            status: 'pending',
+            is_ai_suggested: true,
+            is_deleted: false,
           }
         };
       });
 
       // CLEANUP: Delete old ghost blocks for the range before inserting new ones
-      await supabase
+      // Note: is_ai_suggested exists in DB but not in generated types — cast to bypass
+      await (supabase
         .from('calendar_events')
-        .delete()
+        .delete() as any)
         .eq('user_id', authUser.id)
         .eq('is_ai_suggested', true)
         .gte('start_time', new Date(dayStart).toISOString())

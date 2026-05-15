@@ -47,8 +47,10 @@
   --color-info: #5a7582;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-outfit), sans-serif;
+  --font-serif: var(--font-fraunces), serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
 
   /* Shadows (Bubble Design — Softer Elevations) */
   --shadow-glow: 0 0 20px rgba(93, 138, 102, 0.2);
@@ -224,6 +226,30 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Typography System Utility Classes */
+.font-display { font-family: var(--font-display); }
+.font-serif { font-family: var(--font-serif); }
+
+.text-h1 {
+  @apply font-display font-black text-4xl md:text-6xl tracking-tighter leading-[0.9] italic;
+}
+
+.text-h2 {
+  @apply font-display font-bold text-3xl md:text-5xl tracking-tight leading-tight;
+}
+
+.text-body {
+  @apply font-sans font-medium text-base md:text-lg leading-relaxed text-surface-600;
+}
+
+.text-meta {
+  @apply font-mono text-[10px] font-bold uppercase tracking-tight text-surface-400;
+}
+
+.text-narrative {
+  @apply font-serif italic text-lg md:text-xl leading-relaxed text-surface-700;
 }
 
 /* Bubble design resets */

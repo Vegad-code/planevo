@@ -111,7 +111,7 @@ ASSIGNMENT CONTEXT:
 Title: ${assignment.name}
 Course: ${assignment.course_name || 'Canvas Course'}
 Due: ${assignment.due_at ? new Date(assignment.due_at).toLocaleString() : 'N/A'}
-Details: ${assignment.description || 'No details provided.'}
+Details: ${(assignment as any).description || 'No details provided.'}
 URL: ${assignment.html_url || 'N/A'}
 `;
       }
@@ -135,7 +135,7 @@ Rules:
 3. If the user asks "How do I do this?" regarding an assignment, analyze the ASSIGNMENT CONTEXT provided and give a comprehensive, step-by-step breakdown of how to approach the work, providing examples or templates where useful.
 4. rember that Plan Pilot acts as an instrument to handle the details so they can just focus on the deep work.
 5. If they seem overwhelmed, offer to "Deconstruct" a complex task into 15-minute micro-steps.
-6. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Elite Tier.`;
+6. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Premium plan.`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout

@@ -100,6 +100,7 @@ export default function DashboardPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<CanvasAssignment[]>([]);
+  const [persona, setPersona] = useState<'student' | 'professional' | 'builder' | 'other'>('other');
 
   const firstName = userName?.split(' ')[0] || '';
   const greetingEmoji = timeOfDay === 'morning' ? '🌅' : timeOfDay === 'afternoon' ? '☀️' : '🌙';
@@ -120,13 +121,14 @@ export default function DashboardPage() {
 
   // --- Data load ---
   const fetchAll = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { return; }
 
     // Profile + connection state
-    const { data: profile } = await supabase
+    const { data: profile } = await (supabase as any)
       .from('users')
-      .select('name, canvas_token, google_calendar_connected')
+      .select('name, canvas_token, google_calendar_connected, persona, energy_preference')
       .eq('id', user.id)
       .single();
     if (profile?.name) {
@@ -134,6 +136,12 @@ export default function DashboardPage() {
       setGreeting(getRandomGreeting(profile.name));
     } else {
       setGreeting(getRandomGreeting());
+    }
+    if (profile?.persona) {
+      setPersona(profile.persona);
+    }
+    if (profile?.energy_preference) {
+      setEnergyLevel(profile.energy_preference as any);
     }
 
     // Canvas due count (next 7 days)
@@ -173,7 +181,7 @@ export default function DashboardPage() {
       .order('created_at', { ascending: false })
       .limit(1);
     if (scheduleRows?.[0]) {
-      setSchedule(scheduleRows[0].schedule_json as ScheduleBlock[]);
+      setSchedule(scheduleRows[0].schedule_json as unknown as ScheduleBlock[]);
     }
 
     // Silent rollover (no UI noise)
@@ -186,7 +194,7 @@ export default function DashboardPage() {
       .eq('user_id', user.id);
     
     if (dbAssignments) {
-      setAssignments(dbAssignments.map(a => ({
+      setAssignments(dbAssignments.map((a: any) => ({
         id: Number(a.id) || a.id,
         name: a.name,
         due_at: a.due_at,
@@ -213,7 +221,11 @@ export default function DashboardPage() {
       }
     }
 
-    setLoading(false);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -229,8 +241,8 @@ export default function DashboardPage() {
     if (!schedule) return null;
     return schedule
       .map(b => {
-        const start = b.startTime || b.suggested_start || (b as any).start_time;
-        const end = b.endTime || b.suggested_end || (b as any).end_time;
+        const start = b.startTime || (b as any).suggested_start || (b as any).start_time;
+        const end = b.endTime || (b as any).suggested_end || (b as any).end_time;
         
         const startDate = start ? new Date(start) : null;
         const endDate = end ? new Date(end) : null;
@@ -349,7 +361,8 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from('users').select('*').eq('id', user?.id).single();
+      if (!user) return;
+      const { data: profile } = await (supabase.from('users') as any).select('*').eq('id', user.id).single();
       
       if (profile?.canvas_url && profile?.canvas_token) {
         let upcoming = await fetchCanvasUpcomingAction(profile.canvas_url, profile.canvas_token);
@@ -368,7 +381,7 @@ export default function DashboardPage() {
             html_url: a.html_url,
             synced_at: new Date().toISOString()
           }));
-          await supabase.from('canvas_assignments').upsert(toUpsert);
+          await (supabase.from('canvas_assignments') as any).upsert(toUpsert);
         }
       }
       await fetchAll();
@@ -381,7 +394,8 @@ export default function DashboardPage() {
   };
 
 
-  const handleScheduleFeedback = async (feedback: string) => {
+  const handleScheduleFeedback = async (block: ScheduleBlock, action: "accept" | "too_vague" | "too_many_breaks" | "wrong_time") => {
+    const feedback = action;
     setGenerating(true);
     toast.info("Ollie is adjusting your plan...");
     try {
@@ -410,6 +424,12 @@ export default function DashboardPage() {
     toast.info("Ollie is reading the assignment details...");
   };
 
+  const handleScheduleAssignment = async (assignment: CanvasAssignment) => {
+    setIsDetailOpen(false);
+    toast.info(`Finding a spot for ${assignment.name}...`);
+    await handleOllieCommand(`Find a good time to work on my assignment: ${assignment.name}`, [], String(assignment.id));
+  };
+
   const nothingConnected = !connections.canvasConnected && !connections.googleConnected;
 
   return (
@@ -432,6 +452,28 @@ export default function DashboardPage() {
           </span>
         </div>
       </header>
+
+      {/* Connection Status Pills (§16 — Core painkillers visible in one click) */}
+      <div className="flex flex-wrap gap-2" data-testid="connection-chips">
+        {(persona === 'student' || connections.canvasConnected) && (
+          <ConnectionChip
+            icon={<GraduationCap weight="bold" className="size-4" />}
+            label="Canvas"
+            connected={connections.canvasConnected}
+            detail={connections.canvasConnected ? `${connections.canvasDueCount} due` : 'Connect'}
+            onClick={() => router.push('/dashboard/settings')}
+            testid="chip-canvas"
+          />
+        )}
+        <ConnectionChip
+          icon={<CalendarBlank weight="bold" className="size-4" />}
+          label="Calendar"
+          connected={connections.googleConnected}
+          detail={connections.googleConnected ? 'Synced' : 'Connect'}
+          onClick={() => router.push('/dashboard/settings')}
+          testid="chip-calendar"
+        />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-16 bg-surface-100 p-1.5 rounded-[2rem] border-2 border-surface-200">
@@ -461,32 +503,62 @@ export default function DashboardPage() {
             {nothingConnected ? (
               <>
                 <h2 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter text-foreground mb-3">
-                  Connect Canvas to get going.
+                  {persona === 'student' ? 'Connect Canvas to get going.' :
+                   persona === 'professional' ? 'Connect your Calendar or add your first focus task.' :
+                   persona === 'builder' ? 'Add your launch tasks or connect Calendar to start.' :
+                   'Add tasks or connect your calendar to get started.'}
                 </h2>
                 <p className="text-muted font-medium leading-relaxed mb-6 max-w-md">
-                  Pull in your assignments and Ollie will never let you miss a deadline.
-                  Takes 30 seconds.
+                  {persona === 'student'
+                    ? 'Pull in your assignments and Ollie will never let you miss a deadline. Takes 30 seconds.'
+                    : 'Link your calendar and Ollie will organize your day around what matters most.'}
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Button
-                    data-testid="connect-canvas-btn"
-                    size="lg"
-                    onClick={() => router.push('/dashboard/settings')}
-                    className="h-14 px-8 text-base gap-3 bg-surface-900 hover:bg-surface-800 text-white border-2 border-surface-900 rounded-2xl shadow-[6px_6px_0_0_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all uppercase tracking-widest"
-                  >
-                    <GraduationCap weight="bold" />
-                    Connect Canvas <ArrowRight weight="bold" />
-                  </Button>
-                  <Button
-                    data-testid="connect-google-btn"
-                    size="lg"
-                    variant="outline"
-                    onClick={() => router.push('/dashboard/settings')}
-                    className="h-14 px-6 text-base gap-3 border-2 border-surface-900 rounded-2xl uppercase tracking-widest"
-                  >
-                    <CalendarBlank weight="bold" />
-                    Connect Google Calendar
-                  </Button>
+                  {persona === 'student' ? (
+                    <>
+                      <Button
+                        data-testid="connect-canvas-btn"
+                        size="lg"
+                        onClick={() => router.push('/dashboard/settings')}
+                        className="h-14 px-8 text-base gap-3 bg-surface-900 hover:bg-surface-800 text-white border-2 border-surface-900 rounded-2xl shadow-[6px_6px_0_0_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all uppercase tracking-widest"
+                      >
+                        <GraduationCap weight="bold" />
+                        Connect Canvas <ArrowRight weight="bold" />
+                      </Button>
+                      <Button
+                        data-testid="connect-google-btn"
+                        size="lg"
+                        variant="outline"
+                        onClick={() => router.push('/dashboard/settings')}
+                        className="h-14 px-6 text-base gap-3 border-2 border-surface-900 rounded-2xl uppercase tracking-widest"
+                      >
+                        <CalendarBlank weight="bold" />
+                        Connect Google Calendar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        data-testid="connect-google-btn"
+                        size="lg"
+                        onClick={() => router.push('/dashboard/settings')}
+                        className="h-14 px-8 text-base gap-3 bg-surface-900 hover:bg-surface-800 text-white border-2 border-surface-900 rounded-2xl shadow-[6px_6px_0_0_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all uppercase tracking-widest"
+                      >
+                        <CalendarBlank weight="bold" />
+                        Connect Calendar <ArrowRight weight="bold" />
+                      </Button>
+                      <Button
+                        data-testid="add-task-btn"
+                        size="lg"
+                        variant="outline"
+                        onClick={() => setActiveTab('plan')}
+                        className="h-14 px-6 text-base gap-3 border-2 border-surface-900 rounded-2xl uppercase tracking-widest"
+                      >
+                        <Plus weight="bold" />
+                        Add Your First Task
+                      </Button>
+                    </>
+                  )}
                 </div>
                 <p className="text-xs text-surface-500 font-bold mt-6">
                   Already have tasks? You can also{' '}
@@ -703,6 +775,7 @@ export default function DashboardPage() {
                         initialBlocks={parsedSchedule} 
                         onUpdate={() => fetchAll()}
                         onFeedback={handleScheduleFeedback}
+                        onDeconstruct={() => setSchedule(null)}
                       />
                     ) : (
                       <div className="py-20 text-center space-y-4">
@@ -720,6 +793,10 @@ export default function DashboardPage() {
                   isProcessing={generating}
                   onScheduleOne={async (task) => {
                     toast.info(`Scheduling "${task.title}"...`);
+                  }}
+                  onScheduleAll={async () => {
+                    toast.info("Scheduling everything...");
+                    await generatePlan();
                   }}
                 />
               </div>
@@ -829,6 +906,7 @@ export default function DashboardPage() {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         onAskOllie={() => handleAskOllie(selectedAssignment!)}
+        onSchedule={() => handleScheduleAssignment(selectedAssignment!)}
       />
     </div>
   );

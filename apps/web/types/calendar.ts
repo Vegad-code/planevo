@@ -33,6 +33,7 @@ export interface CalendarEvent {
   recurrence_rule?: string;
   created_at: string;
   updated_at: string;
+  metadata?: any;
 }
 
 export interface CalendarPreferences {

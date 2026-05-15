@@ -221,7 +221,7 @@ export default function DayView({
                 if (task.id) { // Simple validation
                   const rect = e.currentTarget.getBoundingClientRect();
                   const y = e.clientY - rect.top;
-                  const time = pixelToTime(y, HOUR_HEIGHT, dayStartHour, date);
+                  const time = pixelToTime(y, dayStartHour, date);
                   onTaskDrop(task, time);
                 }
               } catch (err: unknown) {

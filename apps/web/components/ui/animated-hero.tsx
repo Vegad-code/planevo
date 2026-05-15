@@ -8,7 +8,7 @@ import PlanSimulation from "@/components/landing/PlanSimulation";
 function Hero() {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
-    () => ["smart", "friendly", "adaptive", "proactive", "calm"],
+    () => ["Smart Ally", "Second Brain", "Friendly Guide", "Focus Engine", "Calm Center"],
     []
   );
 
@@ -35,7 +35,7 @@ function Hero() {
               </Button>
             </div>
             <div className="flex gap-4 flex-col">
-              <h1 className="text-5xl md:text-8xl tracking-tighter font-black uppercase leading-[0.85]">
+              <h1 className="text-h1 md:text-8xl leading-[0.85]">
                 Plan Pilot <br />is <span className="text-accent-500">YOUR</span> <br />
                 <span className="relative flex w-full overflow-hidden md:pb-4 md:pt-1 text-brand-500">
                   &nbsp;
@@ -62,14 +62,14 @@ function Hero() {
                   ))}
                 </span>
               </h1>
-              <p className="text-lg md:text-2xl leading-relaxed tracking-tight text-surface-600 max-w-xl font-bold mt-12">
+              <p className="text-body max-w-xl mt-12">
                 The world&apos;s first AI agent built for the student brain. 
                 <span className="text-surface-900"> Ollie</span> turns your Canvas chaos into one calm, next action.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-              <Button size="lg" className="gap-2 text-lg px-10 py-8 border-2 border-surface-900 shadow-[8px_8px_0px_0px_var(--accent-500)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all" asChild>
-                <Link href="/signup">Start Your Path <ArrowRight weight="bold" className="w-5 h-5" /></Link>
+              <Button size="lg" className="bg-surface-900 text-white gap-2 text-xl px-12 py-10 border-2 border-surface-900 shadow-[10px_10px_0px_0px_var(--brand-500)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all" asChild>
+                <Link href="/signup">Start Your Path <ArrowRight weight="bold" className="w-6 h-6" /></Link>
               </Button>
               <Button size="lg" variant="outline" className="gap-2 text-lg px-10 py-8 border-2 border-surface-900 shadow-[8px_8px_0px_0px_var(--surface-200)]" asChild>
                 <a href="#features">See features</a>
@@ -88,7 +88,7 @@ function Hero() {
                     <div className="flex gap-1 text-accent-500">
                         {[1,2,3,4,5].map(i => <Star key={i} weight="fill" className="w-4 h-4" />)}
                     </div>
-                    <p className="text-xs font-black uppercase tracking-widest text-surface-400">Trusted by 2,000+ Students</p>
+                    <p className="text-meta text-surface-400">Trusted by 2,000+ Students</p>
                 </div>
             </div>
           </div>

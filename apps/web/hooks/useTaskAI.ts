@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { Task, AITaskResponse } from '@/types/database';
+import type { Task, AITaskResponse } from '@/types/tasks';
 
 /**
  * Plan Pilot v1: AI task prioritization and feedback have been folded into

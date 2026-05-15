@@ -18,16 +18,16 @@ export async function POST(req: NextRequest) {
     // Check if user already has a Stripe customer ID
     const { data: profile } = await supabase
       .from('users')
-      .select('stripe_customer_id, email')
+      .select('*')
       .eq('id', user.id)
       .single();
 
-    let customerId = profile?.stripe_customer_id;
+    let customerId = (profile as any)?.stripe_customer_id;
 
     // Create Stripe customer if none exists
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: user.email || profile?.email || undefined,
+        email: user.email || (profile as any)?.email || undefined,
         metadata: {
           supabase_user_id: user.id,
         },
@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
       customerId = customer.id;
 
       // Save customer ID immediately so it's available for the webhook
-      await supabase
+      await (supabase
         .from('users')
-        .update({ stripe_customer_id: customerId })
+        .update({ stripe_customer_id: customerId } as any) as any)
         .eq('id', user.id);
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       },
       allow_promotion_codes: true,
       success_url: `${req.nextUrl.origin}/dashboard?checkout=success`,
-      cancel_url: `${req.nextUrl.origin}/dashboard?checkout=canceled`,
+      cancel_url: `${req.nextUrl.origin}/onboarding?checkout=canceled`,
       metadata: {
         supabase_user_id: user.id,
       },

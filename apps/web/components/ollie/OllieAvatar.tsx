@@ -1,6 +1,6 @@
 'use client';
 
-import { type OllieMood } from '@/types/database';
+export type OllieMood = 'happy' | 'celebrating' | 'sleepy' | 'thinking' | 'gentle';
 
 interface OllieAvatarProps {
   mood?: OllieMood;

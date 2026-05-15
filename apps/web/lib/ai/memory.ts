@@ -61,10 +61,28 @@ const sourceCountersSchema = z.record(z.string(), z.number().int().min(0)).defau
 export const userAiMemorySchema = z.object({
   preferred_focus_windows: z.array(memoryWindowSchema).default([]),
   avoided_focus_windows: z.array(memoryWindowSchema).default([]),
-  break_preference: breakPreferenceSchema.default({}),
-  planning_style: planningStyleSchema.default({}),
-  tone_preference: tonePreferenceSchema.default({}),
-  task_detail_preference: taskDetailPreferenceSchema.default({}),
+  break_preference: breakPreferenceSchema.default({
+    frequency: 'balanced',
+    preferred_minutes: 15,
+    notes: []
+  }),
+  planning_style: planningStyleSchema.default({
+    mode: 'balanced',
+    max_focus_blocks_per_day: 5,
+    max_planned_minutes_per_day: 240,
+    allow_buffers: true
+  }),
+  tone_preference: tonePreferenceSchema.default({
+    style: 'warm',
+    emoji_level: 'low',
+    avoid_phrases: []
+  }),
+  task_detail_preference: taskDetailPreferenceSchema.default({
+    detail_level: 'high',
+    require_success_condition: true,
+    require_materials: true,
+    require_why_now: true
+  }),
   recurring_constraints: z.array(memoryWindowSchema).default([]),
   learned_rules: z.array(memoryRuleSchema).default([]),
   disliked_patterns: z.array(memoryPatternSchema).default([]),

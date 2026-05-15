@@ -1,4 +1,4 @@
-import { Task } from '@/types/database';
+import { Task } from '@/types/tasks';
 
 export interface UserStats {
   currentStreak: number;

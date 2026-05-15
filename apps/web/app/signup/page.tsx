@@ -23,6 +23,10 @@ export default function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const redirect = searchParams?.get('redirect');
+  const isOnboarding = searchParams?.get('onboarding') === 'true';
+  const nextPath = redirect ? `/${redirect}` : (isOnboarding ? '/onboarding' : '/dashboard');
 
   const supabase = createClient();
 
@@ -38,7 +42,7 @@ export default function SignupForm() {
         data: {
           full_name: name,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${nextPath}`,
       },
     });
 
@@ -57,7 +61,7 @@ export default function SignupForm() {
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${nextPath}`,
       },
     });
 

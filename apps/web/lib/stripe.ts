@@ -9,7 +9,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
  * Never import this file from client components.
  */
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-04-30.basil',
+  apiVersion: '2026-04-22.dahlia' as any,
   typescript: true,
 });
 
@@ -24,7 +24,7 @@ export const PRICE_IDS = {
 // ---------------------------------------------------------------------------
 // Plan type mapping — keeps DB values and Stripe metadata in sync
 // ---------------------------------------------------------------------------
-export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled';
+export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled' | 'admin';
 
 export function subscriptionStatusToPlanType(
   status: Stripe.Subscription.Status,

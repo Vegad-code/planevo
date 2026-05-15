@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
-import type { BestTimeOfDay, EnergyLevel, Task } from '@/types/database';
+import type { BestTimeOfDay, EnergyLevel, Task } from '@/types/tasks';
 
 export interface NewTaskInput {
   title: string;
@@ -29,7 +29,7 @@ export function useTaskActions(onRefresh: () => void) {
         return { error: 'Please log in again.' };
       }
 
-      const { error } = await supabase.from('tasks').insert({
+      const { error } = await (supabase as any).from('tasks').insert({
         user_id: user.id,
         title: input.title.trim(),
         description: input.description?.trim() || null,
@@ -69,7 +69,7 @@ export function useTaskActions(onRefresh: () => void) {
       : { completed: true, completed_at: new Date().toISOString(), status: 'done' };
 
 
-    await supabase
+    await (supabase as any)
       .from('tasks')
       .update(updates)
       .eq('id', taskId);
@@ -79,7 +79,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Soft delete a task
   const deleteTask = useCallback(async (taskId: string) => {
-    await supabase
+    await (supabase as any)
       .from('tasks')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', taskId);
@@ -88,7 +88,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Restore a soft-deleted task
   const restoreTask = useCallback(async (taskId: string) => {
-    await supabase
+    await (supabase as any)
       .from('tasks')
       .update({ deleted_at: null })
       .eq('id', taskId);
@@ -97,22 +97,22 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Permanently delete a task
   const permanentlyDeleteTask = useCallback(async (taskId: string) => {
-    await supabase.from('tasks').delete().eq('id', taskId);
+    await (supabase as any).from('tasks').delete().eq('id', taskId);
     onRefresh();
   }, [supabase, onRefresh]);
 
   // Reschedule a task to a new due date
   const rescheduleTask = useCallback(async (taskId: string, newDueDate: string) => {
-    await supabase
+    await (supabase as any)
       .from('tasks')
       .update({ due_date: newDueDate })
       .eq('id', taskId);
 
     // Increment rescheduled_count via raw SQL approach — use RPC or just re-fetch
     // For now, simple update approach:
-    const { data } = await supabase.from('tasks').select('rescheduled_count').eq('id', taskId).single();
+    const { data } = await (supabase as any).from('tasks').select('rescheduled_count').eq('id', taskId).single();
     if (data) {
-      await supabase
+      await (supabase as any)
         .from('tasks')
         .update({ rescheduled_count: (data.rescheduled_count || 0) + 1 })
         .eq('id', taskId);
@@ -123,7 +123,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Move to waiting (just remove due date to de-prioritize)
   const moveToWaiting = useCallback(async (taskId: string) => {
-    await supabase
+    await (supabase as any)
       .from('tasks')
       .update({ due_date: null, priority: 'low' })
       .eq('id', taskId);
@@ -135,7 +135,7 @@ export function useTaskActions(onRefresh: () => void) {
   // The standalone /api/ai/breakdown endpoint is archived. Users now ask
   // Ollie directly: "Break down [task name] into 15-minute steps."
   // TODO (Block G): re-wire this to the new Ollie agent's `breakdown` tool call.
-  const breakDownTask = useCallback(async (_task: Task) => {
+  const breakDownTask = useCallback(async (_task: string | Task) => {
     return {
       error:
         'Ask Ollie to break this down for you in chat. (AI breakdown is now part of Ollie Chat in v1.)',
@@ -158,7 +158,7 @@ export function useTaskActions(onRefresh: () => void) {
         const { user, error: profileError } = await ensureUserProfile(supabase);
         if (profileError || !user) return { error: 'Auth/profile error' };
 
-        const { error } = await supabase.from('tasks').delete().eq('user_id', user.id);
+        const { error } = await (supabase as any).from('tasks').delete().eq('user_id', user.id);
         if (error) throw error;
 
         onRefresh();

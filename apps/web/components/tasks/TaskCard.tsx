@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Task, TaskPriority, BestTimeOfDay } from '@/types/database';
+import type { Task, TaskPriority, BestTimeOfDay } from '@/types/tasks';
 import { PRIORITY_COLORS, TIME_OF_DAY_INFO, formatDuration, formatDueDate } from '@/lib/taskHelpers';
 
 interface TaskCardProps {
@@ -50,8 +50,8 @@ const TaskCard = React.memo(function TaskCard({
     }, task.completed ? 100 : 500);
   }, [task.id, task.completed, isCompleting, onToggleComplete, showCompletionToast]);
 
-  const dueLabel = formatDueDate(task.due_date);
-  const durationLabel = formatDuration(task.estimated_minutes);
+  const dueLabel = formatDueDate(task.due_date ?? null);
+  const durationLabel = formatDuration(task.estimated_minutes ?? null);
   const timeInfo = (task.best_time_of_day && TIME_OF_DAY_INFO[task.best_time_of_day as BestTimeOfDay]) 
     ? TIME_OF_DAY_INFO[task.best_time_of_day as BestTimeOfDay] 
     : null;

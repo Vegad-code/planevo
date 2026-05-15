@@ -68,10 +68,10 @@ export default function OllieChatSidebar({
       <div className="p-4 bg-surface-800 flex items-center gap-3 border-b border-surface-700">
         <OllieAvatar mood={isProcessing ? 'thinking' : 'happy'} size="sm" />
         <div>
-          <h3 className="text-sm font-black text-white uppercase tracking-widest">Ollie Intelligence</h3>
+          <h3 className="text-sm font-display font-bold text-white">Ollie Intelligence</h3>
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
-            <span className="text-[10px] text-surface-400 font-bold uppercase">
+            <span className="text-meta text-surface-400">
               {isProcessing ? 'Analyzing schedule...' : 'Active & Ready'}
             </span>
           </div>
@@ -141,7 +141,7 @@ export default function OllieChatSidebar({
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="mt-2 text-[10px] text-surface-500 text-center uppercase font-bold tracking-tighter">
+        <p className="mt-2 text-meta text-surface-500 text-center">
           Shift + Enter for new line
         </p>
       </form>

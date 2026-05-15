@@ -168,11 +168,11 @@ export default function OllieChat() {
 
       // Save user message
       if (convId) {
-        await supabase.from('ollie_messages').insert({
+        await (supabase as any).from('ollie_messages').insert({
           conversation_id: convId,
           message_type: 'user',
           content: userMessage,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+          user_id: (await supabase.auth.getUser()).data.user?.id as string
         });
       }
 
@@ -204,14 +204,14 @@ export default function OllieChat() {
         
         // Save Ollie message
         if (convId) {
-          await supabase.from('ollie_messages').insert({
+          await (supabase as any).from('ollie_messages').insert({
             conversation_id: convId,
             message_type: 'assistant',
             content: ollieResponse,
-            user_id: (await supabase.auth.getUser()).data.user?.id
+            user_id: (await supabase.auth.getUser()).data.user?.id as string
           });
           // Update last active
-          await supabase.from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', convId);
+          await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', convId);
         }
         const answerReadyAt = performance.now();
         reportChatLatencyDiagnostic(buildChatClientLatencyDiagnostic({
@@ -366,14 +366,14 @@ export default function OllieChat() {
               <div className="text-4xl mb-4 animate-bounce">💎</div>
               <h4 className="text-sm font-black uppercase tracking-widest text-surface-900 mb-2">Daily Quota Reached</h4>
               <p className="text-[10px] font-bold text-surface-500 uppercase leading-relaxed mb-6">
-                Your daily AI usage is at capacity. Upgrade to Elite for 1000+ daily requests and full priority.
+                Your daily AI usage is at capacity. Upgrade to Premium for unlimited requests and full priority.
               </p>
               <div className="flex flex-col gap-3">
                 <Link 
                   href="/pricing"
                   className="bg-brand-600 text-white py-3 px-4 text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-[4px_4px_0px_0px_var(--surface-900)] active:translate-x-0.5 active:translate-y-0.5"
                 >
-                  Upgrade to Elite
+                  Upgrade to Premium
                 </Link>
                 <button 
                   onClick={() => setShowPaywall(false)}

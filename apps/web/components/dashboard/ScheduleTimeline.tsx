@@ -131,7 +131,7 @@ function ScheduleBlockItem({
       >
         {/* Time Marker on Axis */}
         <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-2">
-          <span className="text-[10px] font-black text-surface-400 uppercase tracking-tighter w-12 text-right">
+          <span className="text-meta w-12 text-right">
             {block.time}
           </span>
           <div className={`w-3 h-3 rounded-full border-2 transition-all z-10 ${block.completed ? 'bg-green-500 border-green-500' : 'bg-white border-surface-200 group-hover:border-brand-500'}`} />
@@ -141,13 +141,13 @@ function ScheduleBlockItem({
           <div className="flex-1 min-w-0 relative">
             <div className="flex items-center gap-2 mb-1.5">
               {getTypeIcon(block.type)}
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
+              <span className="text-meta opacity-70">
                 {block.type} • {block.duration}m
               </span>
             </div>
             
             <div className="relative inline-block max-w-full">
-              <h3 className={`text-xl font-black uppercase leading-tight tracking-tight mb-1 truncate transition-all duration-500 ${block.completed ? 'text-surface-400' : ''}`}>
+              <h3 className={`text-lg font-display font-bold leading-tight tracking-tight mb-1 truncate transition-all duration-500 ${block.completed ? 'text-surface-400' : ''}`}>
                 {block.title}
               </h3>
               
@@ -165,7 +165,7 @@ function ScheduleBlockItem({
             </div>
 
             {block.originalTitle && block.originalTitle !== block.title && !block.completed && (
-              <p className="text-[10px] font-black uppercase text-brand-600 bg-brand-50 w-fit px-2 py-0.5 rounded-full border border-brand-200 mb-2">
+              <p className="text-meta text-brand-600 bg-brand-50 w-fit px-2 py-0.5 rounded-full border border-brand-200 mb-2">
                 {block.originalTitle}
               </p>
             )}
@@ -210,7 +210,7 @@ function ScheduleBlockItem({
                 {block.materials_needed.map((material) => (
                   <span
                     key={material}
-                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-white/60 border border-current/10"
+                    className="text-meta px-2 py-1 rounded-full bg-white/60 border border-current/10"
                   >
                     {material}
                   </span>
@@ -320,8 +320,8 @@ function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; val
     <div className="flex gap-2 text-xs">
       <span className="mt-0.5 opacity-70 shrink-0">{icon}</span>
       <div className="min-w-0">
-        <p className="text-[9px] font-black uppercase tracking-widest opacity-60">{label}</p>
-        <p className="font-bold leading-snug opacity-90">{value}</p>
+        <p className="text-meta opacity-60 mb-1">{label}</p>
+        <p className="text-sm font-medium leading-snug opacity-90">{value}</p>
       </div>
     </div>
   );
@@ -334,7 +334,7 @@ function FeedbackButton({ label, onClick, icon }: { label: string; onClick: () =
         e.stopPropagation();
         onClick();
       }}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/70 hover:bg-white border border-current/10 text-[9px] font-black uppercase tracking-widest transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/70 hover:bg-white border border-current/10 text-meta transition-colors"
     >
       {icon}
       {label}

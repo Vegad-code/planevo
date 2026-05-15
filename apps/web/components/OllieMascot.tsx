@@ -26,6 +26,7 @@ const POSE_MAP: Record<string, string> = {
   crystals: '/images/ollie/crystals.png',
   banner: '/images/ollie/banner.png',
   calendar: '/images/ollie/calendar.png',
+  celebrate: '/images/ollie/zen.png', // Fallback to zen if celebrate.png is missing
 };
 
 export function OllieMascot({ pose, className = '' }: OllieMascotProps) {

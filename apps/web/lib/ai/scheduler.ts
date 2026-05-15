@@ -24,7 +24,11 @@ export type EnergyLevel = 'low' | 'medium' | 'high';
 export interface SchedulerInput {
   assignments: CanvasAssignment[];
   milestones: CanvasAssignment[];
-  calendarEvents: Record<string, unknown>[];
+  calendarEvents: Array<{
+    summary: string;
+    start: { dateTime?: string; date?: string };
+    end: { dateTime?: string; date?: string };
+  }>;
   preferredStartTime: string; // e.g. "08:00"
   energyLevel?: EnergyLevel;
 }
@@ -98,16 +102,18 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
   const schedule: ScheduleBlock[] = [];
   
   // 1. Process Fixed Events (Calendar)
-  const fixedBlocks = calendarEvents.map(event => ({
-    start: parseISO(event.start.dateTime || event.start.date),
-    end: parseISO(event.end.dateTime || event.end.date),
-    title: event.summary,
-    type: 'event' as const,
-    description: 'Fixed calendar event'
-  })).filter(block => {
-    const today = startOfDay(new Date());
-    return isAfter(block.start, today) && isBefore(block.start, endOfDay(today));
-  });
+  const fixedBlocks = calendarEvents
+    .filter(event => (event.start.dateTime || event.start.date) && (event.end.dateTime || event.end.date))
+    .map(event => ({
+      start: parseISO(event.start.dateTime || event.start.date!),
+      end: parseISO(event.end.dateTime || event.end.date!),
+      title: event.summary,
+      type: 'event' as const,
+      description: 'Fixed calendar event'
+    })).filter(block => {
+      const today = startOfDay(new Date());
+      return isAfter(block.start, today) && isBefore(block.start, endOfDay(today));
+    });
 
   // 1b. Check for School Milestones Today
   const todayMilestones = milestones.filter(m => {

@@ -14,11 +14,11 @@ export async function POST(req: NextRequest) {
     // Look up the user's Stripe customer ID
     const { data: profile } = await supabase
       .from('users')
-      .select('stripe_customer_id')
+      .select('*')
       .eq('id', user.id)
       .single();
 
-    if (!profile?.stripe_customer_id) {
+    if (!(profile as any)?.stripe_customer_id) {
       return NextResponse.json(
         { error: 'No subscription found. Please subscribe first.' },
         { status: 400 }
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     // Generate a Customer Portal session
     const session = await stripe.billingPortal.sessions.create({
-      customer: profile.stripe_customer_id,
+      customer: (profile as any).stripe_customer_id,
       return_url: `${req.nextUrl.origin}/dashboard`,
     });
 

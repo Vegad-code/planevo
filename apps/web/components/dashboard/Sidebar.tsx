@@ -52,13 +52,31 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
     requestAnimationFrame(() => {
       setMounted(true);
     });
-  }, []);
+
+    async function checkSubscription() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await (supabase as any)
+          .from('users')
+          .select('plan_type')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          const plan = profile.plan_type;
+          setIsPremium(['premium', 'trialing', 'admin', 'pro_monthly', 'pro_annual'].includes(plan));
+        }
+      }
+    }
+    checkSubscription();
+  }, [supabase]);
 
   if (!mounted) return null;
 
@@ -109,7 +127,7 @@ export default function Sidebar() {
           {!sidebarCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2 group" id="sidebar-logo">
               <span className="text-xl transition-transform group-hover:scale-110">🦉</span>
-              <span className="font-black uppercase tracking-tighter text-foreground group-hover:text-brand-600 transition-colors">
+              <span className="text-xl font-display font-bold text-foreground group-hover:text-brand-600 transition-colors">
                 Plan Pilot
               </span>
             </Link>
@@ -172,7 +190,7 @@ export default function Sidebar() {
                   {item.icon}
                 </span>
                 {!sidebarCollapsed && (
-                  <span className="text-xs font-black uppercase">{item.label}</span>
+                  <span className="text-meta">{item.label}</span>
                 )}
               </Link>
             );
@@ -203,19 +221,19 @@ export default function Sidebar() {
                   {item.icon}
                 </span>
                 {!sidebarCollapsed && (
-                  <span className="text-xs font-black uppercase">{item.label}</span>
+                  <span className="text-meta">{item.label}</span>
                 )}
               </Link>
             );
           })}
 
           {/* Pro Feature Teaser */}
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed && !isPremium && (
             <div className="mx-2 mb-4 p-4 border-2 border-brand-200 bg-brand-50 shadow-md rounded-2xl transition-all hover:shadow-lg hover:-translate-y-0.5">
-              <h3 className="text-xs font-black uppercase tracking-tight text-brand-900 mb-1 flex items-center gap-1.5">
+              <h3 className="font-display font-bold text-brand-900 flex items-center gap-1.5">
                 <span className="text-base">✨</span> Pro Feature
               </h3>
-              <p className="text-[10px] font-bold text-brand-700 uppercase leading-tight mb-3">
+              <p className="text-meta text-brand-700 leading-tight mb-3">
                 Unlock AI priority, project insights, and custom themes.
               </p>
               <Link 
@@ -226,7 +244,7 @@ export default function Sidebar() {
               </Link>
             </div>
           )}
-          {sidebarCollapsed && (
+          {sidebarCollapsed && !isPremium && (
             <Link 
               href="/pricing"
               className="flex justify-center mb-4 py-2 text-brand-600 hover:text-brand-500 transition-colors"
@@ -251,7 +269,7 @@ export default function Sidebar() {
               <SignOut weight="bold" size={20} />
             </span>
             {!sidebarCollapsed && (
-              <span className="text-xs font-black uppercase">Log out</span>
+              <span className="text-meta">Log out</span>
             )}
           </button>
         </div>

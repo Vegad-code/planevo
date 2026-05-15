@@ -87,7 +87,7 @@ export default function CalendarPage() {
   };
 
   const handleQuickAddSave = async (data: QuickAddData) => {
-    const newEvent = await createEvent(data);
+    const newEvent = await createEvent(data as Partial<CalendarEvent>);
     if (newEvent) {
       toast.success('Event scheduled to timeline');
     }
@@ -128,9 +128,9 @@ export default function CalendarPage() {
       description: task.description,
       start_time: time.toISOString(),
       end_time: endTime.toISOString(),
-      source: 'cargo',
+      source: 'cargo_bay',
       linked_task_id: task.id,
-      energy_level: task.energy_level_required,
+      energy_level: task.energy_level_required as CalendarEvent['energy_level'],
     });
     
     if (newEvent) {

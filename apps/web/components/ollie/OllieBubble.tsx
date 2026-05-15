@@ -1,7 +1,7 @@
 'use client';
 
 import OllieAvatar from './OllieAvatar';
-import { type OllieMood } from '@/types/database';
+import { type OllieMood } from './OllieAvatar';
 
 interface OllieBubbleProps {
   message: string;

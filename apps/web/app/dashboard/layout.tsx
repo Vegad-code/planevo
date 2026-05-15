@@ -21,11 +21,22 @@ export default function DashboardLayout({
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
     const supabase = createClient();
-    ensureUserProfile(supabase).then(({ profile }) => {
-      if (profile && !profile.onboarding_complete) {
-        window.location.href = '/onboarding';
-      }
-    }).catch(console.error);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      ensureUserProfile(supabase).then(({ profile }) => {
+        if (profile && user) {
+          if (!profile.onboarding_complete) {
+            window.location.href = '/onboarding';
+          } else {
+            const planType = profile.plan_type || 'free';
+            const isAdminEmail = user.email === 'jabbouranthony720@gmail.com';
+            const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
+            if (!isActive) {
+              window.location.href = '/onboarding';
+            }
+          }
+        }
+      }).catch(console.error);
+    });
   }, []);
 
 

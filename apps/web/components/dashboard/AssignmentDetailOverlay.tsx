@@ -59,15 +59,15 @@ export default function AssignmentDetailOverlay({
                   <GraduationCap weight="bold" className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-surface-900 uppercase tracking-tighter leading-tight">
+                  <h2 className="text-xl font-display font-bold text-surface-900 leading-tight">
                     {assignment.name}
                   </h2>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-surface-500 bg-surface-200 px-2 py-0.5 rounded border border-surface-300">
+                    <span className="text-meta">
                       Canvas Assignment
                     </span>
                     {assignment.due_at && (
-                      <span className="text-[10px] font-black uppercase tracking-widest text-accent-600 bg-accent-50 px-2 py-0.5 rounded border border-accent-200 flex items-center gap-1">
+                      <span className="text-meta text-accent-600 bg-accent-50 px-2 py-0.5 rounded border border-accent-200 flex items-center gap-1">
                         <Clock weight="bold" className="w-3 h-3" />
                         Due {format(new Date(assignment.due_at), 'MMM do, h:mm a')}
                       </span>
@@ -89,12 +89,12 @@ export default function AssignmentDetailOverlay({
               <section className="space-y-4">
                 <div className="flex items-center gap-2 text-surface-900">
                   <Info weight="bold" className="w-5 h-5 text-brand-500" />
-                  <h3 className="text-xs font-black uppercase tracking-widest">Assignment Details</h3>
+                  <h3 className="text-meta">Assignment Details</h3>
                 </div>
                 
                 {assignment.description ? (
                   <div 
-                    className="prose prose-sm max-w-none prose-p:font-bold prose-p:text-surface-600 prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-a:text-brand-600 prose-strong:text-surface-900 bg-surface-50 p-6 rounded-2xl border-2 border-surface-100"
+                    className="prose prose-sm max-w-none prose-p:text-surface-600 prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tighter prose-a:text-brand-600 prose-strong:text-surface-900 bg-surface-50 p-6 rounded-2xl border-2 border-surface-100"
                     dangerouslySetInnerHTML={{ __html: assignment.description }}
                   />
                 ) : (
@@ -107,16 +107,16 @@ export default function AssignmentDetailOverlay({
               {/* Stats/Meta Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white border-2 border-surface-900 p-4 rounded-2xl shadow-[4px_4px_0_0_var(--surface-900)]">
-                  <p className="text-[10px] font-black text-surface-400 uppercase tracking-widest mb-1">Status</p>
-                  <p className="text-sm font-black text-surface-900 uppercase">Synced & Ready</p>
+                  <p className="text-meta opacity-50 mb-1">Status</p>
+                  <p className="font-display font-bold text-surface-900 uppercase text-xs">Synced & Ready</p>
                 </div>
                 <div className="bg-white border-2 border-surface-900 p-4 rounded-2xl shadow-[4px_4px_0_0_var(--surface-900)]">
-                  <p className="text-[10px] font-black text-surface-400 uppercase tracking-widest mb-1">Deep Link</p>
+                  <p className="text-meta opacity-50 mb-1">Deep Link</p>
                   <a 
                     href={assignment.html_url} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-sm font-black text-brand-600 hover:text-brand-500 flex items-center gap-1 uppercase truncate"
+                    className="text-sm font-display font-bold text-brand-600 hover:text-brand-500 flex items-center gap-1 uppercase truncate"
                   >
                     View in Canvas
                     <CaretRight weight="bold" className="w-3 h-3" />
