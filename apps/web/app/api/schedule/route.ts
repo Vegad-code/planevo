@@ -12,13 +12,13 @@ type ScheduleTask = {
 
 export async function POST() {
   try {
-    const { allowed, error: limitError, message } = await checkRateLimit('schedule');
+    const rateLimitResult = await checkRateLimit('schedule');
 
-    if (!allowed) {
+    if (!rateLimitResult.allowed) {
       return NextResponse.json({
-        error: limitError === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
-        message: message || 'You have reached your daily AI limit.'
-      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
+        error: rateLimitResult.error === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
+        message: (rateLimitResult as any).message || 'You have reached your daily AI limit.'
+      }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
     }
 
     const supabase = await createClient();

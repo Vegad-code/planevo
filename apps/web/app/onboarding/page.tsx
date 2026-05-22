@@ -51,7 +51,7 @@ export default function OnboardingPage() {
         if (profile?.onboarding_complete) {
           const planType = profile.plan_type || 'free';
           const isAdminEmail = authUser.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
-          const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
+          const isActive = ['trialing', 'premium', 'student'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
           
           if (isActive) {
             router.replace('/dashboard');
@@ -585,40 +585,40 @@ export default function OnboardingPage() {
                       Your first <em className="text-[var(--color-honey-deep)] not-italic">plan</em>, {userName || 'Pilot'}.
                     </h1>
                     <p className="text-[13px] text-[var(--color-ink-soft)] mt-2 mb-0 leading-[1.5]">
-                      23 items from Canvas + Calendar, built around your {energyPreference} energy. You can edit anything.
+                      Preview plan built around your {energyPreference} energy. You can edit anything after setup.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 mt-1 mb-3.5">
                   <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-ink)]">23</div>
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-ink)]">--</div>
                     <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">ITEMS READ</div>
                   </div>
                   <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-honey-deep)]">6</div>
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-honey-deep)]">--</div>
                     <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">BLOCKS PLANNED</div>
                   </div>
                   <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-sage)]">2h 30m</div>
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-sage)]">--</div>
                     <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DEEP FOCUS</div>
                   </div>
                   <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-rose)]">1</div>
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-rose)]">--</div>
                     <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DUE THIS WEEK</div>
                   </div>
                 </div>
 
                 <div className="bg-[var(--color-paper)] rounded-2xl border border-[var(--color-line)] p-4.5">
                   <div className="flex justify-between items-center mb-2.5 pb-3 border-b border-[var(--color-line)]">
-                    <div className="font-serif text-[20px]">Tomorrow · <em className="text-[var(--color-honey-deep)] not-italic">Tue May 19</em></div>
-                    <div className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em] uppercase">● BRUNO BUILT THIS</div>
+                    <div className="font-serif text-[20px]">Sample plan <em className="text-[var(--color-honey-deep)] not-italic">preview</em></div>
+                    <div className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em] uppercase">PREVIEW</div>
                   </div>
                   {[
-                    { t: '09:00', dur: '90m', tx: 'Calculus PS8 — your morning sharp', src: 'var(--color-rose)', lbl: 'CANVAS · DUE WED' },
-                    { t: '10:30', dur: '15m', tx: 'Stretch — phone away', src: 'var(--color-honey)', lbl: 'BRUNO RECOVERY' },
-                    { t: '11:00', dur: '60m', tx: 'Bio lab w/ Dr. Marin', src: 'var(--color-blue)', lbl: 'CALENDAR' },
-                    { t: '14:00', dur: '60m', tx: 'History reading + outline', src: 'var(--color-rose)', lbl: 'CANVAS · LIGHTER TIME' },
+                    { t: '09:00', dur: '90m', tx: 'Deep work block — morning focus', src: 'var(--color-rose)', lbl: 'SAMPLE · FOCUS' },
+                    { t: '10:30', dur: '15m', tx: 'Recovery break', src: 'var(--color-honey)', lbl: 'SAMPLE · BREAK' },
+                    { t: '11:00', dur: '60m', tx: 'Class or calendar block', src: 'var(--color-blue)', lbl: 'SAMPLE · CALENDAR' },
+                    { t: '14:00', dur: '60m', tx: 'Lighter afternoon task', src: 'var(--color-rose)', lbl: 'SAMPLE · LIGHTER TIME' },
                   ].map((r, i) => (
                     <div key={i} className="flex items-center gap-3 py-2.5">
                       <div className="font-mono text-[11px] text-[var(--color-ink-soft)] min-w-[44px]">{r.t}</div>

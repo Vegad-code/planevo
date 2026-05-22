@@ -25,7 +25,7 @@ export const PRICE_IDS = {
 // ---------------------------------------------------------------------------
 // Plan type mapping — keeps DB values and Stripe metadata in sync
 // ---------------------------------------------------------------------------
-export type PlanType = 'free' | 'trialing' | 'premium' | 'canceled' | 'admin';
+export type PlanType = 'free' | 'trialing' | 'premium' | 'student' | 'canceled' | 'admin';
 
 export function subscriptionStatusToPlanType(
   status: Stripe.Subscription.Status,
@@ -37,6 +37,8 @@ export function subscriptionStatusToPlanType(
     case 'active':
     case 'past_due':
     case 'incomplete':
+      // Could differentiate student vs premium by priceId here
+      if (priceId === PRICE_IDS.STUDENT) return 'student';
       return 'premium';
     case 'canceled':
     case 'incomplete_expired':

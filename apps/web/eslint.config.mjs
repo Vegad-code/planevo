@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "dist/**",
     "node_modules/**",
     "check_encoding.js",
+    // Archived code — excluded from TS, should not block lint/release
+    "app/_archive/**",
   ]),
 ]);
 

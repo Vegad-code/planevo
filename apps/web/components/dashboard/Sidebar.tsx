@@ -77,7 +77,7 @@ export default function Sidebar() {
         if (profile) {
           setUserName(profile.name || 'User');
           setPlanType(profile.plan_type || 'free');
-          setIsPremium(['premium', 'trialing', 'admin', 'pro_monthly', 'pro_annual'].includes(profile.plan_type));
+          setIsPremium(['premium', 'trialing', 'admin', 'student'].includes(profile.plan_type));
         }
       }
     }

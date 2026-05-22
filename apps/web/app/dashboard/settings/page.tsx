@@ -93,12 +93,20 @@ export default function SettingsPage() {
     switch (type) {
       case 'premium': return 'PREMIUM';
       case 'trialing': return 'TRIAL';
+      case 'student': return 'STUDENT';
       case 'canceled': return 'CANCELED';
+      // Legacy aliases — should not appear after migration
+      case 'pro':
+      case 'pro_monthly':
+      case 'pro_annual':
+      case 'team':
+      case 'elite':
+        return 'PREMIUM';
       default: return 'FREE';
     }
   };
 
-  const isPremium = planType === 'premium' || planType === 'trialing' || (planType === 'admin' && isOwner);
+  const isPremium = planType === 'premium' || planType === 'trialing' || planType === 'student' || (planType === 'admin' && isOwner);
 
   const handleCopyReferral = async () => {
     if (!referralLink) return;

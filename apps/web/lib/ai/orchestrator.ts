@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getUserAIMemory, buildMemoryContext, UserAiMemory } from './memory';
 import { getCalendarEvents, CalendarEvent } from '@/lib/calendar';
-import type { Database, Tables } from '@/types/database';
+import type { Tables } from '@/types/database';
 
 export interface BrunoWorldState {
   user: Tables<'users'>;

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { checkRateLimit } from '@/lib/auth/rateLimit';
-import { isAllowedOrigin } from '@/lib/auth/origin-guard';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { checkRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import {
   buildServerTimingHeader,
   createAiLatencyTimer,
@@ -46,29 +47,34 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    // --- ORIGIN / CSRF GUARD ---
-    if (!isAllowedOrigin(request)) {
+    // --- ORIGIN / CSRF GUARD (allows Bearer for mobile) ---
+    if (!isAllowedOriginOrBearer(request)) {
       return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
     }
 
-    // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
-    const { allowed, error: limitError, message } = await checkRateLimit('bruno-chat');
-    latencyTimer.mark('rate_limit');
-    
-    if (!allowed) {
-      return jsonWithDiagnostics({ 
-        error: limitError, 
-        message: message || 'You have reached your daily AI limit.' 
-      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
-    }
-    // -----------------------------------------
-
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser(); // user is guaranteed to exist by checkRateLimit
+    // --- UNIFIED AUTH: Bearer token OR cookie session ---
+    const { user: authUser, error: authError, authMethod } = await getAuthenticatedUser(request);
     latencyTimer.mark('auth');
-    if (!user) {
+
+    if (authError || !authUser) {
       return jsonWithDiagnostics({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // --- RATE LIMIT (method-aware) ---
+    const rateLimitResult = authMethod === 'bearer'
+      ? await checkRateLimitForUser(authUser.id, 'bruno-chat', authUser.email)
+      : await checkRateLimit('bruno-chat');
+    latencyTimer.mark('rate_limit');
+    
+    if (!rateLimitResult.allowed) {
+      return jsonWithDiagnostics({ 
+        error: rateLimitResult.error, 
+        message: (rateLimitResult as any).message || 'You have reached your daily AI limit.' 
+      }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
+    }
+
+    // Use authUser directly — no need for redundant supabase.auth.getUser()
+    const user = authUser;
 
     const parsedBody = requestSchema.safeParse(await request.json());
     latencyTimer.mark('parse_body');
@@ -86,8 +92,8 @@ export async function POST(request: NextRequest) {
       return jsonWithDiagnostics({ error: 'OpenAI API key missing' }, { status: 500 }, diagnostics);
     }
 
-    // Get user context for better responses
-    const { data: profile } = await supabase
+    // Get user context for better responses (use admin client to bypass RLS for mobile)
+    const { data: profile } = await supabaseAdmin
       .from('users')
       .select('name, plan_type, canvas_token')
       .eq('id', user.id)
@@ -95,7 +101,7 @@ export async function POST(request: NextRequest) {
     latencyTimer.mark('profile');
 
     // Fetch active tasks for Bruno to have context of task names and IDs
-    const { data: tasks } = await supabase
+    const { data: tasks } = await supabaseAdmin
       .from('tasks')
       .select('id, title, status, due_date, priority, estimated_minutes')
       .eq('user_id', user.id)
@@ -105,18 +111,18 @@ export async function POST(request: NextRequest) {
     latencyTimer.mark('assignments'); // mark assignments step completed with tasks query
 
     const taskListContext = tasks && tasks.length > 0
-      ? tasks.map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
+      ? (tasks as any[]).map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
       : 'No active tasks found.';
 
     // Get learned memory
-    const memory = await getUserAIMemory(supabase, user.id);
+    const memory = await getUserAIMemory(supabaseAdmin as any, user.id);
     const memoryContext = buildMemoryContext(memory);
     latencyTimer.mark('memory');
 
     // Get assignment context if requested
     let assignmentContext = '';
     if (assignmentId) {
-      const { data: assignment } = await supabase
+      const { data: assignment } = await supabaseAdmin
         .from('canvas_assignments')
         .select('*')
         .eq('id', assignmentId)
@@ -124,13 +130,14 @@ export async function POST(request: NextRequest) {
         .single();
       
       if (assignment) {
+        const a = assignment as any;
         assignmentContext = `
 ASSIGNMENT CONTEXT:
-Title: ${assignment.name}
-Course: ${assignment.course_name || 'Canvas Course'}
-Due: ${assignment.due_at ? new Date(assignment.due_at).toLocaleString() : 'N/A'}
-Details: ${(assignment as any).description || 'No details provided.'}
-URL: ${assignment.html_url || 'N/A'}
+Title: ${a.name}
+Course: ${a.course_name || 'Canvas Course'}
+Due: ${a.due_at ? new Date(a.due_at).toLocaleString() : 'N/A'}
+Details: ${a.description || 'No details provided.'}
+URL: ${a.html_url || 'N/A'}
 `;
       }
       latencyTimer.mark('assignment_context');
@@ -303,7 +310,7 @@ Rules:
 
         try {
           if (name === 'create_task') {
-            const { error } = await supabase.from('tasks').insert({
+            const { error } = await supabaseAdmin.from('tasks').insert({
               user_id: user.id,
               title: args.title.trim(),
               description: args.description?.trim() || null,
@@ -321,7 +328,7 @@ Rules:
             result = { success: true, message: `Task "${args.title}" created successfully.` };
           } 
           else if (name === 'reschedule_task') {
-            const { data: currentTask } = await supabase
+            const { data: currentTask } = await supabaseAdmin
               .from('tasks')
               .select('rescheduled_count')
               .eq('id', args.task_id)
@@ -330,7 +337,7 @@ Rules:
 
             const count = ((currentTask as any)?.rescheduled_count || 0) + 1;
 
-            const { error } = await supabase
+            const { error } = await supabaseAdmin
               .from('tasks')
               .update({
                 due_date: args.new_due_date,
@@ -348,7 +355,7 @@ Rules:
               ? { completed: true, completed_at: new Date().toISOString(), status: 'done', updated_at: new Date().toISOString() }
               : { completed: false, completed_at: null, status: 'todo', updated_at: new Date().toISOString() };
 
-            const { error } = await supabase
+            const { error } = await supabaseAdmin
               .from('tasks')
               .update(updates)
               .eq('id', args.task_id)
@@ -358,7 +365,7 @@ Rules:
             result = { success: true, message: `Task marked as ${args.completed ? 'completed' : 'todo'} successfully.` };
           } 
           else if (name === 'delete_task') {
-            const { error } = await supabase
+            const { error } = await supabaseAdmin
               .from('tasks')
               .update({ 
                 deleted_at: new Date().toISOString(),

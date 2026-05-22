@@ -207,8 +207,9 @@ export default function DailyPlanPage() {
           duration: g.end_time ? (new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / (1000 * 60) : 30,
           type: (g.energy_level === 'low' ? 'break' : 'focus') as any,
           description: g.description || '',
-          status: g.status as any,
-          is_ai_suggested: true
+          // Read top-level status, fallback to metadata.status for backward compatibility
+          status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
+          is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true
         }));
         
         setSchedule(prev => {
@@ -326,10 +327,11 @@ export default function DailyPlanPage() {
         
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // 1. Upsert Assignments
+          // 1. Upsert Assignments with user-safe composite key
           if (assignmentsOnly.length > 0) {
             const toUpsertAssignments = assignmentsOnly.map(a => ({
-              id: String(a.id),
+              id: `${user.id}:${a.id}`,
+              external_id: String(a.id),
               user_id: user.id,
               name: a.name,
               description: a.description || '',
@@ -337,7 +339,7 @@ export default function DailyPlanPage() {
               html_url: a.html_url,
               synced_at: new Date().toISOString()
             }));
-            await (supabase.from('canvas_assignments') as any).upsert(toUpsertAssignments);
+            await (supabase.from('canvas_assignments') as any).upsert(toUpsertAssignments, { onConflict: 'user_id,external_id' });
           }
 
           // 2. Upsert Events (Classes/Meetings) into calendar_events
@@ -493,8 +495,8 @@ export default function DailyPlanPage() {
     action: 'accept' | 'too_vague' | 'too_many_breaks' | 'wrong_time'
   ) => {
     try {
-      // 1. If it's a Ghost Block, update status directly via Supabase
-      if (block.status === 'pending' && block.id) {
+      // 1. If it's a Ghost Block, update top-level status directly via Supabase
+      if ((block.status === 'pending' || block.is_ai_suggested) && block.id) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const newStatus = action === 'accept' ? 'accepted' : 'rejected';
@@ -541,7 +543,7 @@ export default function DailyPlanPage() {
           </h1>
           <p className="font-sans text-[14.5px] text-[var(--color-ink-soft)] mt-3 mb-0">
             {view === 'schedule' 
-              ? "Generated 7:02 AM · Bruno read 23 items from your sources and built a focused plan." 
+              ? `Bruno built a plan with ${schedule ? schedule.length : 0} block${schedule && schedule.length !== 1 ? 's' : ''} from your sources.`
               : "Let's gather your tasks and schedule to build your daily plan."}
           </p>
         </div>
@@ -833,8 +835,8 @@ export default function DailyPlanPage() {
                   </div>
                   <div className="space-y-3">
                     <SourceRow initial="C" color="bg-[var(--color-rose)]" name="Canvas LMS" detail={`${assignments.length} deadlines`} />
-                    <SourceRow initial="G" color="bg-[var(--color-blue)]" name="Google Calendar" detail={`${calendarEvents.length || 6} events`} />
-                    <SourceRow initial="T" color="bg-[var(--color-honey)]" name="Tasks & reminders" detail={`${manualTasks.length || 9} items`} />
+                    <SourceRow initial="G" color="bg-[var(--color-blue)]" name="Google Calendar" detail={`${calendarEvents.length} events`} />
+                    <SourceRow initial="T" color="bg-[var(--color-honey)]" name="Tasks & reminders" detail={`${manualTasks.length} items`} />
                   </div>
                 </div>
 
@@ -851,7 +853,9 @@ export default function DailyPlanPage() {
                     <span className="font-mono text-[10.5px] tracking-[0.16em] text-[var(--color-honey)] uppercase">BRUNO NOTICED</span>
                   </div>
                   <p className="text-[13.5px] leading-relaxed text-[var(--color-paper)] mb-5 font-serif italic">
-                    "Your morning was clean. I shifted the essay to tomorrow <span className="text-[var(--color-honey)] not-italic font-mono">9:30 AM</span> after the lab ran long. Tap if you want it back today."
+                    {schedule && schedule.length > 0
+                      ? `"I've set up ${schedule.length} block${schedule.length !== 1 ? 's' : ''} for you today. Tap to adjust if anything feels off."`
+                      : `"Looking good so far. Generate a plan to see what Bruno recommends."`}
                   </p>
                   <button 
                     onClick={() => router.push('/dashboard/chat')}
@@ -890,7 +894,7 @@ const SourceRow = ({ initial, color, name, detail }: { initial: string, color: s
         </div>
       </div>
       <div className="font-mono text-[9px] tracking-wide text-[var(--color-sage)] flex items-center gap-1.5 uppercase font-semibold">
-        <span>✓ 2M AGO</span>
+        <span>CONNECTED</span>
       </div>
     </div>
   );

@@ -212,7 +212,9 @@ export default function DashboardPage() {
             {greetingPrefix}, <em className="text-[var(--color-honey-deep)] not-italic">{userName.split(' ')[0] || 'Pilot'}.</em>
           </h1>
           <p className="font-sans text-[15px] text-[var(--color-ink-soft)] mt-3 mb-0">
-            {parsedSchedule ? "Three things on your plate. Bruno already moved the heavy one to tomorrow morning." : "Let's organize your day."}
+            {parsedSchedule && parsedSchedule.length > 0
+              ? `${parsedSchedule.length} block${parsedSchedule.length > 1 ? 's' : ''} on your plate. Bruno has your back.`
+              : "Let's organize your day."}
           </p>
         </div>
         <div className="flex gap-2.5 flex-wrap justify-end">
@@ -244,7 +246,7 @@ export default function DashboardPage() {
           
           <p className="text-[15px] text-[rgba(251,246,234,0.7)] leading-relaxed m-0 max-w-md">
             {nextAction 
-              ? "You've been at it since 9am. Bruno parked the deep work on tomorrow's morning block — that's when you're sharpest anyway."
+              ? `Your next block starts at ${format(nextAction.startTime, 'h:mm a')}. Bruno arranged your schedule based on your energy and priorities.`
               : "Generate a daily plan based on your tasks, or connect your calendar to sync your schedule."}
           </p>
           
@@ -310,7 +312,7 @@ export default function DashboardPage() {
       {/* STATS ROW */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
         <Stat label="Done today" big={stats.completedToday} sub={`${tasks.length ? Math.round(stats.completedToday/tasks.length*100) : 0}% of all tasks`} tone="sage" />
-        <Stat label="Focus time" big="0h 0m" sub="Not started yet" tone="honey" />
+        <Stat label="Focus time" big="--" sub="Start a focus session" tone="honey" />
         <Stat label="Open tasks" big={stats.openTasks} sub="Across all lists" tone="ink" />
         <Stat label="Streak" big={`${stats.currentStreak}d`} sub={stats.currentStreak > 1 ? `${stats.consistencyScore}% consistency this week` : 'Complete a task to start!'} tone="bruno" />
       </div>

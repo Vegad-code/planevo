@@ -51,6 +51,20 @@ export function isAllowedOrigin(request: NextRequest): boolean {
 }
 
 /**
+ * Returns true if the request carries a valid Bearer user token.
+ * Used by origin guard to allow mobile native requests that have
+ * already been authenticated via getAuthenticatedUser().
+ */
+export function hasBearerToken(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return false;
+  // Exclude cron tokens
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return false;
+  return true;
+}
+
+/**
  * Returns true if the request has a valid origin OR a valid CRON_SECRET.
  * Use this for cron-triggered endpoints that need to accept server-to-server calls.
  */
@@ -64,4 +78,16 @@ export function isAllowedOriginOrCron(request: NextRequest): boolean {
   }
 
   return isAllowedOrigin(request);
+}
+
+/**
+ * Origin guard that also allows authenticated mobile Bearer tokens.
+ * - Browser POSTs: require valid Origin/Referer (CSRF protection)
+ * - Mobile clients: allowed if they provide a Bearer token (auth verified separately)
+ * - Cron: allowed if they provide valid CRON_SECRET
+ */
+export function isAllowedOriginOrBearer(request: NextRequest): boolean {
+  // Mobile native clients send Bearer tokens without origin headers
+  if (hasBearerToken(request)) return true;
+  return isAllowedOriginOrCron(request);
 }

@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { CanvasAssignment } from '@/lib/canvas/api';
 import { Button } from '@/components/ui/button';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface AssignmentDetailOverlayProps {
   assignment: CanvasAssignment | null;
@@ -95,7 +96,7 @@ export default function AssignmentDetailOverlay({
                 {assignment.description ? (
                   <div 
                     className="prose prose-sm max-w-none prose-p:text-surface-600 prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tighter prose-a:text-brand-600 prose-strong:text-surface-900 bg-surface-50 p-6 rounded-2xl border-2 border-surface-100"
-                    dangerouslySetInnerHTML={{ __html: assignment.description }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(assignment.description, { USE_PROFILES: { html: true } }) }}
                   />
                 ) : (
                   <div className="bg-surface-50 p-10 rounded-2xl border-2 border-dashed border-surface-200 text-center">

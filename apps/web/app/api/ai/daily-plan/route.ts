@@ -1,31 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { findGaps } from '@/lib/calendar';
-import { checkRateLimit } from '@/lib/auth/rateLimit';
-import { isAllowedOrigin } from '@/lib/auth/origin-guard';
+import { checkRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
+import { z } from 'zod';
+
+// --- Zod schema for AI response validation ---
+const scheduleItemSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(1).max(500),
+  reason: z.string().optional(),
+  suggested_start: z.string().refine((s) => {
+    const d = new Date(s);
+    return !isNaN(d.getTime());
+  }, 'Invalid ISO date for suggested_start'),
+  suggested_end: z.string().refine((s) => {
+    const d = new Date(s);
+    return !isNaN(d.getTime());
+  }, 'Invalid ISO date for suggested_end'),
+}).refine((item) => {
+  const start = new Date(item.suggested_start);
+  const end = new Date(item.suggested_end);
+  return end > start;
+}, 'suggested_end must be after suggested_start');
+
+const aiResponseSchema = z.object({
+  schedule_name: z.string().optional(),
+  focus_score: z.number().optional(),
+  vibe: z.string().optional(),
+  schedule: z.array(scheduleItemSchema).optional(),
+  plan: z.array(scheduleItemSchema).optional(),
+  message: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    // --- ORIGIN / CSRF GUARD ---
-    if (!isAllowedOrigin(request)) {
+    // --- ORIGIN / CSRF GUARD (allows Bearer for mobile) ---
+    if (!isAllowedOriginOrBearer(request)) {
       return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
     }
 
-    // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
-    const { allowed, error: limitError, message } = await checkRateLimit('daily-plan');
-    
-    if (!allowed) {
-      return NextResponse.json({ 
-        error: limitError, 
-        message: message || 'You have reached your daily AI limit.' 
-      }, { status: limitError === 'Unauthorized' ? 401 : 403 });
+    // --- UNIFIED AUTH: Bearer token OR cookie session ---
+    const { user: authUser, error: authError, authMethod } = await getAuthenticatedUser(request);
+
+    if (authError || !authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = await createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // --- RATE LIMIT (method-aware) ---
+    const rateLimitResult = authMethod === 'bearer'
+      ? await checkRateLimitForUser(authUser.id, 'daily-plan', authUser.email)
+      : await checkRateLimit('daily-plan');
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json({ 
+        error: rateLimitResult.error, 
+        message: (rateLimitResult as any).message || 'You have reached your daily AI limit.' 
+      }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
     }
 
     // 1. Get Unified World State
@@ -38,15 +72,15 @@ export async function POST(request: NextRequest) {
     const todayStr = now.toISOString().split('T')[0];
 
     // Boundaries for scheduling and cleanup
-    const dayStart = todayStart ? new Date(todayStart) : new Date(now).setHours(0,0,0,0);
-    const dayEnd = todayEnd ? new Date(todayEnd) : new Date(now).setHours(23,59,59,999);
+    const dayStart = todayStart ? new Date(todayStart) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const dayEnd = todayEnd ? new Date(todayEnd) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
     console.log(`[DailyPlan] Processing ${worldState.tasks.length} tasks for user ${authUser.id}. Local: ${now.toLocaleTimeString()}. Range: ${new Date(dayStart).toISOString()} to ${new Date(dayEnd).toISOString()}`);
 
     if (worldState.tasks.length === 0) {
       return NextResponse.json({
         plan: [],
-        message: "No tasks to plan! Add something new? 🌱"
+        message: "No tasks to plan! Add something new?"
       });
     }
 
@@ -62,7 +96,7 @@ export async function POST(request: NextRequest) {
     if (!openAiApiKey) {
       return NextResponse.json({
         plan: worldState.tasks.slice(0, 1).map(t => ({ id: t.id, title: t.title })),
-        message: "Bruno is thinking... here's your top priority! 🌱"
+        message: "Bruno is warming up... here's your top priority!"
       });
     }
 
@@ -130,23 +164,48 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
     if (!aiApiResponse.ok) throw new Error('AI API failure');
 
     const rawData = await aiApiResponse.json();
-    const aiResponse = JSON.parse(rawData.choices[0].message.content);
+    let aiResponse: any;
+    try {
+      aiResponse = JSON.parse(rawData.choices[0].message.content);
+    } catch {
+      console.error('[DailyPlan] Failed to parse AI JSON output');
+      return NextResponse.json({ error: 'AI returned invalid JSON', plan: [] }, { status: 502 });
+    }
+
+    // --- Zod validation of AI output ---
+    const parsed = aiResponseSchema.safeParse(aiResponse);
+    let plan: any[];
+
+    if (parsed.success) {
+      plan = parsed.data.schedule || parsed.data.plan || [];
+    } else {
+      console.warn('[DailyPlan] AI output failed validation:', parsed.error.format());
+      // Try to salvage valid items from the raw response
+      const rawPlan = aiResponse.schedule || aiResponse.plan || [];
+      plan = rawPlan.filter((item: any) => {
+        try {
+          const start = new Date(item.suggested_start);
+          const end = new Date(item.suggested_end);
+          return item.title && !isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start;
+        } catch {
+          return false;
+        }
+      });
+    }
 
     // 3. AUTO-INFERENCE: Create Ghost Blocks (Pending Calendar Events)
-    const plan = aiResponse.schedule || aiResponse.plan || [];
-    
     if (plan.length > 0) {
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       const ghostBlocks = plan.map((item: any) => {
-        let startTime = item.suggested_start;
-        let endTime = item.suggested_end;
+        let startTime: string;
+        let endTime: string;
 
         // Ensure valid date objects
         try {
-          startTime = new Date(startTime).toISOString();
-          endTime = new Date(endTime).toISOString();
-        } catch (e) {
+          startTime = new Date(item.suggested_start).toISOString();
+          endTime = new Date(item.suggested_end).toISOString();
+        } catch {
           console.warn('Invalid date from AI:', item.suggested_start);
           startTime = now.toISOString();
           endTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
@@ -164,28 +223,26 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
           external_id: null,
           source: 'schedule',
           energy_level: energyLevel,
+          is_ai_suggested: true,
+          status: 'pending',
           metadata: {
-            ...item.metadata,
             canvas_id: canvasId,
             reason: item.reason,
-            status: 'pending',
-            is_ai_suggested: true,
-            is_deleted: false,
           }
         };
       });
 
-      // CLEANUP: Delete old ghost blocks for the range before inserting new ones
-      // Note: is_ai_suggested exists in DB but not in generated types — cast to bypass
-      await (supabase
+      // CLEANUP: Delete old AI-suggested PENDING blocks for today before inserting new ones
+      await supabaseAdmin
         .from('calendar_events')
-        .delete() as any)
+        .delete()
         .eq('user_id', authUser.id)
         .eq('is_ai_suggested', true)
+        .eq('status', 'pending')
         .gte('start_time', new Date(dayStart).toISOString())
         .lte('start_time', new Date(dayEnd).toISOString());
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabaseAdmin
         .from('calendar_events')
         .insert(ghostBlocks);
 

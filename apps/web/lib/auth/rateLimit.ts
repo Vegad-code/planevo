@@ -1,18 +1,20 @@
-import { createClient } from '@/lib/supabase/server';
-import { getUserPlan, type PlanType } from './subscription';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getUserPlan, getUserPlanById, type PlanType } from './subscription';
 
 // Define the daily limits for each plan
 // Free: 5/day — enough to build habit, not enough to avoid upgrading
-// Pro:  100/day — effectively unlimited for normal students
-// Elite: 1000/day — true unlimited for power users & agents
+// Trialing/Premium/Student: 100/day — effectively unlimited for normal students
+// Admin: 1000/day — true unlimited for power users & agents
 export const AI_DAILY_LIMITS: Record<PlanType, number> = {
   free: 5,
   trialing: 100,
   premium: 100,
+  student: 100,
   admin: 1000,
   canceled: 5,
 };
 
+/** Rate-limit check for cookie-authenticated web requests */
 export async function checkRateLimit(feature: string) {
   const { plan, user, error: planError } = await getUserPlan();
 
@@ -20,28 +22,55 @@ export async function checkRateLimit(feature: string) {
     return { allowed: false, error: 'Unauthorized' };
   }
 
-  const limit = AI_DAILY_LIMITS[plan] || AI_DAILY_LIMITS.free;
-  const supabase = await createClient();
+  return _consumeQuota(user.id, feature, plan);
+}
 
-  // Atomically consumes one quota unit before the AI call. The RPC locks per user,
-  // counts the last 24 hours, and inserts the usage log in the same transaction.
+/** Rate-limit check for Bearer-token-authenticated mobile requests */
+export async function checkRateLimitForUser(userId: string, feature: string, email?: string | null) {
+  const { plan } = await getUserPlanById(userId, email);
+  return _consumeQuota(userId, feature, plan);
+}
+
+async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
+  const limit = AI_DAILY_LIMITS[plan] || AI_DAILY_LIMITS.free;
+
+  // Use admin client to bypass RLS for the consume_ai_usage RPC
   let allowed = false;
   try {
-    const { data, error: limitError } = await supabase.rpc('consume_ai_usage', {
-      p_user_id: user.id,
-      p_feature: feature,
-      p_limit: limit
-    });
-    
-    if (limitError) {
-      console.error('Rate limit RPC error:', limitError);
+    // Direct count + insert via admin client to avoid RLS auth.uid() checks
+    const { count, error: countError } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('feature', feature)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+    if (countError) {
+      console.error('Rate limit count error:', countError);
       return {
         allowed: false,
         error: 'Rate Limit Unavailable',
         message: 'AI usage checks are temporarily unavailable. Please try again shortly.'
       };
+    }
+
+    if ((count ?? 0) >= limit) {
+      allowed = false;
     } else {
-      allowed = !!data;
+      // Insert usage log
+      const { error: insertError } = await supabaseAdmin
+        .from('ai_usage_logs')
+        .insert({ user_id: userId, feature });
+
+      if (insertError) {
+        console.error('Rate limit insert error:', insertError);
+        return {
+          allowed: false,
+          error: 'Rate Limit Unavailable',
+          message: 'AI usage checks are temporarily unavailable. Please try again shortly.'
+        };
+      }
+      allowed = true;
     }
   } catch (err) {
     console.error('Rate limit check failed:', err);
@@ -60,18 +89,14 @@ export async function checkRateLimit(feature: string) {
     };
   }
 
-  return { allowed: true, userId: user.id, plan };
+  return { allowed: true, userId, plan };
 }
 
 /**
  * Logs AI usage to the database.
- *
- * Prefer checkRateLimit() for new AI endpoints. It atomically consumes quota
- * before the provider call, which prevents parallel request quota races.
  */
 export async function logAiUsage(userId: string, feature: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from('ai_usage_logs').insert({
+  const { error } = await supabaseAdmin.from('ai_usage_logs').insert({
     user_id: userId,
     feature: feature
   });
