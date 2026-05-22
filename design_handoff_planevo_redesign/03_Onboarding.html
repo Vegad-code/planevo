@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Planevo — Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Geist', system-ui, sans-serif; }
+  em { font-style: italic; }
+  #root { width: 100%; min-height: 100vh; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="onboarding-screens.jsx"></script>
+
+  <script type="text/babel">
+    const { DesignCanvas, DCSection, DCArtboard } = window;
+    const screens = [
+      { id: 'o01', label: '01 · Welcome',     C: window.Onboard01 },
+      { id: 'o02', label: '02 · Identity',    C: window.Onboard02 },
+      { id: 'o03', label: '03 · Name',        C: window.Onboard03 },
+      { id: 'o04', label: '04 · Energy',      C: window.Onboard04 },
+      { id: 'o05', label: '05 · Canvas',      C: window.Onboard05 },
+      { id: 'o06', label: '06 · Calendar',    C: window.Onboard06 },
+      { id: 'o07', label: '07 · First plan',  C: window.Onboard07 },
+      { id: 'o08', label: '08 · Trial',       C: window.Onboard08 },
+    ];
+
+    function App() {
+      return (
+        <DesignCanvas
+          title="Planevo · Onboarding"
+          subtitle="8 screens · <90s · warm, anti-shame · cuts the 16-step flow down to essentials per strategy §9"
+        >
+          <DCSection
+            id="flow"
+            title="The flow"
+            subtitle="Same visual system as landing + app. Bruno-only mascot. Cream + ink + honey accent."
+          >
+            {screens.map((s) => (
+              <DCArtboard key={s.id} id={s.id} label={s.label} width={720} height={960}>
+                <s.C />
+              </DCArtboard>
+            ))}
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

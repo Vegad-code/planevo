@@ -35,7 +35,7 @@ export function buildChatClientLatencyDiagnostic(params: {
   const clickToAnswerReadyMs = roundMs(params.answerReadyAt - params.clickAt);
 
   return {
-    feature: 'ollie-chat',
+    feature: 'bruno-chat',
     clickToRequestStartMs: roundMs(params.requestStartedAt - params.clickAt),
     requestRoundTripMs: roundMs(params.responseReceivedAt - params.requestStartedAt),
     responseParseMs: roundMs(params.parsedAt - params.responseReceivedAt),

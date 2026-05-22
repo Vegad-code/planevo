@@ -153,7 +153,7 @@ export type Database = {
           linked_task_id: string | null
           location: string | null
           metadata: Json | null
-          ollie_notes: string | null
+          bruno_notes: string | null
           recurrence_rule: string | null
           source: string | null
           start_time: string
@@ -178,7 +178,7 @@ export type Database = {
           linked_task_id?: string | null
           location?: string | null
           metadata?: Json | null
-          ollie_notes?: string | null
+          bruno_notes?: string | null
           recurrence_rule?: string | null
           source?: string | null
           start_time: string
@@ -203,7 +203,7 @@ export type Database = {
           linked_task_id?: string | null
           location?: string | null
           metadata?: Json | null
-          ollie_notes?: string | null
+          bruno_notes?: string | null
           recurrence_rule?: string | null
           source?: string | null
           start_time?: string
@@ -469,7 +469,7 @@ export type Database = {
           },
         ]
       }
-      ollie_messages: {
+      bruno_messages: {
         Row: {
           content: string
           conversation_id: string | null
@@ -496,14 +496,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ollie_messages_conversation_id_fkey"
+            foreignKeyName: "bruno_messages_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "chat_conversations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ollie_messages_user_id_fkey"
+            foreignKeyName: "bruno_messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -681,6 +681,48 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: {
+          converted_at: string | null
+          created_at: string
+          id: string
+          referred_id: string
+          referrer_id: string
+          status: string
+        }
+        Insert: {
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          referred_id: string
+          referrer_id: string
+          status?: string
+        }
+        Update: {
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          referred_id?: string
+          referrer_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -689,6 +731,7 @@ export type Database = {
           created_at: string
           email: string
           energy_preference: string | null
+          expo_push_token: string | null
           google_calendar_connected: boolean | null
           google_calendar_id: string | null
           google_calendar_refresh_token: string | null
@@ -699,6 +742,9 @@ export type Database = {
           onboarding_complete: boolean
           plan_type: string
           preferred_morning_time: string | null
+          push_notifications_enabled: boolean | null
+          referral_code: string | null
+          referred_by: string | null
           scheduling_preferences: Json | null
         }
         Insert: {
@@ -708,6 +754,7 @@ export type Database = {
           created_at?: string
           email: string
           energy_preference?: string | null
+          expo_push_token?: string | null
           google_calendar_connected?: boolean | null
           google_calendar_id?: string | null
           google_calendar_refresh_token?: string | null
@@ -718,6 +765,9 @@ export type Database = {
           onboarding_complete?: boolean
           plan_type?: string
           preferred_morning_time?: string | null
+          push_notifications_enabled?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           scheduling_preferences?: Json | null
         }
         Update: {
@@ -727,6 +777,7 @@ export type Database = {
           created_at?: string
           email?: string
           energy_preference?: string | null
+          expo_push_token?: string | null
           google_calendar_connected?: boolean | null
           google_calendar_id?: string | null
           google_calendar_refresh_token?: string | null
@@ -737,6 +788,9 @@ export type Database = {
           onboarding_complete?: boolean
           plan_type?: string
           preferred_morning_time?: string | null
+          push_notifications_enabled?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           scheduling_preferences?: Json | null
         }
         Relationships: []
@@ -754,7 +808,7 @@ export type Database = {
         Args: { p_feature: string; p_limit: number; p_user_id: string }
         Returns: boolean
       }
-      get_ollie_chat_context: { Args: { p_feature: string }; Returns: Json }
+      get_bruno_chat_context: { Args: { p_feature: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

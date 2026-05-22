@@ -4,16 +4,16 @@ import { useState, useCallback } from 'react';
 import type { Task, AITaskResponse } from '@/types/tasks';
 
 /**
- * Plan Pilot v1: AI task prioritization and feedback have been folded into
- * Ollie Chat (function-calling agent). The standalone /api/ai/prioritize and
+ * Planevo v1: AI task prioritization and feedback have been folded into
+ * Bruno Chat (function-calling agent). The standalone /api/ai/prioritize and
  * /api/ai/feedback endpoints are archived per STRATEGY.md §6.
  *
  * This hook is kept as a no-op so existing UI (EnhancedTasks) compiles and
  * renders without an AI suggestion overlay. To re-enable AI prioritization,
- * users now ask Ollie directly: "Prioritize my tasks for today."
+ * users now ask Bruno directly: "Prioritize my tasks for today."
  *
- * TODO (Block G — retention): wire the new Ollie agent's "prioritize" tool
- * call into this hook so the Tasks page can show Ollie-suggested ordering
+ * TODO (Block G — retention): wire the new Bruno agent's "prioritize" tool
+ * call into this hook so the Tasks page can show Bruno-suggested ordering
  * inline again.
  */
 export function useTaskAI() {
@@ -37,7 +37,7 @@ export function useTaskAI() {
       _action: 'accept' | 'reject',
       _correction?: string
     ) => {
-      // No-op in v1. Feedback is captured implicitly via Ollie chat history.
+      // No-op in v1. Feedback is captured implicitly via Bruno chat history.
       return true;
     },
     []

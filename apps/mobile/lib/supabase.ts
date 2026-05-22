@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { createSupabaseMobileClient } from '@plan-pilot/core';
+import { createSupabaseMobileClient } from '@planevo/core';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;

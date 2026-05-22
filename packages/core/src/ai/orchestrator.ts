@@ -3,7 +3,7 @@ import { getUserAIMemory, buildMemoryContext, UserAiMemory } from './memory';
 import { getCalendarEvents, CalendarEvent } from '@/lib/calendar';
 import type { Database, Tables } from '@/types/database';
 
-export interface OllieWorldState {
+export interface BrunoWorldState {
   user: Tables<'users'>;
   memory: UserAiMemory;
   memoryContext: string;
@@ -13,13 +13,13 @@ export interface OllieWorldState {
 }
 
 /**
- * The Master Context Builder for Plan Pilot.
+ * The Master Context Builder for Planevo.
  * Assembles a complete "World State" for a user to ensure AI coherence.
  */
-export async function getOllieMasterContext(
+export async function getBrunoMasterContext(
   userId: string, 
   energyLevel: 'low' | 'medium' | 'high' = 'medium'
-): Promise<OllieWorldState> {
+): Promise<BrunoWorldState> {
   const supabase = await createClient();
 
   // 1. Fetch User Data & Preferences

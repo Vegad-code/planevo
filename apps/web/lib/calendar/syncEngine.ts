@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { fetchCanvasUpcoming } from '@/lib/canvas';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
+import { decryptToken } from '@/lib/crypto';
 
 export async function syncCanvasEvents(userId: string) {
   const supabase = await createClient();
@@ -17,7 +18,8 @@ export async function syncCanvasEvents(userId: string) {
   }
 
   // 2. Fetch assignments
-  const assignments = await fetchCanvasUpcoming(user.canvas_url, user.canvas_token);
+  const decryptedToken = decryptToken(user.canvas_token);
+  const assignments = await fetchCanvasUpcoming(user.canvas_url, decryptedToken);
   if (!assignments || assignments.length === 0) return 0;
 
   // 3. Transform to calendar_events format
@@ -63,7 +65,7 @@ export async function syncCanvasEvents(userId: string) {
   return futureEvents.length;
 }
 
-export async function processOllieRollover(userId: string) {
+export async function processBrunoRollover(userId: string) {
   const supabase = await createClient();
   const now = new Date();
   
@@ -126,7 +128,7 @@ export async function runFullSync(userId: string) {
   }
 
   try {
-    results.rollover = await processOllieRollover(userId);
+    results.rollover = await processBrunoRollover(userId);
   } catch (err: unknown) {
     results.errors.push(`Rollover: ${err instanceof Error ? err.message : String(err)}`);
   }

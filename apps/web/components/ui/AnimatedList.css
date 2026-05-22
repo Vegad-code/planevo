@@ -11,7 +11,7 @@
   scroll-behavior: smooth;
 }
 
-/* Custom Scrollbar for Plan Pilot */
+/* Custom Scrollbar for Planevo */
 .scroll-list::-webkit-scrollbar {
   width: 6px;
 }

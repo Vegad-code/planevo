@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeClosed } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -23,8 +24,9 @@ export default function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const searchParams = useSearchParams();
   const redirect = searchParams?.get('redirect');
+  const referralCode = searchParams?.get('ref');
   const isOnboarding = searchParams?.get('onboarding') === 'true';
   const nextPath = redirect ? `/${redirect}` : (isOnboarding ? '/onboarding' : '/dashboard');
 
@@ -41,8 +43,9 @@ export default function SignupForm() {
       options: {
         data: {
           full_name: name,
+          referral_code: referralCode || undefined,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${nextPath}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}${referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''}`,
       },
     });
 
@@ -61,7 +64,7 @@ export default function SignupForm() {
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${nextPath}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}${referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''}`,
       },
     });
 

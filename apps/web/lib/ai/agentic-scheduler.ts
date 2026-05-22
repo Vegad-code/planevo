@@ -1,5 +1,5 @@
 /**
- * Plan Pilot Agentic Scheduler v1
+ * Planevo Agentic Scheduler v1
  * 
  * A constraint-aware scheduler that places tasks around "Hard Blocks" (School, Work)
  * and "Fixed Events" (Calendar). Designed for the "Ultimate" visual timeline.
@@ -68,23 +68,24 @@ export interface AgenticSchedulerInput {
  * then filling the gaps with tasks based on energy and priority.
  */
 export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleBlock[] {
-  const { tasks, calendarEvents, preferences, date } = input;
+  const { tasks = [], calendarEvents = [], preferences, date } = input;
   const schedule: ScheduleBlock[] = [];
   const dayStart = startOfDay(date);
   
   // 1. Generate Hard Constraints (Sleep, School)
   const currentDayName = format(date, 'EEEE');
-  const constraints = preferences.unavailable_blocks
-    .filter(b => b.days.includes(currentDayName))
+  const unavailableBlocks = preferences?.unavailable_blocks || [];
+  const constraints = unavailableBlocks
+    .filter(b => b && Array.isArray(b.days) && b.days.includes(currentDayName))
     .map(b => ({
-      start: parseTime(b.start, date),
-      end: parseTime(b.end, date),
-      label: b.label
+      start: parseTime(b.start, date, '09:00'),
+      end: parseTime(b.end, date, '17:00'),
+      label: b.label || 'Unavailable'
     }));
 
   // Add Sleep as a constraint
-  const sleepStart = parseTime(preferences.sleep_start, date);
-  const sleepEnd = parseTime(preferences.sleep_end, date);
+  const sleepStart = parseTime(preferences?.sleep_start, date, '22:00');
+  const sleepEnd = parseTime(preferences?.sleep_end, date, '07:00');
   
   // Handle overnight sleep
   if (isAfter(sleepEnd, sleepStart)) {
@@ -97,11 +98,11 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
 
   // 2. Add Calendar Events
   const fixedEvents = calendarEvents
-    .filter(event => (event.start.dateTime || event.start.date) && (event.end.dateTime || event.end.date))
+    .filter(event => event && (event.start?.dateTime || event.start?.date) && (event.end?.dateTime || event.end?.date))
     .map(event => ({
       start: parseISO(event.start.dateTime || event.start.date!),
       end: parseISO(event.end.dateTime || event.end.date!),
-      title: event.summary,
+      title: event.summary || 'Calendar Event',
       type: 'event' as const
     })).filter(e => isSameDay(e.start, date));
 
@@ -173,7 +174,7 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
         description: task.description || `Work on ${task.title} for ${taskDuration} minutes.`,
         specific_action: buildSpecificAction(task.title, task.description),
         success_condition: buildSuccessCondition(task.title, taskDuration),
-        why_now: buildWhyNow(task.priority, taskDuration, gapMinutes, preferences.preferred_focus_time),
+        why_now: buildWhyNow(task.priority, taskDuration, gapMinutes, preferences?.preferred_focus_time || 'morning'),
         fallback_if_stuck: 'Spend five minutes listing the next visible step, then do only that step.',
         materials_needed: inferMaterials(task.title, task.external_url),
         originalTitle: task.title,
@@ -185,7 +186,7 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
       focusBlocksSinceBreak += 1;
 
       // Add a break only after real focus load, not as filler after every task.
-      const breakDuration = preferences.break_length || 15;
+      const breakDuration = preferences?.break_length || 15;
       const needsBreak = shouldAddBreak({
         focusedMinutesSinceBreak,
         focusBlocksSinceBreak,
@@ -238,8 +239,9 @@ export function generateAgenticSchedule(input: AgenticSchedulerInput): ScheduleB
 }
 
 // Helper: Parse "HH:mm" into a Date object for a specific day
-function parseTime(timeStr: string, date: Date): Date {
-  const [hours, minutes] = timeStr.split(':').map(Number);
+function parseTime(timeStr: string | undefined | null, date: Date, defaultTime = '08:00'): Date {
+  const safeTime = (typeof timeStr === 'string' && /^\d{2}:\d{2}$/.test(timeStr)) ? timeStr : defaultTime;
+  const [hours, minutes] = safeTime.split(':').map(Number);
   return setMinutes(setHours(startOfDay(date), hours), minutes);
 }
 

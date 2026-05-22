@@ -7,14 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { 
-  Trash2, 
+  Trash, 
   Calendar as CalendarIcon, 
   Clock, 
   X, 
   Check, 
   Palette,
-  ListTodo
-} from 'lucide-react';
+  ListChecks
+} from '@phosphor-icons/react';
 import { format, differenceInMinutes } from 'date-fns';
 import type { CalendarEvent } from '@/types/calendar';
 import { cn } from '@/lib/utils';
@@ -192,7 +192,7 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
           {subtasks.length > 0 && (
             <div className="bg-muted/50 dark:bg-card/50 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3 border border-border/50">
               <div className="flex items-center gap-2 sm:gap-3 text-muted-foreground/60 mb-1">
-                <ListTodo className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <ListChecks className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Steps</span>
               </div>
               {subtasks.map((task, i) => (
@@ -237,7 +237,7 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
               onOpenChange(false);
             }}
           >
-            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+            <Trash className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
             <span className="font-bold uppercase tracking-wider text-[10px] sm:text-xs">Delete</span>
           </Button>
 

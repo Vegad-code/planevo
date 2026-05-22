@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useFocusStore } from '@/store/useFocusStore';
-import OllieAvatar from '../ollie/OllieAvatar';
+import BrunoAvatar from '../bruno/BrunoAvatar';
 import type { Task } from '@/types/database';
 
 interface ScheduleItem {
@@ -72,11 +72,11 @@ export default function ScheduleGenerator() {
       setFeedbackLogged(false);
     } catch (err) {
       console.error(err);
-      const useFallback = confirm('Ollie is having trouble connecting. Use a default backup plan instead?');
+      const useFallback = confirm('Bruno is having trouble connecting. Use a default backup plan instead?');
       if (useFallback) {
         setPlan({
           schedule_name: "Personal Daily Plan",
-          message: "Ollie is taking a short break, but your goals remain. I've loaded a balanced fallback plan for you.",
+          message: "Bruno is taking a short break, but your goals remain. I've loaded a balanced fallback plan for you.",
           vibe: "Steady Progress",
           focus_score: 85,
           plan: [
@@ -169,16 +169,16 @@ export default function ScheduleGenerator() {
               <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest italic">{plan.vibe}</p>
             </div>
 
-            {/* Ollie's Message */}
+            {/* Bruno's Message */}
             <div className="flex items-start gap-4 p-4 border-2 border-surface-900 bg-white italic relative overflow-hidden">
                <div className="shrink-0 relative z-10">
-                 <OllieAvatar mood="happy" size="sm" />
+                 <BrunoAvatar mood="happy" size="sm" />
                </div>
                <p className="text-sm font-bold text-surface-900 leading-snug relative z-10 pr-8">
                  &quot;{plan.message}&quot;
                </p>
                <div className="absolute -bottom-4 -right-4 opacity-5 pointer-events-none transform -rotate-12">
-                 <OllieAvatar mood="happy" size="xl" />
+                 <BrunoAvatar mood="happy" size="xl" />
                </div>
             </div>
 

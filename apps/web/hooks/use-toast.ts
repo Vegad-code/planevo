@@ -1,8 +1,8 @@
 import { toast } from 'sonner';
 
 /**
- * Standardized toast hook for Plan Pilot.
- * Uses sonner internally but allows for Ollie-themed customization.
+ * Standardized toast hook for Planevo.
+ * Uses sonner internally but allows for Bruno-themed customization.
  */
 export const showToast = {
   success: (message: string, description?: string) => {
@@ -26,9 +26,9 @@ export const showToast = {
     });
   },
   /**
-   * Ollie-specific toast for encouragement or nudges
+   * Bruno-specific toast for encouragement or nudges
    */
-  ollie: (message: string, description?: string) => {
+  bruno: (message: string, description?: string) => {
     toast(message, {
       description,
       icon: '🦉',

@@ -4,7 +4,7 @@ import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { MOTION } from '@/lib/calendar/motion';
 import { getSourceColor, getSourceLabel } from '@/lib/calendar/layoutEngine';
 import type { DayLayoutEvent } from '@/types/calendar';
-import { Check, Zap, Settings, Moon, MapPin, RotateCcw, Sparkles, GripVertical } from 'lucide-react';
+import { Check, Lightning, Gear, Moon, MapPin, ArrowCounterClockwise, Sparkle as Sparkles, DotsSixVertical } from '@phosphor-icons/react';
 import { useState, useRef, useCallback } from 'react';
 
 interface EventCardProps {
@@ -19,6 +19,20 @@ interface EventCardProps {
 
 const SNAP_PX = 72 / 4; // 15-minute snap = hourHeight / 4
 
+function getSoftSourceColor(source: string): string {
+  const map: Record<string, string> = {
+    manual: 'var(--color-manual-soft)',
+    google_calendar: 'var(--color-google-soft)',
+    canvas: 'var(--color-canvas-soft)',
+    blueprint: 'var(--color-blueprint-soft)',
+    schedule: 'var(--color-honey-soft)',
+    cargo_bay: 'var(--color-cargo-soft)',
+    focus_block: 'var(--color-focus-soft)',
+    rollover: 'var(--color-rollover-soft)',
+  };
+  return map[source] || 'var(--color-manual-soft)';
+}
+
 export default function EventCard({
   event,
   onComplete,
@@ -29,7 +43,7 @@ export default function EventCard({
   isCompact = false,
 }: EventCardProps) {
   const isRollover = event.source === 'rollover';
-  const sourceColor = isRollover ? 'var(--color-amber-500)' : getSourceColor(event.source);
+  const sourceColor = getSourceColor(event.source);
   const sourceLabel = getSourceLabel(event.source);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -56,9 +70,9 @@ export default function EventCard({
 
   const energyIcon =
     event.energy_level === 'high' ? (
-      <Zap className="w-3 h-3" />
+      <Lightning className="w-3 h-3" />
     ) : event.energy_level === 'medium' ? (
-      <Settings className="w-3 h-3" />
+      <Gear className="w-3 h-3" />
     ) : event.energy_level === 'low' ? (
       <Moon className="w-3 h-3" />
     ) : null;
@@ -134,7 +148,7 @@ export default function EventCard({
         zIndex: 100,
         cursor: 'grabbing',
       }}
-      whileHover={!isDragging ? { scale: 1.01, backgroundColor: 'var(--bg-tertiary)' } : undefined}
+      whileHover={!isDragging ? { scale: 1.01 } : undefined}
       onClick={() => {
         if (!isDragging) onClick?.(event);
       }}
@@ -157,23 +171,18 @@ export default function EventCard({
         ...style,
       }}
     >
-      {/* Inner card with sleek glassmorphism and left accent */}
+      {/* Inner card with premium pastel background and left accent */}
       <motion.div
-        className={`h-full w-full flex rounded-xl border relative overflow-hidden backdrop-blur-md shadow-sm transition-all hover:shadow-md
-          ${isRollover 
-            ? 'bg-amber-500/15 dark:bg-amber-500/10 border-amber-500/40' 
-            : 'bg-background/90 dark:bg-background/60 border-border/80 hover:border-surface-300'
-          }
-        `}
+        className="h-full w-full flex rounded-xl border border-[var(--color-line)] relative overflow-hidden shadow-sm transition-all hover:shadow-md"
         style={{
+          backgroundColor: getSoftSourceColor(event.source),
           borderLeft: `4px solid ${sourceColor}`,
-          boxShadow: `inset 0 0 20px color-mix(in srgb, ${sourceColor} 5%, transparent)`,
           height: isResizing ? cardHeight : '100%',
         }}
       >
         {/* Drag grip indicator — visible on hover */}
         <div className="absolute top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40" />
+          <DotsSixVertical className="w-3.5 h-3.5 text-[var(--color-ink-faint)]" />
         </div>
 
         <div className="flex-1 p-2.5 min-w-0 flex flex-col justify-between overflow-hidden">
@@ -182,10 +191,10 @@ export default function EventCard({
             <div className="flex items-start justify-between gap-2">
               <h3
                 className={`
-                  font-semibold leading-tight truncate
-                  text-foreground
+                  font-bold leading-tight truncate
+                  text-[var(--color-ink)]
                   ${isCompact ? 'text-xs' : 'text-sm'}
-                  ${event.is_completed ? 'line-through opacity-60' : ''}
+                  ${event.is_completed ? 'line-through opacity-40' : ''}
                 `}
               >
                 {event.icon && <span className="mr-1">{event.icon}</span>}
@@ -195,7 +204,7 @@ export default function EventCard({
 
             {/* Time label */}
             {!isCompact && (
-              <p className="text-[10px] font-mono text-muted-foreground mt-0.5 tracking-tight">
+              <p className="text-[10px] font-mono text-[var(--color-ink-soft)] mt-0.5 tracking-tight font-medium">
                 {timeLabel}
               </p>
             )}
@@ -206,10 +215,10 @@ export default function EventCard({
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {/* Source badge */}
               <span
-                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                className="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
                 style={{
-                  backgroundColor: `color-mix(in srgb, ${sourceColor} 15%, transparent)`,
-                  color: sourceColor,
+                  backgroundColor: `color-mix(in srgb, ${sourceColor} 20%, transparent)`,
+                  color: sourceColor === 'var(--color-manual)' ? 'var(--color-ink-soft)' : sourceColor,
                 }}
               >
                 {sourceLabel}
@@ -217,7 +226,7 @@ export default function EventCard({
 
               {/* Energy badge */}
               {energyLabel && (
-                <span className="flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground">
+                <span className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-[var(--color-ink-soft)] bg-[var(--color-cream)]/40 px-1.5 py-0.5 rounded-md">
                   {energyIcon}
                   {energyLabel}
                 </span>
@@ -225,7 +234,7 @@ export default function EventCard({
 
               {/* Location */}
               {event.location && event.height > 72 && (
-                <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground truncate">
+                <span className="flex items-center gap-0.5 text-[9px] text-[var(--color-ink-soft)] truncate">
                   <MapPin className="w-2.5 h-2.5 shrink-0" />
                   {event.location}
                 </span>
@@ -234,16 +243,16 @@ export default function EventCard({
               {/* Rollover badge */}
               {isRollover && (
                 <span className="flex items-center gap-0.5 text-[9px] font-bold text-[var(--color-rollover)]">
-                  <RotateCcw className="w-2.5 h-2.5" />
+                  <ArrowCounterClockwise className="w-2.5 h-2.5" />
                   Rolled
                 </span>
               )}
 
-              {/* Ollie badge */}
-              {event.source === 'schedule' && event.ollie_notes && (
-                <span className="flex items-center gap-0.5 text-[9px] font-bold text-[var(--color-ollie)]">
+              {/* Bruno badge */}
+              {event.source === 'schedule' && event.bruno_notes && (
+                <span className="flex items-center gap-0.5 text-[9px] font-bold text-[var(--color-bruno)]">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Ollie
+                  Bruno
                 </span>
               )}
             </div>
@@ -258,13 +267,13 @@ export default function EventCard({
           }}
           className={`
             absolute top-2.5 right-2.5
-            w-5 h-5 rounded-full border-2 
+            w-5 h-5 rounded-full border
             flex items-center justify-center
             transition-all duration-200 hover:scale-110 active:scale-95
             ${
               event.is_completed
-                ? 'bg-[var(--color-success)] border-[var(--color-success)] text-white shadow-[0_0_10px_var(--color-success)]'
-                : 'border-surface-300 hover:border-surface-400 bg-background/50 backdrop-blur-sm'
+                ? 'bg-[var(--color-ink)] border-[var(--color-ink)] text-[var(--color-cream)]'
+                : 'border-[var(--color-line-strong)] hover:border-[var(--color-ink-soft)] bg-[var(--color-paper)]/50'
             }
           `}
         >
@@ -288,7 +297,7 @@ export default function EventCard({
             ${isResizing ? 'opacity-100' : ''}
           `}
         >
-          <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
+          <div className="w-8 h-1 rounded-full bg-[var(--color-line-strong)]" />
         </div>
       </motion.div>
     </motion.div>

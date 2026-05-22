@@ -1,4 +1,4 @@
--- Plan Pilot — Database Schema Migration
+-- Planevo — Database Schema Migration
 -- Run this in the Supabase SQL Editor to create all tables.
 
 -- ============================================================
@@ -110,17 +110,17 @@ CREATE TABLE IF NOT EXISTS public.schedules (
 );
 
 -- ============================================================
--- OLLIE MESSAGES TABLE
+-- BRUNO MESSAGES TABLE
 -- ============================================================
-CREATE TABLE IF NOT EXISTS public.ollie_messages (
+CREATE TABLE IF NOT EXISTS public.bruno_messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  conversation_id UUID REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
   message_type TEXT NOT NULL CHECK (message_type IN (
     'greeting', 'nudge', 'celebration', 'reschedule',
-    'weekly_review', 'encouragement', 'tip', 'user', 'ollie', 'assistant'
+    'weekly_review', 'encouragement', 'tip', 'user', 'bruno', 'assistant'
   )),
   content TEXT NOT NULL,
-  conversation_id UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.calendar_events (
   external_id TEXT,
   recurrence_rule TEXT,
   linked_task_id UUID REFERENCES public.tasks(id) ON DELETE SET NULL,
-  ollie_notes TEXT,
+  bruno_notes TEXT,
   metadata JSONB DEFAULT '{}',
   is_completed BOOLEAN DEFAULT false,
   completed_at TIMESTAMPTZ,
@@ -205,17 +205,7 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- ============================================================
--- OLLIE MESSAGES TABLE
--- ============================================================
-CREATE TABLE IF NOT EXISTS public.ollie_messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  conversation_id UUID REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
-  message_type TEXT NOT NULL CHECK (message_type IN ('user', 'assistant', 'ollie')),
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- (Duplicate table definition removed)
 
 -- ============================================================
 -- FOCUS SESSIONS TABLE
@@ -325,7 +315,7 @@ CREATE INDEX idx_habits_user_id ON public.habits(user_id);
 CREATE INDEX idx_habit_logs_habit_id ON public.habit_logs(habit_id);
 CREATE INDEX idx_schedules_user_id ON public.schedules(user_id);
 CREATE INDEX idx_schedules_date ON public.schedules(date);
-CREATE INDEX idx_ollie_messages_user_id ON public.ollie_messages(user_id);
+CREATE INDEX idx_bruno_messages_user_id ON public.bruno_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_ai_memory_updated_at ON public.user_ai_memory(updated_at);
 
 -- ============================================================
@@ -334,14 +324,13 @@ CREATE INDEX IF NOT EXISTS idx_user_ai_memory_updated_at ON public.user_ai_memor
 
 -- Enable RLS on all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ollie_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bruno_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subtasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.habits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.habit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ollie_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_ai_memory ENABLE ROW LEVEL SECURITY;
 
@@ -521,14 +510,18 @@ CREATE POLICY "Users can delete own schedules"
   ON public.schedules FOR DELETE
   USING (auth.uid() = user_id);
 
--- OLLIE MESSAGES: Users can only read/create their own messages
-CREATE POLICY "Users can view own ollie messages"
-  ON public.ollie_messages FOR SELECT
+-- BRUNO MESSAGES: Users can CRUD own messages
+CREATE POLICY "Users can view own bruno messages"
+  ON public.bruno_messages FOR SELECT
   USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can create own ollie messages"
-  ON public.ollie_messages FOR INSERT
+CREATE POLICY "Users can create own bruno messages"
+  ON public.bruno_messages FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own bruno messages"
+  ON public.bruno_messages FOR DELETE
+  USING (auth.uid() = user_id);
 
 -- AI USAGE LOGS: Users can only view their own logs
 CREATE POLICY "Users can view own AI logs"
@@ -576,10 +569,7 @@ CREATE POLICY "Users can create own chat conversations" ON public.chat_conversat
 CREATE POLICY "Users can update own chat conversations" ON public.chat_conversations FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own chat conversations" ON public.chat_conversations FOR DELETE USING (auth.uid() = user_id);
 
--- OLLIE MESSAGES: Users can CRUD own messages
-CREATE POLICY "Users can view own ollie messages" ON public.ollie_messages FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can create own ollie messages" ON public.ollie_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can delete own ollie messages" ON public.ollie_messages FOR DELETE USING (auth.uid() = user_id);
+-- (Duplicate RLS policies removed)
 
 -- FOCUS SESSIONS: Users can view/create own sessions
 CREATE POLICY "Users can view own focus sessions" ON public.focus_sessions FOR SELECT USING (auth.uid() = user_id);

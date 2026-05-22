@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
-import { getOllieMasterContext } from '@/lib/ai/orchestrator';
+import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const { taskTitle, timeLeft, totalTime, isReturning } = await request.json();
 
     // Get Unified World State
-    const worldState = await getOllieMasterContext(user.id);
+    const worldState = await getBrunoMasterContext(user.id);
     const memoryContext = worldState.memoryContext;
 
     const openAiApiKey = process.env.OPENAI_API_KEY;
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const minutesLeft = Math.floor(timeLeft / 60);
     const progressPercent = Math.round(((totalTime - timeLeft) / totalTime) * 100);
 
-    const prompt = `You are Ollie, the AI Life Pilot for an app called Plan Pilot. 
+    const prompt = `You are Bruno, the AI Life Pilot for an app called Planevo. 
 The user is in a deep focus session.
 
 Context:
@@ -45,9 +45,9 @@ USER MEMORY (Apply tone/style):
 ${memoryContext}
 
 Rules:
-- Be punchy, encouraging, and keep the Plan Pilot vibe (e.g., "steady rhythm", "on track", "clear horizon").
+- Be punchy, encouraging, and keep the Planevo vibe (e.g., "steady rhythm", "on track", "clear horizon").
 - Max 15 words.
-- If they just returned (isReturning: true), acknowledge they're back.
+- If they just returned (isReturning: true), acknbearedge they're back.
 - If they are near the end (>80% progress), push them to the finish line.
 
 Respond with ONLY the nudge text.`;

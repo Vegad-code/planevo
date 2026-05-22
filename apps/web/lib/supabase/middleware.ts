@@ -75,7 +75,7 @@ export async function updateSession(request: NextRequest) {
     if (profile) {
       const planType = profile.plan_type || 'free';
       const onboardingComplete = !!profile.onboarding_complete;
-      const isAdminEmail = user.email === 'jabbouranthony720@gmail.com';
+      const isAdminEmail = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
       const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
 
       console.log(`[Middleware] User: ${user.email}, Onboarding: ${onboardingComplete}, Plan: ${planType}, Active: ${isActive}`);

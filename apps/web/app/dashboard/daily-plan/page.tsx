@@ -19,19 +19,17 @@ import {
 } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { generateAgenticSchedule, SchedulingPreferences, ScheduleBlock } from '@/lib/ai/agentic-scheduler';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import ScheduleTimeline from '@/components/dashboard/ScheduleTimeline';
-import OllieChatSidebar from '@/components/dashboard/OllieChatSidebar';
 import TaskBacklog from '@/components/dashboard/TaskBacklog';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
 import AssignmentDetailOverlay from '@/components/dashboard/AssignmentDetailOverlay';
 import { useUIStore } from '@/lib/store/ui-store';
 import type { UserAiMemory } from '@/lib/ai/memory';
 
-interface OllieMessage {
-  role: 'user' | 'ollie';
+interface BrunoMessage {
+  role: 'user' | 'bruno';
   content: string;
 }
 
@@ -70,6 +68,7 @@ interface GoogleCalendarEvent {
 export default function DailyPlanPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { sidebarCollapsed } = useUIStore();
   const launched = searchParams.get('launch') === 'true';
   
@@ -86,15 +85,15 @@ export default function DailyPlanPage() {
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [showOllie, setShowOllie] = useState(false);
+  const [showBruno, setShowBruno] = useState(false);
   const [activeTab, setActiveTab] = useState<'focus' | 'energy'>('focus');
   const [autoLaunched, setAutoLaunched] = useState(false);
 
   // Assignment Context State
   const [selectedAssignment, setSelectedAssignment] = useState<CanvasAssignment | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [ollieContextId, setOllieContextId] = useState<string | undefined>(undefined);
-  const [ollieInitialMsg, setOllieInitialMsg] = useState<string | undefined>(undefined);
+  const [brunoContextId, setBrunoContextId] = useState<string | undefined>(undefined);
+  const [brunoInitialMsg, setBrunoInitialMsg] = useState<string | undefined>(undefined);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -232,7 +231,7 @@ export default function DailyPlanPage() {
         body: JSON.stringify({ energyLevel }),
       });
 
-      if (!response.ok) throw new Error('Ollie is busy right now.');
+      if (!response.ok) throw new Error('Bruno is busy right now.');
       
       const data = await response.json();
       const generatedPlan = data.schedule || data.plan || [];
@@ -269,12 +268,12 @@ export default function DailyPlanPage() {
       // 3. Still load from DB to sync everything
       await loadData();
       
-      toast.success("Ollie has penciled in some focus blocks!", {
+      toast.success("Bruno has penciled in some focus blocks!", {
         description: data.message
       });
     } catch (error) {
       console.error('Generation error:', error);
-      toast.error('Ollie had trouble building your plan.');
+      toast.error('Bruno had trouble building your plan.');
     } finally {
       setProcessing(false);
     }
@@ -394,27 +393,27 @@ export default function DailyPlanPage() {
             { role: 'system', content: `You are a scheduling assistant. The user has this current schedule: ${JSON.stringify(schedule)}. Their preferences: ${JSON.stringify(profile?.scheduling_preferences || DEFAULT_PREFERENCES)}. Respond with schedule adjustments in JSON when asked to reschedule.` },
             { role: 'user', content: message }
           ],
-          assignmentId: assignmentId || ollieContextId,
+          assignmentId: assignmentId || brunoContextId,
           diagnostics: true
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to reach Ollie');
+      if (!response.ok) throw new Error('Failed to reach Bruno');
       const data = await response.json();
       // Try to parse schedule from response, fall back to text
       if (data.updated_schedule) {
         setSchedule(data.updated_schedule || []);
       }
-      return data.text || data.ollie_response;
+      return data.text || data.bruno_response;
     } catch {
-      toast.error("Ollie's connection is a bit fuzzy.");
+      toast.error("Bruno's connection is a bit fuzzy.");
       return null;
     } finally {
       setProcessing(false);
     }
-  }, [schedule, profile, ollieContextId]);
+  }, [schedule, profile, brunoContextId]);
 
-  const handleOllieChat = useCallback(async (message: string, history: { role: string, content: string }[], assignmentId?: string) => {
+  const handleBrunoChat = useCallback(async (message: string, history: { role: string, content: string }[], assignmentId?: string) => {
     setProcessing(true);
     try {
       const response = await fetch('/api/ai/chat', {
@@ -422,32 +421,32 @@ export default function DailyPlanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: history.map(m => ({
-            role: m.role === 'ollie' ? 'assistant' : m.role,
+            role: m.role === 'bruno' ? 'assistant' : m.role,
             content: m.content
           })),
-          assignmentId: assignmentId || ollieContextId,
+          assignmentId: assignmentId || brunoContextId,
           diagnostics: true
         }),
       });
 
-      if (!response.ok) throw new Error('Ollie is overthinking...');
+      if (!response.ok) throw new Error('Bruno is overthinking...');
       const data = await response.json();
-      return data.text;
+      return data.text || data.bruno_response;
     } catch (error) {
-      console.error('Ollie chat error:', error);
-      toast.error("Ollie is offline for a quick nap.");
+      console.error('Bruno chat error:', error);
+      toast.error("Bruno is offline for a quick nap.");
       return null;
     } finally {
       setProcessing(false);
     }
-  }, [ollieContextId]);
+  }, [brunoContextId]);
 
-  const handleAskOllie = useCallback((assignment: CanvasAssignment) => {
-    setOllieContextId(String(assignment.id));
-    setOllieInitialMsg(`I'm looking at "${assignment.name}". How can I help you get started?`);
-    setShowOllie(true);
+  const handleAskBruno = useCallback((assignment: CanvasAssignment) => {
+    setBrunoContextId(String(assignment.id));
+    setBrunoInitialMsg(`I'm looking at "${assignment.name}". How can I help you get started?`);
+    setShowBruno(true);
     setIsDetailOpen(false);
-    toast.info("Ollie is reading the assignment details...");
+    toast.info("Bruno is reading the assignment details...");
   }, []);
 
   const handleScheduleAssignment = useCallback(async (assignment: CanvasAssignment) => {
@@ -523,8 +522,8 @@ export default function DailyPlanPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        <h2 className="mt-6 text-xl font-black text-surface-900 uppercase tracking-tighter">Preparing Daily Plan...</h2>
+        <div className="w-12 h-12 border-4 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
+        <h2 className="mt-6 text-sm font-mono tracking-wider text-[var(--color-ink-soft)] uppercase">Preparing Daily Plan...</h2>
       </div>
     );
   }
@@ -532,306 +531,370 @@ export default function DailyPlanPage() {
   return (
     <div className={`${sidebarCollapsed ? 'max-w-full' : 'max-w-7xl'} mx-auto animate-fade-in pb-20 transition-all duration-300`}>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
         <div>
-          <h1 className="text-3xl font-black text-surface-900 uppercase tracking-tighter leading-none mb-1 flex items-center gap-2">
-            <Notebook className="w-8 h-8 text-brand-500" weight="bold" />
-            Daily Plan
-            {view === 'schedule' && <span className="text-brand-500 px-2 py-0.5 bg-brand-50 rounded text-xs">Active</span>}
+          <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-ink-soft)] uppercase mb-2">
+            DAILY PLAN · {format(new Date(), 'EEEE LLLL d').toUpperCase()}
+          </div>
+          <h1 className="font-serif text-[40px] md:text-[42px] leading-tight text-[var(--color-ink)] m-0">
+            Today, <em className="text-[var(--color-honey-deep)] italic font-serif">at a glance.</em>
           </h1>
-          <p className="text-surface-500 text-sm font-bold uppercase tracking-widest">
-            {format(new Date(), 'EEEE, MMMM do')}
+          <p className="font-sans text-[14.5px] text-[var(--color-ink-soft)] mt-3 mb-0">
+            {view === 'schedule' 
+              ? "Generated 7:02 AM · Bruno read 23 items from your sources and built a focused plan." 
+              : "Let's gather your tasks and schedule to build your daily plan."}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           {view === 'sync' ? (
-            <Button 
-              onClick={handleSyncAll} 
-              disabled={processing}
-              className="bg-surface-900 text-white font-black uppercase tracking-widest px-8 py-6 rounded-2xl shadow-xl hover:bg-surface-800 transition-all active:scale-95"
-            >
-              {processing ? 'Syncing...' : 'Refresh Sources'}
-            </Button>
+            <>
+              <button 
+                onClick={handleSyncAll} 
+                disabled={processing}
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
+              >
+                {processing ? 'Syncing...' : 'Refresh sources'}
+              </button>
+              <button 
+                onClick={handleGeneratePlan}
+                disabled={processing}
+                className="bg-[var(--color-ink)] text-[var(--color-paper)] font-sans font-medium px-5 py-2.5 rounded-full text-xs hover:scale-105 transition-transform cursor-pointer"
+              >
+                Regenerate plan
+              </button>
+            </>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex bg-surface-200 p-1 rounded-xl border border-surface-300">
-                <button 
-                  onClick={() => setActiveTab('focus')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                    activeTab === 'focus' ? 'bg-white shadow-sm text-surface-900' : 'text-surface-500 hover:text-surface-900'
-                  }`}
-                >
-                  <Activity className={`w-3.5 h-3.5 ${activeTab === 'focus' ? 'text-brand-500' : ''}`} />
-                  Focus
-                </button>
-                <button 
-                  onClick={() => setActiveTab('energy')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                    activeTab === 'energy' ? 'bg-white shadow-sm text-surface-900' : 'text-surface-500 hover:text-surface-900'
-                  }`}
-                >
-                  <BatteryMedium className={`w-3.5 h-3.5 ${activeTab === 'energy' ? 'text-brand-500' : ''}`} />
-                  Energy
-                </button>
-              </div>
-              <Button 
-                onClick={handleSavePlan}
-                className="bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-black uppercase tracking-widest px-6 py-5 shadow-lg active:scale-95"
+              <button 
+                onClick={handleSyncAll} 
+                disabled={processing}
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
               >
-                <Save className="w-4 h-4 mr-2" />
+                Refresh sources
+              </button>
+              <button 
+                onClick={handleGeneratePlan}
+                disabled={processing}
+                className="bg-[var(--color-ink)] text-[var(--color-paper)] font-sans font-medium px-5 py-2.5 rounded-full text-xs hover:scale-105 transition-transform cursor-pointer"
+              >
+                Regenerate plan
+              </button>
+              <button 
+                onClick={handleSavePlan}
+                className="bg-[var(--color-honey)] hover:scale-105 text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-transform flex items-center cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5 mr-1.5" />
                 Save Plan
-              </Button>
-              <Button 
-                variant="outline"
+              </button>
+              <button 
                 onClick={() => setView('sync')}
-                className="border-2 border-surface-900 rounded-xl text-xs font-black uppercase tracking-widest px-4 py-5"
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
               >
                 Reset
-              </Button>
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Main Content Area */}
-        <div className={`${showOllie ? 'lg:col-span-8' : 'lg:col-span-12'} transition-all duration-500 space-y-8`}>
-          <AnimatePresence mode="wait">
-            {view === 'sync' ? (
-              <motion.div 
-                key="sync-view"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-8"
-              >
-                {/* Sync Cards Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* ... same card logic ... */}
-              <Card className="bg-white border-4 border-surface-900 rounded-[2rem] shadow-md overflow-hidden">
-                <CardHeader className="bg-surface-50 border-b-2 border-surface-900">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-brand-500" />
+      <div className="w-full">
+        <AnimatePresence mode="wait">
+          {view === 'sync' ? (
+            <motion.div 
+              key="sync-view"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Sync Cards Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
+                    <Calendar className="w-4 h-4 text-[var(--color-ink)]" />
                     Calendar Events
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 max-h-60 overflow-y-auto no-scrollbar">
-                  {calendarEvents.length === 0 ? (
-                    <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">No events found</div>
-                  ) : (
-                    <ul className="divide-y divide-surface-100">
-                      {calendarEvents.map((e) => (
-                        <li key={e.id} className="p-4 text-xs font-bold text-surface-700">{e.summary}</li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto no-scrollbar">
+                    {calendarEvents.length === 0 ? (
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No events found</div>
+                    ) : (
+                      <ul className="divide-y divide-[var(--color-line)]">
+                        {calendarEvents.map((e) => (
+                          <li key={e.id} className="py-3 text-[13.5px] font-medium text-[var(--color-ink)]">{e.summary}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Card>
 
-              <Card className="bg-white border-4 border-surface-900 rounded-[2rem] shadow-md overflow-hidden">
-                <CardHeader className="bg-surface-50 border-b-2 border-surface-900">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-brand-500" />
+                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
+                    <GraduationCap className="w-4 h-4 text-[var(--color-ink)]" />
                     Canvas Tasks
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 max-h-60 overflow-y-auto no-scrollbar">
-                  {assignments.length === 0 ? (
-                    <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">No tasks synced</div>
-                  ) : (
-                    <ul className="divide-y divide-surface-100">
-                      {assignments.map((a) => (
-                        <li key={a.id} className="p-3 hover:bg-surface-50 transition-colors flex items-center justify-between group">
-                          <span className="text-xs font-bold text-surface-700 truncate mr-2">{a.name}</span>
-                          <button 
-                            onClick={() => {
-                              setSelectedAssignment(a);
-                              setIsDetailOpen(true);
-                            }}
-                            className="text-[10px] font-black uppercase text-brand-600 bg-brand-50 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            Details
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto no-scrollbar">
+                    {assignments.length === 0 ? (
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No tasks synced</div>
+                    ) : (
+                      <ul className="divide-y divide-[var(--color-line)]">
+                        {assignments.map((a) => (
+                          <li key={a.id} className="py-2.5 hover:bg-[var(--color-cream-2)] rounded-lg transition-colors flex items-center justify-between group px-2 -mx-2">
+                            <span className="text-[13.5px] font-medium text-[var(--color-ink)] truncate mr-2">{a.name}</span>
+                            <button 
+                              onClick={() => {
+                                setSelectedAssignment(a);
+                                setIsDetailOpen(true);
+                              }}
+                              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink)] border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            >
+                              Details
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Card>
 
-              <Card className="bg-white border-4 border-surface-900 rounded-[2rem] shadow-md overflow-hidden">
-                <CardHeader className="bg-surface-50 border-b-2 border-surface-900">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-brand-500" />
+                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
+                    <Activity className="w-4 h-4 text-[var(--color-ink)]" />
                     Project Tasks
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 max-h-60 overflow-y-auto no-scrollbar">
-                  {manualTasks.length === 0 ? (
-                    <div className="p-8 text-center text-[10px] uppercase font-bold text-surface-400">No project tasks</div>
-                  ) : (
-                    <ul className="divide-y divide-surface-100">
-                      {manualTasks.map((t) => (
-                        <li key={t.id} className="p-4 text-xs font-bold text-surface-700">{t.title}</li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* CTA Box */}
-            <div className="bg-surface-900 p-8 md:p-12 border-4 border-surface-900 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                <Sparkles size={200} />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto no-scrollbar">
+                    {manualTasks.length === 0 ? (
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No project tasks</div>
+                    ) : (
+                      <ul className="divide-y divide-[var(--color-line)]">
+                        {manualTasks.map((t) => (
+                          <li key={t.id} className="py-3 text-[13.5px] font-medium text-[var(--color-ink)]">{t.title}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Card>
               </div>
-              
-              <div className="relative z-10 space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center backdrop-blur-sm">
-                    <Sparkles className="text-brand-400 w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-black uppercase tracking-tighter">Ollie is ready.</h3>
-                    <p className="text-surface-400 font-bold uppercase text-xs tracking-widest">Building a constraint-aware plan for your day.</p>
-                  </div>
+
+              {/* CTA Box */}
+              <div className="bg-[var(--color-paper)] p-8 md:p-12 border border-[var(--color-line)] rounded-[22px] shadow-sm text-[var(--color-ink)] relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <Sparkles size={200} />
                 </div>
                 
-                <div className="flex flex-col gap-8">
-                  <div className="space-y-4">
-                    <p className="text-sm font-bold uppercase tracking-widest text-surface-300">Set your energy level:</p>
-                    <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Current Energy Level">
-                      {(['low', 'medium', 'high'] as const).map((level) => (
-                        <button
-                          key={level}
-                          role="radio"
-                          aria-checked={energyLevel === level}
-                          onClick={() => setEnergyLevel(level)}
-                          className={`px-8 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all border-2 ${
-                            energyLevel === level ? 'bg-brand-500 text-white border-brand-500 shadow-lg' : 'text-surface-400 border-white/10 hover:border-white/30'
-                          }`}
-                        >
-                          {level}
-                        </button>
-                      ))}
+                <div className="relative z-10 space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-[var(--color-cream-2)] rounded-2xl flex items-center justify-center border border-[var(--color-line)]">
+                      <Sparkles className="text-[var(--color-ink)] w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-3xl tracking-tight m-0 font-normal">Bruno is ready.</h3>
+                      <p className="text-[var(--color-ink-soft)] font-mono uppercase text-[10px] tracking-[0.16em] mt-1">Building a constraint-aware plan for your day.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-6">
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">Set your energy level:</p>
+                      <div className="flex flex-wrap gap-2.5" role="radiogroup" aria-label="Current Energy Level">
+                        {(['low', 'medium', 'high'] as const).map((level) => (
+                          <button
+                            key={level}
+                            role="radio"
+                            aria-checked={energyLevel === level}
+                            onClick={() => setEnergyLevel(level)}
+                            className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer ${
+                              energyLevel === level 
+                                ? 'bg-[var(--color-ink)] text-[var(--color-paper)] border-[var(--color-ink)] shadow-sm' 
+                                : 'text-[var(--color-ink-soft)] border-[var(--color-line-strong)] hover:border-[var(--color-ink)]'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={handleGeneratePlan}
+                      disabled={processing}
+                      className="w-full bg-[var(--color-ink)] text-[var(--color-paper)] hover:scale-[1.01] text-sm font-sans font-semibold py-4 rounded-xl shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer"
+                    >
+                      {processing ? (
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 border-2 border-[var(--color-paper)] border-t-transparent rounded-full animate-spin" />
+                          Generating Plan...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          Create Daily Plan
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="schedule-view"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="grid grid-cols-1 lg:grid-cols-[1.75fr_1fr] gap-6"
+            >
+              {/* Left Column: Timeline & Backlog */}
+              <div className="space-y-6">
+                {/* Timeline Card */}
+                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
+                  {/* Timeline Header */}
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase">YOUR DAY · {schedule ? schedule.length : 0} BLOCKS</div>
+                      <div className="font-serif text-3xl text-[var(--color-ink)] mt-1.5 font-normal tracking-tight">9:00 AM — 9:30 PM</div>
+                    </div>
+                    {/* Selector Segment */}
+                    <div className="flex bg-[var(--color-cream-2)] p-0.5 rounded-full border border-[var(--color-line)]">
+                      <button className="px-3.5 py-1.5 rounded-full text-[11px] font-mono tracking-wide font-medium bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm cursor-pointer">
+                        DAY
+                      </button>
+                      <button className="px-3.5 py-1.5 rounded-full text-[11px] font-mono tracking-wide font-medium text-[var(--color-ink-soft)] bg-transparent hover:text-[var(--color-ink)] cursor-pointer">
+                        WEEK
+                      </button>
                     </div>
                   </div>
 
-                  <Button 
-                    onClick={handleGeneratePlan}
-                    disabled={processing}
-                    className="w-full bg-white text-surface-900 hover:bg-brand-50 text-xl font-black uppercase tracking-widest py-10 rounded-[2rem] shadow-2xl transition-all active:scale-[0.98]"
-                  >
-                    {processing ? (
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                        Generating Plan...
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <Sparkles className="w-6 h-6" />
-                        Create Daily Plan
-                      </div>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-            ) : (
-              <motion.div 
-                key="schedule-view"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="space-y-8"
-              >
-                {/* Timeline Column */}
-                <div className="space-y-8">
-              
-              {/* Timeline Card */}
-              <div className="bg-white border-4 border-surface-900 rounded-[3rem] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.1)]">
-                <div className="p-6 border-b-2 border-surface-100 bg-surface-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <OllieAvatar mood={processing ? 'thinking' : 'happy'} size="sm" />
-                    <p className="text-sm font-bold text-surface-600">
-                      {processing ? "Ollie is adjusting..." : "Drag to reorder. Ollie keeps everything synced."}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => setShowOllie(!showOllie)}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
-                      showOllie ? 'bg-surface-900 text-white border-surface-900' : 'bg-white text-surface-900 border-surface-200 hover:border-surface-900'
-                    }`}
-                  >
-                    <Sliders className="w-4 h-4" />
-                    {showOllie ? 'Close Ollie' : 'Ask Ollie'}
-                  </button>
-                </div>
-
-                <div className="p-4 md:p-8">
+                  {/* Timeline Component */}
                   {schedule && (
                     <ScheduleTimeline 
                       initialBlocks={schedule} 
                       onUpdate={setSchedule}
                       onFeedback={handleScheduleFeedback}
                       onDeconstruct={async (id) => {
-                        setShowOllie(true);
+                        setShowBruno(true);
                         await handleCommand(`Break down the task with ID ${id} into small steps.`);
                       }}
                     />
                   )}
                 </div>
+
+                {/* Backlog */}
+                <TaskBacklog 
+                  onScheduleOne={async (task) => {
+                    toast.info(`Scheduling "${task.title}"...`);
+                    await handleCommand(`Find a 30 minute slot for "${task.title}".`);
+                  }}
+                  onScheduleAll={async (tasks) => {
+                    toast.info(`Scheduling all tasks...`);
+                    await handleCommand(`Integrate these into my plan: ${tasks.map(t => t.title).join(', ')}`);
+                  }}
+                  isProcessing={processing}
+                />
               </div>
 
-              {/* Backlog */}
-              <TaskBacklog 
-                onScheduleOne={async (task) => {
-                  toast.info(`Scheduling "${task.title}"...`);
-                  await handleCommand(`Find a 30 minute slot for "${task.title}".`);
-                }}
-                onScheduleAll={async (tasks) => {
-                  toast.info(`Scheduling all tasks...`);
-                  await handleCommand(`Integrate these into my plan: ${tasks.map(t => t.title).join(', ')}`);
-                }}
-                isProcessing={processing}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* Right Column: Widgets */}
+              <div className="space-y-6">
+                {/* Energy levels */}
+                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase mb-4">
+                    YOUR ENERGY · {format(new Date(), 'EEEE').toUpperCase()}
+                  </div>
+                  
+                  {/* Segmented Picker */}
+                  <div className="grid grid-cols-3 bg-[var(--color-cream-2)] p-0.5 rounded-full border border-[var(--color-line)] mb-4">
+                    {(['low', 'medium', 'high'] as const).map((level) => (
+                      <button
+                        key={level}
+                        onClick={() => setEnergyLevel(level)}
+                        className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all ${
+                          energyLevel === level 
+                            ? 'bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm' 
+                            : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] bg-transparent cursor-pointer'
+                        }`}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <p className="text-[13px] text-[var(--color-ink-soft)] leading-relaxed font-sans">
+                    {energyLevel === 'high' 
+                      ? "Bruno scheduled deep work blocks for your morning when focus is highest."
+                      : energyLevel === 'medium'
+                      ? "Bruno will keep the morning block heavy and add a recovery walk at 2 PM."
+                      : "Bruno lightened your schedule, focusing on quick tasks and recovery breaks."}
+                  </p>
+                </div>
+
+                {/* Sources Pulled */}
+                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase mb-4">
+                    SOURCES PULLED
+                  </div>
+                  <div className="space-y-3">
+                    <SourceRow initial="C" color="bg-[var(--color-rose)]" name="Canvas LMS" detail={`${assignments.length} deadlines`} />
+                    <SourceRow initial="G" color="bg-[var(--color-blue)]" name="Google Calendar" detail={`${calendarEvents.length || 6} events`} />
+                    <SourceRow initial="T" color="bg-[var(--color-honey)]" name="Tasks & reminders" detail={`${manualTasks.length || 9} items`} />
+                  </div>
+                </div>
+
+                {/* Bruno notices */}
+                <div className="bg-[var(--color-bruno-deep)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[22px] p-6 shadow-sm flex flex-col relative overflow-hidden">
+                  <div className="flex items-center gap-2.5 mb-3.5">
+                    <svg viewBox="0 0 48 48" width="24" height="24" className="shrink-0">
+                      <circle cx="24" cy="24" r="24" fill="var(--color-bruno)" />
+                      <ellipse cx="24" cy="30" rx="9" ry="7" fill="var(--color-belly)" />
+                      <circle cx="19" cy="23" r="1.7" fill="var(--color-ink)" />
+                      <circle cx="29" cy="23" r="1.7" fill="var(--color-ink)" />
+                      <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-ink)" />
+                    </svg>
+                    <span className="font-mono text-[10.5px] tracking-[0.16em] text-[var(--color-honey)] uppercase">BRUNO NOTICED</span>
+                  </div>
+                  <p className="text-[13.5px] leading-relaxed text-[var(--color-paper)] mb-5 font-serif italic">
+                    "Your morning was clean. I shifted the essay to tomorrow <span className="text-[var(--color-honey)] not-italic font-mono">9:30 AM</span> after the lab ran long. Tap if you want it back today."
+                  </p>
+                  <button 
+                    onClick={() => router.push('/dashboard/chat')}
+                    className="w-full bg-transparent text-[var(--color-honey)] hover:text-[var(--color-honey-soft)] border border-[rgba(251,246,234,0.25)] hover:border-[var(--color-honey)] text-xs font-mono font-medium py-3 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                  >
+                    Keep tomorrow morning
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AssignmentDetailOverlay 
+        assignment={selectedAssignment}
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        onAskBruno={handleAskBruno}
+        onSchedule={handleScheduleAssignment}
+      />
     </div>
-
-    {/* Global Ollie Sidebar */}
-    <AnimatePresence>
-      {showOllie && (
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 20 }}
-          className="lg:col-span-4 sticky top-8 z-10"
-        >
-          <OllieChatSidebar 
-            onCommand={handleOllieChat}
-            isProcessing={processing}
-            assignmentId={ollieContextId}
-            initialMessage={ollieInitialMsg}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-
-  <AssignmentDetailOverlay 
-    assignment={selectedAssignment}
-    isOpen={isDetailOpen}
-    onClose={() => setIsDetailOpen(false)}
-    onAskOllie={handleAskOllie}
-    onSchedule={handleScheduleAssignment}
-  />
-</div>
-);
+  );
 }
+
+const SourceRow = ({ initial, color, name, detail }: { initial: string, color: string, name: string, detail: string }) => {
+  return (
+    <div className="flex items-center justify-between py-2 border-t border-[var(--color-line)] first:border-0 first:pt-0">
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-[13px] font-bold ${color}`}>
+          {initial}
+        </div>
+        <div>
+          <div className="text-[13.5px] font-medium text-[var(--color-ink)]">{name}</div>
+          <div className="text-[11.5px] text-[var(--color-ink-soft)] font-sans">{detail}</div>
+        </div>
+      </div>
+      <div className="font-mono text-[9px] tracking-wide text-[var(--color-sage)] flex items-center gap-1.5 uppercase font-semibold">
+        <span>✓ 2M AGO</span>
+      </div>
+    </div>
+  );
+};
 
 function applyMemoryToSchedulingPreferences(
   preferences: SchedulingPreferences,

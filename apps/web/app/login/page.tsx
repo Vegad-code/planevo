@@ -85,7 +85,7 @@ export default function SignIn() {
             <span className="text-4xl hover:scale-110 transition-transform">🦉</span>
           </div>
           <div>
-            <h2 className="text-2xl font-bold uppercase tracking-tight">Sign in to Plan Pilot</h2>
+            <h2 className="text-2xl font-bold uppercase tracking-tight">Sign in to Planevo</h2>
             <p className="text-surface-600 text-sm mt-1 font-bold">
               Welcome back! Let&apos;s get things done.
             </p>
@@ -179,7 +179,7 @@ export default function SignIn() {
         </form>
         <CardFooter className="flex justify-center border-t-2 border-surface-900 bg-surface-200 !py-6">
           <p className="text-center text-sm font-bold text-surface-900 uppercase">
-            New to Plan Pilot?{" "}
+            New to Planevo?{" "}
             <Link href="/signup" className="text-surface-900 hover:underline underline-offset-4">
               Sign up
             </Link>

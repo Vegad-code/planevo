@@ -1,6 +1,6 @@
-# Plan Pilot — Strategy & Positioning Document
+# Planevo — Strategy & Positioning Document
 
-> **Purpose:** This is the single source of truth for *what Plan Pilot is, who it's for, and what we will and will not build.* Every code change, marketing decision, and feature debate should be checked against this doc. If something here is wrong, change the doc first — then the code.
+> **Purpose:** This is the single source of truth for *what Planevo is, who it's for, and what we will and will not build.* Every code change, marketing decision, and feature debate should be checked against this doc. If something here is wrong, change the doc first — then the code.
 
 > **Status:** Pre-launch. Pre-revenue. Pre-feedback. We are choosing focus over scope.
 
@@ -8,7 +8,7 @@
 
 ## 1. The One-Sentence Pitch
 
-**For busy students and high-performers whose lives move faster than their calendars, Plan Pilot is the AI co-pilot that automatically protects your focus and reschedules your tasks without friction. Unlike generic planners, we’re built for people who want to spend their energy doing the work, not planning it.**
+**For busy students and high-performers whose lives move faster than their calendars, Planevo is the AI co-pilot that automatically protects your focus and reschedules your tasks without friction. Unlike generic planners, we’re built for people who want to spend their energy doing the work, not planning it.**
 
 Use this verbatim on the homepage hero, the App Store description, and every pitch deck.
 
@@ -18,12 +18,12 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 
 ### Our user (the ICP)
 - **The Modern Student:** Using Canvas/Blackboard, feeling overwhelmed by deadlines and seeking a way to stay on top of coursework without the stress.
-- **The Professional Builder:** Early-career professionals, creators, or knowledge workers who want an AI agent to handle the logistics of their day (rescheduling, task prioritization) so they can stay in deep work.
+- **The Professional Builder:** Early-career professionals, creators, or knbearedge workers who want an AI agent to handle the logistics of their day (rescheduling, task prioritization) so they can stay in deep work.
 - **The Complexity Juggler:** Anyone whose schedule changes faster than they can keep up with.
 
 ### Who we are NOT for (yet)
 - Enterprise teams (B2B SaaS) → we focus on individual productivity first.
-- Knowledge-base / second-brain users → we are a scheduler, not an archive.
+- Knbearedge-base / second-brain users → we are a scheduler, not an archive.
 - High-school students → too price-sensitive, focus is on higher-ed and professional markets.
 
 **Rule:** if a feature request comes from someone outside the ICP, we politely log it and move on.
@@ -37,7 +37,7 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 That is the single sentence we are paid to solve. Everything in the product must trace back to it.
 
 ### Our promise
-*"Plan Pilot takes the friction out of planning. Ollie handles the logistics so you can focus on the work."*
+*"Planevo takes the friction out of planning. Bruno handles the logistics so you can focus on the work."*
 
 ---
 
@@ -50,15 +50,15 @@ We lead with painkillers. Vitamins exist only as retention hooks.
 | 🩹 Painkiller | Task Source Sync (Canvas, Tasks, etc.) | Keep — core |
 | 🩹 Painkiller | No-Shame Rollover | Keep — core (the magic moment) |
 | 🩹 Painkiller | Daily Plan (energy-aware) | Keep — core |
-| 🩹 Painkiller | Ollie Chat (with task/calendar tools) | Keep — core |
+| 🩹 Painkiller | Bruno Chat (with task/calendar tools) | Keep — core |
 | 💊 Vitamin | Garden of Done | Defer — flag off |
 | 💊 Vitamin | Weekly Review | Keep, but as **email**, not dashboard widget |
 | 💊 Vitamin | Habits page | Defer — flag off |
-| 💊 Vitamin | Goal Architect / Decompose / Breakdown / Prioritize | Defer — collapse into Ollie Chat tools |
+| 💊 Vitamin | Goal Architect / Decompose / Breakdown / Prioritize | Defer — collapse into Bruno Chat tools |
 | 💊 Vitamin | AcademicSearch | Defer — flag off |
 | 💊 Vitamin | Focus Mode | Defer — flag off |
 | 💊 Vitamin | n8n webhook integration | Defer — flag off |
-| 💊 Vitamin | Ollie Personalities | Defer — single warm tone for v1 |
+| 💊 Vitamin | Bruno Personalities | Defer — single warm tone for v1 |
 
 ---
 
@@ -70,7 +70,7 @@ We ship exactly these and nothing more:
 2. **Connect Task Source (Canvas/Tasks) + Connect Google Calendar**
 3. **Daily Plan** — one AI surface that schedules today
 4. **No-Shame Rollover** — automatic on app open
-5. **Ollie Chat** — single endpoint with function calls (move task, reschedule, create task, mark done)
+5. **Bruno Chat** — single endpoint with function calls (move task, reschedule, create task, mark done)
 6. **Settings** — energy preference, focus windows, subscription
 7. **Mobile app** (Expo) — same Daily Plan + Rollover + Chat
 8. **Stripe billing** — single tier, single price, 14-day trial
@@ -86,7 +86,7 @@ We ship exactly these and nothing more:
 **After (v1):** 3 AI surfaces.
 
 1. **`/api/ai/daily-plan`** — generates today's schedule
-2. **`/api/ai/chat`** — Ollie agent with function calling (replaces nudge, clarify, breakdown, decompose, architect, prioritize, search, schedule-refine, confirm-constraint, constraint-suggestions, schedule-agent)
+2. **`/api/ai/chat`** — Bruno agent with function calling (replaces nudge, clarify, breakdown, decompose, architect, prioritize, search, schedule-refine, confirm-constraint, constraint-suggestions, schedule-agent)
 3. **`/api/ai/weekly-review`** — runs once/week, sent as email
 
 **Cost guardrails:**
@@ -103,8 +103,8 @@ We ship exactly these and nothing more:
 | Plan | Price | Notes |
 |------|-------|-------|
 | 14-day free trial | $0 | Card collected upfront, refund on day 14 if no engagement signal |
-| Plan Pilot Monthly | **$9.99/mo** | Everything. |
-| Plan Pilot Annual | **$79/yr** | 34% savings. Anchor on the marketing page. |
+| Planevo Monthly | **$9.99/mo** | Everything. |
+| Planevo Annual | **$79/yr** | 34% savings. Anchor on the marketing page. |
 | Student / Early Career (.edu) | **$4.99/mo** | SheerID or `.edu` email + active enrollment check |
 
 **What we are killing:**
@@ -113,8 +113,8 @@ We ship exactly these and nothing more:
 - ❌ "Coming Soon" features in pricing copy — we sell what works today
 
 **When (and only when) we add a higher tier later:**
-- **Plan Pilot for Study Groups** — $14.99/mo per seat, 3+ seats, body-doubling features
-- **Plan Pilot for Schools** — B2B, contact sales, FERPA DPA included
+- **Planevo for Study Groups** — $14.99/mo per seat, 3+ seats, body-doubling features
+- **Planevo for Schools** — B2B, contact sales, FERPA DPA included
 
 These are *different audiences*, not feature gates on the same user.
 
@@ -128,7 +128,7 @@ We must build at least one of these before launch, and all three within 90 days:
 |-------|-----------|--------|
 | Habit loop (daily) | Push notification: *"3 things on your plate today. Tap to see your plan."* | Build for v1 |
 | Switching cost (lock-in) | AI Memory: focus windows, accepted patterns, learned rules | ✅ Already built — market it harder |
-| Identity hook (weekly) | Email: *"Ollie noticed: you completed 73% of your Canvas tasks this week — up from 41%."* | Build for v1.1 |
+| Identity hook (weekly) | Email: *"Bruno noticed: you completed 73% of your Canvas tasks this week — up from 41%."* | Build for v1.1 |
 | Social/accountability (longer-term) | Study buddy / body-doubling room | Defer to v2 |
 | Mobile widget | Lock screen widget: "Next action" | Build for v1.1 (iOS) |
 
@@ -141,8 +141,8 @@ Every screen is engineered around a specific psychological lever.
 | # | Screen | Lever | Copy |
 |---|--------|-------|------|
 | 1 | Identity match (pre-signup) | Self-identification | *"Be honest — does this sound like you?"* with 4 ADHD-coded checkboxes |
-| 2 | Reveal | Belonging | *"You're exactly who Plan Pilot is for. Let's prove it in 60 seconds."* |
-| 3 | The Promise | Loss-aversion + safety | *"Plan Pilot won't shame you when life slips. Ollie just reorganizes tomorrow."* |
+| 2 | Reveal | Belonging | *"You're exactly who Planevo is for. Let's prove it in 60 seconds."* |
+| 3 | The Promise | Loss-aversion + safety | *"Planevo won't shame you when life slips. Bruno just reorganizes tomorrow."* |
 | 4 | Connect Data Source | Wow moment | Live-pull their tasks → *"You have 4 things to do this week. We'll never let you miss one."* |
 | 5 | Energy preference | Personalization | *"When does your brain actually work?"* Morning / Afternoon / Night / Chaotic |
 | 6 | First Daily Plan | Sunk cost | Real schedule generated from their real task data |
@@ -161,7 +161,7 @@ Every screen is engineered around a specific psychological lever.
 We do **not** spend on paid ads until D7 retention > 30% and trial→paid > 25%.
 
 **Free channels we will own first:**
-- **TikTok / Reels** — short videos showing the "Ollie Magic" (automatic rescheduling when plans change)
+- **TikTok / Reels** — short videos showing the "Bruno Magic" (automatic rescheduling when plans change)
 - **Reddit** — r/productivity, r/college, r/GetMotivated (genuine, not spammy)
 - **University / Professional Orgs** — outreach, free codes for verified members
 - **Coaches / Therapists** — affiliate / referral program
@@ -204,7 +204,7 @@ This is the order I'll work in once you give the green light. Each block is self
 
 ### Block A — P0 Bug & Brand Hygiene (3–5 days)
 1. Fix the `,,` syntax bug on landing page (`app/page.tsx:287`)
-2. Rename "Plant Pilot" → "Plan Pilot" everywhere (metadata, login, signup, forgot-password, monorepo)
+2. Rename "Planevo" → "Planevo" everywhere (metadata, login, signup, forgot-password, monorepo)
 3. Replace fake testimonials with placeholder copy until real ones come in
 4. Drop unused deps (`@google/generative-ai`, broken `lucide-react`, `gsap` if framer is the choice)
 5. Pick ONE icon library (Phosphor) and remove the others
@@ -242,7 +242,7 @@ This is the order I'll work in once you give the green light. Each block is self
 ### Block F — Mobile App (10–15 days)
 1. Replace Expo template with real app structure
 2. Shared `@plant-pilot/core` package with typed Supabase client + AI types
-3. Three screens: Daily Plan / Ollie Chat / Settings
+3. Three screens: Daily Plan / Bruno Chat / Settings
 4. Push notifications (Expo Notifications)
 5. iOS Home Screen Widget for "Next action"
 6. EAS build pipeline (TestFlight + Play Internal)
@@ -250,7 +250,7 @@ This is the order I'll work in once you give the green light. Each block is self
 ### Block G — Retention (5–7 days)
 1. Weekly Review email job (Supabase cron or Vercel cron)
 2. Push notifications for missed-deadline rescue
-3. Streak / "Ollie noticed" copy on Daily Plan card
+3. Streak / "Bruno noticed" copy on Daily Plan card
 4. Referral link generator
 
 ---
@@ -311,9 +311,9 @@ This rule exists because Block B initially over-trimmed the dashboard and made D
 
 We balance minimalism with utility through these rules:
 
-1. **Warmth by Default**: Greetings MUST include time-of-day awareness (Good morning, afternoon, evening) and the user's name to reinforce the "Ollie is your friend" dynamic.
+1. **Warmth by Default**: Greetings MUST include time-of-day awareness (Good morning, afternoon, evening) and the user's name to reinforce the "Bruno is your friend" dynamic.
 2. **Dynamic Density**: The dashboard defaults to a focused, centered layout (`max-w-5xl`) but allows for an "Immersive Mode" (`max-w-full`) when the sidebar is collapsed. This supports students on laptops who need to see their full schedule and backlog simultaneously.
-3. **Transition-First**: Every layout shift (sidebar collapse, tab switch) MUST have a smooth CSS/Framer transition. Plan Pilot should feel like a fluid extension of the OS, not a static website.
+3. **Transition-First**: Every layout shift (sidebar collapse, tab switch) MUST have a smooth CSS/Framer transition. Planevo should feel like a fluid extension of the OS, not a static website.
 
 ---
 

@@ -1,5 +1,5 @@
--- Plan Pilot - User AI Memory (v5)
--- Stores learned user preferences that Ollie can apply across AI features.
+-- Planevo - User AI Memory (v5)
+-- Stores learned user preferences that Bruno can apply across AI features.
 
 CREATE TABLE IF NOT EXISTS public.user_ai_memory (
   user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,

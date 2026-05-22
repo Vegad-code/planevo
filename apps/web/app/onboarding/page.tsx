@@ -1,74 +1,43 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useSubscription, redirectToCheckout } from '@/hooks/use-subscription';
-import { 
-  CheckCircle, 
-  Lightning, 
-  ArrowRight, 
-  ShieldCheck, 
-  Warning, 
-  CaretRight,
-  CaretLeft,
-  LockKey,
-  GraduationCap,
-  CalendarBlank,
-  Users,
-  Clock,
-  Heart,
-  SealCheck
-} from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { OllieMascot, OlliePose } from '@/components/OllieMascot';
+import { Bruno } from '@/components/onboarding/Bruno';
+import { BrunoBubble } from '@/components/onboarding/BrunoBubble';
+import { testCanvasConnectionAction, saveOnboardingDataAction } from '@/lib/canvas/actions';
 
 const STEPS = [
-  'HOOK',             // Screen 1: What is stealing your time?
-  'WELCOME',          // Screen 2: Name + Identity
-  'STAT_INPUT',       // Screen 3a: Age + Study hours
-  'AHA_MOMENT',       // Screen 3b: The Calculation (Limbo)
-  'REFLECTION',       // Screen 4: What would you do with extra time?
-  'MIRROR',           // Screen 5: I hear you.
-  'BELONGING',        // Screen 6: Validation + Auth Gate
-  'CANVAS_CONNECT',   // Screen 7: Integration
-  'ANALYZING',        // Screen 8: Ollie crunching numbers
-  'DISCOVERY',        // Screen 9: Found 12 hours
-  'CELEBRATION',      // Screen 10: Gamification + Review
-  'ROADMAP',          // Screen 11: 14-day summary
-  'PRICE_PIVOT',      // Screen 12: Coffee vs Peace
-  'COMMITMENT',       // Screen 13: Commitment level
-  'FOUNDER_PROMISE',  // Screen 14: Founder note
-  'PAYWALL'           // Screen 15: Final Checkout
+  'WELCOME',     // 01
+  'IDENTITY',    // 02
+  'NAME',        // 03
+  'ENERGY',      // 04
+  'CANVAS',      // 05
+  'CALENDAR',    // 06
+  'FIRST_PLAN',  // 07
+  'TRIAL'        // 08
 ];
 
 export default function OnboardingPage() {
-  const [persona, setPersona] = useState<'student' | 'professional' | 'builder' | 'other' | ''>('');
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [age, setAge] = useState('');
-  const [weeklyStudyHours, setWeeklyStudyHours] = useState<number>(30);
-  const [dreamActivity, setDreamActivity] = useState('');
-  const [commitmentLevel, setCommitmentLevel] = useState('');
-  const [stressor, setStressor] = useState('');
-  const [abandonmentCount, setAbandonmentCount] = useState<number | null>(null);
-  const [identityChecks, setIdentityChecks] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Form State
+  const [identityChecks, setIdentityChecks] = useState<Record<number, boolean>>({ 0: true, 2: true });
+  const [userName, setUserName] = useState('');
+  const [energyPreference, setEnergyPreference] = useState('morning');
   const [canvasUrl, setCanvasUrl] = useState('');
   const [canvasToken, setCanvasToken] = useState('');
-  const [priorityCourse, setPriorityCourse] = useState('');
-  const [weeklyGoal, setWeeklyGoal] = useState<number>(10);
-  const [energyPreference, setEnergyPreference] = useState('');
-  const [testingCanvas, setTestingCanvas] = useState(false);
-  const [canvasItemsCount, setCanvasItemsCount] = useState(0);
-  const [mounted, setMounted] = useState(false);
   const [isAnnual, setIsAnnual] = useState(true);
-  
+
+  const [reactBump, setReactBump] = useState(0);
+  const [testingCanvas, setTestingCanvas] = useState(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
@@ -81,21 +50,18 @@ export default function OnboardingPage() {
         const { data: profile } = await (supabase.from('users') as any).select('onboarding_complete, plan_type').eq('id', authUser.id).single();
         if (profile?.onboarding_complete) {
           const planType = profile.plan_type || 'free';
-          const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'admin'].includes(planType) || authUser.email === 'jabbouranthony720@gmail.com';
+          const isAdminEmail = authUser.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
+          const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
           
           if (isActive) {
-            console.log('User is active, redirecting to dashboard');
             router.replace('/dashboard');
             return;
           } else {
-            console.log('User is complete but not active, showing paywall');
-            setCurrentStep(15);
+            setCurrentStep(7); // Jump to Trial/Paywall
             setMounted(true);
             return;
           }
         }
-      } else {
-        console.log('No authenticated user found');
       }
       
       const saved = localStorage.getItem('onboarding_draft');
@@ -103,14 +69,9 @@ export default function OnboardingPage() {
         try {
           const data = JSON.parse(saved);
           if (data.userName) setUserName(data.userName);
-          if (data.persona) setPersona(data.persona);
-          if (data.stressor) setStressor(data.stressor);
-          if (data.abandonmentCount) setAbandonmentCount(data.abandonmentCount);
           if (data.identityChecks) setIdentityChecks(data.identityChecks);
           if (data.energyPreference) setEnergyPreference(data.energyPreference);
-          if (data.priorityCourse) setPriorityCourse(data.priorityCourse);
-          if (data.weeklyGoal) setWeeklyGoal(data.weeklyGoal);
-          if (data.currentStep && data.currentStep < 6) setCurrentStep(data.currentStep); // Only restore first few steps
+          if (data.currentStep && data.currentStep < 7) setCurrentStep(data.currentStep);
         } catch (e) {
           console.error('Failed to load onboarding draft', e);
         }
@@ -118,7 +79,6 @@ export default function OnboardingPage() {
       
       setMounted(true);
     }
-    
     checkCompletion();
   }, [supabase, router]);
 
@@ -126,52 +86,14 @@ export default function OnboardingPage() {
   useEffect(() => {
     const draft = {
       userName,
-      persona,
-      stressor,
-      abandonmentCount,
       identityChecks,
       energyPreference,
-      priorityCourse,
-      weeklyGoal,
       currentStep
     };
     localStorage.setItem('onboarding_draft', JSON.stringify(draft));
-  }, [userName, persona, stressor, abandonmentCount, identityChecks, energyPreference, priorityCourse, weeklyGoal, currentStep]);
+  }, [userName, identityChecks, energyPreference, currentStep]);
 
-  const getPose = (): OlliePose => {
-    const step = STEPS[currentStep];
-    switch (step) {
-      case 'HOOK': return 'thinking';
-      case 'WELCOME': return 'banner';
-      case 'STAT_INPUT': return 'thinking';
-      case 'AHA_MOMENT': return 'zen';
-      case 'REFLECTION': return 'thinking';
-      case 'MIRROR': return 'zen';
-      case 'BELONGING': return 'banner';
-      case 'CANVAS_CONNECT': return 'syncing';
-      case 'ANALYZING': return 'syncing';
-      case 'DISCOVERY': return 'zen';
-      case 'CELEBRATION': return 'celebrate';
-      case 'ROADMAP': return 'calendar';
-      case 'PRICE_PIVOT': return 'crystals';
-      case 'COMMITMENT': return 'banner';
-      case 'FOUNDER_PROMISE': return 'thinking';
-      case 'PAYWALL': return 'banner';
-      default: return 'thinking';
-    }
-  };
-
-  const nextStep = async () => {
-    const step = STEPS[currentStep];
-    
-    if (step === 'BELONGING' && !user) {
-      toast.info("Let's save your progress!", {
-        description: "Create your account to connect your data and see your plan."
-      });
-      router.push('/signup?redirect=onboarding');
-      return;
-    }
-
+  const nextStep = () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -183,94 +105,47 @@ export default function OnboardingPage() {
     }
   };
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        const step = STEPS[currentStep];
-        // Prevent enter from triggering if input is empty on specific steps
-        if (step === 'WELCOME' && !userName) return;
-        if (step === 'PRIORITY_FOCUS' && !priorityCourse) return;
-        if (step === 'CANVAS_CONNECT' && persona === 'student' && (!canvasUrl || !canvasToken)) return;
-        
-        // If on the last step, complete onboarding via checkout
-        if (currentStep === STEPS.length - 1) {
-          handleCheckout();
-        } else if (step === 'CANVAS_CONNECT') {
-          // Only test Canvas for students who have filled in credentials
-          if (persona === 'student' && canvasUrl && canvasToken) {
-            handleTestCanvas();
-          } else {
-            nextStep();
-          }
-        } else {
-          nextStep();
-        }
-      }
-      
-      if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
-        // Don't go back if in an input (unless it's empty or specific logic)
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' && (target as HTMLInputElement).value !== '') return;
-        
-        prevStep();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, userName, priorityCourse, canvasUrl, canvasToken, persona]);
-
-  const { loading: subLoading } = useSubscription();
-
   const saveOnboardingData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const cleanEnergyPref = energyPreference || 'morning';
-
-    const { error } = await (supabase.from('users') as any)
-      .update({
-        onboarding_complete: true,
-        name: userName,
-        persona: persona || 'other',
-        energy_preference: cleanEnergyPref,
-        canvas_url: canvasUrl,
-        canvas_token: canvasToken,
-        scheduling_preferences: {
-          preferred_focus_time: cleanEnergyPref,
-          stressor,
-          abandonment_count: abandonmentCount,
-          priority_course: priorityCourse,
-          weekly_goal: weeklyGoal,
-          identity_checks: identityChecks,
-          age,
-          weekly_study_hours: weeklyStudyHours,
-          dream_activity: dreamActivity,
-          commitment_level: commitmentLevel,
-          sleep_start: "23:00",
-          sleep_end: "07:00",
-          unavailable_blocks: []
-        }
-      })
-      .eq('id', user.id);
-
-    if (error) throw error;
-    
-    // Clear draft on success
+    const res = await saveOnboardingDataAction({
+      name: userName,
+      energyPreference,
+      canvasUrl,
+      canvasToken,
+      identityChecks
+    });
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to save onboarding data');
+    }
     localStorage.removeItem('onboarding_draft');
   };
 
-  const completeOnboarding = async () => {
-    setLoading(true);
+  const handleConnectCalendar = async () => {
     try {
-      await saveOnboardingData();
-
-      const hasCanvas = !!canvasToken;
-      router.push(`/dashboard${hasCanvas ? '' : '?demo=true'}`);
+      setLoading(true);
+      const draft = {
+        userName,
+        identityChecks,
+        energyPreference,
+        currentStep: 6
+      };
+      localStorage.setItem('onboarding_draft', JSON.stringify(draft));
+      
+      const redirectTo = `${window.location.origin}/api/auth/callback/google-calendar?next=/onboarding`;
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          },
+          scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly'
+        }
+      });
+      if (error) throw error;
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to save onboarding data');
+      console.error('Error connecting Google Calendar:', err);
       setLoading(false);
     }
   };
@@ -283,46 +158,10 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       await saveOnboardingData();
-      
       await redirectToCheckout(isAnnual ? 'annual' : 'monthly');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to start trial');
       setLoading(false);
-    }
-  };
-
-  const handleTestCanvas = async () => {
-    if (!canvasUrl || !canvasToken) {
-      toast.error('Please provide both URL and Token');
-      return;
-    }
-    setTestingCanvas(true);
-    
-    try {
-      const { fetchCanvasUpcomingAction } = await import('@/lib/canvas/actions');
-      const items = await fetchCanvasUpcomingAction(canvasUrl, canvasToken);
-      
-      if (items && items.length > 0) {
-        setCanvasItemsCount(items.length);
-        toast.success(`Connected! Found ${items.length} assignments.`, {
-          icon: <Lightning weight="fill" className="text-yellow-400" />,
-          description: "Ollie is already crunching the numbers.",
-          duration: 4000,
-        });
-        nextStep();
-      } else if (items) {
-        setCanvasItemsCount(0);
-        toast.info('Connected, but no upcoming assignments found.');
-        nextStep();
-      } else {
-        toast.error('Connection failed. Check your URL and Token.');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Sync failed. Please try again.');
-    } finally {
-      setTestingCanvas(false);
     }
   };
 
@@ -330,866 +169,570 @@ export default function OnboardingPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[var(--color-cream)] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-[var(--color-bruno)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 overflow-hidden relative">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-500/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-500/5 blur-[120px] rounded-full" />
-      </div>
-
-      <div className="w-full max-w-2xl relative z-10 flex flex-col items-center">
-        {/* Header Navigation */}
-        <div className="w-full flex items-center justify-between mb-6 px-1">
-          <motion.button 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            onClick={() => {
-              if (currentStep > 0) {
-                prevStep();
-              } else {
-                window.location.href = '/';
-              }
-            }}
-            className="group flex items-center gap-2 text-meta text-surface-500 hover:text-surface-900 transition-colors relative z-30 cursor-pointer"
-          >
-            <CaretLeft weight="bold" className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-            {currentStep > 0 ? 'Go Back' : 'Home'}
-          </motion.button>
-          
-          <div className="flex items-center gap-6">
+    <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] font-sans flex flex-col items-center justify-center overflow-hidden relative selection:bg-[var(--color-honey-soft)]">
+      <div className="w-[720px] max-w-[100vw] h-[960px] max-h-[100vh] bg-[var(--color-cream)] flex flex-col relative overflow-hidden">
+        
+        {/* Onboard Chrome */}
+        <div className="pt-6 px-8 relative z-10">
+          <div className="flex justify-between items-center mb-3">
             <button 
-              onClick={async () => {
-                if (user) await supabase.auth.signOut();
-                window.location.href = '/signup';
-              }}
-              className="text-[10px] font-black uppercase text-surface-400 hover:text-surface-900 transition-colors tracking-widest cursor-pointer"
+              onClick={() => {
+                if (currentStep > 0) prevStep();
+                else window.location.href = '/';
+              }} 
+              className="bg-transparent border-none font-sans text-sm text-[var(--color-ink-soft)] cursor-pointer flex items-center gap-1.5 py-1.5 pr-2.5"
             >
-              {user ? `Not ${user.email?.split('@')[0]}?` : 'Exit to Signup'}
+              <span className="text-base">←</span> Back
             </button>
-            <span className="text-meta text-surface-400">Step {currentStep + 1} of {STEPS.length}</span>
+            <div className="text-right font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] uppercase">
+              STEP {String(currentStep + 1).padStart(2, '0')} <span className="opacity-50">/ {String(STEPS.length).padStart(2, '0')}</span>
+            </div>
+          </div>
+          <div className="h-1 bg-[rgba(26,20,13,0.08)] rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-[var(--color-honey)] rounded-full transition-all duration-600 ease-in-out" 
+              style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+            />
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full flex gap-1.5 mb-12">
-          {STEPS.map((_, i) => (
-            <div 
-              key={i} 
-              className={`h-1.5 flex-1 rounded-full transition-all duration-700 ease-out ${
-                i <= currentStep ? 'bg-brand-500 shadow-[0_0_8px_rgba(93,138,102,0.3)]' : 'bg-surface-200'
-              }`} 
-            />
-          ))}
-        </div>
-
-        {/* Animated Mascot */}
-        {['WELCOME', 'STAT_INPUT', 'AHA_MOMENT', 'ANALYZING', 'CELEBRATION', 'MIRROR'].includes(stepName) && (
-          <OllieMascot pose={getPose()} className="mb-8" />
-        )}
-
-        <AnimatePresence mode="wait">
-          {/* STEP 1: HOOK */}
-          {stepName === 'HOOK' && (
-            <motion.div
-              key="hook"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  What’s stealing your life right now?
-                </h1>
-                <p className="text-body">
-                  Most students don’t have a motivation problem. They have a hidden time leak.
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                {[
-                  { id: 'panic', label: "I procrastinate until panic mode", icon: Warning },
-                  { id: 'forget', label: "I forget assignments constantly", icon: CalendarBlank },
-                  { id: 'busy', label: "I’m always “busy” but behind", icon: Clock },
-                  { id: 'deciding', label: "I waste hours deciding what to do", icon: Lightning },
-                  { id: 'late', label: "I start studying too late", icon: GraduationCap },
-                  { id: 'change', label: "My schedule changes every day", icon: Users }
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setStressor(item.label); nextStep(); }}
-                    className="group relative p-6 bg-surface-900 border-4 border-surface-900 text-white text-left transition-all hover:bg-brand-500 hover:text-surface-900 shadow-[6px_6px_0px_0px_var(--accent-500)] active:translate-x-1 active:translate-y-1 active:shadow-none"
-                  >
-                    <div className="flex items-center gap-4">
-                      <item.icon weight="fill" className="size-8 group-hover:text-surface-900 transition-colors" />
-                      <div className="font-display font-bold text-lg leading-none">{item.label}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 2: WELCOME */}
-          {stepName === 'WELCOME' && (
-            <motion.div
-              key="welcome"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="w-full space-y-10"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  Meet Ollie. Your AI Life Pilot.
-                </h1>
-                <p className="text-body">
-                  Not a calendar. Not another productivity app. Ollie rebuilds your week automatically so you stop living assignment-to-assignment.
-                </p>
-              </div>
-
-              <div className="bg-white border-4 border-surface-900 p-8 shadow-[8px_8px_0px_0px_var(--brand-500)] space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-meta">Your First Name</Label>
-                  <Input
-                    placeholder="Enter your name..."
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="border-2 border-surface-900 py-6 text-xl font-display font-bold focus:ring-brand-500"
-                  />
-                </div>
-                <div className="p-4 bg-brand-500/5 border-l-4 border-brand-500">
-                  <p className="text-narrative text-sm">
-                    "You're not lazy. You've just been flying without instruments."
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={nextStep}
-                  disabled={!userName}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900"
-                >
-                  Let’s rebuild my schedule <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 3: STAT_INPUT */}
-          {stepName === 'STAT_INPUT' && (
-            <motion.div
-              key="stat"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  How many hours disappear every week?
-                </h1>
-                <p className="text-body">
-                  Be honest. Most students underestimate it. This includes doomscrolling, panic delays, and "fake studying."
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                {[
-                  { value: 4, label: "3–5 hours" },
-                  { value: 8, label: "6–10 hours" },
-                  { value: 13, label: "11–15 hours" },
-                  { value: 20, label: "15+ hours" }
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => { setWeeklyStudyHours(option.value); nextStep(); }}
-                    className={`p-6 border-4 text-left transition-all ${
-                      weeklyStudyHours === option.value ? 'border-brand-500 bg-brand-500/5 shadow-[4px_4px_0px_0px_var(--brand-500)]' : 'border-surface-900 hover:border-brand-500 bg-white'
-                    }`}
-                  >
-                    <span className="font-black uppercase text-xl">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-              <Button variant="ghost" onClick={prevStep} className="w-full uppercase font-black text-xs">Back</Button>
-            </motion.div>
-          )}
-
-          {/* STEP 4: AHA_MOMENT */}
-          {stepName === 'AHA_MOMENT' && (
-            <motion.div
-              key="aha"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-8"
-            >
-              <div className="bg-surface-900 text-white border-4 border-surface-900 p-10 shadow-[12px_12px_0px_0px_var(--brand-500)] space-y-10 relative overflow-hidden">
-                <div className="absolute top-[-10%] right-[-10%] opacity-10">
-                  <Clock weight="fill" className="size-64" />
-                </div>
-                
-                <div className="space-y-6 relative z-10">
-                  <h1 className="text-h1 text-white">
-                    You’re losing nearly {weeklyStudyHours * 52} hours a year.
-                  </h1>
-                  <div className="space-y-4">
-                    <p className="text-xl font-bold text-surface-400 uppercase tracking-tight">That’s:</p>
-                    <ul className="space-y-4">
-                      {[
-                        `${Math.round((weeklyStudyHours * 52) / 24)} full days`,
-                        `${Math.round((weeklyStudyHours * 52) / 0.8)} missed workouts`,
-                        `${Math.round(weeklyStudyHours * 52 * 2)} lost gaming hours`,
-                        "An entire summer disappearing into stress"
-                      ].map((text, i) => (
-                        <li key={i} className="flex items-center gap-4 text-xl font-black italic">
-                          <Warning weight="fill" className="text-brand-500 size-6" />
-                          {text}
-                        </li>
-                      ))}
-                    </ul>
+        {/* Content area */}
+        <div className="flex-1 p-6 sm:px-12 pt-6 pb-5 flex flex-col overflow-y-auto overflow-x-hidden">
+          <AnimatePresence mode="wait">
+            {/* STEP 1: WELCOME */}
+            {stepName === 'WELCOME' && (
+              <motion.div key="1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex-1 flex flex-col justify-center items-center">
+                  <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-3xl py-6 px-8 mb-6 flex justify-center items-center">
+                    <Bruno size={140} mood="happy" wave />
+                  </div>
+                  <div className="text-center max-w-[600px] mb-6 mx-auto">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">WELCOME</div>
+                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal text-[var(--color-ink)] text-balance">
+                      Hi, I'm <em className="text-[var(--color-honey-deep)] not-italic">Bruno.</em><br/>Want me to plan your week?
+                    </h1>
+                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px] text-pretty">
+                      60 seconds of setup. Then I read your school, your calendar, and your to-dos — and quietly build your day every morning.
+                    </p>
                   </div>
                 </div>
-
-                <div className="p-4 bg-brand-500/10 border-l-4 border-brand-500">
-                  <p className="text-xs font-bold text-brand-500 uppercase italic">
-                    "Most students don’t realize they’re losing entire months to indecision." — Ollie
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={nextStep}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900"
-                >
-                  That’s actually insane <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 5: REFLECTION */}
-          {stepName === 'REFLECTION' && (
-            <motion.div
-              key="reflection"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  Who would you become?
-                </h1>
-                <p className="text-body">
-                  If we give you {weeklyStudyHours} hours back every week, what's the first thing you'll do?
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                {[
-                  { id: 'grades', label: "Better grades without burnout", icon: GraduationCap },
-                  { id: 'sleep', label: "More sleep", icon: Heart },
-                  { id: 'gym', label: "Gym/sports consistency", icon: Lightning },
-                  { id: 'friends', label: "More time with friends", icon: Users },
-                  { id: 'gaming', label: "More gaming/free time", icon: CalendarBlank },
-                  { id: 'stress', label: "Less stress at home", icon: Warning }
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setDreamActivity(item.label); nextStep(); }}
-                    className={`p-6 border-4 text-left transition-all flex items-center justify-between group ${
-                      dreamActivity === item.label ? 'border-brand-500 bg-brand-500/5 shadow-[4px_4px_0px_0px_var(--brand-500)]' : 'border-surface-900 hover:border-brand-500 bg-white'
-                    }`}
-                  >
-                    <span className="font-black uppercase text-lg">{item.label}</span>
-                    <item.icon weight="fill" className={`size-6 ${dreamActivity === item.label ? 'text-brand-500' : 'text-surface-300 group-hover:text-brand-500'}`} />
-                  </button>
-                ))}
-              </div>
-              
-              <div className="p-4 bg-brand-500/5 border-l-4 border-brand-500 text-center">
-                <p className="text-xs font-bold text-surface-600 italic">
-                  "Recovered time becomes identity. That’s the real upgrade." — Ollie
-                </p>
-              </div>
-
-              <Button variant="ghost" onClick={prevStep} className="w-full uppercase font-black text-xs">Back</Button>
-            </motion.div>
-          )}
-
-          {/* STEP 6: MIRROR */}
-          {stepName === 'MIRROR' && (
-            <motion.div
-              key="mirror"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  You don’t need more discipline.
-                </h1>
-                <p className="text-narrative italic">
-                  You need a system that adapts faster than your life changes.
-                </p>
-              </div>
-
-              <div className="bg-white border-4 border-surface-900 p-8 shadow-[8px_8px_0px_0px_var(--accent-500)] space-y-6">
-                <div className="space-y-4">
-                  <p className="font-black uppercase text-sm leading-none text-surface-400 italic">Plan Pilot automatically reorganizes:</p>
-                  <ul className="space-y-3">
-                    {["Assignments", "Study Blocks", "Deadlines", "Recovery Time", "Schedule Shifts"].map((feat, i) => (
-                      <li key={i} className="flex items-center gap-3">
-                        <CheckCircle weight="fill" className="text-brand-500 size-5" />
-                        <span className="font-black uppercase text-lg italic">{feat}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={nextStep}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)]"
-                >
-                  That’s exactly what I need <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 7: BELONGING */}
-          {stepName === 'BELONGING' && (
-            <motion.div
-              key="belonging"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-12 py-6 text-center"
-            >
-              <div className="size-24 bg-brand-500 border-4 border-surface-900 rounded-3xl mx-auto flex items-center justify-center shadow-[8px_8px_0px_0px_var(--surface-900)]">
-                <ShieldCheck weight="fill" className="text-white size-12" />
-              </div>
-              <div className="space-y-4">
-                <h1 className="text-h1">
-                  Join the students escaping survival mode.
-                </h1>
-                <p className="text-body max-w-sm mx-auto">
-                  Thousands of students are replacing panic studying and missing assignments with automated structure.
-                </p>
-              </div>
-              
-              <div className="flex flex-col gap-3">
-                <Button 
-                  onClick={() => {
-                    if (user) {
-                      nextStep();
-                    } else {
-                      router.push('/signup');
-                    }
-                  }}
-                  className="w-full py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-surface-900 text-white hover:bg-surface-800"
-                >
-                  {user ? 'Continue' : 'Create My Account'} <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-                <div className="flex gap-3">
-                  <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-[10px]">Back</Button>
-                  <p className="flex-1 text-[10px] font-bold text-surface-400 uppercase tracking-widest italic flex items-center justify-center">Takes less than 15 seconds.</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 8: CANVAS_CONNECT */}
-          {stepName === 'CANVAS_CONNECT' && (
-            <motion.div
-              key="canvas"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  Connect Canvas.
-                </h1>
-                <p className="text-body">
-                  Let Ollie see the battlefield. We scan assignments, due dates, and workload spikes to build your recovery plan.
-                </p>
-              </div>
-
-              <div className="space-y-6 bg-white border-4 border-surface-900 p-8 shadow-[8px_8px_0px_0px_var(--accent-500)]">
-                <div className="space-y-2">
-                  <Label className="text-meta">Canvas URL</Label>
-                  <Input
-                    placeholder="https://canvas.youruni.edu"
-                    value={canvasUrl}
-                    onChange={(e) => setCanvasUrl(e.target.value)}
-                    className="border-2 border-surface-900 py-6 font-display font-bold focus:ring-brand-500 italic"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-meta">Access Token</Label>
-                  <Input
-                    type="password"
-                    placeholder="Paste your token..."
-                    value={canvasToken}
-                    onChange={(e) => setCanvasToken(e.target.value)}
-                    className="border-2 border-surface-900 py-6 font-bold focus:ring-brand-500"
-                  />
-                </div>
-                <div className="p-4 bg-brand-500/5 border-l-4 border-brand-500">
-                  <p className="text-narrative text-sm">
-                    "Now we stop guessing and start piloting." — Ollie
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <div className="flex gap-3">
-                  <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                  <Button 
-                    onClick={handleTestCanvas}
-                    disabled={testingCanvas || !canvasUrl || !canvasToken}
-                    className="flex-[2] py-8 text-lg font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900"
-                  >
-                    {testingCanvas ? 'Syncing...' : 'Sync My Canvas'} <Lightning weight="fill" className="ml-2" />
-                  </Button>
-                </div>
-                <Button 
-                  onClick={() => { setCanvasItemsCount(12); nextStep(); }} 
-                  variant="ghost" 
-                  className="w-full text-[10px] font-black uppercase text-surface-400 hover:text-surface-900 py-4 italic"
-                >
-                  I'll do this later (Skip for now)
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 9: ANALYZING */}
-          {stepName === 'ANALYZING' && (
-            <motion.div
-              key="analyzing"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-12 text-center"
-            >
-              <div className="relative size-32 mx-auto">
-                <div className="absolute inset-0 border-8 border-surface-100 rounded-full" />
-                <motion.div 
-                  className="absolute inset-0 border-8 border-brand-500 rounded-full border-t-transparent"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <OllieMascot pose="thinking" className="size-16" />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <h1 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
-                  Analyzing your academic pressure map…
-                </h1>
-                <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                  {[
-                    "Detecting deadline clusters...",
-                    "Finding procrastination risk zones...",
-                    "Identifying burnout windows...",
-                    "Building recovery schedule...",
-                    "Calculating reclaimable hours..."
-                  ].map((text, i) => (
-                    <motion.div 
-                      key={i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 2 }}
-                      onAnimationComplete={() => { if(i === 4) setTimeout(nextStep, 2500); }}
-                      className="flex items-center gap-3 text-left"
+                
+                <div className="bg-[var(--color-paper)] rounded-[20px] border border-[var(--color-line)] p-5.5 max-w-[400px] mx-auto w-full">
+                  <div className="font-mono text-[10px] tracking-[0.18em] text-[var(--color-ink-soft)] mb-3.5 uppercase text-center">START FREE · 14 DAYS</div>
+                  <div className="flex flex-col gap-2.5">
+                    <button 
+                      onClick={() => user ? nextStep() : router.push('/signup?redirect=onboarding')}
+                      className="bg-[var(--color-ink)] text-[var(--color-paper)] border-none py-3.5 px-4 rounded-full font-sans text-sm font-medium cursor-pointer flex items-center justify-center gap-2.5 hover:scale-[1.02] transition-transform"
                     >
-                      <CheckCircle weight="bold" className="text-brand-500 size-4 shrink-0" />
-                      <span className="text-[10px] font-bold uppercase text-surface-500 tracking-tight">{text}</span>
-                    </motion.div>
-                  ))}
+                      <span className="w-[22px] h-[22px] rounded-full bg-[var(--color-paper)] text-[var(--color-ink)] inline-flex items-center justify-center font-bold text-[13px] font-mono">G</span> 
+                      Continue with Google
+                    </button>
+                    <button 
+                      onClick={() => user ? nextStep() : router.push('/signup?redirect=onboarding')}
+                      className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] py-3.5 px-4 rounded-full font-sans text-sm font-medium cursor-pointer hover:bg-[var(--color-line)] transition-colors"
+                    >
+                      Continue with email
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-[var(--color-ink-soft)] mt-3.5 text-center leading-[1.5]">
+                    By continuing you agree to our <u>Terms</u> and <u>Privacy</u>.
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
-          {/* STEP 10: DISCOVERY */}
-          {stepName === 'DISCOVERY' && (
-            <motion.div
-              key="discovery"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1 text-brand-500">
-                  We found {(weeklyStudyHours * 0.25).toFixed(1)} recoverable hours.
-                </h1>
-                <p className="text-body italic">
-                  Ollie identified your biggest leaks.
+            {/* STEP 2: IDENTITY */}
+            {stepName === 'IDENTITY' && (
+              <motion.div key="2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex items-center gap-4.5 mb-4.5">
+                  <Bruno size={72} mood="curious" react={reactBump} />
+                  <div className="flex-1">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">HONESTLY · NO WRONG ANSWERS</div>
+                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
+                      Which of these sound <em className="text-[var(--color-honey-deep)] not-italic">familiar?</em>
+                    </h1>
+                  </div>
+                </div>
+                <p className="text-[15px] text-[var(--color-ink-soft)] m-0 mb-4 leading-[1.55]">
+                  Pick all that apply — I use these to figure out what's actually getting in your way.
                 </p>
-              </div>
 
-              <div className="bg-surface-900 text-white border-4 border-surface-900 p-8 shadow-[10px_10px_0px_0px_var(--accent-500)] space-y-8 relative overflow-hidden">
-                <div className="grid gap-4">
+                <div className="flex flex-col gap-2.5">
                   {[
-                    { label: "Fragmented study sessions", color: "text-brand-500" },
-                    { label: "Late-start homework", color: "text-accent-500" },
-                    { label: "Unplanned downtime", color: "text-white" },
-                    { label: "Reactive scheduling", color: "text-brand-500" }
-                  ].map((leak, i) => (
-                    <div key={i} className="flex items-center gap-4 border-b border-surface-800 pb-3">
-                      <Warning weight="fill" className={`${leak.color} size-5`} />
-                      <span className="font-black uppercase text-xs italic">{leak.label}</span>
-                    </div>
-                  ))}
+                    "I plan the perfect week, then real life happens by Tuesday.",
+                    "I keep moving deadlines and feel a little worse each time.",
+                    "I open my planner, see red badges, and close it again.",
+                    "I waste real time deciding what to work on first.",
+                    "I'm great at the work — I'm bad at the logistics."
+                  ].map((o, i) => {
+                    const on = !!identityChecks[i];
+                    return (
+                      <label 
+                        key={i} 
+                        onClick={() => {
+                          setIdentityChecks(p => ({ ...p, [i]: !p[i] }));
+                          setReactBump(r => r + 1);
+                        }} 
+                        className={`flex items-center gap-3.5 py-3.5 px-4.5 bg-[var(--color-paper)] rounded-[14px] cursor-pointer transition-all duration-150 ${on ? 'border-2 border-[var(--color-honey)] translate-x-[2px]' : 'border border-[var(--color-line)] translate-x-0'}`}
+                      >
+                        <div className={`w-[22px] h-[22px] rounded-md flex items-center justify-center shrink-0 transition-colors duration-150 ${on ? 'bg-[var(--color-honey)] border-none' : 'bg-transparent border-[1.5px] border-[var(--color-line-strong)]'}`}>
+                          {on && <span className="text-[var(--color-ink)] text-[13px] font-bold">✓</span>}
+                        </div>
+                        <span className="text-[15px] leading-[1.4] select-none">{o}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-              </div>
 
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={nextStep}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900 hover:bg-brand-400"
-                >
-                  Show me the recovery plan <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 11: CELEBRATION */}
-          {stepName === 'CELEBRATION' && (
-            <motion.div
-              key="celebration"
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-12 text-center"
-            >
-              <div className="space-y-4">
-                <div className="text-meta text-brand-500 mb-4">
-                  PLAN PILOT MEMBER
+                <div className="mt-3.5">
+                  <BrunoBubble
+                    tone="dark"
+                    text={Object.values(identityChecks).filter(Boolean).length === 0
+                      ? "Tap whichever ones ring true — no judgement."
+                      : Object.values(identityChecks).filter(Boolean).length >= 3
+                        ? "Oof — you're not lazy, that's a system problem. I can fix that."
+                        : "Got it. You're not alone, by the way."}
+                  />
                 </div>
-                <h1 className="text-h1">
-                  You’re no longer in Trial Mode.
-                </h1>
-                <p className="text-body max-w-sm mx-auto">
-                  You now have an AI recovery system and a personalized success blueprint.
-                </p>
-              </div>
 
-              <div className="p-8 border-4 border-surface-900 bg-white shadow-[8px_8px_0px_0px_var(--accent-500)] space-y-6">
-                <p className="text-xs font-bold text-surface-600 italic">
-                  "Passengers react. Pilots anticipate." — Ollie
-                </p>
-                <div className="flex gap-3">
-                  <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                  <Button onClick={nextStep} className="flex-[2] py-6 bg-brand-500 text-surface-900 font-black uppercase shadow-[4px_4px_0px_0px_var(--surface-900)]">View Blueprint</Button>
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
+                  <button 
+                    onClick={nextStep}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
+                  >
+                    That's me · continue <span className="ml-1.5">→</span>
+                  </button>
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
+                    {Object.values(identityChecks).filter(Boolean).length} SELECTED
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
-          {/* STEP 12: ROADMAP */}
-          {stepName === 'ROADMAP' && (
-            <motion.div
-              key="roadmap"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  Your next 14 days are mapped.
-                </h1>
-                <p className="text-body">
-                  Most users report lower stress within the first week.
-                </p>
-              </div>
+            {/* STEP 3: NAME */}
+            {stepName === 'NAME' && (
+              <motion.div key="3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex flex-col items-center flex-1 justify-center">
+                  <Bruno size={120} mood={userName.length % 2 === 1 ? 'thinking' : 'happy'} className={userName.length > 0 ? 'tilt' : ''} />
+                  
+                  <div className="mt-6 text-center max-w-[600px]">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">GOOD · YOU'RE EXACTLY WHO I'M FOR</div>
+                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal">
+                      What should I <em className="text-[var(--color-honey-deep)] not-italic">call</em> you?
+                    </h1>
+                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px]">
+                      I'll use this when I check in. No formal titles — just whatever your friends call you.
+                    </p>
+                  </div>
 
-              <div className="space-y-4">
-                {[
-                  { day: "Days 1–3", label: "Escape assignment chaos", sub: "Ollie clears your backlog and silences Canvas noise." },
-                  { day: "Days 4–7", label: "Build momentum automatically", sub: "You'll notice you're finishing work 2 hours earlier." },
-                  { day: "Days 8–10", label: "Reduce stress", sub: "No more late-night catch-up sessions." },
-                  { day: "Days 11–14", label: "Total Control", sub: "Feel in control of your future again." }
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-4 items-center bg-white border-2 border-surface-900 p-4 shadow-[4px_4px_0px_0px_var(--surface-900)]">
-                    <div className="font-black text-brand-500 italic shrink-0 w-20 uppercase text-[10px]">{item.day}</div>
-                    <div className="space-y-1">
-                      <div className="font-black uppercase text-sm leading-none">{item.label}</div>
-                      <p className="text-[10px] font-bold text-surface-400 uppercase tracking-tight leading-none">{item.sub}</p>
+                  <div className="w-full max-w-[500px] mt-2">
+                    <input
+                      value={userName}
+                      onChange={(e) => {
+                        setUserName(e.target.value);
+                      }}
+                      placeholder="Type your name…"
+                      className="w-full bg-[var(--color-paper)] border-2 border-[var(--color-honey)] rounded-[14px] py-4 px-5 font-serif text-[26px] text-[var(--color-ink)] outline-none tracking-[-0.01em] box-border focus:shadow-[0_0_0_4px_rgba(208,135,65,0.2)] transition-shadow"
+                    />
+                    <div className="mt-3.5">
+                      <BrunoBubble
+                        text={userName.trim() ? `Hey ${userName.trim()} — nice to meet you. I'll keep things light unless you tell me otherwise.` : "Whenever you're ready."}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={nextStep}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-surface-900 text-white"
-                >
-                  Continue <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
+                  <button 
+                    onClick={nextStep}
+                    disabled={!userName.trim()}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] disabled:opacity-50 hover:scale-[1.02] transition-transform"
+                  >
+                    Continue · 5 more steps <span className="ml-1.5">→</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
 
-          {/* STEP 13: PRICE_PIVOT */}
-          {stepName === 'PRICE_PIVOT' && (
-            <motion.div
-              key="price_pivot"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-12 text-center"
-            >
-              <h1 className="text-h1">
-                A fair trade.
-              </h1>
+            {/* STEP 4: ENERGY */}
+            {stepName === 'ENERGY' && (() => {
+              const opts = [
+                { id: 'morning',   label: 'Morning',           desc: 'I think clearest before 11 AM',           hours: '6 — 11',   ico: '☀️', mood: 'happy' as const },
+                { id: 'afternoon', label: 'Afternoon',         desc: 'I hit my stride after lunch',             hours: '12 — 5',   ico: '🥪', mood: 'normal' as const },
+                { id: 'night',     label: 'Night',             desc: 'My brain wakes up after 9 PM',            hours: '9 — 1',    ico: '🌙', mood: 'sleepy' as const },
+                { id: 'chaos',     label: 'Honestly, it varies', desc: 'It changes day to day — Bruno adapts', hours: 'all day',  ico: '🎲', mood: 'curious' as const },
+              ];
+              const currentMood = opts.find(o => o.id === energyPreference)?.mood || 'normal';
 
-              <div className="bg-surface-900 text-white border-4 border-surface-900 p-8 shadow-[10px_10px_0px_0px_var(--brand-500)] space-y-8">
-                <div className="space-y-2">
-                  <div className="text-6xl font-black text-brand-500 leading-none">$1.52</div>
-                  <div className="text-xs font-black uppercase tracking-[0.2em] opacity-50">per week to recover 500+ hours/year</div>
+              return (
+              <motion.div key="4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex items-start gap-4.5 mb-4.5">
+                  <Bruno size={80} mood={currentMood} react={reactBump} />
+                  <div className="flex-1">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">QUICK ONE</div>
+                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
+                      When does your brain <em className="text-[var(--color-honey-deep)] not-italic">actually</em> work?
+                    </h1>
+                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
+                      Not when you wish it did — when it really does. I'll put hard work in those windows.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2.5 mt-1.5">
+                  {opts.map((o) => {
+                    const on = energyPreference === o.id;
+                    return (
+                      <div 
+                        key={o.id} 
+                        onClick={() => { setEnergyPreference(o.id); setReactBump(b => b + 1); }} 
+                        className={`flex items-center gap-4 py-4 px-5 bg-[var(--color-paper)] rounded-[14px] cursor-pointer transition-all duration-150 ${on ? 'border-2 border-[var(--color-honey)] scale-[1.01]' : 'border border-[var(--color-line)] scale-100'}`}
+                      >
+                        <div className={`w-11 h-11 rounded-[10px] flex items-center justify-center text-[22px] ${on ? 'bg-[var(--color-honey-soft)]' : 'bg-[var(--color-cream)]'}`}>
+                          {o.ico}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-serif text-[22px] tracking-[-0.01em]">{o.label}</div>
+                          <div className="text-[12px] text-[var(--color-ink-soft)] mt-0.5">{o.desc}</div>
+                        </div>
+                        <div className={`font-mono text-[11px] tracking-[0.08em] uppercase ${on ? 'text-[var(--color-honey-deep)]' : 'text-[var(--color-ink-soft)]'}`}>
+                          {o.hours}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
+                  <button 
+                    onClick={nextStep}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
+                  >
+                    Continue <span className="ml-1.5">→</span>
+                  </button>
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
+                    Bruno picks the rest
+                  </div>
+                </div>
+              </motion.div>
+              );
+            })()}
+
+            {/* STEP 5: CANVAS */}
+            {stepName === 'CANVAS' && (
+              <motion.div key="5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex items-start gap-4.5 mb-4.5">
+                  <Bruno size={80} mood="curious" className="peek" />
+                  <div className="flex-1">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">THE WOW MOMENT · 30 SECONDS</div>
+                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
+                      Let me read your <em className="text-[var(--color-honey-deep)] not-italic">Canvas.</em>
+                    </h1>
+                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
+                      I'll pull deadlines, quizzes, and class times — that's it. Never your essays, grades, or private docs.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-paper)] rounded-[18px] border border-[var(--color-line)] p-5.5 mt-2">
+                  <div className="flex items-center gap-3.5 py-1">
+                    <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[var(--color-paper)] font-mono text-base font-semibold bg-[var(--color-rose)]">C</div>
+                    <div className="flex-1">
+                      <div className="text-[14px] font-medium">Canvas LMS</div>
+                      <input 
+                        value={canvasUrl}
+                        onChange={(e) => setCanvasUrl(e.target.value)}
+                        placeholder="https://canvas.instructure.com"
+                        className="text-[12px] text-[var(--color-ink)] mt-0.5 font-mono bg-[var(--color-cream)] border border-[var(--color-line)] rounded px-2 py-1 w-full outline-none focus:border-[var(--color-honey)]" 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3.5 py-2 mt-2">
+                    <div className="flex-1 pl-[52px]">
+                      <input 
+                        type="password"
+                        value={canvasToken}
+                        onChange={(e) => setCanvasToken(e.target.value)}
+                        placeholder="Paste Access Token..."
+                        className="text-[12px] text-[var(--color-ink)] font-mono bg-[var(--color-cream)] border border-[var(--color-line)] rounded px-2 py-1.5 w-full outline-none focus:border-[var(--color-honey)]" 
+                      />
+                    </div>
+                  </div>
+
+                  {canvasError && (
+                    <div className="mt-3 bg-[rgba(235,94,85,0.08)] border border-[var(--color-rose)] text-[var(--color-rose)] rounded-xl p-3 text-[13px] flex items-center gap-2">
+                      <span>⚠️</span> {canvasError}
+                    </div>
+                  )}
+
+                  <div className="mt-5.5 p-4 bg-[var(--color-cream)] rounded-xl">
+                    <div className="font-mono text-[10px] tracking-[0.16em] text-[var(--color-ink-soft)] mb-3 uppercase">I'LL READ</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Course names & assignment titles</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Due dates & times</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Class schedule</div>
+                    <div className="font-mono text-[10px] tracking-[0.16em] text-[var(--color-ink-soft)] mt-3.5 mb-3 uppercase">I WON'T READ</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Essays, submissions, or grades</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Messages or discussion posts</div>
+                  </div>
                 </div>
                 
-                <div className="border-t border-surface-800 pt-6">
-                  <p className="text-sm font-bold uppercase text-surface-400 italic">
-                    Students waste more every month on energy drinks, fast food, and stress spending.
-                  </p>
+                <div className="text-center mt-3.5">
+                  <button onClick={nextStep} className="bg-transparent border-none text-[var(--color-ink-soft)] text-[13px] cursor-pointer underline p-1.5">
+                    I'll connect later
+                  </button>
                 </div>
-              </div>
 
-              <div className="space-y-6">
-                <p className="text-sm font-black uppercase text-surface-500 max-w-xs mx-auto italic">
-                  Investing in your time is the highest ROI you can get in your 20s.
-                </p>
-                <div className="flex gap-3">
-                  <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                  <Button 
-                    onClick={nextStep}
-                    className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900"
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-4">
+                  <button 
+                    onClick={async () => {
+                      if (canvasUrl && canvasToken) {
+                        setTestingCanvas(true);
+                        setCanvasError(null);
+                        const isOk = await testCanvasConnectionAction(canvasUrl, canvasToken);
+                        setTestingCanvas(false);
+                        if (isOk) {
+                          nextStep();
+                        } else {
+                          setCanvasError('Failed to connect. Please check your URL and Access Token.');
+                        }
+                      } else {
+                        nextStep();
+                      }
+                    }}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
                   >
-                    Keep my recovery system active <ArrowRight weight="bold" className="ml-2" />
-                  </Button>
+                    {testingCanvas ? 'Syncing...' : 'Connect Canvas · 30s'} <span className="ml-1.5">→</span>
+                  </button>
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
+                    Encrypted in transit & at rest
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
-          {/* STEP 14: COMMITMENT */}
-          {stepName === 'COMMITMENT' && (
-            <motion.div
-              key="commitment"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  So here’s the real question.
-                </h1>
-                <p className="text-body text-sm">
-                  A year from now… do you want to be the student still saying “I’ll start tomorrow”— or the student who finally took control?
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => { setCommitmentLevel('pilot'); nextStep(); }}
-                  className="p-8 border-4 border-surface-900 bg-brand-500 text-surface-900 font-black uppercase text-xl shadow-[8px_8px_0px_0px_var(--surface-900)] transition-all active:translate-x-1 active:translate-y-1 active:shadow-none"
-                >
-                  I’m ready to become a Pilot
-                </button>
-                <button
-                  onClick={() => { 
-                    setCommitmentLevel('drifting');
-                    // Skip Founder Promise and go straight to Paywall if they choose to drift
-                    setCurrentStep(STEPS.indexOf('PAYWALL'));
-                  }}
-                  className="p-2 text-surface-400 font-bold uppercase text-[9px] hover:text-surface-600 transition-all opacity-50 hover:opacity-100"
-                >
-                  Stay a passenger (and lose {weeklyStudyHours * 52} hours this year)
-                </button>
-              </div>
-
-              <div className="p-4 bg-brand-500/5 border-l-4 border-brand-500 text-center">
-                <p className="text-xs font-bold text-surface-600 italic">
-                  "The hardest part isn’t managing time. It’s deciding your future self matters enough to protect." — Ollie
-                </p>
-              </div>
-
-              <Button variant="ghost" onClick={prevStep} className="w-full uppercase font-black text-xs">Back</Button>
-            </motion.div>
-          )}
-
-          {/* STEP 15: FOUNDER_PROMISE */}
-          {stepName === 'FOUNDER_PROMISE' && (
-            <motion.div
-              key="founder"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full space-y-8"
-            >
-              <div className="bg-white border-4 border-surface-900 p-10 shadow-[10px_10px_0px_0px_var(--accent-500)] space-y-8">
-                <div className="space-y-4">
-                  <h1 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
-                    I built Plan Pilot because I was drowning too.
-                  </h1>
-                  <div className="space-y-4 font-bold text-surface-600 text-sm uppercase leading-relaxed italic">
-                    <p>I missed deadlines. I underestimated assignments. I spent years confusing stress with productivity.</p>
-                    <p>Plan Pilot is the system I wish existed earlier. If it doesn’t reduce your stress, cancel before the trial ends. No games.</p>
+            {/* STEP 6: CALENDAR */}
+            {stepName === 'CALENDAR' && (
+              <motion.div key="6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex items-start gap-4.5 mb-4.5">
+                  <Bruno size={80} mood="thinking" />
+                  <div className="flex-1">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">ONE MORE · ALMOST THERE</div>
+                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
+                      Now your <em className="text-[var(--color-honey-deep)] not-italic">calendar.</em>
+                    </h1>
+                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
+                      So I don't schedule deep work over your bio lab. I read events, never meeting notes.
+                    </p>
                   </div>
                 </div>
 
-                <div className="pt-6 border-t-2 border-surface-100 flex justify-between items-end">
-                  <div>
-                    <div className="font-black uppercase text-lg italic">— Founder</div>
-                    <div className="text-[10px] font-black uppercase text-surface-400 tracking-widest">Plan Pilot</div>
-                  </div>
-                  <div className="size-16 bg-surface-100 rounded-full border-2 border-surface-200" />
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="ghost" onClick={prevStep} className="flex-1 uppercase font-black text-xs">Back</Button>
-                <Button 
-                  onClick={() => {
-                    if (user) {
-                      nextStep();
-                    } else {
-                      router.push('/signup');
-                    }
-                  }}
-                  className="flex-[2] py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900 hover:bg-brand-400"
-                >
-                  Secure My Spot <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 16: PAYWALL */}
-          {stepName === 'PAYWALL' && (
-            <motion.div
-              key="paywall"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-8"
-            >
-              <div className="space-y-4 text-center">
-                <h1 className="text-h1">
-                  Activate Your 14-Day Recovery Trial
-                </h1>
-                <p className="text-body">
-                  Every day without a system costs you more than this trial ever will.
-                </p>
-              </div>
-
-              <div className="bg-white border-4 border-surface-900 shadow-[10px_10px_0px_0px_var(--accent-500)] p-8 space-y-6 relative overflow-hidden">
-                <div className="flex justify-between items-start pb-4 border-b-2 border-surface-100">
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-500">Selected Plan</div>
-                    <h2 className="text-3xl font-black uppercase italic tracking-tighter">Elite {isAnnual ? 'Annual' : 'Monthly'}</h2>
-                  </div>
-                  <div className="text-right flex flex-col items-end">
-                    <div className="text-2xl font-black text-surface-900 leading-none">
-                      {isAnnual ? '$6.58' : '$9.99'}
+                <div className="bg-[var(--color-paper)] rounded-[18px] border border-[var(--color-line)] p-5.5 mt-2">
+                  <div className="flex items-center gap-3.5 py-1">
+                    <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[var(--color-paper)] font-mono text-base font-semibold bg-[var(--color-blue)]">G</div>
+                    <div className="flex-1">
+                      <div className="text-[14px] font-medium">Google Calendar</div>
+                      <div className="text-[12px] text-[var(--color-ink-soft)] mt-0.5 font-mono">{user?.email || 'email@example.com'}</div>
                     </div>
-                    <div className="text-[10px] font-black uppercase text-surface-400 mt-1 tracking-tighter">
-                      per month
+                  </div>
+                  
+                  <div className="mt-4 p-3.5 px-4 bg-[var(--color-cream)] rounded-xl">
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Event titles & times</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Recurring class blocks</div>
+                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Meeting notes or attachments</div>
+                  </div>
+                </div>
+
+                <div className="mt-3.5">
+                  <BrunoBubble
+                    tone="dark"
+                    text="I'll look for empty windows between your classes and slot in the right work — never on top of your calendar."
+                  />
+                </div>
+                
+                <div className="text-center mt-3.5">
+                  <button onClick={nextStep} className="bg-transparent border-none text-[var(--color-ink-soft)] text-[13px] cursor-pointer underline p-1.5">
+                    I'll connect later
+                  </button>
+                </div>
+
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-4">
+                  <button 
+                    onClick={handleConnectCalendar}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
+                  >
+                    Connect Calendar · 20s <span className="ml-1.5">→</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 7: FIRST PLAN */}
+            {stepName === 'FIRST_PLAN' && (
+              <motion.div key="7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex items-start gap-4.5 mb-3.5">
+                  <Bruno size={76} mood="happy" className="pop" />
+                  <div className="flex-1">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">HERE'S WHAT I FOUND</div>
+                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
+                      Your first <em className="text-[var(--color-honey-deep)] not-italic">plan</em>, {userName || 'Pilot'}.
+                    </h1>
+                    <p className="text-[13px] text-[var(--color-ink-soft)] mt-2 mb-0 leading-[1.5]">
+                      23 items from Canvas + Calendar, built around your {energyPreference} energy. You can edit anything.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 mt-1 mb-3.5">
+                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-ink)]">23</div>
+                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">ITEMS READ</div>
+                  </div>
+                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-honey-deep)]">6</div>
+                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">BLOCKS PLANNED</div>
+                  </div>
+                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-sage)]">2h 30m</div>
+                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DEEP FOCUS</div>
+                  </div>
+                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
+                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-rose)]">1</div>
+                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DUE THIS WEEK</div>
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-paper)] rounded-2xl border border-[var(--color-line)] p-4.5">
+                  <div className="flex justify-between items-center mb-2.5 pb-3 border-b border-[var(--color-line)]">
+                    <div className="font-serif text-[20px]">Tomorrow · <em className="text-[var(--color-honey-deep)] not-italic">Tue May 19</em></div>
+                    <div className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em] uppercase">● BRUNO BUILT THIS</div>
+                  </div>
+                  {[
+                    { t: '09:00', dur: '90m', tx: 'Calculus PS8 — your morning sharp', src: 'var(--color-rose)', lbl: 'CANVAS · DUE WED' },
+                    { t: '10:30', dur: '15m', tx: 'Stretch — phone away', src: 'var(--color-honey)', lbl: 'BRUNO RECOVERY' },
+                    { t: '11:00', dur: '60m', tx: 'Bio lab w/ Dr. Marin', src: 'var(--color-blue)', lbl: 'CALENDAR' },
+                    { t: '14:00', dur: '60m', tx: 'History reading + outline', src: 'var(--color-rose)', lbl: 'CANVAS · LIGHTER TIME' },
+                  ].map((r, i) => (
+                    <div key={i} className="flex items-center gap-3 py-2.5">
+                      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] min-w-[44px]">{r.t}</div>
+                      <div className="w-[3px] rounded-sm self-stretch" style={{ background: r.src }} />
+                      <div className="flex-1">
+                        <div className="text-[13px] font-medium">{r.tx}</div>
+                        <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.08em] mt-0.5">{r.lbl}</div>
+                      </div>
+                      <div className="font-mono text-[10px] text-[var(--color-ink-soft)]">{r.dur}</div>
                     </div>
-                    {isAnnual && (
-                      <div className="flex flex-col items-end">
-                        <div className="text-[8px] font-black uppercase text-surface-400 mt-1 italic tracking-widest">
-                          Billed annually ($79/yr)
-                        </div>
-                        <div className="mt-2 px-2 py-0.5 bg-brand-500 text-surface-900 text-[8px] font-black uppercase shadow-[2px_2px_0px_0px_var(--surface-900)]">
-                          Save $40
+                  ))}
+                </div>
+
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
+                  <button 
+                    onClick={nextStep}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
+                  >
+                    Looks good — keep going <span className="ml-1.5">→</span>
+                  </button>
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
+                    You can edit later · always
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 8: TRIAL */}
+            {stepName === 'TRIAL' && (
+              <motion.div key="8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                <div className="flex flex-col items-center">
+                  <Bruno size={86} mood="celebrating" className="pop" />
+                  <div className="mt-3 text-center max-w-[600px] mb-6">
+                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">ONE LAST THING · 14 DAYS FREE</div>
+                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal">
+                      Keep Bruno <em className="text-[var(--color-honey-deep)] not-italic">on your side.</em>
+                    </h1>
+                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px]">
+                      14 days free. Then {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99/mo' : '$9.99/mo'} — or $4.99 with your .edu email. Card on file so we keep planning the day you forget.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-ink)] text-[var(--color-paper)] rounded-[18px] p-6 mb-3.5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-mono text-[10px] tracking-[0.18em] text-[var(--color-honey)] mb-2 uppercase">PLANEVO · ALL OF IT</div>
+                      <div className="font-serif text-[40px] text-[var(--color-paper)] tracking-[-0.025em] leading-none">
+                        $0<span className="text-[18px] opacity-60 ml-1">· 14 days</span>
+                      </div>
+                      <div className="font-mono text-[11px] text-[rgba(251,246,234,0.5)] mt-1.5 tracking-[0.06em] uppercase">
+                        THEN {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99/MO' : '$9.99/MO'} · CANCEL ANY TIME
+                      </div>
+                    </div>
+                    {user?.email?.toLowerCase().endsWith('.edu') && (
+                      <div className="bg-[rgba(208,135,65,0.12)] border border-[rgba(208,135,65,0.3)] rounded-[10px] p-2.5 px-3.5 text-right">
+                        <div className="font-mono text-[9px] tracking-[0.12em] text-[var(--color-honey)] uppercase">.EDU DETECTED</div>
+                        <div className="font-serif text-[22px] text-[var(--color-paper)] mt-1">
+                          $4.99<span className="text-[12px] opacity-60">/mo</span>
                         </div>
                       </div>
                     )}
                   </div>
+                  <div className="grid grid-cols-2 gap-2.5 mt-5.5 pt-4.5 border-t border-[rgba(251,246,234,0.1)]">
+                    {[
+                      'Daily Plan, written each morning',
+                      'No-Shame Rollover when life slips',
+                      'Unlimited Bruno chat & rescheduling',
+                      'iOS & Android · sync everywhere',
+                    ].map((p, i) => (
+                      <div key={i} className="text-[12px] text-[rgba(251,246,234,0.75)] flex items-center gap-2">
+                        <span className="text-[var(--color-honey)]">✓</span> {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {[
-                    "AI schedule automation",
-                    "Canvas syncing",
-                    "Adaptive study planning",
-                    "Smart workload balancing",
-                    "Burnout prevention system",
-                    "Time recovery analytics"
-                  ].map((feat, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <SealCheck weight="fill" className="text-brand-500 size-4" />
-                      <span className="text-[10px] font-black uppercase text-surface-600 tracking-tight italic">{feat}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center p-1 bg-surface-50 rounded-xl w-full border-2 border-surface-900 relative h-12">
-                  <button
-                    onClick={() => setIsAnnual(false)}
-                    className={`flex-1 text-[10px] font-black uppercase py-2 z-10 transition-colors ${!isAnnual ? 'text-white' : 'text-surface-400'}`}
+                <div className="flex gap-1.5 mt-2 bg-[var(--color-paper)] p-1 rounded-full border border-[var(--color-line)]">
+                  <button 
+                    onClick={() => setIsAnnual(false)} 
+                    className={`flex-1 bg-transparent border-none py-2.5 px-3.5 rounded-full font-sans text-[13px] font-medium cursor-pointer transition-colors ${!isAnnual ? 'bg-[var(--color-ink)] text-[var(--color-paper)]' : 'text-[var(--color-ink-soft)]'}`}
                   >
-                    Monthly
+                    Monthly <span className="opacity-60">· {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99' : '$9.99'}</span>
                   </button>
-                  <button
-                    onClick={() => setIsAnnual(true)}
-                    className={`flex-1 text-[10px] font-black uppercase py-2 z-10 transition-colors ${isAnnual ? 'text-white' : 'text-surface-400'}`}
+                  <button 
+                    onClick={() => setIsAnnual(true)} 
+                    className={`flex-1 bg-transparent border-none py-2.5 px-3.5 rounded-full font-sans text-[13px] font-medium cursor-pointer transition-colors ${isAnnual ? 'bg-[var(--color-ink)] text-[var(--color-paper)]' : 'text-[var(--color-ink-soft)]'}`}
                   >
-                    Annual <span className="text-[8px] opacity-75">(-34%)</span>
+                    Annual <span className="bg-[var(--color-honey)] text-[var(--color-ink)] py-0.5 px-1.5 rounded text-[9px] font-mono ml-1">SAVE 34%</span>
                   </button>
-                  <motion.div
-                    className="absolute top-1 bottom-1 bg-surface-900 rounded-lg z-0"
-                    initial={false}
-                    animate={{ 
-                      left: isAnnual ? '50%' : '4px',
-                      width: 'calc(50% - 4px)'
-                    }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-3">
-                <Button 
-                  onClick={handleCheckout}
-                  disabled={loading}
-                  className="w-full py-8 text-xl font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_var(--surface-900)] bg-brand-500 text-surface-900 hover:bg-brand-400"
-                >
-                  {loading ? 'Redirecting...' : 'Start My Free Trial'} <ArrowRight weight="bold" className="ml-2" />
-                </Button>
-                <Button variant="ghost" onClick={prevStep} className="w-full uppercase font-black text-xs">Back</Button>
-              </div>
+                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
+                  <button 
+                    onClick={handleCheckout}
+                    disabled={loading}
+                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] disabled:opacity-50 hover:scale-[1.02] transition-transform"
+                  >
+                    {loading ? 'Processing...' : 'Start my 14 days free'} <span className="ml-1.5">→</span>
+                  </button>
+                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
+                    No charge until day 15 · email reminder
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-              <div className="flex justify-center gap-6 opacity-30 grayscale pointer-events-none">
-                 <ShieldCheck weight="bold" className="size-8" />
-                 <LockKey weight="bold" className="size-8" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Footer info */}
-        <div className="mt-8 text-center">
-          <p className="text-[8px] font-bold text-surface-300 uppercase tracking-widest flex items-center justify-center gap-2">
-            <LockKey weight="bold" /> Secure Sync • Plan Pilot 2024
-          </p>
+        {/* Brand Footer */}
+        <div className="pt-3.5 px-8 pb-5 flex justify-center">
+          <span className="font-mono text-[10px] text-[var(--color-ink-faint)] tracking-[0.16em] uppercase">
+            🔒 SECURE · PLANEVO
+          </span>
         </div>
       </div>
     </div>

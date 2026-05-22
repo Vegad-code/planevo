@@ -1,5 +1,5 @@
 /**
- * Plan Pilot AI Scheduler Logic (Ollie Brain) v2
+ * Planevo AI Scheduler Logic (Bruno Brain) v2
  * 
  * This module handles the "Deadline-First" scheduling logic with
  * dynamic block lengths, contextual breaks, and energy awareness.
@@ -134,7 +134,10 @@ export function generateDeadlineFirstSchedule(input: SchedulerInput): ScheduleBl
     .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
   // 3. Building the Timeline
-  let currentTime = parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${preferredStartTime}:00`);
+  const safeStartTime = (typeof preferredStartTime === 'string' && /^\d{2}:\d{2}$/.test(preferredStartTime))
+    ? preferredStartTime
+    : '08:00';
+  let currentTime = parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${safeStartTime}:00`);
   const dayEnd = parseISO(`${format(new Date(), 'yyyy-MM-dd')}T22:00:00`);
 
   let focusBlockIndex = 0;

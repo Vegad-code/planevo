@@ -11,6 +11,19 @@ export function useTaskGroups(tasks: Task[], aiResponse: AITaskResponse | null):
   return useMemo(() => {
     const incompleteTasks = tasks.filter(t => !t.completed);
 
+    if (incompleteTasks.length === 0 && tasks.length > 0) {
+      // If all tasks are completed, show a "Completed" group instead of an empty list
+      return [{
+        id: 'completed-tasks',
+        title: 'Completed Recently',
+        icon: 'check-circle',
+        ai_generated: false,
+        sort_order: 10,
+        is_collapsed: true,
+        tasks: tasks.filter(t => t.completed).slice(0, 10), // Show last 10
+      }];
+    }
+
     if (aiResponse) {
       return buildAIGroups(incompleteTasks, aiResponse);
     }
@@ -99,7 +112,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   const waiting: Task[] = [];
 
   // Sort by priority weight first
-  const priorityWeight: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const priorityWeight: Record<string, number> = { critical: -1, high: 0, medium: 1, low: 2 };
   const sorted = [...tasks].sort((a, b) => {
     const pa = a.priority ? priorityWeight[a.priority] ?? 1 : 1;
     const pb = b.priority ? priorityWeight[b.priority] ?? 1 : 1;

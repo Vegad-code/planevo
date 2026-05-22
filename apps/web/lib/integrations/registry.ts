@@ -34,37 +34,6 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     requiresConfig: true,
     premiumOnly: false
   },
-  // ARCHIVED FOR NOW
-  // {
-  //   id: 'github',
-  //   name: 'GitHub',
-  //   category: 'Professional',
-  //   description: 'Sync PRs, issues, and daily commit activity via N8N Signal.',
-  //   icon: 'GithubLogo',
-  //   status: 'disconnected',
-  //   requiresConfig: true,
-  //   premiumOnly: true
-  // },
-  // {
-  //   id: 'jira',
-  //   name: 'Jira',
-  //   category: 'Professional',
-  //   description: 'Sync sprint tasks and issue assignments via N8N Signal.',
-  //   icon: 'Kanban',
-  //   status: 'disconnected',
-  //   requiresConfig: true,
-  //   premiumOnly: true
-  // },
-  // {
-  //   id: 'n8n',
-  //   name: 'N8N Signal Link',
-  //   category: 'Automation',
-  //   description: 'Generate your tactical token to pipe external data into Ollie.',
-  //   icon: 'Lightning',
-  //   status: 'connected',
-  //   requiresConfig: true,
-  //   premiumOnly: true
-  // },
   {
     id: 'notion',
     name: 'Notion',

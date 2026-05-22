@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import OllieBubble from '@/components/ollie/OllieBubble';
+import BrunoBubble from '@/components/bruno/BrunoBubble';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -45,14 +45,14 @@ export default function ForgotPasswordPage() {
         <Link href="/" className="flex items-center gap-2 group" id="forgot-logo-link">
           <span className="text-2xl">🦉</span>
           <span className="text-xl font-bold text-white group-hover:text-brand-400 transition-colors">
-            Plan Pilot
+            Planevo
           </span>
         </Link>
       </div>
 
-      {/* Ollie message */}
+      {/* Bruno message */}
       <div className="mb-6 animate-fade-in-up">
-        <OllieBubble
+        <BrunoBubble
           message="No worries — happens to the best of us. Let's get you back in."
           mood="gentle"
           size="md"

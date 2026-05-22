@@ -19,7 +19,7 @@ interface AssignmentDetailOverlayProps {
   assignment: CanvasAssignment | null;
   isOpen: boolean;
   onClose: () => void;
-  onAskOllie: (assignment: CanvasAssignment) => void;
+  onAskBruno: (assignment: CanvasAssignment) => void;
   onSchedule: (assignment: CanvasAssignment) => void;
 }
 
@@ -27,7 +27,7 @@ export default function AssignmentDetailOverlay({
   assignment,
   isOpen,
   onClose,
-  onAskOllie,
+  onAskBruno,
   onSchedule
 }: AssignmentDetailOverlayProps) {
   if (!assignment) return null;
@@ -128,11 +128,11 @@ export default function AssignmentDetailOverlay({
             {/* Footer Actions */}
             <div className="p-6 bg-surface-50 border-t-2 border-surface-900 flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={() => onAskOllie(assignment)}
+                onClick={() => onAskBruno(assignment)}
                 className="flex-1 bg-surface-900 text-white font-black uppercase tracking-widest py-6 rounded-2xl shadow-lg hover:bg-surface-800 transition-all active:scale-[0.98] gap-2"
               >
                 <Sparkle weight="bold" className="w-5 h-5 text-brand-400" />
-                Ask Ollie for Help
+                Ask Bruno for Help
               </Button>
               <Button
                 onClick={() => onSchedule(assignment)}

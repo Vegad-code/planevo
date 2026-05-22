@@ -3,12 +3,14 @@ import { ThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import * as Notifications from 'expo-notifications';
+import { useEffect, useRef } from 'react';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { registerForPushNotifications, scheduleMorningReminder } from '@/lib/notifications';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -19,9 +21,10 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const notificationResponseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -34,6 +37,32 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace('/(tabs)');
     }
   }, [session, loading, segments]);
+
+  // Register for push notifications once authenticated
+  useEffect(() => {
+    if (!user) return;
+
+    registerForPushNotifications(user.id).then(() => {
+      scheduleMorningReminder(9, 0); // 9:00 AM local
+    });
+
+    // Handle notification tap → navigate to the right screen
+    notificationResponseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const screen = response.notification.request.content.data?.screen;
+        if (screen === 'chat') {
+          router.push('/(tabs)/chat');
+        } else {
+          router.push('/(tabs)');
+        }
+      });
+
+    return () => {
+      if (notificationResponseListener.current) {
+        notificationResponseListener.current.remove();
+      }
+    };
+  }, [user]);
 
   return <>{children}</>;
 }

@@ -78,7 +78,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text }]}>
-              {profile?.name || 'Plan Pilot User'}
+              {profile?.name || 'Planevo User'}
             </Text>
             <Text style={[styles.profileEmail, { color: colors.textMuted }]}>
               {user?.email}
@@ -175,7 +175,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <Text style={[styles.versionText, { color: colors.textMuted }]}>
-          Plan Pilot Mobile v1.0.0
+          Planevo Mobile v1.0.0
         </Text>
 
         <View style={{ height: 40 }} />

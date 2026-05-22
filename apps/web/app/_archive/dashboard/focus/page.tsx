@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 import { useFocusStore } from '@/store/useFocusStore';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -152,11 +152,11 @@ export default function FocusPage() {
   const seconds = timeLeft % 60;
   const progress = totalTime > 0 ? ((totalTime - timeLeft) / totalTime) * 100 : 0;
 
-  const ollieMood = timerState === 'running' ? 'thinking' as const
+  const brunoMood = timerState === 'running' ? 'thinking' as const
     : timeLeft === 0 && sessionsCompleted > 0 ? 'celebrating' as const
     : 'gentle' as const;
 
-  const ollieMessage = currentNudge 
+  const brunoMessage = currentNudge 
     ? currentNudge
     : timerState === 'running' && activeTask
     ? `Focusing on: "${activeTask.title}". Deep work mode active.`
@@ -218,19 +218,19 @@ export default function FocusPage() {
               }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             >
-              <OllieAvatar mood={ollieMood} size="xl" />
+              <BrunoAvatar mood={brunoMood} size="xl" />
             </motion.div>
             
             <AnimatePresence mode="wait">
               <motion.div
-                key={ollieMessage}
+                key={brunoMessage}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="mt-6 min-h-[3rem]"
               >
                 <p className="text-surface-600 text-lg font-bold tracking-tight max-w-lg leading-snug">
-                  {ollieMessage}
+                  {brunoMessage}
                 </p>
               </motion.div>
             </AnimatePresence>

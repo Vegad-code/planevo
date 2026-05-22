@@ -19,7 +19,7 @@ export const useUIStore = create<UIState>()(
       setMobileMenuOpen: (mobileMenuOpen) => set({ mobileMenuOpen }),
     }),
     {
-      name: 'plan-pilot-ui-storage',
+      name: 'planevo-ui-storage',
     }
   )
 );

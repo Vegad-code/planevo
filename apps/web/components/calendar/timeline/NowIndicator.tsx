@@ -39,7 +39,7 @@ export default function NowIndicator({ dayStartHour, hourHeight = 72 }: NowIndic
       style={{ top: `${top}px` }}
     >
       {/* Time label */}
-      <span className="absolute right-full mr-2 -translate-y-1/2 text-[10px] font-mono font-bold text-[var(--now-line-color)] whitespace-nowrap">
+      <span className="absolute right-full mr-2 -translate-y-1/2 text-[10px] font-mono font-bold text-[var(--color-honey-deep)] whitespace-nowrap">
         {timeLabel}
       </span>
 
@@ -50,7 +50,7 @@ export default function NowIndicator({ dayStartHour, hourHeight = 72 }: NowIndic
           left: '0px',
           width: '10px',
           height: '10px',
-          backgroundColor: 'var(--now-line-color)',
+          backgroundColor: 'var(--color-honey-deep)',
         }}
         animate={{ opacity: [0.7, 1, 0.7] }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
@@ -62,7 +62,7 @@ export default function NowIndicator({ dayStartHour, hourHeight = 72 }: NowIndic
         style={{
           left: '14px',
           right: '0',
-          backgroundColor: 'var(--now-line-color)',
+          backgroundColor: 'var(--color-honey-deep)',
           opacity: 0.6,
         }}
       />

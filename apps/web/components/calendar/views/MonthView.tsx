@@ -37,14 +37,14 @@ export default function MonthView({ date, events, onDayClick }: MonthViewProps) 
     <motion.div
       key={date.toDateString()}
       {...MOTION.viewSwitch}
-      className="flex flex-col h-full bg-card"
+      className="flex flex-col h-full bg-[var(--color-paper)]"
     >
       {/* Weekday Header */}
-      <div className="grid grid-cols-7 border-b border-border">
+      <div className="grid grid-cols-7 border-b border-[var(--color-line)]">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+            className="py-3 text-center text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-ink-faint)]"
           >
             {day}
           </div>
@@ -71,17 +71,17 @@ export default function MonthView({ date, events, onDayClick }: MonthViewProps) 
               key={day.toISOString()}
               onClick={() => onDayClick(day)}
               className={`
-                min-h-[100px] border-r border-b border-border p-2 cursor-pointer
-                transition-colors hover:bg-surface-50
-                ${!isCurrentMonth ? 'bg-surface-50/50 opacity-50' : ''}
-                ${idx % 7 === 0 ? 'border-l-0' : ''}
+                min-h-[100px] border-r border-b border-[var(--color-line)] p-2 cursor-pointer
+                transition-colors hover:bg-[var(--color-cream-2)]/30
+                ${!isCurrentMonth ? 'bg-[var(--color-cream-2)]/10 opacity-40' : ''}
+                ${idx % 7 === 0 ? 'border-l border-[var(--color-line)]' : ''}
               `}
             >
               <div className="flex items-center justify-between mb-2">
                 <span
                   className={`
-                    w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold
-                    ${isDayToday ? 'bg-brand-500 text-white' : 'text-foreground'}
+                    w-7 h-7 flex items-center justify-center rounded-lg text-sm font-mono font-bold
+                    ${isDayToday ? 'bg-[var(--color-ink)] text-[var(--color-cream)] shadow-sm' : 'text-[var(--color-ink)]'}
                   `}
                 >
                   {format(day, 'd')}
@@ -93,13 +93,13 @@ export default function MonthView({ date, events, onDayClick }: MonthViewProps) 
                 {dayEvents.slice(0, 4).map((event) => (
                   <div
                     key={event.id}
-                    className="text-[10px] truncate px-1.5 py-0.5 rounded bg-surface-200 text-muted-foreground font-medium"
+                    className="text-[10px] truncate px-1.5 py-0.5 rounded bg-[var(--color-cream-2)]/50 text-[var(--color-ink-soft)] font-mono font-medium border border-[var(--color-line)]"
                   >
                     {event.title}
                   </div>
                 ))}
                 {dayEvents.length > 4 && (
-                  <div className="text-[10px] font-medium text-muted-foreground px-1">
+                  <div className="text-[10px] font-mono font-medium text-[var(--color-ink-faint)] px-1">
                     +{dayEvents.length - 4} more
                   </div>
                 )}

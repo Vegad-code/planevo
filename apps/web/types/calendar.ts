@@ -27,7 +27,7 @@ export interface CalendarEvent {
   completed_at?: string; // ISO String
   location?: string;
   linked_task_id?: string;
-  ollie_notes?: string;
+  bruno_notes?: string;
   is_deleted: boolean;
   deleted_at?: string; // ISO String
   recurrence_rule?: string;

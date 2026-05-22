@@ -1,16 +1,19 @@
 'use server';
 
 import { CanvasAssignment } from './api';
+import { createClient } from '@/lib/supabase/server';
+import { encryptToken, decryptToken } from '@/lib/crypto';
 
 /**
  * Server-side proxy for Canvas API calls to avoid CORS issues.
  */
 export async function testCanvasConnectionAction(url: string, token: string): Promise<boolean> {
   try {
+    const decryptedToken = decryptToken(token);
     const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self`, {
       headers: {
-        'Authorization': `Bearer ${token.trim()}`
+        'Authorization': `Bearer ${decryptedToken.trim()}`
       },
       cache: 'no-store'
     });
@@ -23,8 +26,9 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
 
 export async function fetchCanvasUpcomingAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
+    const decryptedToken = decryptToken(token);
     const cleanUrl = url.trim().replace(/\/$/, '');
-    const cleanToken = token.trim();
+    const cleanToken = decryptedToken.trim();
     
     // Step 1: Get active courses from the user's dashboard cards
     // This is CRITICAL because the standard /courses endpoint returns Section IDs 
@@ -205,10 +209,11 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
 
 export async function fetchCanvasTodoAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
+    const decryptedToken = decryptToken(token);
     const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self/todo`, {
       headers: {
-        'Authorization': `Bearer ${token.trim()}`
+        'Authorization': `Bearer ${decryptedToken.trim()}`
       },
       cache: 'no-store'
     });
@@ -232,3 +237,115 @@ export async function fetchCanvasTodoAction(url: string, token: string): Promise
     return [];
   }
 }
+
+export async function saveCanvasCredentialsAction(url: string, token: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const encryptedToken = token ? encryptToken(token) : null;
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        canvas_url: url,
+        canvas_token: encryptedToken
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Failed to save Canvas credentials:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving Canvas credentials:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+
+export async function saveOnboardingDataAction(data: {
+  name: string;
+  energyPreference: string;
+  canvasUrl: string;
+  canvasToken: string;
+  identityChecks: Record<number, boolean>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const activeChecks = Object.keys(data.identityChecks)
+      .filter((k: any) => data.identityChecks[k])
+      .map(k => parseInt(k, 10));
+
+    const encryptedToken = data.canvasToken ? encryptToken(data.canvasToken) : null;
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        onboarding_complete: true,
+        name: data.name || 'Pilot',
+        energy_preference: data.energyPreference || 'morning',
+        canvas_url: data.canvasUrl,
+        canvas_token: encryptedToken,
+        scheduling_preferences: {
+          preferred_focus_time: data.energyPreference || 'morning',
+          identity_checks: activeChecks
+        }
+      } as any)
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Failed to save onboarding data:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving onboarding data:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+
+export async function getCanvasCredentialsAction(): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('canvas_url, canvas_token')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Failed to retrieve Canvas credentials:', error);
+      return { success: false, error: error.message };
+    }
+
+    const decryptedToken = data?.canvas_token ? decryptToken(data.canvas_token) : '';
+
+    return {
+      success: true,
+      data: {
+        canvasUrl: data?.canvas_url || '',
+        canvasToken: decryptedToken
+      }
+    };
+  } catch (err: any) {
+    console.error('Error getting Canvas credentials:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+

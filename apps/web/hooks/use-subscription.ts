@@ -49,7 +49,7 @@ export function useSubscription(): SubscriptionState {
 
       if (profile) {
         const planType = (profile.plan_type || 'free') as PlanType;
-        const isOwner = user.email === OWNER_EMAIL;
+        const isOwner = user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
         
         // Only the owner can be 'admin'
         const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' : planType;

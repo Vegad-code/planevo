@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
-import OllieChat from '@/components/ollie/OllieChat';
 import { useUIStore } from '@/lib/store/ui-store';
 
 export default function DashboardLayout({
@@ -28,7 +27,7 @@ export default function DashboardLayout({
             window.location.href = '/onboarding';
           } else {
             const planType = profile.plan_type || 'free';
-            const isAdminEmail = user.email === 'jabbouranthony720@gmail.com';
+            const isAdminEmail = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
             const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
             if (!isActive) {
               window.location.href = '/onboarding';
@@ -42,14 +41,14 @@ export default function DashboardLayout({
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-accent-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors duration-300">
       <Sidebar />
 
       {/* Main content area - offset by sidebar width */}
@@ -60,11 +59,10 @@ export default function DashboardLayout({
           ${sidebarCollapsed ? 'lg:ml-[68px]' : ''}
         `}
       >
-        <div className={isCalendar ? "h-[calc(100vh-0px)] w-full" : `p-6 lg:p-8 ${sidebarCollapsed ? 'max-w-full px-12' : 'max-w-5xl'} mx-auto transition-all duration-300`}>
+        <div className={`p-6 lg:p-8 ${isCalendar ? 'max-w-[1400px]' : (sidebarCollapsed ? 'max-w-full px-12' : 'max-w-5xl')} mx-auto transition-all duration-300`}>
           {children}
         </div>
       </main>
-      <OllieChat />
     </div>
   );
 }

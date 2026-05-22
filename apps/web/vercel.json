@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-review",
+      "schedule": "0 16 * * 0"
+    },
+    {
+      "path": "/api/cron/deadline-rescue",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/notifications/push",
+      "schedule": "0 16 * * *"
+    }
+  ]
+}

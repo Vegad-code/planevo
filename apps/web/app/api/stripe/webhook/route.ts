@@ -138,6 +138,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
 
-  // Always return 200 to acknowledge receipt — even for unhandled events
+  // Always return 200 to acknbearedge receipt — even for unhandled events
   return NextResponse.json({ received: true });
 }

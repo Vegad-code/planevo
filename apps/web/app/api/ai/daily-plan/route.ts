@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { findGaps } from '@/lib/calendar';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
-import { getOllieMasterContext } from '@/lib/ai/orchestrator';
+import { isAllowedOrigin } from '@/lib/auth/origin-guard';
+import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 
 export async function POST(request: NextRequest) {
   try {
+    // --- ORIGIN / CSRF GUARD ---
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+    }
+
     // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
     const { allowed, error: limitError, message } = await checkRateLimit('daily-plan');
     
@@ -25,7 +31,7 @@ export async function POST(request: NextRequest) {
     // 1. Get Unified World State
     const body = await request.json();
     const { energyLevel = 'medium', localTime, timezone, todayStart, todayEnd } = body;
-    const worldState = await getOllieMasterContext(authUser.id, energyLevel);
+    const worldState = await getBrunoMasterContext(authUser.id, energyLevel);
     
     // Determine "Today" relative to the user's local time
     const now = localTime ? new Date(localTime) : new Date();
@@ -56,11 +62,11 @@ export async function POST(request: NextRequest) {
     if (!openAiApiKey) {
       return NextResponse.json({
         plan: worldState.tasks.slice(0, 1).map(t => ({ id: t.id, title: t.title })),
-        message: "Ollie is thinking... here's your top priority! 🌱"
+        message: "Bruno is thinking... here's your top priority! 🌱"
       });
     }
 
-    const prompt = `You are Ollie, a friendly planning assistant. You are preparing a "Daily Plan" for the user. 
+    const prompt = `You are Bruno, a friendly planning assistant. You are preparing a "Daily Plan" for the user. 
     
 User Energy Level: ${energyLevel}
 User Local Time: ${now.toLocaleTimeString()} (${timezone || 'UTC'})
@@ -103,7 +109,7 @@ Respond ONLY with JSON:
       "suggested_end": "YYYY-MM-DDTHH:MM:SSZ"
     }
   ],
-  "message": "A warm, helpful message from Ollie (1 sentence)"
+  "message": "A warm, helpful message from Bruno (1 sentence)"
 }
 
 IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided gaps and MUST be in the FUTURE (after ${now.toISOString()}).`;

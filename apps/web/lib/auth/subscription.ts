@@ -23,7 +23,7 @@ export async function getUserPlan() {
   }
 
   const rawPlan = profile.plan_type as PlanType;
-  const isOwner = user.email === OWNER_EMAIL;
+  const isOwner = user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
   const plan = (rawPlan === 'admin' && !isOwner) ? 'free' : rawPlan;
 
   return { 

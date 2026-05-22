@@ -1,5 +1,5 @@
 /**
- * Plan Pilot — v1 Feature Flags
+ * Planevo — v1 Feature Flags
  *
  * Per STRATEGY.md §5, v1 ships with a deliberately small surface area.
  * Vitamin features are flagged off by default and can be re-enabled per
@@ -15,7 +15,7 @@
 export const FEATURES = {
   // --- v1 CORE (always on) ---
   DAILY_PLAN: true,
-  OLLIE_CHAT: true,
+  BRUNO_CHAT: true,
   WEEKLY_REVIEW: true,
   CANVAS_SYNC: true,
   GOOGLE_CAL_SYNC: true,
@@ -36,7 +36,7 @@ export const FEATURES = {
   AI_BREAKDOWN: process.env.NEXT_PUBLIC_ENABLE_AI_BREAKDOWN === 'true',
   AI_DECOMPOSE: process.env.NEXT_PUBLIC_ENABLE_AI_DECOMPOSE === 'true',
   AI_ARCHITECT: process.env.NEXT_PUBLIC_ENABLE_AI_ARCHITECT === 'true',
-  OLLIE_BRAIN_UI: process.env.NEXT_PUBLIC_ENABLE_OLLIE_BRAIN === 'true',
+  BRUNO_BRAIN_UI: process.env.NEXT_PUBLIC_ENABLE_BRUNO_BRAIN === 'true',
   AI_SUGGESTIONS: process.env.NEXT_PUBLIC_ENABLE_AI_SUGGESTIONS === 'true',
 } as const;
 

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'AI key not configured' }, { status: 500 });
     }
 
-    const prompt = `You are the AI Life Pilot for Plan Pilot. The user needs help breaking down a daunting task into smaller, highly actionable steps to overcome procrastination.
+    const prompt = `You are the AI Life Pilot for Planevo. The user needs help breaking down a daunting task into smaller, highly actionable steps to overcome procrastination.
 
 Task: ${title}
 ${description ? `Notes: ${description}` : ''}

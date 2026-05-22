@@ -13,7 +13,11 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const interval: 'monthly' | 'annual' = body.interval || 'monthly';
-    const priceId = interval === 'annual' ? PRICE_IDS.ANNUAL : PRICE_IDS.MONTHLY;
+    let priceId = interval === 'annual' ? PRICE_IDS.ANNUAL : PRICE_IDS.MONTHLY;
+
+    if (interval === 'monthly' && user.email?.toLowerCase().endsWith('.edu')) {
+      priceId = PRICE_IDS.STUDENT;
+    }
 
     // Check if user already has a Stripe customer ID
     const { data: profile } = await supabase

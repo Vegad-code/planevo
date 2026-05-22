@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 
 interface Question {
   id: string;
@@ -14,13 +14,13 @@ interface Question {
 
 interface ClarificationFormProps {
   questions: Question[];
-  ollieMessage: string;
+  brunoMessage: string;
   onComplete: (answers: { question: string; answer: string }[]) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
 
-export function ClarificationForm({ questions, ollieMessage, onComplete, onCancel, isSubmitting }: ClarificationFormProps) {
+export function ClarificationForm({ questions, brunoMessage, onComplete, onCancel, isSubmitting }: ClarificationFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [direction, setDirection] = useState(1);
@@ -57,13 +57,13 @@ export function ClarificationForm({ questions, ollieMessage, onComplete, onCance
 
   return (
     <div className="flex flex-col h-full max-h-[600px]">
-      {/* Ollie Intro */}
+      {/* Bruno Intro */}
       <div className="flex items-start gap-4 mb-10">
-        <OllieAvatar mood={isSubmitting ? 'happy' : 'thinking'} size="md" />
+        <BrunoAvatar mood={isSubmitting ? 'happy' : 'thinking'} size="md" />
         <div className="bg-white border-3 border-surface-900 p-5 rounded-[2rem] rounded-tl-none shadow-[8px_8px_0_0_rgba(0,0,0,0.1)] relative">
           <div className="absolute -left-[10px] top-0 w-0 h-0 border-t-[10px] border-t-surface-900 border-r-[10px] border-r-transparent" />
           <p className="text-sm font-bold text-surface-900 leading-relaxed italic">
-            {currentStep === 0 ? ollieMessage : "Got it! And what about this?"}
+            {currentStep === 0 ? brunoMessage : "Got it! And what about this?"}
           </p>
         </div>
       </div>

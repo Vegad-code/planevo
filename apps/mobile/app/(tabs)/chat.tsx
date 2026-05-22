@@ -16,22 +16,23 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Send, Bot, UserIcon } from 'lucide-react-native';
+import { Alert } from 'react-native';
 
 interface ChatMessage {
   id: string;
-  role: 'user' | 'ollie';
+  role: 'user' | 'bruno';
   content: string;
   timestamp: Date;
 }
 
-export default function OllieChatScreen() {
+export default function BrunoChatScreen() {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
-      role: 'ollie',
-      content: "Hey! I'm Ollie, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.",
+      role: 'bruno',
+      content: "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.",
       timestamp: new Date(),
     },
   ]);
@@ -42,7 +43,7 @@ export default function OllieChatScreen() {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from('ollie_messages')
+      .from('bruno_messages')
       .select('id, content, message_type, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
@@ -51,7 +52,7 @@ export default function OllieChatScreen() {
         if (data && data.length > 0) {
           const loaded: ChatMessage[] = data.map((m: any) => ({
             id: m.id,
-            role: m.message_type === 'user' ? 'user' : 'ollie',
+            role: m.message_type === 'user' ? 'user' : 'bruno',
             content: m.content,
             timestamp: new Date(m.created_at),
           }));
@@ -75,32 +76,59 @@ export default function OllieChatScreen() {
     try {
       // Save user message
       if (user) {
-        await supabase.from('ollie_messages').insert({
+        await supabase.from('bruno_messages').insert({
           user_id: user.id,
           content: userMsg.content,
           message_type: 'user',
         });
       }
 
-      // For now, show a placeholder response since we don't have the AI endpoint accessible from mobile directly
-      // In production, this would call the Plan Pilot API
-      const ollieReply: ChatMessage = {
-        id: `ollie-${Date.now()}`,
-        role: 'ollie',
-        content: "I'm thinking about that... The mobile Ollie chat will be fully connected once the Plan Pilot API is accessible. For now, your messages are saved and synced with the web app!",
+      // Get session for authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Map to expected API format
+      const apiMessages = [...messages, userMsg].map(m => ({
+        role: m.role === 'bruno' ? 'assistant' : 'user',
+        content: m.content
+      }));
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+      const response = await fetch(`${apiUrl}/api/ai/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ messages: apiMessages })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const brunoReply: ChatMessage = {
+        id: `bruno-${Date.now()}`,
+        role: 'bruno',
+        content: data.text || "I'm having trouble thinking right now.",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, ollieReply]);
+      setMessages((prev) => [...prev, brunoReply]);
 
       if (user) {
-        await supabase.from('ollie_messages').insert({
+        await supabase.from('bruno_messages').insert({
           user_id: user.id,
-          content: ollieReply.content,
+          content: brunoReply.content,
           message_type: 'assistant',
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Chat error:', err);
+      Alert.alert('Bruno Error', err.message || 'Failed to connect to Bruno.');
     } finally {
       setSending(false);
     }
@@ -112,7 +140,7 @@ export default function OllieChatScreen() {
       <View
         style={[
           styles.messageBubble,
-          isUser ? styles.userBubble : styles.ollieBubble,
+          isUser ? styles.userBubble : styles.brunoBubble,
           {
             backgroundColor: isUser ? Colors.brand[600] : isDark ? Colors.surface[700] : Colors.surface[100],
           },
@@ -126,7 +154,7 @@ export default function OllieChatScreen() {
             <Bot size={12} color={Colors.brand[500]} strokeWidth={2.5} />
           )}
           <Text style={[styles.messageRole, { color: isUser ? 'rgba(255,255,255,0.7)' : colors.textMuted }]}>
-            {isUser ? 'YOU' : 'OLLIE'}
+            {isUser ? 'YOU' : 'BRUNO'}
           </Text>
         </View>
         <Text style={[styles.messageText, { color: isUser ? '#fff' : colors.text }]}>
@@ -139,11 +167,11 @@ export default function OllieChatScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.headerBar}>
-        <View style={[styles.ollieBadge, { backgroundColor: Colors.brand[500] }]}>
+        <View style={[styles.brunoBadge, { backgroundColor: Colors.brand[500] }]}>
           <Bot size={18} color="#fff" strokeWidth={2.5} />
         </View>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Ollie</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Bruno</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>YOUR PLANNING CO-PILOT</Text>
         </View>
       </View>
@@ -166,7 +194,7 @@ export default function OllieChatScreen() {
         <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: colors.separator }]}>
           <TextInput
             style={[styles.textInput, { color: colors.text, backgroundColor: isDark ? Colors.surface[700] : Colors.surface[100] }]}
-            placeholder="Ask Ollie anything..."
+            placeholder="Ask Bruno anything..."
             placeholderTextColor={colors.textMuted}
             value={inputText}
             onChangeText={setInputText}
@@ -201,7 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
-  ollieBadge: {
+  brunoBadge: {
     width: 40,
     height: 40,
     borderRadius: 12,
@@ -218,7 +246,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
-  ollieBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
+  brunoBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   messageHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   messageRole: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   messageText: { fontSize: 14, fontWeight: '500', lineHeight: 20 },

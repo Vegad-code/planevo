@@ -1,0 +1,7 @@
+{
+  "type": "widget",
+  "deploymentTarget": "16.4",
+  "entitlements": {
+    "com.apple.security.application-groups": ["group.com.planpilot.mobile"]
+  }
+}

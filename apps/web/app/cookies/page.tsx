@@ -5,8 +5,8 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Cookie Policy — Plan Pilot',
-  description: 'How Plan Pilot uses cookies.',
+  title: 'Cookie Policy — Planevo',
+  description: 'How Planevo uses cookies.',
 };
 
 export default function CookiesPage() {
@@ -18,7 +18,7 @@ export default function CookiesPage() {
           className="inline-flex items-center text-sm font-black uppercase tracking-widest text-surface-600 hover:text-surface-900 mb-12"
           data-testid="cookies-back-home-link"
         >
-          ← Back to Plan Pilot
+          ← Back to Planevo
         </Link>
 
         <div className="mb-8 inline-block bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
@@ -35,7 +35,7 @@ export default function CookiesPage() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">What are cookies?</h2>
             <p>
               Cookies are small text files stored on your device when you visit a website.
-              Plan Pilot uses cookies to keep you signed in and to understand how the product is used.
+              Planevo uses cookies to keep you signed in and to understand how the product is used.
             </p>
           </section>
 
@@ -53,7 +53,7 @@ export default function CookiesPage() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">Managing cookies</h2>
             <p>
               You can clear cookies at any time from your browser settings. Note that clearing
-              essential cookies will sign you out of Plan Pilot.
+              essential cookies will sign you out of Planevo.
             </p>
           </section>
 

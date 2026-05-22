@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
     }
 
-    const systemPrompt = `You are the Goal Architect for Plan Pilot. 
+    const systemPrompt = `You are the Goal Architect for Planevo. 
 Your job is to break down a high-level goal into ${MAX_ARCHITECT_TASKS} high-impact, strategic tasks.
 
 Goal: "${goalTitle}"

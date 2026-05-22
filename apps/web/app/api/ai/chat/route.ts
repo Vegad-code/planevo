@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { isAllowedOrigin } from '@/lib/auth/origin-guard';
 import {
   buildServerTimingHeader,
   createAiLatencyTimer,
@@ -21,7 +22,7 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const latencyTimer = createAiLatencyTimer('ollie-chat');
+  const latencyTimer = createAiLatencyTimer('bruno-chat');
   let openAiMs: number | null = null;
 
   const jsonWithDiagnostics = (
@@ -45,8 +46,13 @@ export async function POST(request: NextRequest) {
   };
 
   try {
+    // --- ORIGIN / CSRF GUARD ---
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+    }
+
     // --- SUBSCRIPTION & RATE LIMIT SHIELD ---
-    const { allowed, error: limitError, message } = await checkRateLimit('ollie-chat');
+    const { allowed, error: limitError, message } = await checkRateLimit('bruno-chat');
     latencyTimer.mark('rate_limit');
     
     if (!allowed) {
@@ -76,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
-      console.error('[Ollie Chat] OPENAI_API_KEY is missing from environment variables.');
+      console.error('[Bruno Chat] OPENAI_API_KEY is missing from environment variables.');
       return jsonWithDiagnostics({ error: 'OpenAI API key missing' }, { status: 500 }, diagnostics);
     }
 
@@ -88,7 +94,19 @@ export async function POST(request: NextRequest) {
       .single();
     latencyTimer.mark('profile');
 
-    latencyTimer.mark('assignments');
+    // Fetch active tasks for Bruno to have context of task names and IDs
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('id, title, status, due_date, priority, estimated_minutes')
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(100);
+    latencyTimer.mark('assignments'); // mark assignments step completed with tasks query
+
+    const taskListContext = tasks && tasks.length > 0
+      ? tasks.map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
+      : 'No active tasks found.';
 
     // Get learned memory
     const memory = await getUserAIMemory(supabase, user.id);
@@ -118,9 +136,12 @@ URL: ${assignment.html_url || 'N/A'}
       latencyTimer.mark('assignment_context');
     }
 
-    const systemPrompt = `You are Ollie, a hyper-intelligent AI Scholar and daily planning assistant for "Plan Pilot". 
+    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar and daily planning assistant for "Planevo". 
 
 User Name: ${profile?.name || 'User'}
+
+CURRENT USER TASKS:
+${taskListContext}
 
 USER MEMORY (Apply these preferences):
 ${memoryContext}
@@ -130,12 +151,105 @@ CORE MISSION:
 You are as capable as the world's most advanced LLMs. Your mission is to not only help the user manage their time but to actively assist them in completing their work. When an assignment context is provided, you should act as a brilliant teaching assistant. 
 
 Rules:
-1. Speak as an encouraging owl.
+1. Speak as an encouraging bear.
 2. Be utility-first. Help the user clear their schedule AND master their tasks.
 3. If the user asks "How do I do this?" regarding an assignment, analyze the ASSIGNMENT CONTEXT provided and give a comprehensive, step-by-step breakdown of how to approach the work, providing examples or templates where useful.
-4. rember that Plan Pilot acts as an instrument to handle the details so they can just focus on the deep work.
+4. rember that Planevo acts as an instrument to handle the details so they can just focus on the deep work.
 5. If they seem overwhelmed, offer to "Deconstruct" a complex task into 15-minute micro-steps.
-6. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Premium plan.`;
+6. If they ask about unsupported integrations, mention that N8N, GitHub, and Slack are available on the Premium plan.
+7. When you create, reschedule, complete, or delete a task, use the corresponding tool. Inform the user in a warm bear-like way of what you did. Always make sure to refer to tasks by their exact name when interacting with them.`;
+
+    const tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'create_task',
+          description: 'Create a new task for the user.',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: {
+                type: 'string',
+                description: 'The title of the task.',
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'The priority of the task. Defaults to medium.',
+              },
+              due_date: {
+                type: 'string',
+                description: 'ISO 8601 datetime format (e.g. 2026-05-22T09:00:00Z) when the task is due.',
+              },
+              estimated_minutes: {
+                type: 'integer',
+                description: 'Estimated time to complete in minutes. Defaults to 30.',
+              },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'reschedule_task',
+          description: 'Reschedule an existing task to a new due date.',
+          parameters: {
+            type: 'object',
+            properties: {
+              task_id: {
+                type: 'string',
+                description: 'The UUID of the task to reschedule.',
+              },
+              new_due_date: {
+                type: 'string',
+                description: 'ISO 8601 datetime format (e.g. 2026-05-23T14:00:00Z) for the new due date.',
+              },
+            },
+            required: ['task_id', 'new_due_date'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'mark_task_completed',
+          description: 'Mark a task as completed or uncompleted.',
+          parameters: {
+            type: 'object',
+            properties: {
+              task_id: {
+                type: 'string',
+                description: 'The UUID of the task.',
+              },
+              completed: {
+                type: 'boolean',
+                description: 'Whether the task is completed (true) or todo (false).',
+              },
+            },
+            required: ['task_id', 'completed'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'delete_task',
+          description: 'Delete a task (soft delete).',
+          parameters: {
+            type: 'object',
+            properties: {
+              task_id: {
+                type: 'string',
+                description: 'The UUID of the task to delete.',
+              },
+            },
+            required: ['task_id'],
+          },
+        },
+      },
+    ];
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
@@ -156,6 +270,8 @@ Rules:
             content: m.content
           }))
         ],
+        tools,
+        tool_choice: 'auto',
         max_tokens: 1000,
       }),
       signal: controller.signal,
@@ -171,15 +287,145 @@ Rules:
     }
 
     const data = await response.json();
-    const text = data.choices[0].message.content;
     latencyTimer.mark('openai_json');
+
+    const choice = data.choices[0];
+    let text = '';
+
+    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+      const toolCalls = choice.message.tool_calls;
+      const toolMessages: any[] = [];
+
+      for (const toolCall of toolCalls) {
+        const { name } = toolCall.function;
+        const args = JSON.parse(toolCall.function.arguments);
+        let result: any = { success: false };
+
+        try {
+          if (name === 'create_task') {
+            const { error } = await supabase.from('tasks').insert({
+              user_id: user.id,
+              title: args.title.trim(),
+              description: args.description?.trim() || null,
+              estimated_minutes: args.estimated_minutes || 30,
+              due_date: args.due_date || null,
+              priority: args.priority || 'medium',
+              status: 'todo',
+              completed: false,
+              is_ai_suggested: false,
+              ai_confidence_score: 0,
+              is_recurring: false,
+              rescheduled_count: 0,
+            });
+            if (error) throw error;
+            result = { success: true, message: `Task "${args.title}" created successfully.` };
+          } 
+          else if (name === 'reschedule_task') {
+            const { data: currentTask } = await supabase
+              .from('tasks')
+              .select('rescheduled_count')
+              .eq('id', args.task_id)
+              .eq('user_id', user.id)
+              .single();
+
+            const count = ((currentTask as any)?.rescheduled_count || 0) + 1;
+
+            const { error } = await supabase
+              .from('tasks')
+              .update({
+                due_date: args.new_due_date,
+                rescheduled_count: count,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', args.task_id)
+              .eq('user_id', user.id);
+
+            if (error) throw error;
+            result = { success: true, message: `Task rescheduled to ${args.new_due_date} successfully.` };
+          } 
+          else if (name === 'mark_task_completed') {
+            const updates = args.completed
+              ? { completed: true, completed_at: new Date().toISOString(), status: 'done', updated_at: new Date().toISOString() }
+              : { completed: false, completed_at: null, status: 'todo', updated_at: new Date().toISOString() };
+
+            const { error } = await supabase
+              .from('tasks')
+              .update(updates)
+              .eq('id', args.task_id)
+              .eq('user_id', user.id);
+
+            if (error) throw error;
+            result = { success: true, message: `Task marked as ${args.completed ? 'completed' : 'todo'} successfully.` };
+          } 
+          else if (name === 'delete_task') {
+            const { error } = await supabase
+              .from('tasks')
+              .update({ 
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', args.task_id)
+              .eq('user_id', user.id);
+
+            if (error) throw error;
+            result = { success: true, message: `Task deleted successfully.` };
+          }
+        } catch (opError: any) {
+          console.error(`Error executing tool ${name}:`, opError);
+          result = { success: false, error: opError.message || 'Operation failed' };
+        }
+
+        toolMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: name,
+          content: JSON.stringify(result),
+        });
+      }
+
+      const secondOpenAiStartedAt = performance.now();
+      const secondResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.map((m) => ({
+              role: m.role,
+              content: m.content
+            })),
+            choice.message,
+            ...toolMessages
+          ],
+          max_tokens: 1000,
+        }),
+        signal: controller.signal,
+      });
+      openAiMs = (openAiMs || 0) + (performance.now() - secondOpenAiStartedAt);
+      latencyTimer.mark('openai_second_call');
+
+      const secondData = await secondResponse.json();
+      if (!secondResponse.ok) {
+        console.error('OpenAI Second Call Error:', secondResponse.status, secondResponse.statusText, secondData);
+        throw new Error(`OpenAI API second call failure: ${secondResponse.status}`);
+      }
+
+      text = secondData.choices[0].message.content;
+      latencyTimer.mark('openai_second_json');
+    } else {
+      text = choice.message.content;
+    }
 
     return jsonWithDiagnostics({ text }, undefined, diagnostics);
   } catch (error: any) {
-    console.error('Error in Ollie chat:', error?.stack || error);
+    console.error('Error in Bruno chat:', error?.stack || error);
     if (error?.name === 'AbortError') {
-      return jsonWithDiagnostics({ error: 'Ollie took too long to respond (timeout)' }, { status: 504 });
+      return jsonWithDiagnostics({ error: 'Bruno took too long to respond (timeout)' }, { status: 504 });
     }
-    return jsonWithDiagnostics({ error: 'Failed to connect to Ollie', details: error?.message }, { status: 500 });
+    return jsonWithDiagnostics({ error: 'Failed to connect to Bruno', details: error?.message }, { status: 500 });
   }
 }

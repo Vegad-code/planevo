@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { encryptToken } from '@/lib/crypto';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -17,10 +18,11 @@ export async function GET(request: Request) {
 
       // Persist the Google Refresh Token so we can sync offline
       if (provider_refresh_token) {
+        const encryptedToken = encryptToken(provider_refresh_token);
         await supabase
           .from('users')
           .update({
-            google_calendar_refresh_token: provider_refresh_token,
+            google_calendar_refresh_token: encryptedToken,
             google_calendar_connected: true
           })
           .eq('id', user.id);

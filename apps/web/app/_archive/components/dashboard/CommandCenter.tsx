@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   Clock,
 } from 'lucide-react';
-import OllieAvatar from '../ollie/OllieAvatar';
+import BrunoAvatar from '../bruno/BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useFocusStore } from '@/store/useFocusStore';
@@ -388,7 +388,7 @@ export default function CommandCenter() {
                           </>
                         ) : (
                           <div className="text-center py-8">
-                            <OllieAvatar mood="thinking" size="sm" />
+                            <BrunoAvatar mood="thinking" size="sm" />
                             <p className="mt-4 text-xs font-bold text-surface-500 uppercase tracking-widest">No active tasks found</p>
                             <button
                               onClick={() => setMode('add-task')}
@@ -405,7 +405,7 @@ export default function CommandCenter() {
                   {mode === 'daily-plan' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
                       <div className="text-center">
-                        <OllieAvatar mood="thinking" size="md" />
+                        <BrunoAvatar mood="thinking" size="md" />
                         <h4 className="mt-4 font-black uppercase tracking-tighter text-2xl">Daily Plan</h4>
                         <p className="text-xs font-bold text-surface-500 uppercase tracking-widest mt-1 italic">Ready for optimization</p>
                       </div>

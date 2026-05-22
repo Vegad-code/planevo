@@ -26,7 +26,7 @@ export const FOCUS_SOUNDS: FocusSound[] = [
   },
   {
     id: 'lofi',
-    name: 'Ollie Beats',
+    name: 'Bruno Beats',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
     icon: '🎧',
   }

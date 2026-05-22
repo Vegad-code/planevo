@@ -10,21 +10,18 @@ import WeekView from './views/WeekView';
 import MonthView from './views/MonthView';
 import ListView from './views/ListView';
 import type { CalendarEvent, CalendarPreferences } from '@/types/calendar';
-import { Plus } from 'lucide-react';
+import type { Task } from '@/types/tasks';
+import { Plus } from '@phosphor-icons/react';
 
 type CalendarView = 'day' | 'week' | 'month' | 'list';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  estimated_minutes?: number;
-  energy_level_required?: string;
-}
 
 interface CalendarShellProps {
   events: CalendarEvent[];
   preferences: CalendarPreferences;
+  selectedDate: Date;
+  activeView: CalendarView;
+  onDateChange: (date: Date) => void;
+  onViewChange: (view: CalendarView) => void;
   onEventClick?: (event: CalendarEvent) => void;
   onEventComplete?: (id: string) => void;
   onCreateEvent?: (time?: Date) => void;
@@ -37,6 +34,10 @@ interface CalendarShellProps {
 export default function CalendarShell({
   events,
   preferences,
+  selectedDate,
+  activeView,
+  onDateChange,
+  onViewChange,
   onEventClick,
   onEventComplete,
   onCreateEvent,
@@ -45,8 +46,8 @@ export default function CalendarShell({
   onTaskDrop,
   onRangeChange,
 }: CalendarShellProps) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [activeView, setActiveView] = useState<CalendarView>(preferences.default_view || 'day');
+  const setSelectedDate = onDateChange;
+  const setActiveView = onViewChange;
 
   // Trigger range change callback
   useEffect(() => {
@@ -144,18 +145,20 @@ export default function CalendarShell({
 
   return (
     <div 
-      className="flex flex-col h-full w-full bg-surface-50/50 dark:bg-background/80 rounded-[2rem] border border-white/20 dark:border-white/10 shadow-2xl overflow-hidden backdrop-blur-3xl ring-1 ring-black/5 dark:ring-white/5"
+      className="flex flex-col h-full w-full bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] overflow-hidden shadow-sm transition-all"
       style={{ '--gutter-width': 'clamp(48px, 8vw, 64px)' } as React.CSSProperties}
     >
-      {/* Header */}
-      <div className="p-4 border-b border-surface-200">
-        <CalendarHeader
-          selectedDate={selectedDate}
-          activeView={activeView}
-          onDateChange={setSelectedDate}
-          onViewChange={setActiveView}
-        />
-      </div>
+      {/* Header — Only render if activeView is 'day' to show the horizontal week strip */}
+      {activeView === 'day' && (
+        <div className="p-4 border-b border-[var(--color-line)] bg-[var(--color-paper)]">
+          <CalendarHeader
+            selectedDate={selectedDate}
+            activeView={activeView}
+            onDateChange={setSelectedDate}
+            onViewChange={setActiveView}
+          />
+        </div>
+      )}
 
       {/* View content */}
       <div className="flex-1 relative overflow-hidden min-h-[500px]">
@@ -228,12 +231,11 @@ export default function CalendarShell({
         className="
           fixed bottom-8 right-8 z-50
           w-14 h-14 rounded-full
-          bg-brand-500 hover:bg-brand-600
-          text-white shadow-xl
+          bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)]
+          text-[var(--color-cream)] shadow-lg
           flex items-center justify-center
           transition-all duration-200
           hover:scale-105 active:scale-95
-          hover:shadow-brand-500/30
         "
         aria-label="Add new event"
       >

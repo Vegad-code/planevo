@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Plan Pilot",
-    "slug": "plan-pilot",
+    "name": "Planevo",
+    "slug": "planevo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.planpilot.mobile"
+      "bundleIdentifier": "com.planpilot.mobile",
+      "entitlements": {
+        "aps-environment": "development",
+        "com.apple.security.application-groups": ["group.com.planpilot.mobile"]
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +30,8 @@
         "backgroundColor": "#f8f9f5"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.planpilot.mobile"
+      "package": "com.planpilot.mobile",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -32,10 +40,27 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#d4a574"
+        }
+      ],
+      [
+        "@bacons/apple-targets",
+        {}
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fc8fa403-d220-496f-94ae-8228633d8a34"
+      }
     }
   }
 }

@@ -6,8 +6,8 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Terms of Service — Plan Pilot',
-  description: 'The rules of using Plan Pilot.',
+  title: 'Terms of Service — Planevo',
+  description: 'The rules of using Planevo.',
 };
 
 export default function TermsPage() {
@@ -19,7 +19,7 @@ export default function TermsPage() {
           className="inline-flex items-center text-sm font-black uppercase tracking-widest text-surface-600 hover:text-surface-900 mb-12"
           data-testid="terms-back-home-link"
         >
-          ← Back to Plan Pilot
+          ← Back to Planevo
         </Link>
 
         <div className="mb-8 inline-block bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
@@ -35,8 +35,8 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">1. Agreement</h2>
             <p>
-              By using Plan Pilot you agree to these Terms. If you do not agree, please do not
-              create an account. You must be at least 13 years old to use Plan Pilot.
+              By using Planevo you agree to these Terms. If you do not agree, please do not
+              create an account. You must be at least 13 years old to use Planevo.
             </p>
           </section>
 
@@ -51,7 +51,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">3. Subscriptions and payment</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Plan Pilot offers a 14-day free trial. After the trial, your card is charged the monthly or annual rate you selected.</li>
+              <li>Planevo offers a 14-day free trial. After the trial, your card is charged the monthly or annual rate you selected.</li>
               <li>You can cancel anytime from <Link href="/dashboard/settings" className="text-brand-600 underline">Settings</Link>.</li>
               <li>We do not refund partial months. Annual plans are refundable within 30 days of purchase if you have not engaged with the product.</li>
               <li>Prices are in USD. Taxes may apply based on your location.</li>
@@ -62,20 +62,20 @@ export default function TermsPage() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">4. Acceptable use</h2>
             <p>You agree not to:</p>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Use Plan Pilot for anything illegal.</li>
+              <li>Use Planevo for anything illegal.</li>
               <li>Attempt to access another user&apos;s data.</li>
-              <li>Reverse engineer, scrape, or rebrand Plan Pilot.</li>
-              <li>Use Ollie to generate harmful, defamatory, or copyrighted content.</li>
+              <li>Reverse engineer, scrape, or rebrand Planevo.</li>
+              <li>Use Bruno to generate harmful, defamatory, or copyrighted content.</li>
             </ul>
           </section>
 
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">5. AI output disclaimer</h2>
             <p>
-              Ollie generates suggestions using a large language model. AI output may be wrong,
-              incomplete, or inappropriate. Plan Pilot is not a replacement for academic advising,
+              Bruno generates suggestions using a large language model. AI output may be wrong,
+              incomplete, or inappropriate. Planevo is not a replacement for academic advising,
               medical advice, or professional coaching. You are responsible for the work you do
-              based on Ollie&apos;s suggestions.
+              based on Bruno&apos;s suggestions.
             </p>
           </section>
 
@@ -90,7 +90,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">7. Liability</h2>
             <p>
-              Plan Pilot is provided &quot;as is.&quot; To the maximum extent allowed by law, our liability
+              Planevo is provided &quot;as is.&quot; To the maximum extent allowed by law, our liability
               is limited to the amount you paid us in the 12 months before the claim.
             </p>
           </section>

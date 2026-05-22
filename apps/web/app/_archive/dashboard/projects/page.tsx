@@ -6,7 +6,7 @@ import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { showToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ClarificationForm } from '@/components/goals/ClarificationForm';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 
 interface Question {
   id: string;
@@ -131,7 +131,7 @@ export default function ProjectsPage() {
   const [isClarifying, setIsClarifying] = useState(false);
   const [clarificationData, setClarificationData] = useState<{
     questions: Question[];
-    ollieMessage: string;
+    brunoMessage: string;
     type: 'quick' | 'architect';
     project: Project;
   } | null>(null);
@@ -282,7 +282,7 @@ export default function ProjectsPage() {
 
       setClarificationData({
         questions: data.questions,
-        ollieMessage: data.ollie_message || `Let me ask you a few quick questions to personalize your plan for "${project.title}"!`,
+        brunoMessage: data.bruno_message || `Let me ask you a few quick questions to personalize your plan for "${project.title}"!`,
         type,
         project
       });
@@ -290,7 +290,7 @@ export default function ProjectsPage() {
     } catch (err) {
       console.error('Clarification error:', err);
       // Only fall back on network errors, not rate limits
-      showToast.error('Ollie hit a snag', 'Had trouble preparing your questions. Please try again.');
+      showToast.error('Bruno hit a snag', 'Had trouble preparing your questions. Please try again.');
     } finally {
       setIsFetchingClarification(false);
     }
@@ -319,7 +319,7 @@ export default function ProjectsPage() {
           .single();
         if (updatedGoal) setReviewingProject(updatedGoal as Project);
       } else {
-        showToast.error('Ollie hit a snag', 'Try again later.');
+        showToast.error('Bruno hit a snag', 'Try again later.');
       }
     } catch (err) {
       console.error(err);
@@ -470,7 +470,7 @@ export default function ProjectsPage() {
               >
                 <ClarificationForm
                   questions={clarificationData.questions}
-                  ollieMessage={clarificationData.ollieMessage}
+                  brunoMessage={clarificationData.brunoMessage}
                   isSubmitting={decomposingId !== null || architectingId !== null}
                   onCancel={() => setIsClarifying(false)}
                   onComplete={async (answers) => {
@@ -494,7 +494,7 @@ export default function ProjectsPage() {
         </div>
       ) : projects.length === 0 ? (
         <div className="bg-surface-100 border-2 border-surface-900 shadow-[var(--shadow-color)] rounded-2xl p-12 flex flex-col items-center justify-center text-center">
-          <OllieAvatar mood="thinking" size="lg" />
+          <BrunoAvatar mood="thinking" size="lg" />
           <h2 className="mt-4 text-lg font-semibold text-surface-900 uppercase">No projects yet</h2>
           <p className="mt-2 text-surface-600 text-sm max-w-sm font-medium">
             What&apos;s something big you&apos;d like to achieve? Tell me, and I&apos;ll break it down into a daily roadmap.
@@ -646,7 +646,7 @@ export default function ProjectsPage() {
               {/* Sticky Header */}
               <div className="sticky top-0 bg-surface-100 z-20 p-8 sm:p-10 border-b-4 border-surface-900/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-6">
-                  <OllieAvatar mood="happy" size="md" />
+                  <BrunoAvatar mood="happy" size="md" />
                   <div>
                     <h2 className="text-2xl sm:text-3xl font-black text-surface-900 uppercase tracking-tight leading-none italic">The Plan</h2>
                     <p className="text-[10px] text-surface-400 font-black uppercase tracking-[0.3em] mt-3 flex items-center gap-2">

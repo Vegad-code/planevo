@@ -51,7 +51,7 @@ export async function POST() {
 
     return NextResponse.json({ 
       moved: movedCount, 
-      message: `Ollie moved ${movedCount} tasks to your schedule today. No sweat! 🌿` 
+      message: `Bruno moved ${movedCount} tasks to your schedule today. No sweat! 🌿` 
     });
 
   } catch (error: unknown) {

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // 1. Get Unified World State
     const body = await request.json();
     const { energyLevel = 'medium' } = body;
-    const worldState = await getOllieMasterContext(authUser.id, energyLevel);
+    const worldState = await getBrunoMasterContext(authUser.id, energyLevel);
 
     if (worldState.tasks.length === 0) {
       return NextResponse.json({
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (currentHour >= 12 && currentHour < 17) timeContext = 'afternoon';
     else if (currentHour >= 17) timeContext = 'evening';
 
-    const prompt = `You are the AI Life Pilot for Plan Pilot, a shame-free time management app. Analyze these tasks and create an optimal daily plan.
+    const prompt = `You are the AI Life Pilot for Planevo, a shame-free time management app. Analyze these tasks and create an optimal daily plan.
 
 Current time: ${currentTime}
 Time of day: ${timeContext}

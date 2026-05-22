@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFocusStore } from '@/store/useFocusStore';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 
 export default function SessionCompleteModal() {
   const { timeLeft, sessionsCompleted, activeTask, resetTimer } = useFocusStore();
@@ -25,7 +25,7 @@ export default function SessionCompleteModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-surface-50 border-4 border-surface-900 p-8 rounded-3xl max-w-md w-full shadow-[12px_12px_0_0_var(--shadow-color)] animate-bounce-subtle">
         <div className="flex flex-col items-center text-center">
-          <OllieAvatar mood="celebrating" size="lg" />
+          <BrunoAvatar mood="celebrating" size="lg" />
           <h2 className="mt-6 text-2xl font-black uppercase text-surface-900 tracking-tighter">Session Complete!</h2>
           <p className="text-surface-500 mt-2 text-sm italic font-medium">Excellent work. Your focus session is in the books.</p>
 

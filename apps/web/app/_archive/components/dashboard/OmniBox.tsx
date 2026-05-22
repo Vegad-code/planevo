@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Plus, Zap, Clock, Calendar, X } from 'lucide-react';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 import { toast } from 'sonner';
 
 export default function OmniBox() {
@@ -135,13 +135,13 @@ export default function OmniBox() {
               <div className="bg-white rounded-3xl border-4 border-surface-900 shadow-[0_40px_80px_rgba(0,0,0,0.25)] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center gap-3 p-4 bg-surface-50 border-b border-surface-100">
-                  <OllieAvatar mood="happy" size="sm" />
+                  <BrunoAvatar mood="happy" size="sm" />
                   <div className="flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-surface-400">
                       Quick Capture
                     </p>
                     <p className="text-xs text-surface-500">
-                      Type anything. Ollie figures out the rest.
+                      Type anything. Bruno figures out the rest.
                     </p>
                   </div>
                   <button

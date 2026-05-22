@@ -1,6 +1,6 @@
-# Plan Pilot: Evolutionary Roadmap
+# Planevo: Evolutionary Roadmap
 
-This document tracks the long-term vision for Plan Pilot, moving from a smart task list to a fully autonomous AI Executive Assistant.
+This document tracks the long-term vision for Planevo, moving from a smart task list to a fully autonomous AI Executive Assistant.
 
 ## Phase 2: Proactive Pilot (CURRENT)
 **Focus:** Stability and Core AI Utilities.
@@ -13,7 +13,7 @@ This document tracks the long-term vision for Plan Pilot, moving from a smart ta
 ## Phase 3: Personalization & Monetization (NEXT)
 **Focus:** Business Model and User Retention.
 - [ ] **Singular Premium Plan Implementation:**
-    - **Plan Pilot Premium ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync + Persona-specific focus protection.
+    - **Planevo Premium ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync + Persona-specific focus protection.
     - **Annual Discount ($79/yr):** 34% savings to reward long-term focus.
     - **Student Discount ($4.99/mo):** Verified .edu access to keep it accessible for learners.
 - [ ] **The Feedback Loop:**
@@ -23,14 +23,14 @@ This document tracks the long-term vision for Plan Pilot, moving from a smart ta
 
 ## Phase 4: The AI Executive Assistant (ELITE)
 **Focus:** Agentic Interaction.
-- [ ] **Ollie Command:** A chat interface that can *execute* actions (Function Calling).
-    - "Ollie, move my meetings."
-    - "Ollie, plan my week around my energy."
-- [ ] **Memory System:** Ollie remembers past focus struggles and proactively suggests adjustments.
+- [ ] **Bruno Command:** A chat interface that can *execute* actions (Function Calling).
+    - "Bruno, move my meetings."
+    - "Bruno, plan my week around my energy."
+- [ ] **Memory System:** Bruno remembers past focus struggles and proactively suggests adjustments.
 - [ ] **Goal Architect:** Deconstruct massive goals into multi-week scheduled sub-tasks.
 
 ## Phase 5: Custom AI Brain (SCALE)
 **Focus:** Cost Optimization and Brand Identity.
 - [ ] **Stage 2 Training:** Fine-tune a smaller model (Llama-3 or GPT-4o-mini) on the "Correction Data" collected in Phase 3.
-- [ ] **Ollie's Voice:** Refine the personality to be consistently supportive, shame-free, and professional.
+- [ ] **Bruno's Voice:** Refine the personality to be consistently supportive, shame-free, and professional.
 - [ ] **Self-Hosting:** Move to private inference to slash API costs by 80%.

@@ -244,7 +244,7 @@ export default function AcademicSearch() {
                 {/* Footer */}
                 <div className="flex items-center justify-between px-6 py-3 border-t-2 border-surface-900 bg-surface-200">
                   <span className="text-[10px] font-black text-surface-400 uppercase tracking-widest">
-                    Academic Search · Powered by Ollie
+                    Academic Search · Powered by Bruno
                   </span>
                   <kbd className="px-2 py-0.5 bg-surface-300 border border-surface-400 text-[10px] font-black text-surface-500 rounded">
                     ESC

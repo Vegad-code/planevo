@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { writeWidgetData } from '@/lib/widgetData';
 import {
   View,
   Text,
@@ -8,7 +9,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
@@ -70,6 +73,7 @@ export default function DailyPlanScreen() {
     googleConnected: false,
   });
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showFullPlan, setShowFullPlan] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
@@ -132,7 +136,29 @@ export default function DailyPlanScreen() {
         .order('created_at', { ascending: false })
         .limit(1);
       if (scheduleRows?.[0]) {
-        setSchedule(scheduleRows[0].schedule_json as unknown as ScheduleBlock[]);
+        const blocks = scheduleRows[0].schedule_json as unknown as ScheduleBlock[];
+        setSchedule(blocks);
+        // Push next-action data to iOS Home Screen Widget
+        const now = new Date();
+        const parsed = blocks
+          .map((b) => {
+            const start = b.startTime || b.suggested_start || b.start_time;
+            const end = b.endTime || b.suggested_end || b.end_time;
+            const s = start ? new Date(start) : null;
+            const e = end ? new Date(end) : s ? new Date(s.getTime() + (b.duration || 30) * 60000) : null;
+            return s && !isNaN(s.getTime()) ? { title: b.title, s, e } : null;
+          })
+          .filter((x): x is { title: string; s: Date; e: Date | null } => x !== null);
+        const current = parsed.find((b) => now >= b.s && b.e && now < b.e);
+        const next = parsed.find((b) => b.s > now);
+        const hit = current ?? next;
+        writeWidgetData(
+          hit
+            ? { title: hit.title, startTime: hit.s, endTime: hit.e, status: current ? 'NOW' : 'UP NEXT' }
+            : null
+        );
+      } else {
+        writeWidgetData(null);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -191,11 +217,69 @@ export default function DailyPlanScreen() {
   }, [tasks]);
 
   const completeTask = async (taskId: string) => {
+    // Dopamine hit!
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    
     await supabase
       .from('tasks')
       .update({ completed: true, completed_at: new Date().toISOString(), status: 'done' })
       .eq('id', taskId);
     fetchAll();
+  };
+
+  const generatePlan = async () => {
+    if (!user) return;
+    setGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      const now = new Date();
+      
+      const response = await fetch(`${apiUrl}/api/ai/daily-plan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          energyLevel,
+          localTime: now.toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          todayStart: new Date(now.setHours(0,0,0,0)).toISOString(),
+          todayEnd: new Date(now.setHours(23,59,59,999)).toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const generatedPlan = data.schedule || data.plan || [];
+
+      if (generatedPlan.length > 0) {
+        await supabase
+          .from('schedules')
+          .upsert({
+            user_id: user.id,
+            date: format(new Date(), 'yyyy-MM-dd'),
+            schedule_json: generatedPlan,
+            created_at: new Date().toISOString()
+          });
+
+        await fetchAll();
+      }
+    } catch (err: any) {
+      console.error('Plan generation error:', err);
+      Alert.alert('Bruno Error', err.message || 'Failed to generate plan.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const incompleteTasks = useMemo(() => tasks.filter((t) => !t.completed), [tasks]);
@@ -274,7 +358,7 @@ export default function DailyPlanScreen() {
                 Ready to focus?
               </Text>
               <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-                Tell Ollie how you're feeling and you'll have a plan in seconds.
+                Tell Bruno how you're feeling and you'll have a plan in seconds.
               </Text>
 
               {/* Energy Selector */}
@@ -312,12 +396,23 @@ export default function DailyPlanScreen() {
               </View>
 
               <TouchableOpacity
-                style={[styles.ctaButton, { backgroundColor: Colors.brand[600] }]}
+                style={[
+                  styles.ctaButton, 
+                  { backgroundColor: generating ? colors.separator : Colors.brand[600] }
+                ]}
                 activeOpacity={0.85}
                 testID="generate-plan-btn"
+                onPress={generatePlan}
+                disabled={generating}
               >
-                <Text style={styles.ctaText}>Generate Today's Plan</Text>
-                <ArrowRight size={16} color="#fff" strokeWidth={2.5} />
+                {generating ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.ctaText}>Generate Today's Plan</Text>
+                    <ArrowRight size={16} color="#fff" strokeWidth={2.5} />
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           ) : (

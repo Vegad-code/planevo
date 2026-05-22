@@ -1,344 +1,148 @@
 @import "tailwindcss";
 
-/* ============================================================
-   Plant Pilot — Design System
-   Brand colors, typography, animations, and component tokens
-   ============================================================ */
+@theme {
+  --color-cream: #F2E8D2;
+  --color-cream-2: #E8DCC0;
+  --color-paper: #FBF6EA;
+  --color-ink: #1A140D;
+  --color-ink-2: #2A2118;
+  --color-ink-soft: #4A3F32;
+  --color-ink-faint: #8A7B66;
+  --color-bruno: #8B5A2B;
+  --color-bruno-deep: #6B4423;
+  --color-bruno-light: #C99A5F;
+  --color-belly: #E8C896;
+  --color-honey: #D08741;
+  --color-honey-deep: #B96E2A;
+  --color-honey-soft: #F5DCB8;
+  --color-sage: #6B8B69;
+  --color-sage-soft: #D8E2D6;
+  --color-rose: #C56B5E;
+  --color-rose-soft: #F5D5D0;
+  --color-blue: #5B8DCF;
+  --color-blue-soft: #D5E3F2;
+  --color-line: rgba(26, 20, 13, 0.10);
+  --color-line-strong: rgba(26, 20, 13, 0.18);
 
-@theme inline {
-  /* Plan Pilot — Theme Tokens Mapped to Variables */
-  --color-brand-50: var(--brand-50);
-  --color-brand-100: var(--brand-100);
-  --color-brand-200: var(--brand-200);
-  --color-brand-300: var(--brand-300);
-  --color-brand-400: var(--brand-400);
-  --color-brand-500: var(--brand-500);
-  --color-brand-600: var(--brand-600);
-  --color-brand-700: var(--brand-700);
-  --color-brand-800: var(--brand-800);
-  --color-brand-900: var(--brand-900);
+  /* Calendar category source colors */
+  --color-manual: var(--color-ink-soft);
+  --color-manual-soft: var(--color-cream-2);
+  --color-google: var(--color-blue);
+  --color-google-soft: var(--color-blue-soft);
+  --color-canvas: var(--color-rose);
+  --color-canvas-soft: var(--color-rose-soft);
+  --color-blueprint: var(--color-sage);
+  --color-blueprint-soft: var(--color-sage-soft);
+  --color-cargo: #7c5cbf;
+  --color-cargo-soft: #e5ddf2;
+  --color-focus: var(--color-honey-deep);
+  --color-focus-soft: var(--color-honey-soft);
+  --color-rollover: var(--color-rose);
+  --color-rollover-soft: var(--color-rose-soft);
 
-  /* Accent — Owl Tan/Beige */
-  --color-accent-50: #f9f7f4;
-  --color-accent-100: #f2ede9;
-  --color-accent-200: #e5dbd3;
-  --color-accent-300: #d8c9bc;
-  --color-accent-400: #cbb7a6;
-  --color-accent-500: #c8b38c;
-  --color-accent-600: #b19e7c;
-  --color-accent-700: #9a8a6c;
+  /* Dashboard Sleek Dark Theme Tokens */
+  --color-bg-dark: #09090b;
+  --color-card-dark: #121214;
+  --color-card-dark-hover: #18181b;
+  --color-border-dark: #27272a;
+  --color-text-dark: #fafafa;
+  --color-text-dark-muted: #a1a1aa;
 
-  /* Surface colors (Neutral) — Now mapped to theme-aware variables */
-  --color-surface-50: var(--surface-50);
-  --color-surface-100: var(--surface-100);
-  --color-surface-200: var(--surface-200);
-  --color-surface-300: var(--surface-300);
-  --color-surface-400: var(--surface-400);
-  --color-surface-500: var(--surface-500);
-  --color-surface-600: var(--surface-600);
-  --color-surface-700: var(--surface-700);
-  --color-surface-800: var(--surface-800);
-  --color-surface-900: var(--surface-900);
-
-  /* Semantic */
-  --color-success: var(--brand-500);
-  --color-warning: #c8b38c;
-  --color-error: #a34e35;
-  --color-info: #5a7582;
-
-  /* Typography */
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-display: var(--font-outfit), sans-serif;
-  --font-serif: var(--font-fraunces), serif;
-  --font-mono: var(--font-jetbrains-mono), monospace;
-
-  /* Shadows (Bubble Design — Softer Elevations) */
-  --shadow-glow: 0 0 20px rgba(93, 138, 102, 0.2);
-  --shadow-glow-accent: 0 0 20px rgba(200, 179, 140, 0.2);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-
-  /* Bubble Design — Softened Corners */
-  --radius: 0.75rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
-  --radius-2xl: 2rem;
-  --radius-3xl: 3rem;
-  --radius-full: 9999px;
-
-  /* Theme Tokens */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent-foreground: var(--accent-foreground);
-
-  /* ── Calendar Source Colors ── */
-  --color-google: var(--color-google);
-  --color-canvas: var(--color-canvas);
-  --color-blueprint: var(--color-blueprint);
-  --color-ollie: var(--color-ollie);
-  --color-focus: var(--color-focus);
-  --color-rollover: var(--color-rollover);
-  --color-manual: var(--color-manual);
-  --color-cargo: var(--color-cargo);
-
-  /* ── Timeline Variables ── */
-  --timeline-hour-height: 72px;
-  --timeline-rail-left: 64px;
-  --timeline-card-left: 80px;
-  --timeline-card-right: 16px;
-  --rail-width: 2px;
-}
-
-:root {
-  /* Surface colors (Neutral) — LIGHT MODE */
-  --surface-50: #fbfbfb;
-  --surface-100: #f8f9f5;
-  --surface-200: #e9ede5;
-  --surface-300: #d3dbcb;
-  --surface-400: #949a8e;
-  --surface-500: #626570;
-  --surface-600: #4a4d55;
-  --surface-700: #3a3d45;
-  --surface-800: #2c2e35;
-  --surface-900: #1a1b1e;
-
-  /* Brand: Forest (Default) */
-  --brand-50: #f4f6f2;
-  --brand-100: #e9ede5;
-  --brand-200: #d3dbcb;
-  --brand-300: #a7c091;
-  --brand-400: #82a56f;
-  --brand-500: #5d8a66;
-  --brand-600: #4a6e52;
-  --brand-700: #3b5842;
-  --brand-800: #2d4332;
-  --brand-900: #223326;
-
-  --background: #f8f9f5;
-  --foreground: #2c2e35;
-  --card: #ffffff;
-  --card-foreground: #2c2e35;
-  --border: #2c2e35;
-  --input: #2c2e35;
-  --ring: #5d8a66;
-  --muted: #626570;
-  --muted-foreground: #8a8e99;
-  --accent-foreground: #ffffff;
-  
-  /* Calendar Defaults (Light) */
-  --color-google: hsl(200, 100%, 50%);
-  --color-canvas: hsl(25, 90%, 55%);
-  --color-blueprint: var(--brand-300);
-  --color-ollie: var(--brand-600);
-  --color-focus: var(--brand-400);
-  --color-rollover: hsl(35, 95%, 55%);
-  --color-manual: var(--brand-500);
-  --color-cargo: var(--surface-400);
-  --rail-color: hsla(225, 15%, 20%, 0.1);
-  --now-line-color: var(--brand-500);
-  
-  --shadow-color: rgba(44, 46, 53, 1);
-  color-scheme: light;
-}
-
-[data-theme='dark'] {
-  /* Surface colors (Neutral) — DARK MODE */
-  --surface-50: #0f1012;
-  --surface-100: #1a1b1e;
-  --surface-200: #2c2e35;
-  --surface-300: #3a3d45;
-  --surface-400: #a1a5b0; /* Lighter for visibility */
-  --surface-500: #bec3cc;
-  --surface-600: #d1d5db;
-  --surface-700: #e5e7eb;
-  --surface-800: #f3f4f6;
-  --surface-900: #f8f9f5;
-
-  --background: #1a1b1e;
-  --foreground: #f8f9f5;
-  --card: #2c2e35;
-  --card-foreground: #f8f9f5;
-  --border: #f8f9f5;
-  --input: #f8f9f5;
-  --ring: #a7c091;
-  --muted: #a1a5b0;
-  --muted-foreground: #8a8e99;
-  --accent-foreground: #ffffff;
-  
-  /* Calendar Source Accents (Dark) */
-  --color-google: hsl(200, 100%, 50%);
-  --color-canvas: hsl(25, 90%, 55%);
-  --color-blueprint: var(--brand-300);
-  --color-ollie: var(--brand-600);
-  --color-focus: var(--brand-400);
-  --color-rollover: hsl(35, 95%, 55%);
-  --color-manual: var(--brand-500);
-  --color-cargo: var(--surface-400);
-  --rail-color: hsla(0, 0%, 100%, 0.08);
-  --now-line-color: var(--brand-500);
-
-  --shadow-color: rgba(248, 249, 245, 0.2);
-  color-scheme: dark;
-}
-
-[data-theme-color="aqua"] {
-  --brand-50: #f2f8f9;
-  --brand-300: #8fbcc7;
-  --brand-500: #3a7d8e;
-  --brand-600: #2e6472;
-}
-
-[data-theme-color="violet"] {
-  --brand-50: #f8f2f9;
-  --brand-300: #c091a7;
-  --brand-500: #7d5d8a;
-  --brand-600: #644a6e;
-}
-
-[data-theme-color="crimson"] {
-  --brand-50: #f9f2f2;
-  --brand-300: #c09191;
-  --brand-500: #8a5d5d;
-  --brand-600: #6e4a4a;
-}
-
-[data-theme-color="midnight"] {
-  --brand-50: #f2f4f6;
-  --brand-300: #5d8a9e;
-  --brand-500: #2c3e50;
-  --brand-600: #233240;
+  --font-serif: var(--font-serif), serif;
+  --font-sans: var(--font-sans), sans-serif;
+  --font-mono: var(--font-mono), monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg-dark);
+  color: var(--color-text-dark);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Typography System Utility Classes */
-.font-display { font-family: var(--font-display); }
-.font-serif { font-family: var(--font-serif); }
-
-.text-h1 {
-  @apply font-display font-black text-4xl md:text-6xl tracking-tighter leading-[0.9] italic;
-}
-
-.text-h2 {
-  @apply font-display font-bold text-3xl md:text-5xl tracking-tight leading-tight;
-}
-
-.text-body {
-  @apply font-sans font-medium text-base md:text-lg leading-relaxed text-surface-600;
-}
-
-.text-meta {
-  @apply font-mono text-[10px] font-bold uppercase tracking-tight text-surface-400;
-}
-
-.text-narrative {
-  @apply font-serif italic text-lg md:text-xl leading-relaxed text-surface-700;
-}
-
-/* Bubble design resets */
-* {
-  border-radius: var(--radius);
-}
-
-.glass, .glass-light {
-  background: var(--card);
-  color: var(--card-foreground);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(0,0,0,0.05);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: var(--radius-xl);
-}
-
-.brutalist-card {
-  background: var(--card);
-  border: 2px solid var(--border);
-  box-shadow: 6px 6px 0px 0px var(--shadow-color);
-  border-radius: var(--radius-md);
-}
-
-.skeleton {
-  background: var(--muted);
-  opacity: 0.2;
-}
-
-.focus-ring {
-  outline: none;
-}
-
-.focus-ring:focus-visible {
-  outline: 2px solid var(--border);
-  outline-offset: 2px;
-}
-
-/* Typography Helpers for Visibility */
-.text-visible {
-  color: var(--foreground);
-}
-
-.text-muted-visible {
-  color: var(--muted);
-}
 /* ============================================================
-   Tactical Animations
+   Bruno Character Animations
    ============================================================ */
 
-@keyframes slide-infinite {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+@keyframes bruno-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-4px) rotate(-0.6deg); }
+}
+@keyframes bruno-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 98%      { transform: scaleY(0.08); }
+}
+@keyframes bruno-bounce-react {
+  0%   { transform: translateY(0) scale(1); }
+  20%  { transform: translateY(-18px) scale(1.06); }
+  45%  { transform: translateY(0) scale(0.98); }
+  65%  { transform: translateY(-7px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes bruno-tilt {
+  0%, 100% { transform: rotate(0); }
+  50%      { transform: rotate(-7deg); }
+}
+@keyframes bruno-wave {
+  0%, 100% { transform: rotate(-8deg); }
+  50%      { transform: rotate(20deg); }
+}
+@keyframes bruno-peek {
+  0%   { transform: translateX(60px) translateY(40px) scale(0.5); opacity: 0; }
+  60%  { transform: translateX(-6px) translateY(0) scale(1.02); opacity: 1; }
+  100% { transform: translateX(0) translateY(0) scale(1); opacity: 1; }
+}
+@keyframes bruno-pop {
+  0%   { transform: scale(0) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(1.1) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes bubble-in {
+  0%   { transform: translateY(8px) scale(0.92); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.bruno-host {
+  display: inline-flex;
+  animation: bruno-idle 3.4s ease-in-out infinite;
+  transform-origin: center bottom;
+  will-change: transform;
 }
-
-.animate-slide-infinite {
-  animation: slide-infinite 2s ease-in-out infinite;
+.bruno-host.react {
+  animation: bruno-bounce-react 0.7s cubic-bezier(.34,1.56,.64,1);
 }
-
-.animate-fade-in {
-  animation: fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.bruno-host.tilt {
+  animation: bruno-tilt 1.6s ease-in-out infinite;
 }
-
-/* ── Premium Utilities ── */
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+.bruno-host.peek {
+  animation: bruno-peek 0.6s cubic-bezier(.34,1.56,.64,1);
 }
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+.bruno-host.pop {
+  animation: bruno-pop 0.6s cubic-bezier(.34,1.56,.64,1);
 }
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+.bruno-eye {
+  transform-origin: center;
+  animation: bruno-blink 5s infinite;
 }
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.bruno-eye.right { animation-delay: 0.05s; }
+.bruno-arm-wave {
+  transform-origin: 40px 130px;
+  animation: bruno-wave 1.1s ease-in-out infinite;
 }
-
-.capsule-shadow {
-  box-shadow: inset 0 2px 10px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.4);
+.bubble-in {
+  animation: bubble-in 0.35s cubic-bezier(.34,1.56,.64,1);
+}
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  vertical-align: -2px;
+  margin-left: 2px;
+  animation: blink-cursor 0.8s steps(1) infinite;
 }

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { decryptToken } from '@/lib/crypto';
 
 export async function refreshGoogleToken(refreshToken: string) {
   const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -35,7 +36,8 @@ export async function syncGoogleCalendar(userId: string) {
   }
 
   // 2. Get a fresh access token
-  const accessToken = await refreshGoogleToken(user.google_calendar_refresh_token);
+  const decryptedToken = decryptToken(user.google_calendar_refresh_token);
+  const accessToken = await refreshGoogleToken(decryptedToken);
 
   // 3. Fetch events (next 7 days)
   const timeMin = new Date().toISOString();

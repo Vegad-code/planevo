@@ -1,5 +1,5 @@
 /**
- * Plan Pilot — Forest Green Design System
+ * Planevo — Forest Green Design System
  * Matches the web app's "Immersive Minimalist" aesthetic from globals.css
  */
 

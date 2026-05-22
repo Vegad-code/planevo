@@ -37,43 +37,45 @@ export default function ShameFreeRescheduleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="relative w-full max-w-md bg-[#1e1e1e] border-2 border-[#2A2A2A] p-6 z-10"
+        className="relative w-full max-w-md bg-[var(--color-paper)] border border-[var(--color-line-strong)] p-6 z-10 rounded-[20px] shadow-xl"
       >
-        <h2 className="text-lg font-bold text-white mb-1">When would work better?</h2>
-        <p className="text-sm text-[#888] mb-2">{message}</p>
-        <p className="text-xs text-[#666] mb-4 truncate">Task: {taskTitle}</p>
+        <h2 className="text-lg font-serif italic font-semibold text-[var(--color-ink)] mb-1">When would work better?</h2>
+        <p className="text-sm text-[var(--color-ink-soft)] mb-2 leading-relaxed">{message}</p>
+        <p className="text-xs text-[var(--color-ink-faint)] mb-4 truncate bg-[var(--color-cream)]/20 border border-[var(--color-line)] rounded-lg px-2.5 py-1.5">
+          Task: <span className="font-medium text-[var(--color-ink-soft)]">{taskTitle}</span>
+        </p>
 
         <div className="space-y-2 mb-4">
           {suggestions.map(s => (
             <button key={s.value} onClick={() => { onReschedule(s.value); onClose(); }}
-              className="w-full text-left px-4 py-3 bg-[#242424] border-2 border-[#2A2A2A] hover:border-[#4ECDC4] text-white text-sm font-medium transition-colors">
+              className="w-full text-left px-4 py-3 bg-[var(--color-cream)]/10 border border-[var(--color-line)] hover:border-[var(--color-honey)] hover:bg-[var(--color-cream)]/35 text-[var(--color-ink)] text-sm font-medium rounded-xl transition-all cursor-pointer">
               {s.label}
             </button>
           ))}
         </div>
 
-        <div className="border-t border-[#2A2A2A] pt-4">
-          <label className="block text-xs font-semibold text-[#888] mb-1.5 uppercase tracking-wider">
+        <div className="border-t border-[var(--color-line)] pt-4">
+          <label className="block text-[11px] font-mono font-semibold tracking-wider text-[var(--color-ink-faint)] mb-2 uppercase">
             Pick a custom date
           </label>
           <div className="flex gap-2">
             <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)}
-              className="flex-1 px-3 py-2 bg-[#242424] border-2 border-[#2A2A2A] text-white text-sm focus:outline-none focus:border-[#4ECDC4]" />
+              className="flex-1 px-3 py-2 bg-[var(--color-cream)]/20 border border-[var(--color-line)] text-[var(--color-ink)] text-sm rounded-xl focus:outline-none focus:border-[var(--color-honey)] transition-colors" />
             <button onClick={() => { if (customDate) { onReschedule(customDate); onClose(); } }}
               disabled={!customDate}
-              className="px-4 py-2 bg-[#4ECDC4] text-white font-bold text-sm disabled:opacity-40 hover:bg-[#45b8b0]">
+              className="px-5 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] font-bold text-sm rounded-xl disabled:opacity-40 hover:bg-[var(--color-ink-soft)] transition-colors cursor-pointer">
               Set
             </button>
           </div>
         </div>
 
         <button onClick={onClose}
-          className="mt-4 w-full py-2 text-sm text-[#888] hover:text-white font-medium transition-colors">
+          className="mt-4 w-full py-2.5 text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] font-semibold transition-colors cursor-pointer border border-transparent hover:bg-[var(--color-cream)]/25 rounded-xl">
           Never mind
         </button>
       </motion.div>

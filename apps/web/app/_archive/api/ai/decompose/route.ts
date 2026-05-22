@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     const memory = await getUserAIMemory(supabase, user.id);
     const memoryContext = buildMemoryContext(memory);
 
-    const systemPrompt = `You are the Breakdown Engine for Plan Pilot, a productivity tool for students and professionals.
+    const systemPrompt = `You are the Breakdown Engine for Planevo, a productivity tool for students and professionals.
 
 USER MEMORY (Apply these preferences):
 ${memoryContext}

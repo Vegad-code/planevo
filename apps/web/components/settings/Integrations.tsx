@@ -5,17 +5,15 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, CalendarBlank, GithubLogo, Kanban, Lightning, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
-import { testCanvasConnectionAction } from '@/lib/canvas/actions';
+import { GraduationCap, CalendarBlank, Kanban, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
+import { testCanvasConnectionAction, getCanvasCredentialsAction, saveCanvasCredentialsAction } from '@/lib/canvas/actions';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const iconMap: Record<string, React.ElementType> = {
   GraduationCap: GraduationCap,
   CalendarBlank: CalendarBlank,
-  GithubLogo: GithubLogo,
   Kanban: Kanban,
-  Lightning: Lightning,
   Notebook: Notebook,
   Hash: Hash
 };
@@ -56,9 +54,14 @@ export default function Integrations() {
         
         if (data) {
           setProfile(data);
-          setCanvasUrl(data.canvas_url || '');
-          setCanvasToken(data.canvas_token || '');
           setMorningTime(data.preferred_morning_time?.substring(0, 5) || '07:00');
+        }
+
+        // Fetch decrypted Canvas credentials securely using server action
+        const canvasRes = await getCanvasCredentialsAction();
+        if (canvasRes.success && canvasRes.data) {
+          setCanvasUrl(canvasRes.data.canvasUrl);
+          setCanvasToken(canvasRes.data.canvasToken);
         }
       }
       setLoading(false);
@@ -76,19 +79,13 @@ export default function Integrations() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await (supabase as any)
-      .from('users')
-      .update({
-        canvas_url: canvasUrl,
-        canvas_token: canvasToken
-      })
-      .eq('id', user.id);
+    const res = await saveCanvasCredentialsAction(canvasUrl, canvasToken);
 
-    if (error) {
-      setTestResult({ success: false, message: 'Failed to save Canvas settings.' });
+    if (!res.success) {
+      setTestResult({ success: false, message: res.error || 'Failed to save Canvas settings.' });
     } else {
       setTestResult({ success: true, message: 'Canvas settings saved. Sources active.' });
-      setProfile({ ...profile, canvas_token: canvasToken, canvas_url: canvasUrl });
+      setProfile(prev => prev ? { ...prev, canvas_token: canvasToken, canvas_url: canvasUrl } : null);
       setTimeout(() => {
         setActiveConfig(null);
         setTestResult(null);
@@ -215,7 +212,7 @@ export default function Integrations() {
       <div>
         <h2 className="text-3xl font-black text-surface-900 uppercase tracking-tighter mb-2">Integration Hub</h2>
         <p className="text-surface-600 font-bold max-w-2xl">
-          Connect your tools to Ollie. The more sources you link, the more accurately your Daily Plan can be constructed.
+          Connect your tools to Bruno. The more sources you link, the more accurately your Daily Plan can be constructed.
         </p>
       </div>
 
@@ -223,7 +220,7 @@ export default function Integrations() {
       <div className="bg-surface-100 p-6 border-2 border-surface-900 shadow-[6px_6px_0_0_var(--surface-900)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="font-black text-surface-900 uppercase tracking-tight">Schedule Refresh Time</h3>
-          <p className="text-xs font-bold text-surface-600">When should Ollie pull from sources and build your plan?</p>
+          <p className="text-xs font-bold text-surface-600">When should Bruno pull from sources and build your plan?</p>
         </div>
         <div className="flex items-center gap-3">
           <Input
@@ -335,7 +332,7 @@ export default function Integrations() {
                     <li>Go to <strong className="text-surface-900">Settings</strong>.</li>
                     <li>Scroll down to <strong className="text-surface-900">Approved Integrations</strong>.</li>
                     <li>Click <strong className="text-surface-900">+ New Access Token</strong>.</li>
-                    <li>Name it &quot;Plan Pilot&quot; and copy the token immediately.</li>
+                    <li>Name it &quot;Planevo&quot; and copy the token immediately.</li>
                   </ol>
                 </div>
               </div>
@@ -369,7 +366,7 @@ export default function Integrations() {
               <div className="flex flex-col md:flex-row gap-8 items-center">
                 <div className="flex-1 space-y-4">
                   <p className="text-sm font-bold text-surface-400 leading-relaxed">
-                    Grant Plan Pilot access to your Google Calendar to automatically sync your classes, deadlines, and personal schedule. 
+                    Grant Planevo access to your Google Calendar to automatically sync your classes, deadlines, and personal schedule. 
                   </p>
                   <ul className="text-[10px] font-bold text-surface-500 space-y-2 uppercase">
                     <li className="flex items-center gap-2"><CheckCircle className="text-accent-500" /> Read-only access to primary calendar</li>

@@ -1,12 +1,12 @@
 {
-  "name": "plan-pilot-monorepo",
+  "name": "planevo-monorepo",
   "private": true,
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace plan-pilot",
+    "dev": "npm run dev --workspace planevo",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },

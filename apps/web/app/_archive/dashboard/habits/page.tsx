@@ -1,6 +1,6 @@
 'use client';
 
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 
 export default function HabitsPage() {
   return (
@@ -21,7 +21,7 @@ export default function HabitsPage() {
 
       {/* Empty state */}
       <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-surface-100 border-2 border-surface-900 shadow-[var(--shadow-color)]">
-        <OllieAvatar mood="happy" size="lg" />
+        <BrunoAvatar mood="happy" size="lg" />
         <h2 className="mt-4 text-lg font-semibold text-surface-900 uppercase">No habits tracked yet</h2>
         <p className="mt-2 text-surface-600 text-sm max-w-sm font-medium">
           Consistency beats perfection. Pick one small habit and I&apos;ll help you stick with it — no guilt, just progress.

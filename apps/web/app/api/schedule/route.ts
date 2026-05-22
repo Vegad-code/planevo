@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { OLLIE_SYSTEM_PROMPT } from '@/lib/ollie';
+import { BRUNO_SYSTEM_PROMPT } from '@/lib/bruno';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
 
 type ScheduleTask = {
@@ -55,7 +55,7 @@ Format the response as a JSON object with a single key "schedule" containing an 
 - "time": string (e.g. "09:00 AM - 10:30 AM")
 - "title": string (the task or activity)
 - "type": string (can be "focus", "break", "routine", "flexible")
-- "description": string (optional, brief advice or note from Ollie)
+- "description": string (optional, brief advice or note from Bruno)
 
 Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
 
@@ -68,7 +68,7 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: OLLIE_SYSTEM_PROMPT },
+          { role: 'system', content: BRUNO_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,

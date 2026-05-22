@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { CheckCircle, CalendarBlank, Target, Sparkle } from '@phosphor-icons/react';
-import OllieAvatar from '@/components/ollie/OllieAvatar';
+import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 
 const SIMULATION_STEPS = [
   {
@@ -67,7 +67,7 @@ export default function PlanSimulation() {
           <div className="w-3 h-3 rounded-full bg-success" />
         </div>
         <div className="flex-1 text-center">
-          <span className="text-meta text-surface-400">Ollie Agent — Simulation v1.0</span>
+          <span className="text-meta text-surface-400">Bruno Agent — Simulation v1.0</span>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export default function PlanSimulation() {
               {step.type === 'agent' && (
                 <div className="flex gap-4 items-start">
                   <div className="w-10 h-10 flex-shrink-0 bg-brand-500 border-2 border-surface-900 rounded-full flex items-center justify-center text-xl overflow-hidden">
-                    <OllieAvatar mood="celebrating" size="sm" />
+                    <BrunoAvatar mood="celebrating" size="sm" />
                   </div>
                   <div className="bg-surface-100 border-2 border-surface-900 p-4 rounded-2xl rounded-tl-none shadow-[4px_4px_0px_0px_var(--surface-900)]">
                     <p className="text-sm font-black text-surface-900 leading-relaxed">{step.text}</p>

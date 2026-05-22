@@ -1,13 +1,14 @@
-// Plan Pilot — Task Helper Utilities
+// Planevo — Task Helper Utilities
 // Priority colors, time-of-day icons, and formatting helpers
 
 import type { TaskPriority, BestTimeOfDay, EnergyLevel } from '@/types/tasks';
 
 // Priority color bar mappings (CSS colors)
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  critical: '#E63946',
   high: '#FF6B6B',
-  medium: '#4ECDC4',
-  low: '#95E1D3',
+  medium: 'var(--brand-500)',
+  low: 'var(--brand-300)',
 };
 
 // Time-of-day display info
@@ -20,8 +21,8 @@ export const TIME_OF_DAY_INFO: Record<BestTimeOfDay, { emoji: string; label: str
 
 // Energy level display info
 export const ENERGY_INFO: Record<EnergyLevel, { label: string; color: string }> = {
-  low: { label: 'Low Energy', color: '#95E1D3' },
-  medium: { label: 'Medium Energy', color: '#4ECDC4' },
+  low: { label: 'Low Energy', color: 'var(--brand-300)' },
+  medium: { label: 'Medium Energy', color: 'var(--brand-500)' },
   high: { label: 'High Energy', color: '#FF6B6B' },
 };
 

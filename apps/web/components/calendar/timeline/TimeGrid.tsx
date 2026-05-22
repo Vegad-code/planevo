@@ -21,6 +21,8 @@ export default function TimeGrid({
 }: TimeGridProps) {
   const hours = generateHourLabels(startHour, endHour, timeFormat);
   const totalHeight = (endHour - startHour) * hourHeight;
+  const railColor = 'var(--color-line-strong)';
+  const lineColor = 'var(--color-line)';
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ height: `${totalHeight}px` }}>
@@ -32,8 +34,8 @@ export default function TimeGrid({
           width: '2px',
           backgroundImage: `repeating-linear-gradient(
             to bottom,
-            var(--rail-color) 0px,
-            var(--rail-color) 4px,
+            ${railColor} 0px,
+            ${railColor} 4px,
             transparent 4px,
             transparent 10px
           )`,
@@ -48,7 +50,7 @@ export default function TimeGrid({
           style={{ top: `${top}px` }}
         >
           {/* Hour label in the gutter */}
-          <span className="absolute text-[10px] font-mono font-medium text-muted-foreground whitespace-nowrap select-none"
+          <span className="absolute text-[10px] font-mono font-medium text-[var(--color-ink-faint)] whitespace-nowrap select-none"
             style={{
               right: 'calc(100% - 0px)',
               top: '-7px',
@@ -68,7 +70,7 @@ export default function TimeGrid({
               top: '-3px',
               width: '8px',
               height: '8px',
-              backgroundColor: 'var(--rail-color)',
+              backgroundColor: railColor,
             }}
           />
 
@@ -78,8 +80,7 @@ export default function TimeGrid({
             style={{
               left: '32px',
               right: '0',
-              backgroundColor: 'var(--rail-color)',
-              opacity: 0.5,
+              backgroundColor: lineColor,
             }}
           />
         </div>

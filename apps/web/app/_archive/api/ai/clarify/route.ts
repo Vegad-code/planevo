@@ -16,7 +16,7 @@ const questionsSchema = z.object({
     type: z.enum(['text', 'number', 'select']),
     options: z.array(z.string()).nullable().optional(),
   })).min(1).max(5),
-  ollie_message: z.string().trim().max(300),
+  bruno_message: z.string().trim().max(300),
 });
 
 export async function POST(request: NextRequest) {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'AI service unavailable — missing API key' }, { status: 500 });
     }
 
-    const systemPrompt = `You are Ollie, the AI strategist for Plan Pilot.
+    const systemPrompt = `You are Bruno, the AI strategist for Planevo.
 The user wants to achieve a goal: "${projectTitle}".
 
 USER MEMORY (Do not ask questions you already know from here):
@@ -85,9 +85,9 @@ RULES:
             schema: {
               type: 'object',
               additionalProperties: false,
-              required: ['ollie_message', 'questions'],
+              required: ['bruno_message', 'questions'],
               properties: {
-                ollie_message: { type: 'string' },
+                bruno_message: { type: 'string' },
                 questions: {
                   type: 'array',
                   items: {

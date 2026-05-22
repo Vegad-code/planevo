@@ -8,15 +8,8 @@ import TimeGrid from '../timeline/TimeGrid';
 import NowIndicator from '../timeline/NowIndicator';
 import EventCard from '../cards/EventCard';
 import type { CalendarEvent } from '@/types/calendar';
-import { CloudSun } from 'lucide-react';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  estimated_minutes?: number;
-  energy_level_required?: string;
-}
+import type { Task } from '@/types/tasks';
+import { CloudSun } from '@phosphor-icons/react';
 
 interface DayViewProps {
   date: Date;
@@ -169,24 +162,24 @@ export default function DayView({
     >
       {/* All-day events strip */}
       {allDayEvents.length > 0 && (
-        <div className="border-b border-surface-200 px-4 py-2.5 space-y-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <div className="border-b border-[var(--color-line)] px-4 py-2.5 space-y-1.5 bg-[var(--color-paper)]">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">
             All Day
           </span>
           {allDayEvents.map((event) => (
             <div
               key={event.id}
               onClick={() => onEventClick?.(event)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-surface-100 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--color-cream-2)] transition-colors"
               style={{
                 borderLeft: `3px solid ${getSourceColorInline(event.source)}`,
               }}
             >
               {event.icon && <span className="text-sm">{event.icon}</span>}
-              <span className="text-sm font-semibold text-foreground truncate">
+              <span className="text-sm font-semibold text-[var(--color-ink)] truncate">
                 {event.title}
               </span>
-              <span className="text-[9px] font-bold uppercase text-muted-foreground ml-auto shrink-0">
+              <span className="text-[9px] font-mono font-bold uppercase text-[var(--color-ink-soft)] ml-auto shrink-0">
                 {event.source.replace('_', ' ')}
               </span>
             </div>
@@ -313,15 +306,15 @@ export default function DayView({
             exit={{ opacity: 0, y: 20 }}
             className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none z-10 w-full max-w-sm px-4"
           >
-            <div className="bg-card/90 backdrop-blur-xl p-6 rounded-[32px] border border-border shadow-2xl flex flex-col items-center text-center pointer-events-auto">
-              <div className="w-12 h-12 bg-brand-500/20 rounded-2xl flex items-center justify-center mb-4">
-                <CloudSun className="w-6 h-6 text-brand-500" />
+            <div className="bg-[var(--color-paper)] p-6 rounded-[22px] border border-[var(--color-line)] shadow-lg flex flex-col items-center text-center pointer-events-auto">
+              <div className="w-12 h-12 bg-[var(--color-cream-2)] rounded-[14px] flex items-center justify-center mb-4">
+                <CloudSun className="w-6 h-6 text-[var(--color-ink)]" />
               </div>
-              <h3 className="text-lg font-black uppercase tracking-tight text-foreground mb-1">
+              <h3 className="text-lg font-bold tracking-tight text-[var(--color-ink)] mb-1">
                 Nothing scheduled yet
               </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Your timeline is wide open. Tap anywhere or hit the <span className="text-brand-500 font-bold">+</span> to add your first task.
+              <p className="text-xs text-[var(--color-ink-muted)] leading-relaxed">
+                Your timeline is wide open. Tap anywhere or hit the <span className="text-[var(--color-honey-deep)] font-bold">+</span> to add your first task.
               </p>
             </div>
           </motion.div>
@@ -338,7 +331,7 @@ function getSourceColorInline(source: string): string {
     google_calendar: 'var(--color-google)',
     canvas: 'var(--color-canvas)',
     blueprint: 'var(--color-blueprint)',
-    schedule: 'var(--color-ollie)',
+    schedule: 'var(--color-bruno)',
     cargo_bay: 'var(--color-cargo)',
     focus_block: 'var(--color-focus)',
     rollover: 'var(--color-rollover)',

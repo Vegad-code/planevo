@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
-import type { BestTimeOfDay, EnergyLevel, Task } from '@/types/tasks';
+import type { BestTimeOfDay, EnergyLevel, Task, TaskPriority } from '@/types/tasks';
 
 export interface NewTaskInput {
   title: string;
@@ -13,6 +13,7 @@ export interface NewTaskInput {
   energy_level_required?: EnergyLevel;
   due_date?: string;
   parent_task_id?: string;
+  priority?: TaskPriority;
 }
 
 export function useTaskActions(onRefresh: () => void) {
@@ -38,7 +39,7 @@ export function useTaskActions(onRefresh: () => void) {
         energy_level_required: input.energy_level_required || 'medium',
         due_date: input.due_date || null,
         parent_task_id: input.parent_task_id || null,
-        priority: 'medium',
+        priority: input.priority || 'medium',
         status: 'todo',
         completed: false,
         is_ai_suggested: false,
@@ -131,14 +132,14 @@ export function useTaskActions(onRefresh: () => void) {
     onRefresh();
   }, [supabase, onRefresh]);
 
-  // Break down a task — folded into Ollie Chat in v1 (see STRATEGY.md §6).
+  // Break down a task — folded into Bruno Chat in v1 (see STRATEGY.md §6).
   // The standalone /api/ai/breakdown endpoint is archived. Users now ask
-  // Ollie directly: "Break down [task name] into 15-minute steps."
-  // TODO (Block G): re-wire this to the new Ollie agent's `breakdown` tool call.
+  // Bruno directly: "Break down [task name] into 15-minute steps."
+  // TODO (Block G): re-wire this to the new Bruno agent's `breakdown` tool call.
   const breakDownTask = useCallback(async (_task: string | Task) => {
     return {
       error:
-        'Ask Ollie to break this down for you in chat. (AI breakdown is now part of Ollie Chat in v1.)',
+        'Ask Bruno to break this down for you in chat. (AI breakdown is now part of Bruno Chat in v1.)',
     };
   }, []);
 

@@ -8,43 +8,50 @@ import { useState, useEffect } from 'react';
 
 import { 
   Layout, 
-  Target, 
   CheckSquare, 
   Calendar, 
   Gear, 
   SignOut,
-  Sparkle,
   Notebook
 } from '@phosphor-icons/react';
+
+const BrunoMark = ({ size = 28, mood = 'normal' }) => (
+  <svg viewBox="0 0 48 48" width={size} height={size} style={{ flex: 'none' }}>
+    <circle cx="14" cy="14" r="7" fill="var(--color-bruno-deep)" />
+    <circle cx="34" cy="14" r="7" fill="var(--color-bruno-deep)" />
+    <circle cx="14" cy="14" r="3.2" fill="var(--color-belly)" />
+    <circle cx="34" cy="14" r="3.2" fill="var(--color-belly)" />
+    <circle cx="24" cy="26" r="16" fill="var(--color-bruno)" />
+    <ellipse cx="24" cy="30" rx="9" ry="7" fill="var(--color-belly)" />
+    <circle cx="19" cy="23" r="1.7" fill="var(--color-ink)" />
+    <circle cx="29" cy="23" r="1.7" fill="var(--color-ink)" />
+    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-ink)" />
+    {mood === 'happy' && (
+      <path d="M 21 32 Q 24 34 27 32" stroke="var(--color-ink)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+    )}
+  </svg>
+);
 
 const NAV_ITEMS = [
   {
     label: 'Dashboard',
     href: '/dashboard',
-    icon: <Layout weight="bold" size={20} />,
+    icon: <Layout weight="bold" size={16} />,
   },
   {
     label: 'Daily Plan',
     href: '/dashboard/daily-plan',
-    icon: <Notebook weight="bold" size={20} />,
+    icon: <Notebook weight="bold" size={16} />,
   },
   {
     label: 'Tasks',
     href: '/dashboard/tasks',
-    icon: <CheckSquare weight="bold" size={20} />,
+    icon: <CheckSquare weight="bold" size={16} />,
   },
   {
     label: 'Calendar',
     href: '/dashboard/calendar',
-    icon: <Calendar weight="bold" size={20} />,
-  },
-];
-
-const BOTTOM_NAV_ITEMS = [
-  {
-    label: 'Settings',
-    href: '/dashboard/settings',
-    icon: <Gear weight="bold" size={20} />,
+    icon: <Calendar weight="bold" size={16} />,
   },
 ];
 
@@ -53,29 +60,28 @@ export default function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [planType, setPlanType] = useState('free');
   const supabase = createClient();
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      setMounted(true);
-    });
-
-    async function checkSubscription() {
+    requestAnimationFrame(() => setMounted(true));
+    async function fetchUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await (supabase as any)
           .from('users')
-          .select('plan_type')
+          .select('name, plan_type')
           .eq('id', user.id)
           .single();
-        
         if (profile) {
-          const plan = profile.plan_type;
-          setIsPremium(['premium', 'trialing', 'admin', 'pro_monthly', 'pro_annual'].includes(plan));
+          setUserName(profile.name || 'User');
+          setPlanType(profile.plan_type || 'free');
+          setIsPremium(['premium', 'trialing', 'admin', 'pro_monthly', 'pro_annual'].includes(profile.plan_type));
         }
       }
     }
-    checkSubscription();
+    fetchUser();
   }, [supabase]);
 
   if (!mounted) return null;
@@ -85,13 +91,18 @@ export default function Sidebar() {
     window.location.href = '/login';
   }
 
+  const initials = userName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'P';
+
   return (
     <>
-      {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileMenuOpen(true)}
-        id="sidebar-mobile-toggle"
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 rounded-xl glass hover:bg-surface-600 transition-colors"
+        className="fixed top-4 left-4 z-50 lg:hidden p-2 rounded-xl bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)] text-[var(--color-paper)] transition-colors border border-[rgba(251,246,234,0.1)]"
         aria-label="Open navigation menu"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -101,7 +112,6 @@ export default function Sidebar() {
         </svg>
       </button>
 
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -109,169 +119,122 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           fixed top-0 left-0 h-full z-50
-          flex flex-col
-          bg-card border-r-2 border-border
-          transition-all duration-300 ease-in-out
-          ${sidebarCollapsed ? 'w-[68px]' : 'w-[240px]'}
+          flex flex-col bg-[var(--color-ink)] border-r border-[rgba(251,246,234,0.08)] text-[var(--color-paper)]
+          transition-all duration-300 ease-in-out font-sans
+          ${sidebarCollapsed ? 'w-[68px]' : 'w-[240px] px-5 py-5'}
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}
-        id="sidebar"
       >
-        {/* Header */}
-        <div className={`flex items-center h-16 px-4 border-b-2 border-border ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+        {/* Brand */}
+        <div className={`flex items-center gap-2.5 pb-5 border-b border-[rgba(251,246,234,0.08)] mb-5 ${sidebarCollapsed ? 'justify-center py-5' : ''}`}>
+          <BrunoMark size={sidebarCollapsed ? 32 : 32} />
           {!sidebarCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2 group" id="sidebar-logo">
-              <span className="text-xl transition-transform group-hover:scale-110">🦉</span>
-              <span className="text-xl font-display font-bold text-foreground group-hover:text-brand-600 transition-colors">
-                Plan Pilot
-              </span>
-            </Link>
+            <span className="font-serif text-[24px] tracking-[-0.02em] leading-none">
+              <b className="font-normal">Plan</b><i className="not-italic">evo</i>
+            </span>
           )}
-          {sidebarCollapsed && (
-            <span className="text-xl">🦉</span>
-          )}
-
-          {/* Collapse toggle — desktop only */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
-            id="sidebar-collapse-toggle"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              {sidebarCollapsed ? (
-                <polyline points="9 18 15 12 9 6" />
-              ) : (
-                <polyline points="15 18 9 12 15 6" />
-              )}
-            </svg>
-          </button>
-
-          {/* Mobile close */}
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-surface-200 transition-colors text-surface-400 hover:text-surface-900"
-            id="sidebar-mobile-close"
-            aria-label="Close navigation menu"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
         </div>
 
-        {/* Main nav */}
-        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+        {!sidebarCollapsed && (
+          <div className="font-mono text-[10px] tracking-[0.16em] text-[rgba(251,246,234,0.4)] mb-2.5 pl-1.5 uppercase">
+            WORKSPACE
+          </div>
+        )}
+
+        {/* Nav Items */}
+        <nav className="flex flex-col gap-0.5 mb-7">
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                id={`sidebar-nav-${item.label.toLowerCase()}`}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 group border-2 border-transparent
-                  ${isActive
-                    ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
-                    : 'text-muted hover:text-foreground hover:bg-muted/10'
-                  }
-                  ${sidebarCollapsed ? 'justify-center' : ''}
+                  flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] transition-colors relative
+                  ${isActive 
+                    ? 'bg-[rgba(208,135,65,0.12)] text-[var(--color-honey)] font-medium border-none' 
+                    : 'text-[rgba(251,246,234,0.65)] hover:bg-[var(--color-ink-2)] font-normal border border-transparent'}
+                  ${sidebarCollapsed ? 'justify-center px-0' : ''}
                 `}
+                title={sidebarCollapsed ? item.label : undefined}
               >
-                <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
+                <span className={isActive ? 'text-[var(--color-honey)]' : 'text-[rgba(251,246,234,0.65)]'}>
                   {item.icon}
                 </span>
-                {!sidebarCollapsed && (
-                  <span className="text-meta">{item.label}</span>
+                {!sidebarCollapsed && <span>{item.label}</span>}
+                {!sidebarCollapsed && isActive && (
+                  <span className="absolute right-3 w-1.5 h-1.5 rounded-full bg-[var(--color-honey)]" />
                 )}
               </Link>
             );
           })}
         </nav>
 
-        {/* Bottom nav */}
-        <div className="border-t-2 border-border py-4 px-2 space-y-1">
-          {BOTTOM_NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                id={`sidebar-nav-${item.label.toLowerCase()}`}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 group border-2 border-transparent
-                  ${isActive
-                    ? 'bg-brand-600 text-white border-brand-700 shadow-md scale-[1.02]'
-                    : 'text-muted hover:text-foreground hover:bg-muted/10'
-                  }
-                  ${sidebarCollapsed ? 'justify-center' : ''}
-                `}
-              >
-                <span className={`shrink-0 ${isActive ? 'text-white' : 'text-muted group-hover:text-foreground'}`}>
-                  {item.icon}
-                </span>
-                {!sidebarCollapsed && (
-                  <span className="text-meta">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
-
-          {/* Pro Feature Teaser */}
-          {!sidebarCollapsed && !isPremium && (
-            <div className="mx-2 mb-4 p-4 border-2 border-brand-200 bg-brand-50 shadow-md rounded-2xl transition-all hover:shadow-lg hover:-translate-y-0.5">
-              <h3 className="font-display font-bold text-brand-900 flex items-center gap-1.5">
-                <span className="text-base">✨</span> Pro Feature
-              </h3>
-              <p className="text-meta text-brand-700 leading-tight mb-3">
-                Unlock AI priority, project insights, and custom themes.
-              </p>
-              <Link 
-                href="/pricing" 
-                className="block text-center py-2 text-[10px] font-black uppercase bg-brand-600 text-white rounded-full shadow-sm hover:bg-brand-500 transition-colors"
-              >
-                View Plans
-              </Link>
+        {/* Bruno Ask Card */}
+        {!sidebarCollapsed && (
+          <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-[14px] p-3.5 mb-auto">
+            <div className="flex items-center gap-2.5 mb-3">
+              <BrunoMark size={28} />
+              <div>
+                <div className="font-serif text-[18px] leading-none text-[var(--color-paper)]">Bruno</div>
+                <div className="text-[11px] text-[rgba(251,246,234,0.6)] mt-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_0_3px_rgba(34,197,94,0.2)]" />
+                  ready when you are
+                </div>
+              </div>
             </div>
-          )}
-          {sidebarCollapsed && !isPremium && (
             <Link 
-              href="/pricing"
-              className="flex justify-center mb-4 py-2 text-brand-600 hover:text-brand-500 transition-colors"
-              title="Upgrade to Pro"
+              href="/dashboard/chat"
+              className="w-full bg-[var(--color-paper)] text-[var(--color-ink)] border-none py-2 px-3 rounded-lg text-[13px] font-medium cursor-pointer flex items-center justify-between font-sans hover:bg-[var(--color-cream-2)]"
             >
-              <span className="text-xl">✨</span>
+              Ask Bruno <span className="text-[var(--color-ink-soft)] font-sans">⌘K</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className={`mt-6 pt-4 border-t border-[rgba(251,246,234,0.08)] ${sidebarCollapsed ? 'flex flex-col items-center gap-4 pb-4' : ''}`}>
+          {!sidebarCollapsed ? (
+            <Link 
+              href="/dashboard/settings" 
+              className="flex items-center gap-2.5 px-1.5 py-2 text-[13px] text-[rgba(251,246,234,0.55)] hover:text-[var(--color-paper)] mb-2"
+            >
+              <Gear size={14} /> Settings
+            </Link>
+          ) : (
+            <Link href="/dashboard/settings" className="text-[rgba(251,246,234,0.55)] hover:text-white">
+              <Gear size={20} />
             </Link>
           )}
 
-          {/* Logout button */}
-          <button
-            onClick={handleLogout}
-            id="sidebar-logout-button"
-            className={`
-              flex items-center gap-3 px-3 py-2.5 w-full
-              text-muted hover:text-error hover:bg-error/10
-              transition-all duration-200 group border-2 border-transparent
-              ${sidebarCollapsed ? 'justify-center' : ''}
-            `}
-          >
-            <span className="shrink-0 text-muted group-hover:text-error">
-              <SignOut weight="bold" size={20} />
-            </span>
-            {!sidebarCollapsed && (
-              <span className="text-meta">Log out</span>
-            )}
-          </button>
+          {!sidebarCollapsed ? (
+            <div className="flex items-center gap-2.5 px-1 py-1.5">
+              <div className="w-8 h-8 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] text-[var(--color-paper)] font-medium truncate">{userName}</div>
+                <div className="text-[11px] text-[rgba(251,246,234,0.4)] font-mono tracking-[0.04em] uppercase truncate">
+                  {isPremium ? planType.replace('_', ' ') : 'Free Plan'}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono cursor-pointer mb-2">
+              {initials}
+            </div>
+          )}
+
+          {sidebarCollapsed && (
+            <button onClick={handleLogout} className="text-[rgba(251,246,234,0.55)] hover:text-red-400 mt-2">
+              <SignOut size={20} />
+            </button>
+          )}
         </div>
       </aside>
     </>

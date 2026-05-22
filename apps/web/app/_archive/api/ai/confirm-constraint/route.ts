@@ -6,7 +6,7 @@ import type { ConstraintCandidate } from '@/lib/ai/memory';
 /**
  * POST /api/ai/confirm-constraint
  * 
- * Accepts or dismisses a constraint suggestion from Ollie.
+ * Accepts or dismisses a constraint suggestion from Bruno.
  * If accepted, writes the avoided window into user_ai_memory.
  * No OpenAI API key is used here — purely database writes.
  */

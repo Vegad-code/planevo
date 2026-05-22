@@ -105,7 +105,7 @@ export function useCalendarEvents() {
       is_completed: false,
       location: eventData.location || null,
       linked_task_id: eventData.linked_task_id || null,
-      ollie_notes: eventData.ollie_notes || null,
+      bruno_notes: eventData.bruno_notes || null,
       is_deleted: false,
       recurrence_rule: eventData.recurrence_rule || null,
     };

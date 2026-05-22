@@ -8,14 +8,7 @@ import { computeDayLayout } from '@/lib/calendar/layoutEngine';
 import TimeGrid from '../timeline/TimeGrid';
 import EventCard from '../cards/EventCard';
 import type { CalendarEvent } from '@/types/calendar';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  estimated_minutes?: number;
-  energy_level_required?: string;
-}
+import type { Task } from '@/types/tasks';
 
 interface WeekViewProps {
   date: Date;
@@ -125,19 +118,26 @@ export default function WeekView({
       className="flex flex-col h-full overflow-hidden"
     >
       {/* Header: Days of the Week */}
-      <div className="flex border-b border-border pl-[var(--gutter-width,64px)]">
+      <div className="flex border-b border-[var(--color-line)] pl-[var(--gutter-width,64px)] bg-[var(--color-paper)]">
         {days.map((day) => {
-          const isToday = isSameDay(day, new Date());
+          const isTodayDay = isSameDay(day, new Date());
           return (
             <div
               key={day.toISOString()}
-              className="flex-1 text-center py-2 border-l border-border first:border-l-0"
+              className="flex-1 text-center py-3 border-l border-[var(--color-line)] first:border-l-0"
             >
-              <div className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? 'text-brand-500' : 'text-muted-foreground'}`}>
+              <div className={`text-[10px] font-mono font-bold uppercase tracking-wider ${isTodayDay ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-muted)]'}`}>
                 {format(day, 'EEE')}
               </div>
-              <div className={`text-xl font-black mt-1 ${isToday ? 'text-brand-500' : 'text-foreground'}`}>
-                {format(day, 'd')}
+              <div className="flex items-center justify-center mt-1">
+                <span className={`text-sm font-mono font-bold w-7 h-7 flex items-center justify-center rounded-lg transition-all
+                  ${isTodayDay 
+                    ? 'bg-[var(--color-ink)] text-[var(--color-cream)] shadow-sm' 
+                    : 'text-[var(--color-ink)] hover:bg-[var(--color-cream-2)]'
+                  }
+                `}>
+                  {format(day, 'd')}
+                </span>
               </div>
             </div>
           );
@@ -176,7 +176,7 @@ export default function WeekView({
               return (
                 <div
                   key={day.toISOString()}
-                  className="flex-1 relative border-l border-border first:border-l-0"
+                  className="flex-1 relative border-l border-[var(--color-line)] first:border-l-0"
                   onClick={(e) => {
                     if (!onEmptySlotClick) return;
                     if ((e.target as HTMLElement).closest('[data-event-card]')) return;

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Task } from '@/types/database';
+import type { Task } from '@/types/tasks';
 
 export type TimerState = 'idle' | 'running' | 'paused';
 
@@ -24,7 +24,7 @@ interface FocusState {
   tick: () => void;
   completeSession: () => void;
   
-  // Nudge State (for AI/Ollie)
+  // Nudge State (for AI/Bruno)
   lastNudgeTime: number | null;
   currentNudge: string | null;
   setLastNudgeTime: (time: number) => void;
@@ -99,7 +99,7 @@ export const useFocusStore = create<FocusState>()(
       setVolume: (v) => set({ volume: v }),
     }),
     {
-      name: 'plan-pilot-focus-storage',
+      name: 'planevo-focus-storage',
       // Only persist certain fields to avoid weird timer jumps if they refresh while running
       partialize: (state) => ({ 
         activeTask: state.activeTask,

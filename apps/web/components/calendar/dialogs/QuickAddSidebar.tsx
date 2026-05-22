@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar, Clock, RotateCcw, Plus, ListTodo, Palette, X } from 'lucide-react';
+import { CalendarBlank, Clock, ArrowCounterClockwise, Plus, ListChecks, Palette, X } from '@phosphor-icons/react';
 
 interface QuickAddData {
   title: string;
@@ -106,14 +106,14 @@ export default function QuickAddSidebar({
           <section className="space-y-4">
              <div className="flex items-center gap-3 text-white/40 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                   <Calendar className="w-4 h-4" />
+                   <CalendarBlank className="w-4 h-4" />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest">Task Schedule</span>
              </div>
              
              <div className="grid grid-cols-1 gap-4">
                 <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4 group focus-within:border-brand-500/50 transition-colors">
-                   <Calendar className="w-5 h-5 text-brand-500" />
+                   <CalendarBlank className="w-5 h-5 text-brand-500" />
                    <div className="flex-1">
                       <Label className="text-[10px] uppercase text-white/40 font-black block mb-0.5">Task Date</Label>
                       <input 
@@ -157,7 +157,7 @@ export default function QuickAddSidebar({
           {/* Repeat Section */}
           <section className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
              <div className="flex items-center gap-4">
-                <RotateCcw className="w-5 h-5 text-white/40" />
+                <ArrowCounterClockwise className="w-5 h-5 text-white/40" />
                 <span className="text-sm text-white/80 font-bold uppercase tracking-wide">Repeat Task</span>
              </div>
              <Checkbox 
@@ -171,7 +171,7 @@ export default function QuickAddSidebar({
           <section className="space-y-4">
              <div className="flex items-center gap-3 text-white/40 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                   <ListTodo className="w-4 h-4" />
+                   <ListChecks className="w-4 h-4" />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest">Steps</span>
              </div>

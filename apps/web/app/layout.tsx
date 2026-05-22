@@ -1,36 +1,34 @@
 import type { Metadata } from "next";
-import { Inter, Outfit, Fraunces, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const instrumentSerif = Instrument_Serif({
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
   subsets: ["latin"],
   display: "swap",
 });
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const geistSans = Geist({
+  variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const geistMono = Geist_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Plan Pilot — The proactive AI planner for busy students and high-performers",
+  title: "Planevo — The proactive AI planner for busy students and high-performers",
   description:
-    "Plan Pilot is the calm AI co-pilot for high-performers. Sync your tasks, generate a daily plan around your energy, and let Ollie reorganize tomorrow whenever life slips — without the guilt.",
+    "Planevo is the calm AI co-pilot for high-performers. Sync your tasks, generate a daily plan around your energy, and let Bruno reorganize tomorrow whenever life slips — without the guilt.",
   keywords: [
     "AI planner",
     "focus assistant",
@@ -38,14 +36,14 @@ export const metadata: Metadata = {
     "automatic scheduling",
     "time management",
   ],
-  authors: [{ name: "Plan Pilot Team" }],
+  authors: [{ name: "Planevo Team" }],
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://planpilot.ai",
-    title: "Plan Pilot — Shame-free planning for high-performers",
+    url: "https://planevo.ai",
+    title: "Planevo — Shame-free planning for high-performers",
     description:
-      "Connect Canvas, generate an energy-aware daily plan, and let Ollie reorganize tomorrow when life slips. Built for brains that don't run on willpower.",
+      "Connect Canvas, generate an energy-aware daily plan, and let Bruno reorganize tomorrow when life slips. Built for brains that don't run on willpower.",
   },
 };
 
@@ -57,12 +55,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${outfit.variable} ${fraunces.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Toaster richColors position="bottom-right" />
-        {children}
+        <Suspense fallback={null}>
+          <PostHogProvider>{children}</PostHogProvider>
+        </Suspense>
       </body>
     </html>
   );

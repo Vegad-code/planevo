@@ -65,7 +65,7 @@ export default function LoginScreen() {
             <Text style={styles.logoText}>PP</Text>
           </View>
           <Text style={[styles.brandName, { color: colors.text }]}>
-            Plan Pilot
+            Planevo
           </Text>
           <Text style={[styles.greeting, { color: colors.textSecondary }]}>
             {greeting}. {isSignUp ? 'Let\'s get you set up.' : 'Welcome back.'}
@@ -148,7 +148,7 @@ export default function LoginScreen() {
           testID="auth-toggle-mode"
         >
           <Text style={[styles.toggleText, { color: colors.textSecondary }]}>
-            {isSignUp ? 'Already have an account? ' : 'New to Plan Pilot? '}
+            {isSignUp ? 'Already have an account? ' : 'New to Planevo? '}
             <Text style={{ color: Colors.brand[500], fontWeight: '700' }}>
               {isSignUp ? 'Sign in' : 'Create account'}
             </Text>

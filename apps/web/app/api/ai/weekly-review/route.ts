@@ -1,19 +1,25 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { isAllowedOriginOrCron } from '@/lib/auth/origin-guard';
 import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 
 /**
  * POST /api/ai/weekly-review
  * 
- * Generates a weekly productivity review powered by Ollie.
+ * Generates a weekly productivity review powered by Bruno.
  * 
  * SECURITY: The OpenAI API key is used ONLY on the server.
  * The user's browser receives only the generated review text.
  * Rate-limited to prevent abuse.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    // --- ORIGIN / CSRF GUARD (with cron exemption) ---
+    if (!isAllowedOriginOrCron(request)) {
+      return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+    }
+
     // Rate limit to prevent bill abuse
     const { allowed, error: limitError } = await checkRateLimit('weekly-review');
     if (!allowed) {
@@ -78,7 +84,7 @@ export async function POST() {
       });
     }
 
-    const prompt = `You are Ollie, the AI Life Pilot for Plan Pilot. Generate a warm, insightful weekly review.
+    const prompt = `You are Bruno, the AI Life Pilot for Planevo. Generate a warm, insightful weekly review.
 
 USER AI MEMORY:
 ${memoryContext}
@@ -99,7 +105,7 @@ Generate a weekly review with:
 1. "headline" — A catchy 3-5 word title for the week (e.g., "Strong Finish, Steady Growth")
 2. "summary" — 2-3 sentences summarizing the week's productivity
 3. "insights" — Array of 2-3 specific observations (strings). Be concrete: mention actual tasks, times, patterns.
-4. "ollie_learned" — 1-2 sentences about what Ollie learned about the user this week (from memory + feedback)
+4. "bruno_learned" — 1-2 sentences about what Bruno learned about the user this week (from memory + feedback)
 5. "suggestion" — One actionable suggestion for next week
 6. "energy_pattern" — Brief description of when the user was most/least productive
 7. "stats" — Object with: tasks_completed (number), total_focus_minutes (number), feedback_given (number)
