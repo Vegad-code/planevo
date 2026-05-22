@@ -147,6 +147,7 @@ export type Database = {
           external_id: string | null
           icon: string | null
           id: string
+          is_ai_suggested: boolean
           is_all_day: boolean | null
           is_completed: boolean | null
           is_deleted: boolean | null
@@ -157,6 +158,7 @@ export type Database = {
           recurrence_rule: string | null
           source: string | null
           start_time: string
+          status: string
           title: string
           updated_at: string | null
           user_id: string | null
@@ -172,6 +174,7 @@ export type Database = {
           external_id?: string | null
           icon?: string | null
           id?: string
+          is_ai_suggested?: boolean
           is_all_day?: boolean | null
           is_completed?: boolean | null
           is_deleted?: boolean | null
@@ -182,6 +185,7 @@ export type Database = {
           recurrence_rule?: string | null
           source?: string | null
           start_time: string
+          status?: string
           title: string
           updated_at?: string | null
           user_id?: string | null
@@ -197,6 +201,7 @@ export type Database = {
           external_id?: string | null
           icon?: string | null
           id?: string
+          is_ai_suggested?: boolean
           is_all_day?: boolean | null
           is_completed?: boolean | null
           is_deleted?: boolean | null
@@ -207,6 +212,7 @@ export type Database = {
           recurrence_rule?: string | null
           source?: string | null
           start_time?: string
+          status?: string
           title?: string
           updated_at?: string | null
           user_id?: string | null
@@ -268,7 +274,9 @@ export type Database = {
       canvas_assignments: {
         Row: {
           course_name: string | null
+          description: string | null
           due_at: string | null
+          external_id: string | null
           html_url: string | null
           id: string
           name: string
@@ -278,7 +286,9 @@ export type Database = {
         }
         Insert: {
           course_name?: string | null
+          description?: string | null
           due_at?: string | null
+          external_id?: string | null
           html_url?: string | null
           id: string
           name: string
@@ -288,7 +298,9 @@ export type Database = {
         }
         Update: {
           course_name?: string | null
+          description?: string | null
           due_at?: string | null
+          external_id?: string | null
           html_url?: string | null
           id?: string
           name?: string
@@ -746,6 +758,10 @@ export type Database = {
           referral_code: string | null
           referred_by: string | null
           scheduling_preferences: Json | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string | null
+          trial_end: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -769,6 +785,10 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
+          trial_end?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -792,6 +812,10 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
+          trial_end?: string | null
         }
         Relationships: []
       }
