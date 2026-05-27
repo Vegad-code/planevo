@@ -29,7 +29,8 @@ export function useCalendarPreferences() {
   const loadPreferences = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return;
 
       const { data } = await supabase
@@ -58,7 +59,8 @@ export function useCalendarPreferences() {
 
   const updatePreferences = useCallback(async (updates: Partial<CalendarPreferences>) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return;
 
       const newPrefs = { ...preferences, ...updates, user_id: user.id };
@@ -89,9 +91,8 @@ export function useCalendarPreferences() {
   }, [supabase, preferences]);
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      loadPreferences();
-    });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadPreferences();
   }, [loadPreferences]);
 
   return {

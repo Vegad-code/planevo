@@ -1,17 +1,28 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { MOTION } from '@/lib/calendar/motion';
+import React, { useMemo, useCallback } from 'react';
+import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { enUS } from 'date-fns/locale/en-US';
 import CalendarHeader from './CalendarHeader';
-import DayView from './views/DayView';
-import WeekView from './views/WeekView';
-import MonthView from './views/MonthView';
-import ListView from './views/ListView';
 import type { CalendarEvent, CalendarPreferences } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import { Plus } from '@phosphor-icons/react';
+
+const locales = {
+  'en-US': enUS,
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
+
+const DnDCalendar = withDragAndDrop(Calendar);
 
 type CalendarView = 'day' | 'week' | 'month' | 'list';
 
@@ -46,186 +57,138 @@ export default function CalendarShell({
   onTaskDrop,
   onRangeChange,
 }: CalendarShellProps) {
-  const setSelectedDate = onDateChange;
-  const setActiveView = onViewChange;
 
-  // Trigger range change callback
-  useEffect(() => {
-    if (!onRangeChange) return;
+  // Map planevo events to react-big-calendar format
+  const rbcEvents = useMemo(() => {
+    return events.map((ev) => ({
+      id: ev.id,
+      title: ev.title,
+      start: new Date(ev.start_time),
+      end: new Date(ev.end_time),
+      allDay: ev.is_all_day,
+      resource: ev, // Store the original event data here
+    }));
+  }, [events]);
 
-    let start = startOfDay(selectedDate);
-    let end = endOfDay(selectedDate);
+  // Handle Drag & Drop Reschedule
+  const handleEventDrop = useCallback(
+    ({ event, start, end, isAllDay }: any) => {
+      if (onEventReschedule && event.id) {
+        onEventReschedule(event.id as string, start, end);
+      }
+    },
+    [onEventReschedule]
+  );
 
-    if (activeView === 'week') {
-      const weekStart = preferences.week_starts_on === 'monday' ? 1 : 0;
-      start = startOfWeek(selectedDate, { weekStartsOn: weekStart });
-      end = endOfWeek(selectedDate, { weekStartsOn: weekStart });
-    } else if (activeView === 'month') {
-      start = startOfMonth(selectedDate);
-      end = endOfMonth(selectedDate);
-    } else if (activeView === 'list') {
-      end = addDays(start, 30);
+  // Handle Resize
+  const handleEventResize = useCallback(
+    ({ event, start, end }: any) => {
+      if (onEventResize && event.id) {
+        onEventResize(event.id as string, end);
+      }
+    },
+    [onEventResize]
+  );
+
+  // Handle Selection (Create Event)
+  const handleSelectSlot = useCallback(
+    ({ start }: any) => {
+      if (onCreateEvent) {
+        onCreateEvent(start);
+      }
+    },
+    [onCreateEvent]
+  );
+
+  // Map activeView string to RBC View
+  const rbcView = useMemo(() => {
+    switch (activeView) {
+      case 'day': return Views.DAY;
+      case 'week': return Views.WEEK;
+      case 'month': return Views.MONTH;
+      case 'list': return Views.AGENDA;
+      default: return Views.WEEK;
     }
+  }, [activeView]);
 
-    onRangeChange(start, end);
-  }, [selectedDate, activeView, onRangeChange, preferences.week_starts_on]);
-
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
-      
-      switch (e.key.toLowerCase()) {
-        case 't':
-          setSelectedDate(new Date());
-          break;
-        case 'd':
-          setActiveView('day');
-          break;
-        case 'w':
-          setActiveView('week');
-          break;
-        case 'm':
-          setActiveView('month');
-          break;
-        case 'l':
-          setActiveView('list');
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Filter events for the selected date range based on active view
-  const filteredEvents = useCallback(() => {
-    let start = startOfDay(selectedDate);
-    let end = endOfDay(selectedDate);
-
-    if (activeView === 'week') {
-      start = startOfWeek(selectedDate, { weekStartsOn: preferences.week_starts_on === 'monday' ? 1 : 0 });
-      end = endOfWeek(selectedDate, { weekStartsOn: preferences.week_starts_on === 'monday' ? 1 : 0 });
-    } else if (activeView === 'month') {
-      start = startOfMonth(selectedDate);
-      end = endOfMonth(selectedDate);
-    } else if (activeView === 'list') {
-      // List view shows next 30 days
-      end = addDays(start, 30);
-    }
-
-    return events.filter((event) => {
-      // Apply source visibility filters
-      if (!preferences.show_google_calendar && event.source === 'google_calendar') return false;
-      if (!preferences.show_canvas && event.source === 'canvas') return false;
-      if (!preferences.show_blueprint && event.source === 'blueprint') return false;
-      if (!preferences.show_schedule && event.source === 'schedule') return false;
-      if (!preferences.show_cargo_bay && event.source === 'cargo_bay') return false;
-      if (!preferences.show_focus_blocks && event.source === 'focus_block') return false;
-      if (!preferences.show_completed && event.is_completed) return false;
-
-      // Date filter
-      if (event.is_all_day) {
-        const eventDate = new Date(event.start_time);
-        return eventDate >= start && eventDate <= end;
-      }
-
-      const eventStart = new Date(event.start_time);
-      const eventEnd = new Date(event.end_time);
-      return eventStart < end && eventEnd > start;
-    });
-  }, [events, selectedDate, preferences, activeView])();
-
-  const handleEmptySlotClick = (time: Date) => {
-    onCreateEvent?.(time);
+  const handleNavigate = (newDate: Date) => {
+    onDateChange(newDate);
   };
+
+  const handleViewChange = (newView: any) => {
+    // Map back to our view types if necessary, though we control it via CalendarHeader
+    if (newView === Views.DAY) onViewChange('day');
+    else if (newView === Views.WEEK) onViewChange('week');
+    else if (newView === Views.MONTH) onViewChange('month');
+    else if (newView === Views.AGENDA) onViewChange('list');
+  };
+
+  // Custom event styling based on original metadata
+  const eventPropGetter = useCallback(
+    (event: any) => {
+      const originalEv = event.resource as CalendarEvent;
+      let backgroundColor = 'var(--color-ink-soft)'; // default manual
+
+      if (originalEv) {
+        if (originalEv.source === 'google_calendar') backgroundColor = 'var(--color-google)';
+        else if (originalEv.source === 'canvas') backgroundColor = 'var(--color-canvas)';
+        else if (originalEv.source === 'blueprint') backgroundColor = 'var(--color-blueprint)';
+        else if (originalEv.source === 'cargo_bay') backgroundColor = 'var(--color-cargo)';
+        else if (originalEv.source === 'focus_block') backgroundColor = 'var(--color-focus)';
+      }
+
+      return {
+        style: {
+          backgroundColor,
+          color: '#fff',
+          borderRadius: '8px',
+          border: 'none',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        },
+      };
+    },
+    []
+  );
 
   return (
     <div 
       className="flex flex-col h-full w-full bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] overflow-hidden shadow-sm transition-all"
-      style={{ '--gutter-width': 'clamp(48px, 8vw, 64px)' } as React.CSSProperties}
     >
-      {/* Header — Only render if activeView is 'day' to show the horizontal week strip */}
-      {activeView === 'day' && (
-        <div className="p-4 border-b border-[var(--color-line)] bg-[var(--color-paper)]">
-          <CalendarHeader
-            selectedDate={selectedDate}
-            activeView={activeView}
-            onDateChange={setSelectedDate}
-            onViewChange={setActiveView}
-          />
-        </div>
-      )}
-
-      {/* View content */}
-      <div className="flex-1 relative overflow-hidden min-h-[500px]">
-        <AnimatePresence mode="wait">
-          {activeView === 'day' && (
-            <motion.div key="day" {...MOTION.viewSwitch} className="absolute inset-0">
-              <DayView
-                date={selectedDate}
-                events={filteredEvents}
-                dayStartHour={preferences.day_start_hour}
-                dayEndHour={preferences.day_end_hour}
-                timeFormat={preferences.time_format}
-                onEventClick={onEventClick}
-                onEventComplete={onEventComplete}
-                onEmptySlotClick={handleEmptySlotClick}
-                onEventReschedule={onEventReschedule}
-                onEventResize={onEventResize}
-                onTaskDrop={onTaskDrop}
-              />
-            </motion.div>
-          )}
-
-          {activeView === 'week' && (
-            <motion.div key="week" {...MOTION.viewSwitch} className="absolute inset-0">
-              <WeekView
-                date={selectedDate}
-                events={filteredEvents}
-                dayStartHour={preferences.day_start_hour}
-                dayEndHour={preferences.day_end_hour}
-                timeFormat={preferences.time_format}
-                onEventClick={onEventClick}
-                onEventComplete={onEventComplete}
-                onEmptySlotClick={handleEmptySlotClick}
-                onEventReschedule={onEventReschedule}
-                onEventResize={onEventResize}
-                onTaskDrop={onTaskDrop}
-              />
-            </motion.div>
-          )}
-
-          {activeView === 'month' && (
-            <motion.div key="month" {...MOTION.viewSwitch} className="absolute inset-0">
-              <MonthView
-                date={selectedDate}
-                events={filteredEvents}
-                onDayClick={(date) => {
-                  setSelectedDate(date);
-                  setActiveView('day');
-                }}
-              />
-            </motion.div>
-          )}
-
-          {activeView === 'list' && (
-            <motion.div key="list" {...MOTION.viewSwitch} className="absolute inset-0">
-              <ListView
-                date={selectedDate}
-                events={filteredEvents}
-                onEventClick={onEventClick}
-                onEventComplete={onEventComplete}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* We keep the custom header outside the RBC instance so we have full UI control */}
+      <div className="p-4 border-b border-[var(--color-line)] bg-[var(--color-paper)]">
+        <CalendarHeader
+          selectedDate={selectedDate}
+          activeView={activeView}
+          onDateChange={onDateChange}
+          onViewChange={onViewChange}
+        />
       </div>
 
-      {/* FAB — Floating Action Button for quick task creation */}
+      <div className="flex-1 relative p-4 min-h-[600px] overflow-hidden">
+        <DnDCalendar
+          localizer={localizer}
+          events={rbcEvents}
+          date={selectedDate}
+          view={rbcView}
+          onNavigate={handleNavigate}
+          onView={handleViewChange}
+          onEventDrop={handleEventDrop}
+          onEventResize={handleEventResize}
+          onSelectSlot={handleSelectSlot}
+          onSelectEvent={(event: any) => onEventClick?.(event.resource)}
+          selectable
+          resizable
+          step={15}
+          timeslots={4}
+          min={new Date(1970, 1, 1, preferences.day_start_hour || 0, 0, 0)}
+          max={new Date(1970, 1, 1, preferences.day_end_hour || 23, 59, 59)}
+          eventPropGetter={eventPropGetter}
+          // Hide the built-in toolbar since we use our own CalendarHeader
+          toolbar={false}
+          style={{ height: '100%', width: '100%' }}
+        />
+      </div>
+
       <button
         onClick={() => onCreateEvent?.()}
         className="

@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
-import { CalendarDays, MessageCircle, Settings } from 'lucide-react-native';
+import { CalendarDays, MessageCircle, Settings, CheckSquare } from 'lucide-react-native';
 import { Platform, StyleSheet } from 'react-native';
 
 export default function TabLayout() {
@@ -38,6 +38,26 @@ export default function TabLayout() {
             <CalendarDays size={size} color={color} strokeWidth={2.5} />
           ),
           tabBarButtonTestID: 'tab-plan',
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color, size }) => (
+            <CalendarDays size={size} color={color} strokeWidth={2.5} />
+          ),
+          tabBarButtonTestID: 'tab-calendar',
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          tabBarIcon: ({ color, size }) => (
+            <CheckSquare size={size} color={color} strokeWidth={2.5} />
+          ),
+          tabBarButtonTestID: 'tab-tasks',
         }}
       />
       <Tabs.Screen

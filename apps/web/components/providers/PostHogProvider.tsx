@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { PostHogProvider as ReactPostHogProvider } from 'posthog-js/react';
 import { initPostHog, posthog } from '@/lib/posthog';
 import { createClient } from '@/lib/supabase/client';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * PostHogProvider
@@ -30,6 +31,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) {
         posthog.reset();
+        Sentry.setUser(null);
         return;
       }
 
@@ -40,10 +42,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (!cancelled) {
+        const planType = profile?.plan_type ?? 'free';
         posthog.identify(user.id, {
           email: user.email,
-          plan_type: profile?.plan_type ?? 'free',
+          plan_type: planType,
         });
+        Sentry.setUser({ id: user.id, email: user.email || undefined });
+        Sentry.setTag('plan_type', planType);
       }
     };
 
@@ -52,6 +57,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         posthog.reset();
+        Sentry.setUser(null);
         return;
       }
       void identifyUser();

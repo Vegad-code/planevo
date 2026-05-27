@@ -14,6 +14,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useNetworkState } from '@/hooks/useNetworkState';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -63,6 +64,7 @@ interface ConnectionStatus {
 export default function DailyPlanScreen() {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { isOffline } = useNetworkState();
 
   const [userName, setUserName] = useState<string | null>(null);
   const [tasks, setTasks] = useState<MiniTask[]>([]);
@@ -128,22 +130,38 @@ export default function DailyPlanScreen() {
         .order('created_at', { ascending: false });
       setTasks((taskRows as unknown as MiniTask[]) ?? []);
 
-      const { data: scheduleRows } = await supabase
-        .from('schedules')
-        .select('schedule_json')
+      const { data: blocksData } = await supabase
+        .from('calendar_events')
+        .select('*')
         .eq('user_id', user.id)
-        .eq('date', format(new Date(), 'yyyy-MM-dd'))
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (scheduleRows?.[0]) {
-        const blocks = scheduleRows[0].schedule_json as unknown as ScheduleBlock[];
+        .eq('is_deleted', false)
+        .neq('status', 'rejected')
+        .gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString())
+        .order('start_time', { ascending: true });
+
+      if (blocksData && blocksData.length > 0) {
+        const blocks = blocksData.map((g: any) => ({
+          id: g.id,
+          title: g.title,
+          time: format(new Date(g.start_time), 'HH:mm'),
+          duration: g.end_time ? Math.round((new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / 60000) : 30,
+          type: (g.energy_level === 'low' ? 'break' : 'focus') as any,
+          description: g.description || '',
+          status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
+          is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true,
+          startTime: g.start_time,
+          endTime: g.end_time || new Date(new Date(g.start_time).getTime() + 30 * 60000).toISOString(),
+          taskId: g.linked_task_id
+        }));
+        
         setSchedule(blocks);
         // Push next-action data to iOS Home Screen Widget
         const now = new Date();
         const parsed = blocks
           .map((b) => {
-            const start = b.startTime || b.suggested_start || b.start_time;
-            const end = b.endTime || b.suggested_end || b.end_time;
+            const start = b.startTime || (b as any).suggested_start || (b as any).start_time;
+            const end = b.endTime || (b as any).suggested_end || (b as any).end_time;
             const s = start ? new Date(start) : null;
             const e = end ? new Date(end) : s ? new Date(s.getTime() + (b.duration || 30) * 60000) : null;
             return s && !isNaN(s.getTime()) ? { title: b.title, s, e } : null;
@@ -181,8 +199,8 @@ export default function DailyPlanScreen() {
     if (!schedule) return null;
     return schedule
       .map((b) => {
-        const start = b.startTime || b.suggested_start || b.start_time;
-        const end = b.endTime || b.suggested_end || b.end_time;
+        const start = b.startTime || (b as any).suggested_start || (b as any).start_time;
+        const end = b.endTime || (b as any).suggested_end || (b as any).end_time;
         const startDate = start ? new Date(start) : null;
         const endDate = end ? new Date(end) : null;
         if (!startDate || isNaN(startDate.getTime())) return null;
@@ -236,7 +254,14 @@ export default function DailyPlanScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      let apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        if (__DEV__) {
+          apiUrl = 'http://localhost:3000';
+        } else {
+          throw new Error('EXPO_PUBLIC_API_URL is required in production builds.');
+        }
+      }
       const now = new Date();
       
       const response = await fetch(`${apiUrl}/api/ai/daily-plan`, {
@@ -263,15 +288,6 @@ export default function DailyPlanScreen() {
       const generatedPlan = data.schedule || data.plan || [];
 
       if (generatedPlan.length > 0) {
-        await supabase
-          .from('schedules')
-          .upsert({
-            user_id: user.id,
-            date: format(new Date(), 'yyyy-MM-dd'),
-            schedule_json: generatedPlan,
-            created_at: new Date().toISOString()
-          });
-
         await fetchAll();
       }
     } catch (err: any) {
@@ -306,6 +322,11 @@ export default function DailyPlanScreen() {
           />
         }
       >
+        {isOffline && (
+          <View style={[styles.offlineBanner, { backgroundColor: Colors.error }]}>
+            <Text style={styles.offlineText}>You're offline. Some features are unavailable.</Text>
+          </View>
+        )}
         {/* Header */}
         <View style={styles.header} testID="daily-plan-header">
           <View>
@@ -627,6 +648,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 12, gap: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  offlineBanner: { padding: 8, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
+  offlineText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   greetingText: { fontSize: 26, fontWeight: '900', letterSpacing: -1.2, lineHeight: 30 },
   dateBlock: { alignItems: 'flex-end' },
   dayText: { fontSize: 10, fontWeight: '900', letterSpacing: 2 },

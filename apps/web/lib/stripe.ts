@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Stripe from 'stripe';
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -48,3 +49,4 @@ export function subscriptionStatusToPlanType(
       return 'free';
   }
 }
+

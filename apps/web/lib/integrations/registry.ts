@@ -33,35 +33,5 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     status: 'disconnected',
     requiresConfig: true,
     premiumOnly: false
-  },
-  {
-    id: 'notion',
-    name: 'Notion',
-    category: 'Professional',
-    description: 'Sync your Notion databases, tasks, and notes.',
-    icon: 'Notebook',
-    status: 'coming_soon',
-    requiresConfig: true,
-    premiumOnly: true
-  },
-  {
-    id: 'slack',
-    name: 'Slack',
-    category: 'Professional',
-    description: 'Sync important messages and channel actions.',
-    icon: 'Hash',
-    status: 'coming_soon',
-    requiresConfig: true,
-    premiumOnly: true
-  },
-  {
-    id: 'monday',
-    name: 'Monday.com',
-    category: 'Professional',
-    description: 'Sync boards, tasks, and project deadlines.',
-    icon: 'Kanban',
-    status: 'coming_soon',
-    requiresConfig: true,
-    premiumOnly: true
   }
 ];

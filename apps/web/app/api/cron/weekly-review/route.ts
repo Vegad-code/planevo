@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('id, email, name, plan_type')
-      .in('plan_type', ['pro_monthly', 'pro_annual', 'trialing', 'premium', 'admin', 'student']);
+      .in('plan_type', ['trialing', 'premium', 'admin', 'student']);
 
     if (usersError) throw usersError;
     if (!users || users.length === 0) {
@@ -75,6 +75,12 @@ export async function GET(request: NextRequest) {
               .select('feature_name, action, created_at')
               .eq('user_id', user.id)
               .gte('created_at', sevenDaysAgo.toISOString());
+
+            // Skip users with no activity — avoid spammy empty reviews
+            if ((!completedTasks || completedTasks.length === 0) && (!focusSessions || focusSessions.length === 0)) {
+              console.log(`[cron/weekly-review] Skipping user ${user.id} — no activity this week.`);
+              return;
+            }
 
             // Generate review via OpenAI
             const prompt = `You are Bruno, a friendly bear AI assistant. Generate a weekly review for ${user.name || 'the user'}.

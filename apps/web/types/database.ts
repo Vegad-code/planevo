@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -350,6 +348,32 @@ export type Database = {
           },
         ]
       }
+      current_day_plan: {
+        Row: {
+          plan_json: Json
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          plan_json?: Json
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          plan_json?: Json
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "current_day_plan_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       focus_sessions: {
         Row: {
           created_at: string
@@ -474,6 +498,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "habits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bruno_tool_logs: {
+        Row: {
+          id: string
+          user_id: string
+          tool_name: string
+          arguments: Json
+          result: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          tool_name: string
+          arguments?: Json
+          result?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          tool_name?: string
+          arguments?: Json
+          result?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bruno_tool_logs_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -745,6 +804,7 @@ export type Database = {
           energy_preference: string | null
           expo_push_token: string | null
           google_calendar_connected: boolean | null
+          google_calendar_last_synced_at: string | null
           google_calendar_id: string | null
           google_calendar_refresh_token: string | null
           google_classroom_connected: boolean | null
@@ -760,6 +820,8 @@ export type Database = {
           scheduling_preferences: Json | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          stripe_price_id: string | null
+          stripe_current_period_end: string | null
           subscription_status: string | null
           trial_end: string | null
         }
@@ -772,6 +834,7 @@ export type Database = {
           energy_preference?: string | null
           expo_push_token?: string | null
           google_calendar_connected?: boolean | null
+          google_calendar_last_synced_at?: string | null
           google_calendar_id?: string | null
           google_calendar_refresh_token?: string | null
           google_classroom_connected?: boolean | null
@@ -787,6 +850,8 @@ export type Database = {
           scheduling_preferences?: Json | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
           subscription_status?: string | null
           trial_end?: string | null
         }
@@ -799,6 +864,7 @@ export type Database = {
           energy_preference?: string | null
           expo_push_token?: string | null
           google_calendar_connected?: boolean | null
+          google_calendar_last_synced_at?: string | null
           google_calendar_id?: string | null
           google_calendar_refresh_token?: string | null
           google_classroom_connected?: boolean | null
@@ -814,6 +880,8 @@ export type Database = {
           scheduling_preferences?: Json | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
           subscription_status?: string | null
           trial_end?: string | null
         }

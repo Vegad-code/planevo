@@ -52,6 +52,22 @@ export async function getBrunoMasterContext(
 
   const { data: tasks } = await taskQuery.order('priority', { ascending: false });
 
+  // 5. Fetch Manual Calendar Events (from Supabase)
+  const { data: manualEvents } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .is('is_deleted', false)
+    .gte('start_time', new Date().toISOString());
+
+  const scheduledTaskIds = new Set(
+    (manualEvents || [])
+      .map(e => e.linked_task_id)
+      .filter(id => id != null)
+  );
+
+  const unscheduledTasks = (tasks || []).filter(t => !scheduledTaskIds.has(t.id));
+
   // 4. Fetch Canvas Assignments (as tasks)
   const { data: canvasAssignments } = await supabase
     .from('canvas_assignments')
@@ -70,23 +86,15 @@ export async function getBrunoMasterContext(
     energy_level_required: 'medium' as const,
     due_at: a.due_at,
     is_assignment: true
-  }));
+  })).filter(t => !scheduledTaskIds.has(t.id));
 
   const allTasks = [
-    ...(tasks || []),
+    ...unscheduledTasks,
     ...mappedCanvasTasks
   ];
 
   // 5. Fetch Google Calendar Events
   const { events: googleEvents } = await getCalendarEvents();
-
-  // 5. Fetch Manual Calendar Events (from Supabase)
-  const { data: manualEvents } = await supabase
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .is('is_deleted', false)
-    .gte('start_time', new Date().toISOString());
 
   // Merge events into a single list
   const allEvents: CalendarEvent[] = [

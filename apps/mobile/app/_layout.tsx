@@ -7,10 +7,16 @@ import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { registerForPushNotifications, scheduleMorningReminder } from '@/lib/notifications';
+import { supabase } from '@/lib/supabase';
+import { initObservability, identifyUser, resetUser, sentryWrap } from '@/lib/observability';
+
+// Initialize observability at module scope (before any render)
+initObservability();
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -25,18 +31,79 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
   const notificationResponseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
+  const isVerifying = useRef(false);
+  const profileStatus = useRef<'unknown' | 'ready' | 'blocked'>('unknown');
+
+  useEffect(() => {
+    if (!user) {
+      profileStatus.current = 'unknown';
+      isVerifying.current = false;
+      resetUser();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'login';
+    const isBlockedRoute = (segments[0] as string) === 'blocked';
 
     if (!session && !inAuthGroup) {
       router.replace('/login');
-    } else if (session && inAuthGroup) {
-      router.replace('/(tabs)');
+      return;
     }
-  }, [session, loading, segments]);
+
+    if (session && user) {
+      if (profileStatus.current === 'unknown') {
+        if (isVerifying.current) return;
+        isVerifying.current = true;
+
+        const verifyProfile = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('users')
+              .select('onboarding_complete, plan_type')
+              .eq('id', user.id)
+              .single();
+
+            isVerifying.current = false;
+            if (error || !data) {
+              profileStatus.current = 'blocked';
+              router.replace('/blocked' as any);
+              return;
+            }
+
+            const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(
+              data.plan_type || 'free'
+            );
+            const isReady = data.onboarding_complete && isPlanActive;
+
+            if (isReady) {
+              profileStatus.current = 'ready';
+              identifyUser(user.id, user.email ?? undefined, data.plan_type ?? 'free');
+              if (inAuthGroup || isBlockedRoute) {
+                router.replace('/(tabs)');
+              }
+            } else {
+              profileStatus.current = 'blocked';
+              if (!isBlockedRoute) {
+                router.replace('/blocked' as any);
+              }
+            }
+          } catch (err) {
+            isVerifying.current = false;
+          }
+        };
+        verifyProfile();
+      } else {
+        if (profileStatus.current === 'ready' && (inAuthGroup || isBlockedRoute)) {
+          router.replace('/(tabs)');
+        } else if (profileStatus.current === 'blocked' && !isBlockedRoute && !inAuthGroup) {
+          router.replace('/blocked' as any);
+        }
+      }
+    }
+  }, [session, loading, segments, user]);
 
   // Register for push notifications once authenticated
   useEffect(() => {
@@ -67,7 +134,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const PlanPilotLightTheme = {
+const PlanevoLightTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -80,7 +147,7 @@ const PlanPilotLightTheme = {
   },
 };
 
-const PlanPilotDarkTheme = {
+const PlanevoDarkTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
@@ -93,7 +160,7 @@ const PlanPilotDarkTheme = {
   },
 };
 
-export default function RootLayout() {
+function RootExport() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -118,18 +185,23 @@ export default function RootLayout() {
   );
 }
 
+export default sentryWrap(RootExport);
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? PlanPilotDarkTheme : PlanPilotLightTheme}>
-      <AuthGate>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
-      </AuthGate>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? PlanevoDarkTheme : PlanevoLightTheme}>
+        <AuthGate>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="blocked" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </AuthGate>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

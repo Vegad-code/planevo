@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -147,6 +145,7 @@ export type Database = {
           external_id: string | null
           icon: string | null
           id: string
+          is_ai_suggested: boolean
           is_all_day: boolean | null
           is_completed: boolean | null
           is_deleted: boolean | null
@@ -157,6 +156,7 @@ export type Database = {
           recurrence_rule: string | null
           source: string | null
           start_time: string
+          status: string
           title: string
           updated_at: string | null
           user_id: string | null
@@ -172,6 +172,7 @@ export type Database = {
           external_id?: string | null
           icon?: string | null
           id?: string
+          is_ai_suggested?: boolean
           is_all_day?: boolean | null
           is_completed?: boolean | null
           is_deleted?: boolean | null
@@ -182,6 +183,7 @@ export type Database = {
           recurrence_rule?: string | null
           source?: string | null
           start_time: string
+          status?: string
           title: string
           updated_at?: string | null
           user_id?: string | null
@@ -197,6 +199,7 @@ export type Database = {
           external_id?: string | null
           icon?: string | null
           id?: string
+          is_ai_suggested?: boolean
           is_all_day?: boolean | null
           is_completed?: boolean | null
           is_deleted?: boolean | null
@@ -207,6 +210,7 @@ export type Database = {
           recurrence_rule?: string | null
           source?: string | null
           start_time?: string
+          status?: string
           title?: string
           updated_at?: string | null
           user_id?: string | null
@@ -268,7 +272,9 @@ export type Database = {
       canvas_assignments: {
         Row: {
           course_name: string | null
+          description: string | null
           due_at: string | null
+          external_id: string | null
           html_url: string | null
           id: string
           name: string
@@ -278,7 +284,9 @@ export type Database = {
         }
         Insert: {
           course_name?: string | null
+          description?: string | null
           due_at?: string | null
+          external_id?: string | null
           html_url?: string | null
           id: string
           name: string
@@ -288,7 +296,9 @@ export type Database = {
         }
         Update: {
           course_name?: string | null
+          description?: string | null
           due_at?: string | null
+          external_id?: string | null
           html_url?: string | null
           id?: string
           name?: string
@@ -333,6 +343,32 @@ export type Database = {
             foreignKeyName: "chat_conversations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      current_day_plan: {
+        Row: {
+          plan_json: Json
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          plan_json?: Json
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          plan_json?: Json
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "current_day_plan_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -746,6 +782,12 @@ export type Database = {
           referral_code: string | null
           referred_by: string | null
           scheduling_preferences: Json | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          stripe_price_id: string | null
+          stripe_current_period_end: string | null
+          subscription_status: string | null
+          trial_end: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -769,6 +811,12 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
+          subscription_status?: string | null
+          trial_end?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -792,6 +840,12 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
+          subscription_status?: string | null
+          trial_end?: string | null
         }
         Relationships: []
       }

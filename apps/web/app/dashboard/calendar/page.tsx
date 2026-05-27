@@ -161,13 +161,15 @@ export default function CalendarPage() {
     });
     
     if (newEvent) {
-      const supabase = createClient();
-      await supabase.from('tasks').update({ completed: true }).eq('id', task.id);
-      
-      // Delay slightly and reload page to refresh backlog item list
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      toast.success(`Scheduled "${task.title}"`, {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            await deleteEvent(newEvent.id);
+            toast.info(`Removed "${task.title}" from schedule`);
+          }
+        }
+      });
     }
   };
 
@@ -180,72 +182,23 @@ export default function CalendarPage() {
     const toastId = toast.loading('Bruno is finding optimal slots...', { id: 'auto-schedule' });
 
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Not authenticated', { id: toastId });
-        setIsProcessing(false);
-        return;
+      const response = await fetch('/api/ai/daily-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          energyLevel: 'medium',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          localTime: new Date().toISOString(),
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate schedule from Bruno');
       }
 
-      let tasksToSchedule = backlogTasks;
-      if (!tasksToSchedule) {
-        const { data } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('completed', false)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false });
-        tasksToSchedule = (data || []) as Task[];
-      }
-
-      if (!tasksToSchedule || tasksToSchedule.length === 0) {
-        toast.dismiss(toastId);
-        setIsProcessing(false);
-        return;
-      }
-
-      // Schedule tasks starting from tomorrow at 9 AM, filling 9 AM - 5 PM slots
-      let currentPointer = new Date();
-      currentPointer.setDate(currentPointer.getDate() + 1); // Start tomorrow
-      currentPointer.setHours(9, 0, 0, 0);
-
-      let count = 0;
-      for (const task of tasksToSchedule) {
-        if (currentPointer.getHours() >= 17) {
-          currentPointer.setDate(currentPointer.getDate() + 1);
-          currentPointer.setHours(9, 0, 0, 0);
-        }
-
-        const duration = task.estimated_minutes || 60;
-        const endTime = new Date(currentPointer.getTime() + duration * 60 * 1000);
-
-        const newEvent = await createEvent({
-          title: task.title,
-          description: task.description || undefined,
-          start_time: currentPointer.toISOString(),
-          end_time: endTime.toISOString(),
-          source: 'schedule',
-          linked_task_id: task.id,
-          energy_level: task.energy_level_required as CalendarEvent['energy_level'],
-        });
-
-        if (newEvent) {
-          await supabase.from('tasks').update({ completed: true }).eq('id', task.id);
-          count++;
-        }
-
-        currentPointer = new Date(endTime.getTime() + 30 * 60 * 1000); // 30 min break
-      }
-
-      toast.dismiss(toastId);
+      const data = await response.json();
+      toast.success(data.message || 'Schedule generated successfully', { id: toastId });
       loadEvents(); 
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-
     } catch (err: any) {
       console.error(err);
       toast.error(`Auto-scheduling failed: ${err.message || err}`, { id: toastId });
@@ -256,11 +209,53 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-2 border-[var(--color-ink)] border-t-transparent rounded-full animate-spin" />
-        <h2 className="mt-6 text-sm font-mono uppercase tracking-wider text-[var(--color-ink-muted)]">
-          Loading Timeline...
-        </h2>
+      <div className="flex flex-col lg:flex-row gap-8 h-full w-full animate-pulse fade-in duration-500 pb-12">
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header Skeleton */}
+          <div className="pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
+            <div>
+              <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-3"></div>
+              <div className="w-64 h-10 md:w-80 md:h-12 bg-[var(--color-line-strong)] rounded-xl"></div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-24 h-8 bg-[var(--color-line-strong)] rounded-md"></div>
+              <div className="w-28 h-8 bg-[var(--color-line-strong)] rounded-xl"></div>
+              <div className="w-48 h-8 bg-[var(--color-line-strong)] rounded-xl"></div>
+            </div>
+          </div>
+          {/* Calendar Grid Skeleton */}
+          <div className="flex-1 min-h-[600px] border border-[var(--color-line)] rounded-[22px] bg-[var(--color-paper)] p-6">
+            <div className="w-full h-full flex flex-col">
+              <div className="flex border-b border-[var(--color-line)] pb-4 mb-4 gap-4">
+                <div className="w-16 h-8"></div>
+                {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                    <div className="w-8 h-3 bg-[var(--color-line-strong)] rounded-full"></div>
+                    <div className="w-10 h-10 bg-[var(--color-cream)] rounded-full"></div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1 flex gap-4">
+                <div className="w-16 flex flex-col gap-8 pt-4">
+                  {[1, 2, 3, 4, 5].map(i => <div key={i} className="w-10 h-3 bg-[var(--color-line-strong)] rounded-full self-end"></div>)}
+                </div>
+                <div className="flex-1 grid grid-cols-7 gap-4">
+                  {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                    <div key={i} className="h-full border-l border-[var(--color-line)] relative">
+                       {i === 2 && <div className="absolute top-10 left-2 right-2 h-24 bg-[var(--color-cream-2)] rounded-lg"></div>}
+                       {i === 4 && <div className="absolute top-32 left-2 right-2 h-16 bg-[var(--color-cream-2)] rounded-lg"></div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Sidebar Skeleton */}
+        <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-6 h-full hidden lg:flex">
+          <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-[400px]"></div>
+          <div className="bg-[#2c221a] rounded-[22px] p-6 h-48 opacity-80"></div>
+        </div>
       </div>
     );
   }
@@ -286,7 +281,7 @@ export default function CalendarPage() {
               variant="ghost" 
               size="sm" 
               onClick={handleStartFresh}
-              className="text-[var(--color-ink-muted)] hover:text-red-600 hover:bg-red-50/50 text-xs font-mono uppercase tracking-wider font-bold"
+              className="text-[var(--color-ink-muted)] hover:text-red-600 hover:bg-red-50/50 text-xs font-mono uppercase tracking-wider font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
             >
               <ArrowsCounterClockwise className="w-3.5 h-3.5 mr-1.5" />
               Start Fresh
@@ -296,21 +291,21 @@ export default function CalendarPage() {
             <div className="flex items-center gap-1 bg-[var(--color-paper)] p-1 rounded-xl border border-[var(--color-line)] shadow-sm">
               <button
                 onClick={() => navigateDate('prev')}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors"
-                aria-label="Previous"
+                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                aria-label="Previous date range"
               >
                 <CaretLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setSelectedDate(new Date())}
-                className="text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors"
+                className="text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 Today
               </button>
               <button
                 onClick={() => navigateDate('next')}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors"
-                aria-label="Next"
+                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                aria-label="Next date range"
               >
                 <CaretRight className="w-4 h-4" />
               </button>
@@ -323,7 +318,7 @@ export default function CalendarPage() {
                   key={view}
                   onClick={() => setActiveView(view)}
                   className={`
-                    relative px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 z-10
+                    relative px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 z-10 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--color-ink)]
                     ${activeView === view
                       ? 'text-[var(--color-cream)] bg-[var(--color-ink)] shadow-sm'
                       : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
@@ -358,7 +353,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Task Backlog Sidebar */}
-      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-6 h-full overflow-y-auto no-scrollbar hidden lg:flex">
+      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-6 h-full lg:h-[80vh] overflow-y-auto no-scrollbar">
         {/* Task Backlog Card */}
         <TaskBacklog 
           onScheduleAll={handleAutoSchedule}
@@ -366,6 +361,7 @@ export default function CalendarPage() {
             toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
           }}
           isProcessing={isProcessing}
+          scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
         />
 
         {/* Bruno Helper Card */}
@@ -394,7 +390,7 @@ export default function CalendarPage() {
           <button
             onClick={() => handleAutoSchedule()}
             disabled={isProcessing}
-            className="w-full mt-2 py-3 px-4 bg-[#fdfbf7] hover:bg-[#f4ebe1] disabled:opacity-50 text-[#2c221a] font-mono text-[11px] font-bold tracking-wider uppercase rounded-xl transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
+            className="w-full mt-2 py-2.5 px-5 bg-[#fdfbf7] hover:bg-[#f4ebe1] disabled:opacity-50 text-[#2c221a] font-medium text-sm rounded-full transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#fdfbf7] focus-visible:ring-offset-[#2c221a]"
           >
             {isProcessing ? (
               <>

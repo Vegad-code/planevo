@@ -6,8 +6,8 @@ import TaskCard from './TaskCard';
 
 interface TaskGroupProps {
   group: TaskGroupType;
-  onToggleComplete: (taskId: string, completed: boolean) => void;
-  onDelete: (taskId: string) => void;
+  onToggleComplete: (taskId: string, currentlyCompleted: boolean) => void;
+  onDelete: (taskId: string, taskTitle: string) => void;
   onReschedule: (taskId: string) => void;
   onBreakDown?: (taskId: string) => void;
   onMoveToWaiting?: (taskId: string) => void;
@@ -40,9 +40,9 @@ export default function TaskGroup({
   const rightLabel = getRightLabel(group.title);
 
   return (
-    <div className="bg-[var(--color-paper)] border border-[var(--color-line-strong)] rounded-[20px] mb-6 shadow-sm relative z-10">
+    <div className="bg-[var(--color-paper)] border border-[var(--color-line-strong)] rounded-[22px] mb-6 shadow-sm relative z-10">
       {/* Flat Card Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-line)] bg-[var(--color-cream)]/10 select-none rounded-t-[19px]">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-line)] bg-[var(--color-cream)]/10 select-none rounded-t-[21px]">
         <div className="flex items-center gap-2">
           {/* Serif title styling with italic emphasis */}
           <h3 className="font-serif text-[19px] text-[var(--color-ink)] font-semibold italic capitalize leading-none pt-0.5">
@@ -58,7 +58,7 @@ export default function TaskGroup({
       </div>
 
       {/* Task List (separated by borders inside TaskCard) */}
-      <div className="divide-y divide-[var(--color-line)] bg-transparent rounded-b-[19px]">
+      <div className="divide-y divide-[var(--color-line)] bg-transparent rounded-b-[21px]">
         {totalCount > 0 ? (
           group.tasks.map((task) => (
             <TaskCard
@@ -74,7 +74,7 @@ export default function TaskGroup({
             />
           ))
         ) : (
-          <div className="p-6 text-center text-xs text-[var(--color-ink-soft)]/50 font-mono rounded-b-[19px]">
+          <div className="p-6 text-center text-xs text-[var(--color-ink-soft)]/50 font-mono rounded-b-[21px]">
             No tasks listed under this section.
           </div>
         )}

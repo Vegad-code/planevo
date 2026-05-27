@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useUIStore } from '@/lib/store/ui-store';
+import { normalizePlanType } from '@/lib/auth/plan-types';
+import QuickCaptureModal from '@/components/tasks/QuickCaptureModal';
 
 export default function DashboardLayout({
   children,
@@ -26,9 +28,9 @@ export default function DashboardLayout({
           if (!profile.onboarding_complete) {
             window.location.href = '/onboarding';
           } else {
-            const planType = profile.plan_type || 'free';
+            const planType = normalizePlanType(profile.plan_type);
             const isAdminEmail = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
-            const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
+            const isActive = ['trialing', 'premium', 'student'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
             if (!isActive) {
               window.location.href = '/onboarding';
             }
@@ -63,6 +65,8 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+
+      <QuickCaptureModal />
     </div>
   );
 }

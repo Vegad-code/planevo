@@ -27,6 +27,7 @@ import TaskBacklog from '@/components/dashboard/TaskBacklog';
 import AssignmentDetailOverlay from '@/components/dashboard/AssignmentDetailOverlay';
 import { useUIStore } from '@/lib/store/ui-store';
 import type { UserAiMemory } from '@/lib/ai/memory';
+import { posthog } from '@/lib/posthog';
 
 interface BrunoMessage {
   role: 'user' | 'bruno';
@@ -88,6 +89,7 @@ export default function DailyPlanPage() {
   const [showBruno, setShowBruno] = useState(false);
   const [activeTab, setActiveTab] = useState<'focus' | 'energy'>('focus');
   const [autoLaunched, setAutoLaunched] = useState(false);
+  const [scheduledTaskIds, setScheduledTaskIds] = useState<string[]>([]);
 
   // Assignment Context State
   const [selectedAssignment, setSelectedAssignment] = useState<CanvasAssignment | null>(null);
@@ -97,21 +99,22 @@ export default function DailyPlanPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (user) {
-      // 1. Load Profile & Prefs
-      const { data: profileData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      setProfile(profileData as unknown as Profile);
+      const today = format(new Date(), 'yyyy-MM-dd');
 
-      const { data: memoryData } = await supabase
-        .from('user_ai_memory')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const profilePromise = supabase.from('users').select('*').eq('id', user.id).single();
+      const memoryPromise = supabase.from('user_ai_memory').select('*').eq('user_id', user.id).maybeSingle();
+      const assignmentsPromise = supabase.from('canvas_assignments').select('*').eq('user_id', user.id);
+      const tasksPromise = supabase.from('tasks').select('*').eq('user_id', user.id).eq('completed', false).or(`due_date.eq.${today},due_date.is.null`);
+      const blocksPromise = (supabase as any).from('calendar_events').select('*').eq('user_id', user.id).eq('is_deleted', false).neq('status', 'rejected').gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString()).lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString()).order('start_time', { ascending: true });
+
+      const [{ data: profileData }, { data: memoryData }, { data: dbAssignments }, { data: dbTasks }, { data: blocks }] = await Promise.all([
+        profilePromise, memoryPromise, assignmentsPromise, tasksPromise, blocksPromise
+      ]);
+
+      setProfile(profileData as unknown as Profile);
 
       if (memoryData) {
         setAiMemory({
@@ -131,40 +134,6 @@ export default function DailyPlanPage() {
         setAiMemory(null);
       }
 
-      // 2. Check for today's schedule
-      const { data: scheduleData } = await supabase
-        .from('schedules')
-        .select('schedule_json')
-        .eq('user_id', user.id)
-        .eq('date', format(new Date(), 'yyyy-MM-dd'))
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (scheduleData?.[0]) {
-        setSchedule(scheduleData[0].schedule_json as unknown as ScheduleBlock[]);
-        setView('schedule');
-      } else {
-        // 2b. Fallback to current_day_plan (live context)
-        const { data: livePlan } = await (supabase as any)
-          .from('current_day_plan')
-          .select('plan_json')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (livePlan) {
-          setSchedule(livePlan.plan_json as unknown as ScheduleBlock[]);
-          setView('schedule');
-        } else {
-          setView('sync');
-        }
-      }
-
-      // 3. Load existing assignments from DB (cached)
-      const { data: dbAssignments } = await supabase
-        .from('canvas_assignments')
-        .select('*')
-        .eq('user_id', user.id);
-      
       if (dbAssignments) {
         setAssignments(dbAssignments.map(a => ({
           id: (Number(a.id) || a.id) as any,
@@ -176,47 +145,29 @@ export default function DailyPlanPage() {
         })) as unknown as CanvasAssignment[]);
       }
 
-      // 4. Load today's manual/imported tasks
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const { data: dbTasks } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('completed', false)
-        .or(`due_date.eq.${today},due_date.is.null`);
-      
       if (dbTasks) {
         setManualTasks(dbTasks as any[]);
       }
 
-      // 5. Load Ghost Blocks from calendar_events
-      const { data: ghostBlocks } = await (supabase as any)
-        .from('calendar_events')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_ai_suggested', true)
-        .eq('is_deleted', false)
-        .gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString())
-        .lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString());
-
-      if (ghostBlocks && ghostBlocks.length > 0) {
-        const mappedBlocks: ScheduleBlock[] = ghostBlocks.map((g: any) => ({
+      if (blocks && blocks.length > 0) {
+        const mappedBlocks: ScheduleBlock[] = blocks.map((g: any) => ({
           id: g.id,
           title: g.title,
           time: format(new Date(g.start_time), 'HH:mm'),
-          duration: g.end_time ? (new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / (1000 * 60) : 30,
+          duration: g.end_time ? Math.round((new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / 60000) : 30,
           type: (g.energy_level === 'low' ? 'break' : 'focus') as any,
           description: g.description || '',
-          // Read top-level status, fallback to metadata.status for backward compatibility
           status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
           is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true
         }));
         
-        setSchedule(prev => {
-          // Merge or replace? Let's replace for now if we have new ghost blocks
-          return mappedBlocks;
-        });
+        setSchedule(mappedBlocks);
+        setScheduledTaskIds(blocks.map((b: any) => b.linked_task_id).filter(Boolean));
         setView('schedule');
+      } else {
+        setSchedule(null);
+        setScheduledTaskIds([]);
+        setView('sync');
       }
     }
     setLoading(false);
@@ -237,37 +188,9 @@ export default function DailyPlanPage() {
       const data = await response.json();
       const generatedPlan = data.schedule || data.plan || [];
       
-      // 1. Save to current_day_plan for live context
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && generatedPlan.length > 0) {
-        // Save to current_day_plan for live context
-        await (supabase as any)
-          .from('current_day_plan')
-          .upsert({
-            user_id: user.id,
-            plan_json: generatedPlan,
-            updated_at: new Date().toISOString()
-          });
-          
-        // Also save to schedules for historical persistence (what loadData checks first)
-        await supabase
-          .from('schedules')
-          .upsert({
-            user_id: user.id,
-            date: format(new Date(), 'yyyy-MM-dd'),
-            schedule_json: generatedPlan,
-            created_at: new Date().toISOString()
-          });
-      }
-
-      // 2. Refresh local state immediately to avoid "stuck" UI
-      if (generatedPlan.length > 0) {
-        setSchedule(generatedPlan);
-        setView('schedule');
-      }
-      
-      // 3. Still load from DB to sync everything
+      // 1. Refresh local state immediately to sync from DB (where AI backend saved ghost blocks)
       await loadData();
+      setView('schedule');
       
       toast.success("Bruno has penciled in some focus blocks!", {
         description: data.message
@@ -293,8 +216,10 @@ export default function DailyPlanPage() {
     if (aid && assignments.length > 0) {
       const found = assignments.find(a => String(a.id) === aid);
       if (found) {
-        setSelectedAssignment(found);
-        setIsDetailOpen(true);
+        setTimeout(() => {
+          setSelectedAssignment(found);
+          setIsDetailOpen(true);
+        }, 0);
       }
     }
   }, [searchParams, assignments]);
@@ -458,37 +383,13 @@ export default function DailyPlanPage() {
   }, [handleCommand]);
 
   const handleSavePlan = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !schedule) return;
-
-    // Save to schedules (historical)
-    const { error: scheduleError } = await supabase
-      .from('schedules')
-      .upsert({
-        user_id: user.id,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        schedule_json: schedule as any,
-        created_at: new Date().toISOString()
-      });
-
-    // Also sync to current_day_plan (live context)
-    const { error: dayPlanError } = await (supabase as any)
-      .from('current_day_plan')
-      .upsert({
-        user_id: user.id,
-        plan_json: schedule as any,
-        updated_at: new Date().toISOString()
-      });
-
-    if (scheduleError || dayPlanError) {
-      toast.error("Failed to save plan");
-    } else {
-      toast.success("Plan Saved", {
-        description: "Your schedule is now synced across all devices.",
-        icon: <Save className="w-4 h-4 text-green-500" />
-      });
-    }
-  }, [schedule, supabase]);
+    // With canonical calendar_events, saving is implicit.
+    // We just show a success toast.
+    toast.success("Plan Synced", {
+      description: "Your schedule is active across all devices.",
+      icon: <Save className="w-4 h-4 text-green-500" />
+    });
+  }, []);
 
   const handleScheduleFeedback = useCallback(async (
     block: ScheduleBlock,
@@ -504,11 +405,20 @@ export default function DailyPlanPage() {
             .update({ status: newStatus })
             .eq('id', block.id)
             .eq('user_id', user.id);
+            
+          // Record feedback
+          await (supabase.from('ai_feedback') as any).insert({
+            user_id: user.id,
+            feature_name: 'daily_plan_block',
+            action: action,
+            suggestion_json: block
+          });
         }
       }
 
       // 2. Feedback saved locally (full AI feedback loop in Block G)
       if (action === 'accept') {
+        posthog.capture('plan_accepted', { block_id: block.id, block_title: block.title });
         toast.success('Confirmed!', { description: 'This block is now locked into your schedule.' });
       } else {
         toast.info('Removed', { description: 'I\'ll find a better way next time.' });
@@ -523,9 +433,45 @@ export default function DailyPlanPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-4 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
-        <h2 className="mt-6 text-sm font-mono tracking-wider text-[var(--color-ink-soft)] uppercase">Preparing Daily Plan...</h2>
+      <div className="animate-pulse fade-in duration-500 pb-12 w-full max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+          <div>
+            <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-4"></div>
+            <div className="w-64 h-12 md:w-96 md:h-14 bg-[var(--color-line-strong)] rounded-xl mb-4"></div>
+            <div className="w-48 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+          </div>
+          <div className="flex gap-2.5 flex-wrap justify-end">
+            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full hidden md:block"></div>
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+             <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 min-h-[400px]">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <div className="w-24 h-3 bg-[var(--color-line-strong)] rounded-full mb-3"></div>
+                    <div className="w-48 h-8 bg-[var(--color-line-strong)] rounded-lg"></div>
+                  </div>
+                  <div className="w-20 h-8 bg-[var(--color-line-strong)] rounded-full"></div>
+                </div>
+                <div className="space-y-4">
+                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
+                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
+                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
+                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
+                </div>
+             </div>
+          </div>
+          <div className="space-y-6 hidden lg:block">
+            <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-48"></div>
+            <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-64"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -554,14 +500,14 @@ export default function DailyPlanPage() {
               <button 
                 onClick={handleSyncAll} 
                 disabled={processing}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 {processing ? 'Syncing...' : 'Refresh sources'}
               </button>
               <button 
                 onClick={handleGeneratePlan}
                 disabled={processing}
-                className="bg-[var(--color-ink)] text-[var(--color-paper)] font-sans font-medium px-5 py-2.5 rounded-full text-xs hover:scale-105 transition-transform cursor-pointer"
+                className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 Regenerate plan
               </button>
@@ -571,27 +517,27 @@ export default function DailyPlanPage() {
               <button 
                 onClick={handleSyncAll} 
                 disabled={processing}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 Refresh sources
               </button>
               <button 
                 onClick={handleGeneratePlan}
                 disabled={processing}
-                className="bg-[var(--color-ink)] text-[var(--color-paper)] font-sans font-medium px-5 py-2.5 rounded-full text-xs hover:scale-105 transition-transform cursor-pointer"
+                className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 Regenerate plan
               </button>
               <button 
                 onClick={handleSavePlan}
-                className="bg-[var(--color-honey)] hover:scale-105 text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-transform flex items-center cursor-pointer"
+                className="bg-[var(--color-honey)] hover:scale-105 text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-transform flex items-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)]"
               >
-                <Save className="w-3.5 h-3.5 mr-1.5" />
+                <Save className="w-4 h-4 mr-1.5" />
                 Save Plan
               </button>
               <button 
                 onClick={() => setView('sync')}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] font-sans font-medium px-5 py-2.5 rounded-full text-xs transition-colors cursor-pointer"
+                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
               >
                 Reset
               </button>
@@ -648,7 +594,7 @@ export default function DailyPlanPage() {
                                 setSelectedAssignment(a);
                                 setIsDetailOpen(true);
                               }}
-                              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink)] border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink)] border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] focus-visible:opacity-100"
                             >
                               Details
                             </button>
@@ -705,7 +651,7 @@ export default function DailyPlanPage() {
                             role="radio"
                             aria-checked={energyLevel === level}
                             onClick={() => setEnergyLevel(level)}
-                            className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer ${
+                            className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] ${
                               energyLevel === level 
                                 ? 'bg-[var(--color-ink)] text-[var(--color-paper)] border-[var(--color-ink)] shadow-sm' 
                                 : 'text-[var(--color-ink-soft)] border-[var(--color-line-strong)] hover:border-[var(--color-ink)]'
@@ -720,7 +666,7 @@ export default function DailyPlanPage() {
                     <button 
                       onClick={handleGeneratePlan}
                       disabled={processing}
-                      className="w-full bg-[var(--color-ink)] text-[var(--color-paper)] hover:scale-[1.01] text-sm font-sans font-semibold py-4 rounded-xl shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer"
+                      className="w-full bg-[var(--color-ink)] text-[var(--color-paper)] hover:bg-[var(--color-ink-soft)] text-sm font-medium py-3 rounded-full shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
                     >
                       {processing ? (
                         <div className="flex items-center gap-3">
@@ -756,11 +702,11 @@ export default function DailyPlanPage() {
                       <div className="font-serif text-3xl text-[var(--color-ink)] mt-1.5 font-normal tracking-tight">9:00 AM — 9:30 PM</div>
                     </div>
                     {/* Selector Segment */}
-                    <div className="flex bg-[var(--color-cream-2)] p-0.5 rounded-full border border-[var(--color-line)]">
-                      <button className="px-3.5 py-1.5 rounded-full text-[11px] font-mono tracking-wide font-medium bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm cursor-pointer">
+                    <div className="flex bg-[var(--color-cream-2)] p-1 rounded-full border border-[var(--color-line)]">
+                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
                         DAY
                       </button>
-                      <button className="px-3.5 py-1.5 rounded-full text-[11px] font-mono tracking-wide font-medium text-[var(--color-ink-soft)] bg-transparent hover:text-[var(--color-ink)] cursor-pointer">
+                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium text-[var(--color-ink-soft)] bg-transparent hover:text-[var(--color-ink)] cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
                         WEEK
                       </button>
                     </div>
@@ -791,6 +737,7 @@ export default function DailyPlanPage() {
                     await handleCommand(`Integrate these into my plan: ${tasks.map(t => t.title).join(', ')}`);
                   }}
                   isProcessing={processing}
+                  scheduledTaskIds={scheduledTaskIds}
                 />
               </div>
 
@@ -808,7 +755,7 @@ export default function DailyPlanPage() {
                       <button
                         key={level}
                         onClick={() => setEnergyLevel(level)}
-                        className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all ${
+                        className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] ${
                           energyLevel === level 
                             ? 'bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm' 
                             : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] bg-transparent cursor-pointer'

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeClosed } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { posthog } from "@/lib/posthog";
 
 export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +37,7 @@ export default function SignupForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    posthog.capture('signup_started', { method: 'email' });
 
     const { error: authError } = await supabase.auth.signUp({
       email,
@@ -61,6 +63,7 @@ export default function SignupForm() {
 
   async function handleGoogleSignup() {
     setLoading(true);
+    posthog.capture('signup_started', { method: 'google' });
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

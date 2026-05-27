@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
       priceId = PRICE_IDS.STUDENT;
     }
 
+    if (!priceId) {
+      console.error(`[Stripe Checkout] Missing Stripe Price ID for interval: ${interval}`);
+      return NextResponse.json({ error: 'Server configuration error: Missing Stripe Price ID' }, { status: 500 });
+    }
+
     // Check if user already has a Stripe customer ID
     const { data: profile } = await supabase
       .from('users')

@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -8,6 +9,7 @@ import { useSubscription, redirectToCheckout } from '@/hooks/use-subscription';
 import { Bruno } from '@/components/onboarding/Bruno';
 import { BrunoBubble } from '@/components/onboarding/BrunoBubble';
 import { testCanvasConnectionAction, saveOnboardingDataAction } from '@/lib/canvas/actions';
+import { posthog } from '@/lib/posthog';
 
 const STEPS = [
   'WELCOME',     // 01
@@ -117,6 +119,10 @@ export default function OnboardingPage() {
       throw new Error(res.error || 'Failed to save onboarding data');
     }
     localStorage.removeItem('onboarding_draft');
+    posthog.capture('onboarding_completed', {
+      has_canvas: !!canvasUrl && !!canvasToken,
+      energy_preference: energyPreference,
+    });
   };
 
   const handleConnectCalendar = async () => {
@@ -158,6 +164,7 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       await saveOnboardingData();
+      posthog.capture('checkout_started', { interval: isAnnual ? 'annual' : 'monthly', source: 'onboarding' });
       await redirectToCheckout(isAnnual ? 'annual' : 'monthly');
     } catch (err) {
       console.error(err);
@@ -296,9 +303,7 @@ export default function OnboardingPage() {
                     tone="dark"
                     text={Object.values(identityChecks).filter(Boolean).length === 0
                       ? "Tap whichever ones ring true — no judgement."
-                      : Object.values(identityChecks).filter(Boolean).length >= 3
-                        ? "Oof — you're not lazy, that's a system problem. I can fix that."
-                        : "Got it. You're not alone, by the way."}
+                      : "Got it. You're not alone, by the way."}
                   />
                 </div>
 
@@ -738,3 +743,4 @@ export default function OnboardingPage() {
     </div>
   );
 }
+

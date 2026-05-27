@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { List, X, ArrowRight } from '@phosphor-icons/react';
+import { List, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (

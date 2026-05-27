@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUIStore } from '@/lib/store/ui-store';
 import { useState, useEffect } from 'react';
+import { normalizePlanType } from '@/lib/auth/plan-types';
 
 import { 
   Layout, 
@@ -57,7 +58,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { sidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [userName, setUserName] = useState('');
@@ -69,6 +70,7 @@ export default function Sidebar() {
     async function fetchUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: profile } = await (supabase as any)
           .from('users')
           .select('name, plan_type')
@@ -76,8 +78,9 @@ export default function Sidebar() {
           .single();
         if (profile) {
           setUserName(profile.name || 'User');
-          setPlanType(profile.plan_type || 'free');
-          setIsPremium(['premium', 'trialing', 'admin', 'student'].includes(profile.plan_type));
+          const normalizedPlan = normalizePlanType(profile.plan_type);
+          setPlanType(normalizedPlan);
+          setIsPremium(['premium', 'trialing', 'admin', 'student'].includes(normalizedPlan));
         }
       }
     }
@@ -153,6 +156,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] transition-colors relative

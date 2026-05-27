@@ -59,7 +59,7 @@ const Stat = ({ label, big, sub, tone }: { label: string, big: string | number, 
   };
   const dotColor = tones[tone] || tones.ink;
   return (
-    <div className="bg-[var(--color-paper)] rounded-2xl p-5 border border-[var(--color-line)] shadow-sm">
+    <div className="bg-[var(--color-paper)] rounded-[22px] p-5 border border-[var(--color-line)] shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         <span className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] uppercase">{label}</span>
@@ -76,76 +76,110 @@ export default function DashboardPage() {
   
   const [userName, setUserName] = useState<string>('');
   const [greeting, setGreeting] = useState('');
-  const [timeOfDay, setTimeOfDay] = useState<'morning' | 'afternoon' | 'evening'>('morning');
+  const [timeOfDay, setTimeOfDay] = useState<'morning' | 'afternoon' | 'evening'>(() => {
+    if (typeof window === 'undefined') return 'morning';
+    const hours = new Date().getHours();
+    if (hours < 12) return 'morning';
+    if (hours < 17) return 'afternoon';
+    return 'evening';
+  });
   const [tasks, setTasks] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [insight, setInsight] = useState<string>('');
+  const [insightLoading, setInsightLoading] = useState<boolean>(true);
   const [connections, setConnections] = useState({ canvasConnected: false, canvasDueCount: 0, googleConnected: false });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const hours = new Date().getHours();
-    if (hours < 12) setTimeOfDay('morning');
-    else if (hours < 17) setTimeOfDay('afternoon');
-    else setTimeOfDay('evening');
-  }, []);
-
-  useEffect(() => {
     async function fetchAll() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user) return;
         
-        const { data: profile } = await (supabase as any)
+        const profilePromise = (supabase as any)
           .from('users')
           .select('name, canvas_token, google_calendar_connected')
           .eq('id', user.id)
           .single();
+
+        const tasksPromise = supabase
+          .from('tasks')
+          .select('id, title, completed, completed_at, due_date')
+          .is('deleted_at', null)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        const blocksPromise = supabase
+          .from('calendar_events')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_deleted', false)
+          .neq('status', 'rejected')
+          .gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString())
+          .lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString())
+          .order('start_time', { ascending: true });
+          
+        const sevenDaysOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const canvasDuePromise = supabase
+          .from('canvas_assignments')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('due_at', new Date().toISOString())
+          .lte('due_at', sevenDaysOut);
+
+        const [{ data: profile }, { data: taskRows }, { data: blocks }, { count: canvasDueCount }] = await Promise.all([
+          profilePromise,
+          tasksPromise,
+          blocksPromise,
+          canvasDuePromise
+        ]);
           
         if (profile?.name) {
           setUserName(profile.name);
           setGreeting(getRandomGreeting(profile.name));
         }
 
-        let canvasDueCount = 0;
-        if (profile?.canvas_token) {
-          const sevenDaysOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-          const { count } = await supabase
-            .from('canvas_assignments')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .gte('due_at', new Date().toISOString())
-            .lte('due_at', sevenDaysOut);
-          canvasDueCount = count ?? 0;
-        }
-
         setConnections({
           canvasConnected: !!profile?.canvas_token,
-          canvasDueCount,
+          canvasDueCount: canvasDueCount ?? 0,
           googleConnected: !!profile?.google_calendar_connected,
         });
 
-        const { data: taskRows } = await supabase
-          .from('tasks')
-          .select('id, title, completed, completed_at, due_date')
-          .is('deleted_at', null)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
         setTasks(taskRows || []);
 
-        const { data: scheduleRows } = await supabase
-          .from('schedules')
-          .select('schedule_json')
-          .eq('user_id', user.id)
-          .eq('date', format(new Date(), 'yyyy-MM-dd'))
-          .order('created_at', { ascending: false })
-          .limit(1);
-        if (scheduleRows?.[0]) {
-          setSchedule(scheduleRows[0].schedule_json as unknown as ScheduleBlock[]);
+        if (blocks && blocks.length > 0) {
+          const mappedBlocks: ScheduleBlock[] = blocks.map((g: any) => ({
+            id: g.id,
+            title: g.title,
+            time: format(new Date(g.start_time), 'HH:mm'),
+            duration: g.end_time ? Math.round((new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / 60000) : 30,
+            type: (g.energy_level === 'low' ? 'break' : 'focus') as any,
+            description: g.description || '',
+            status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
+            is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true,
+            startTime: g.start_time,
+            endTime: g.end_time || new Date(new Date(g.start_time).getTime() + 30 * 60000).toISOString()
+          }));
+          setSchedule(mappedBlocks);
         }
+
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
+      }
+
+      try {
+        const insightRes = await fetch('/api/ai/insight');
+        if (insightRes.ok) {
+          const data = await insightRes.json();
+          if (data.insight) setInsight(data.insight);
+        }
+      } catch (e) {
+        console.error('Failed to fetch AI insight', e);
+      } finally {
+        setInsightLoading(false);
       }
     }
     fetchAll();
@@ -192,8 +226,65 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-4 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
+      <div className="animate-pulse fade-in duration-500 pb-12">
+        {/* Header Skeleton */}
+        <div className="flex flex-wrap items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+          <div>
+            <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-4"></div>
+            <div className="w-64 h-12 md:w-96 md:h-14 bg-[var(--color-line-strong)] rounded-xl mb-4"></div>
+            <div className="w-48 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+          </div>
+          <div className="flex gap-2.5 flex-wrap justify-end">
+            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
+          </div>
+        </div>
+
+        {/* Hero Card Skeleton */}
+        <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-[280px]">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-9 h-9 rounded-full bg-[var(--color-line-strong)]"></div>
+              <div>
+                <div className="w-20 h-2 bg-[var(--color-line-strong)] rounded-full mb-2"></div>
+                <div className="w-32 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+              </div>
+            </div>
+            <div className="w-full h-10 md:h-12 bg-[var(--color-line-strong)] rounded-xl mb-3 max-w-sm"></div>
+            <div className="w-3/4 h-10 md:h-12 bg-[var(--color-line-strong)] rounded-xl mb-5 max-w-xs"></div>
+            <div className="w-full h-4 bg-[var(--color-line-strong)] rounded-full mb-2 max-w-md"></div>
+            <div className="w-5/6 h-4 bg-[var(--color-line-strong)] rounded-full mb-8 max-w-sm"></div>
+            
+            <div className="flex gap-3 mt-auto pt-7">
+              <div className="w-40 h-11 bg-[var(--color-line-strong)] rounded-full"></div>
+              <div className="w-32 h-11 bg-[var(--color-line-strong)] rounded-full"></div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3.5">
+            <div className="bg-[var(--color-cream)] rounded-2xl p-5 h-36"></div>
+            <div className="bg-[var(--color-cream)] rounded-2xl p-5 h-24"></div>
+          </div>
+        </div>
+
+        {/* Stats Row Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-[var(--color-paper)] rounded-[22px] p-5 border border-[var(--color-line)] h-32 flex flex-col justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-line-strong)]"></div>
+                <div className="w-16 h-2 bg-[var(--color-line-strong)] rounded-full"></div>
+              </div>
+              <div className="w-12 h-8 bg-[var(--color-line-strong)] rounded-lg"></div>
+              <div className="w-24 h-3 bg-[var(--color-line-strong)] rounded-full"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Detail Row Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
+          <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] h-64"></div>
+          <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] h-64"></div>
+        </div>
       </div>
     );
   }
@@ -253,16 +344,16 @@ export default function DashboardPage() {
           <div className="flex gap-3 mt-auto pt-7">
             {nextAction ? (
               <>
-                <button className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-3 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer">
+                <button className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
                   Start focus block <span>&rarr;</span>
                 </button>
-                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-3 rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-colors cursor-pointer">
+                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-paper)]">
                   See full plan
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-3 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer">
+                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
                   Generate Plan <span>&rarr;</span>
                 </button>
               </>
@@ -319,13 +410,13 @@ export default function DashboardPage() {
 
       {/* DETAIL ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
-        <div className="bg-[var(--color-paper)] rounded-[16px] p-6 border border-[var(--color-line)] shadow-sm">
+        <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] shadow-sm">
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] mb-1.5">THIS WEEK</div>
-              <div className="font-serif text-[22px] text-[var(--color-ink)]">What's <em>coming up.</em></div>
+              <div className="font-serif text-[22px] text-[var(--color-ink)]">What&apos;s <em>coming up.</em></div>
             </div>
-            <button onClick={() => router.push('/dashboard/calendar')} className="font-mono text-[11px] tracking-wide text-[var(--color-honey-deep)] hover:text-[var(--color-honey)] cursor-pointer bg-transparent border-none">
+            <button onClick={() => router.push('/dashboard/calendar')} className="font-mono text-[11px] tracking-wide text-[var(--color-honey-deep)] hover:text-[var(--color-honey)] cursor-pointer bg-transparent border-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] rounded">
               See all &rarr;
             </button>
           </div>
@@ -342,36 +433,47 @@ export default function DashboardPage() {
                     <span className="text-[var(--color-rose)]">●</span> Open task
                   </div>
                 </div>
-                <button className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-3 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer">
+                <button className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-3 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
                   Focus
                 </button>
               </div>
             ))}
             {tasks.filter(t => !t.completed).length === 0 && (
               <div className="py-8 text-center font-serif text-lg text-[var(--color-ink-soft)] italic">
-                You're all caught up for the week.
+                You&apos;re all caught up for the week.
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-[var(--color-bruno-deep)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[16px] p-6 flex flex-col shadow-sm">
+        <div className="bg-[var(--color-bruno-deep)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[22px] p-6 flex flex-col shadow-sm">
           <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-honey)] mb-3.5">BRUNO NOTICED</div>
-          <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
-            {stats.currentStreak >= 3
-              ? <>You've planned <em className="text-[var(--color-honey)] not-italic">{stats.currentStreak} days</em> in a row. That's momentum. 🐻</>  
-              : stats.currentStreak >= 1
-                ? <>Your {format(new Date(), 'EEEE')} <em className="text-[var(--color-honey)] not-italic">{timeOfDay}s</em> are usually highly productive.</>
-                : <>Let's get started — complete a task today and <em className="text-[var(--color-honey)] not-italic">build your streak</em>. 🐻</>}
-          </p>
-          <p className="text-[13px] text-[rgba(251,246,234,0.65)] mt-3.5 leading-relaxed">
-            {stats.currentStreak >= 3
-              ? "I'll keep the momentum going. Want me to set tomorrow up too?"
-              : "I'll prioritize the deep work for you. Anything else you want me to learn?"}
-          </p>
+          
+          <div className="flex-1">
+            {insightLoading ? (
+              <div className="flex gap-2 items-center text-[rgba(251,246,234,0.65)]">
+                <div className="w-4 h-4 border-2 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-serif italic">Bruno is thinking...</span>
+              </div>
+            ) : insight ? (
+              <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
+                {insight}
+              </p>
+            ) : (
+              <>
+                <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
+                  You have <em className="text-[var(--color-honey)] not-italic">{stats.openTasks}</em> open tasks. Let&apos;s get to work! 🐻
+                </p>
+                <p className="text-[13px] text-[rgba(251,246,234,0.65)] mt-3.5 leading-relaxed">
+                  I&apos;ll prioritize the deep work for you. Anything else you want me to learn?
+                </p>
+              </>
+            )}
+          </div>
+
           <button 
             onClick={() => router.push('/dashboard/chat')}
-            className="mt-auto bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-4 py-3 text-center rounded-[10px] text-[13px] font-medium hover:bg-[var(--color-honey-soft)] hover:scale-[1.01] transition-all w-full cursor-pointer"
+            className="mt-4 bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
           >
             Open chat with Bruno
           </button>

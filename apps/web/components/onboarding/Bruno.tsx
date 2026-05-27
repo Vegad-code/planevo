@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 
 interface BrunoProps {
   size?: number;
@@ -12,18 +12,14 @@ interface BrunoProps {
 
 export function Bruno({ size = 110, mood = 'normal', wave = false, react = 0, className = '' }: BrunoProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [reactKey, setReactKey] = useState(0);
-
   // Trigger reaction animation each time `react` changes
-  useEffect(() => {
-    if (react === 0) return;
-    setReactKey((k) => k + 1);
-  }, [react]);
+  // Using key directly on the div instead of setState in effect
+
 
   return (
     <div
       ref={hostRef}
-      key={reactKey}
+      key={react > 0 ? react : undefined}
       className={`bruno-host ${className} ${react ? 'react' : ''}`}
       style={{ width: size, height: size * 1.1 }}
     >

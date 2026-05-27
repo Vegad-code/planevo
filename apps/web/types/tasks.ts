@@ -14,6 +14,7 @@ export interface Task {
   energy_level_required?: EnergyLevel | null;
   due_date?: string | null;
   external_url?: string | null;
+  source?: 'canvas' | 'google_calendar' | 'manual' | 'ai_suggested';
   completed: boolean;
   completed_at?: string | null;
   is_ai_suggested?: boolean;

@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth/rateLimit';
 import { isAllowedOriginOrCron } from '@/lib/auth/origin-guard';
 import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
+import * as Sentry from '@sentry/nextjs';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { normalizePlanType } from '@/lib/auth/plan-types';
+
 
 /**
  * POST /api/ai/weekly-review
@@ -33,18 +37,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Set Sentry user and tags
+    const { data: profile } = await supabaseAdmin
+      .from('users')
+      .select('plan_type')
+      .eq('id', user.id)
+      .single();
+    Sentry.setUser({ id: user.id, email: user.email || undefined });
+    Sentry.setTag('route', '/api/ai/weekly-review');
+    Sentry.setTag('feature', 'weekly-review');
+    Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
+    Sentry.setTag('auth_method', 'cron-or-session');
+
+
     // 1. Fetch the user's AI memory
     const memory = await getUserAIMemory(supabase, user.id);
     const memoryContext = buildMemoryContext(memory);
 
-    // 2. Fetch schedules from the past 7 days
+    // 2. Fetch calendar events from the past 7 days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const { data: schedules } = await supabase
-      .from('schedules')
-      .select('date, schedule_json')
+    const { data: events } = await supabase
+      .from('calendar_events')
+      .select('start_time, end_time, title, status')
       .eq('user_id', user.id)
-      .gte('date', sevenDaysAgo.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+      .eq('is_deleted', false)
+      .gte('start_time', sevenDaysAgo.toISOString())
+      .order('start_time', { ascending: true });
 
     // 3. Fetch feedback from the past 7 days
     const { data: feedback } = await supabase
@@ -89,8 +107,8 @@ export async function POST(request: NextRequest) {
 USER AI MEMORY:
 ${memoryContext}
 
-SCHEDULES THIS WEEK (${schedules?.length || 0} days):
-${JSON.stringify(schedules?.map(s => ({ date: s.date, blocks: s.schedule_json })) || [], null, 1)}
+SCHEDULES THIS WEEK (${events?.length || 0} events):
+${JSON.stringify(events?.map(e => ({ title: e.title, start: e.start_time, end: e.end_time, status: e.status })) || [], null, 1)}
 
 FEEDBACK THIS WEEK (${feedback?.length || 0} entries):
 ${JSON.stringify(feedback || [], null, 1)}
@@ -113,19 +131,24 @@ Generate a weekly review with:
 
 Respond ONLY with JSON.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openAiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: prompt }],
-        max_tokens: 600,
-      }),
-    });
+    const response = await Sentry.startSpan(
+      { name: 'OpenAI Weekly Review completion', op: 'ai.completion' },
+      async () => {
+        return await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openAiApiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            response_format: { type: 'json_object' },
+            messages: [{ role: 'system', content: prompt }],
+            max_tokens: 600,
+          }),
+        });
+      }
+    );
 
     if (!response.ok) throw new Error('AI API failure');
 
@@ -136,6 +159,8 @@ Respond ONLY with JSON.`;
 
   } catch (error) {
     console.error('[weekly-review] error:', error);
+    Sentry.captureException(error);
     return NextResponse.json({ error: 'Failed to generate weekly review' }, { status: 500 });
   }
+
 }

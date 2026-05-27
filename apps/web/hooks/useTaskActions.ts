@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import type { BestTimeOfDay, EnergyLevel, Task, TaskPriority } from '@/types/tasks';
+import { toast } from 'sonner';
+import { posthog } from '@/lib/posthog';
 
 export interface NewTaskInput {
   title: string;
@@ -14,6 +16,9 @@ export interface NewTaskInput {
   due_date?: string;
   parent_task_id?: string;
   priority?: TaskPriority;
+  is_recurring?: boolean;
+  recurrence_pattern?: string;
+  source?: 'canvas' | 'google_calendar' | 'manual' | 'ai_suggested';
 }
 
 export function useTaskActions(onRefresh: () => void) {
@@ -42,9 +47,10 @@ export function useTaskActions(onRefresh: () => void) {
         priority: input.priority || 'medium',
         status: 'todo',
         completed: false,
-        is_ai_suggested: false,
+        is_ai_suggested: input.source === 'ai_suggested',
         ai_confidence_score: 0,
-        is_recurring: false,
+        is_recurring: input.is_recurring || false,
+        recurrence_pattern: input.recurrence_pattern || null,
         rescheduled_count: 0,
       });
 
@@ -75,16 +81,34 @@ export function useTaskActions(onRefresh: () => void) {
       .update(updates)
       .eq('id', taskId);
 
+    if (!currentlyCompleted) {
+      posthog.capture('task_completed', { task_id: taskId });
+    }
+
     onRefresh();
   }, [supabase, onRefresh]);
 
   // Soft delete a task
-  const deleteTask = useCallback(async (taskId: string) => {
+  const deleteTask = useCallback(async (taskId: string, taskTitle: string = 'Task') => {
     await (supabase as any)
       .from('tasks')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', taskId);
     onRefresh();
+    
+    toast(`Deleted "${taskTitle}"`, {
+      description: 'The task has been moved to trash.',
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          await (supabase as any)
+            .from('tasks')
+            .update({ deleted_at: null })
+            .eq('id', taskId);
+          onRefresh();
+        }
+      }
+    });
   }, [supabase, onRefresh]);
 
   // Restore a soft-deleted task
@@ -159,10 +183,45 @@ export function useTaskActions(onRefresh: () => void) {
         const { user, error: profileError } = await ensureUserProfile(supabase);
         if (profileError || !user) return { error: 'Auth/profile error' };
 
-        const { error } = await (supabase as any).from('tasks').delete().eq('user_id', user.id);
+        // 1) Fetch tasks that are about to be cleared so we can undo
+        const { data: tasksToDelete } = await (supabase as any)
+          .from('tasks')
+          .select('id')
+          .eq('user_id', user.id)
+          .is('deleted_at', null);
+
+        if (!tasksToDelete || tasksToDelete.length === 0) {
+          onRefresh();
+          return { error: null };
+        }
+
+        const taskIds = tasksToDelete.map((t: any) => t.id);
+
+        // 2) Soft delete them
+        const { error } = await (supabase as any)
+          .from('tasks')
+          .update({ deleted_at: new Date().toISOString() })
+          .in('id', taskIds);
+
         if (error) throw error;
 
         onRefresh();
+
+        // 3) Show undo toast
+        toast(`Cleared ${taskIds.length} tasks`, {
+          description: 'Your workspace is now fresh.',
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              await (supabase as any)
+                .from('tasks')
+                .update({ deleted_at: null })
+                .in('id', taskIds);
+              onRefresh();
+            }
+          }
+        });
+
         return { error: null };
       } catch (err: unknown) {
         console.error('Start fresh error:', err);

@@ -30,12 +30,13 @@ export function initPostHog() {
     capture_pageleave: true,
     autocapture: true,
     persistence: 'localStorage+cookie',
-    loaded: (ph) => {
-      // In development, disable sending events to PostHog
-      if (process.env.NODE_ENV === 'development') {
-        ph.opt_out_capturing();
-      }
-    },
+    // TODO: LAUNCH CHECK - Uncomment the loaded hook below before deploying to production so development events are not sent to PostHog.
+    // loaded: (ph) => {
+    //   // In development, disable sending events to PostHog
+    //   if (process.env.NODE_ENV === 'development') {
+    //     ph.opt_out_capturing();
+    //   }
+    // },
   });
 
   initialized = true;

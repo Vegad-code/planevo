@@ -7,6 +7,10 @@ import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 import { z } from 'zod';
+import * as Sentry from '@sentry/nextjs';
+import { normalizePlanType } from '@/lib/auth/plan-types';
+import { posthogServer } from '@/lib/posthog-server';
+
 
 // --- Zod schema for AI response validation ---
 const scheduleItemSchema = z.object({
@@ -49,6 +53,19 @@ export async function POST(request: NextRequest) {
     if (authError || !authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Set Sentry tags and user context
+    const { data: profile } = await supabaseAdmin
+      .from('users')
+      .select('plan_type')
+      .eq('id', authUser.id)
+      .single();
+    Sentry.setUser({ id: authUser.id, email: authUser.email || undefined });
+    Sentry.setTag('route', '/api/ai/daily-plan');
+    Sentry.setTag('feature', 'daily-plan');
+    Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
+    Sentry.setTag('auth_method', authMethod || 'unknown');
+
 
     // --- RATE LIMIT (method-aware) ---
     const rateLimitResult = authMethod === 'bearer'
@@ -148,18 +165,24 @@ Respond ONLY with JSON:
 
 IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided gaps and MUST be in the FUTURE (after ${now.toISOString()}).`;
 
-    const aiApiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openAiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: prompt }],
-      }),
-    });
+    const aiApiResponse = await Sentry.startSpan(
+      { name: 'OpenAI Daily Plan completion', op: 'ai.completion' },
+      async () => {
+        return await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openAiApiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            response_format: { type: 'json_object' },
+            messages: [{ role: 'system', content: prompt }],
+          }),
+        });
+      }
+    );
+
 
     if (!aiApiResponse.ok) throw new Error('AI API failure');
 
@@ -251,6 +274,17 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
       }
     }
 
+    // Track plan generation
+    posthogServer.capture({
+      distinctId: authUser.id,
+      event: 'plan_generated',
+      properties: {
+        task_count: worldState.tasks.length,
+        plan_size: plan.length,
+        energy_level: energyLevel,
+      },
+    });
+
     // Ensure we return both plan and schedule for backwards/forwards compatibility
     return NextResponse.json({
       ...aiResponse,
@@ -260,6 +294,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
 
   } catch (error) {
     console.error('Daily Plan Error:', error);
+    Sentry.captureException(error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Daily plan failed' }, { status: 500 });
   }
 }

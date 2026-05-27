@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "planpilot",
+    "scheme": "planevo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.planpilot.mobile",
+      "bundleIdentifier": "com.planevo.mobile",
       "entitlements": {
         "aps-environment": "development",
-        "com.apple.security.application-groups": ["group.com.planpilot.mobile"]
+        "com.apple.security.application-groups": ["group.com.planevo.mobile"]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -30,7 +30,7 @@
         "backgroundColor": "#f8f9f5"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.planpilot.mobile",
+      "package": "com.planevo.mobile",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -51,6 +51,13 @@
       [
         "@bacons/apple-targets",
         {}
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "planevo",
+          "project": "planevo-mobile"
+        }
       ]
     ],
     "experiments": {

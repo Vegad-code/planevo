@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   name TEXT,
-  plan_type TEXT NOT NULL DEFAULT 'free' CHECK (plan_type IN ('free', 'pro', 'team', 'elite')),
+  plan_type TEXT NOT NULL DEFAULT 'free' CHECK (plan_type IN ('free', 'trialing', 'premium', 'student', 'canceled', 'admin')),
   avatar_url TEXT,
   canvas_url TEXT,
   canvas_token TEXT,
@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS public.users (
   google_classroom_connected BOOLEAN DEFAULT false,
   n8n_webhook_token TEXT,
   scheduling_preferences JSONB DEFAULT '{}',
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  stripe_price_id TEXT,
+  stripe_current_period_end TIMESTAMPTZ,
+  expo_push_token TEXT,
+  push_notifications_enabled BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -140,6 +146,11 @@ CREATE TABLE IF NOT EXISTS public.ai_feedback (
 -- ============================================================
 -- CALENDAR EVENTS TABLE
 -- ============================================================
+
+
+-- ============================================================
+-- CALENDAR EVENTS TABLE
+-- ============================================================
 CREATE TABLE IF NOT EXISTS public.calendar_events (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
@@ -161,9 +172,17 @@ CREATE TABLE IF NOT EXISTS public.calendar_events (
   completed_at TIMESTAMPTZ,
   is_deleted BOOLEAN DEFAULT false,
   deleted_at TIMESTAMPTZ,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'completed')),
+  is_ai_suggested BOOLEAN DEFAULT false,
+  energy_level TEXT DEFAULT 'medium' CHECK (energy_level IN ('low', 'medium', 'high')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Unique index for Google Calendar events
+CREATE UNIQUE INDEX IF NOT EXISTS calendar_events_google_sync_idx 
+  ON public.calendar_events (user_id, source, external_id) 
+  WHERE external_id IS NOT NULL;
 
 -- ============================================================
 -- CALENDAR PREFERENCES TABLE
@@ -191,7 +210,9 @@ CREATE TABLE IF NOT EXISTS public.canvas_assignments (
   due_at TIMESTAMPTZ,
   points_possible REAL,
   html_url TEXT,
-  synced_at TIMESTAMPTZ DEFAULT now()
+  external_id TEXT,
+  synced_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT canvas_assignments_user_external_unique UNIQUE (user_id, external_id)
 );
 
 -- ============================================================
@@ -205,7 +226,14 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- (Duplicate table definition removed)
+-- ============================================================
+-- CURRENT DAY PLAN TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.current_day_plan (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  plan_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
 -- ============================================================
 -- FOCUS SESSIONS TABLE
@@ -542,6 +570,7 @@ ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calendar_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.canvas_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.current_day_plan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.focus_sessions ENABLE ROW LEVEL SECURITY;
 
 -- AI FEEDBACK: Users can view/create own feedback
@@ -569,7 +598,10 @@ CREATE POLICY "Users can create own chat conversations" ON public.chat_conversat
 CREATE POLICY "Users can update own chat conversations" ON public.chat_conversations FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own chat conversations" ON public.chat_conversations FOR DELETE USING (auth.uid() = user_id);
 
--- (Duplicate RLS policies removed)
+-- CURRENT DAY PLAN: Users can CRUD own current day plan
+CREATE POLICY "Users can view own current day plan" ON public.current_day_plan FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can upsert own current day plan" ON public.current_day_plan FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own current day plan" ON public.current_day_plan FOR UPDATE USING (auth.uid() = user_id);
 
 -- FOCUS SESSIONS: Users can view/create own sessions
 CREATE POLICY "Users can view own focus sessions" ON public.focus_sessions FOR SELECT USING (auth.uid() = user_id);
@@ -590,8 +622,247 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+    AND (
+      subtasks.task_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM public.tasks
+        WHERE tasks.id = subtasks.task_id
+        AND tasks.user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Users can update own subtasks"
+  ON public.subtasks FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE goals.id = subtasks.goal_id
+      AND goals.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE goals.id = subtasks.goal_id
+      AND goals.user_id = auth.uid()
+    )
+    AND (
+      subtasks.task_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM public.tasks
+        WHERE tasks.id = subtasks.task_id
+        AND tasks.user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Users can delete own subtasks"
+  ON public.subtasks FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE goals.id = subtasks.goal_id
+      AND goals.user_id = auth.uid()
+    )
+  );
+
+-- HABITS: Users can only CRUD their own habits
+CREATE POLICY "Users can view own habits"
+  ON public.habits FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own habits"
+  ON public.habits FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own habits"
+  ON public.habits FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own habits"
+  ON public.habits FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- HABIT LOGS: Users can CRUD logs belonging to their habits
+CREATE POLICY "Users can view own habit logs"
+  ON public.habit_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.habits
+      WHERE habits.id = habit_logs.habit_id
+      AND habits.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create own habit logs"
+  ON public.habit_logs FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.habits
+      WHERE habits.id = habit_logs.habit_id
+      AND habits.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete own habit logs"
+  ON public.habit_logs FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.habits
+      WHERE habits.id = habit_logs.habit_id
+      AND habits.user_id = auth.uid()
+    )
+  );
+
+-- SCHEDULES: Users can only CRUD their own schedules
+CREATE POLICY "Users can view own schedules"
+  ON public.schedules FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own schedules"
+  ON public.schedules FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own schedules"
+  ON public.schedules FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own schedules"
+  ON public.schedules FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- BRUNO MESSAGES: Users can CRUD own messages
+CREATE POLICY "Users can view own bruno messages"
+  ON public.bruno_messages FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own bruno messages"
+  ON public.bruno_messages FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own bruno messages"
+  ON public.bruno_messages FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- AI USAGE LOGS: Users can only view their own logs
+CREATE POLICY "Users can view own AI logs"
+  ON public.ai_usage_logs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own AI logs"
+  ON public.ai_usage_logs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- USER AI MEMORY: Users can view/create/update own memory
+CREATE POLICY "Users can view own AI memory" ON public.user_ai_memory FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own AI memory" ON public.user_ai_memory FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own AI memory" ON public.user_ai_memory FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.ai_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.calendar_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canvas_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.current_day_plan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.focus_sessions ENABLE ROW LEVEL SECURITY;
+
+-- AI FEEDBACK: Users can view/create own feedback
+CREATE POLICY "Users can view own feedback" ON public.ai_feedback FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own feedback" ON public.ai_feedback FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- CALENDAR EVENTS: Users can CRUD own events
+CREATE POLICY "Users can view own calendar events" ON public.calendar_events FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own calendar events" ON public.calendar_events FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own calendar events" ON public.calendar_events FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own calendar events" ON public.calendar_events FOR DELETE USING (auth.uid() = user_id);
+
+-- CALENDAR PREFERENCES: Users can CRUD own preferences
+CREATE POLICY "Users can view own calendar preferences" ON public.calendar_preferences FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own calendar preferences" ON public.calendar_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own calendar preferences" ON public.calendar_preferences FOR UPDATE USING (auth.uid() = user_id);
+
+-- CANVAS ASSIGNMENTS: Users can view own assignments
+CREATE POLICY "Users can view own canvas assignments" ON public.canvas_assignments FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own canvas assignments" ON public.canvas_assignments FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- CHAT CONVERSATIONS: Users can CRUD own conversations
+CREATE POLICY "Users can view own chat conversations" ON public.chat_conversations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own chat conversations" ON public.chat_conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own chat conversations" ON public.chat_conversations FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own chat conversations" ON public.chat_conversations FOR DELETE USING (auth.uid() = user_id);
+
+-- CURRENT DAY PLAN: Users can CRUD own current day plan
+CREATE POLICY "Users can view own current day plan" ON public.current_day_plan FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can upsert own current day plan" ON public.current_day_plan FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own current day plan" ON public.current_day_plan FOR UPDATE USING (auth.uid() = user_id);
+
+-- FOCUS SESSIONS: Users can view/create own sessions
+CREATE POLICY "Users can view own focus sessions" ON public.focus_sessions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create own focus sessions" ON public.focus_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- TRIGGER: Auto-create user profile on signup
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, name, avatar_url)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
+    NEW.raw_user_meta_data->>'avatar_url'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================================
+-- STRIPE WEBHOOK EVENTS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS
+ALTER TABLE public.stripe_webhook_events ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- BRUNO TOOL LOGS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.bruno_tool_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    tool_name TEXT NOT NULL,
+    arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- Enable RLS
+ALTER TABLE public.bruno_tool_logs ENABLE ROW LEVEL SECURITY;
+
+-- Policies for bruno_tool_logs
+CREATE POLICY "Users can insert their own tool logs"
+    ON public.bruno_tool_logs
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can view their own tool logs"
+    ON public.bruno_tool_logs
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+-- Create an index on user_id and created_at for fast queries
+CREATE INDEX IF NOT EXISTS idx_bruno_tool_logs_user_id ON public.bruno_tool_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_bruno_tool_logs_created_at ON public.bruno_tool_logs(created_at DESC);

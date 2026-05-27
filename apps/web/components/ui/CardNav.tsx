@@ -24,7 +24,7 @@ interface CardNavProps {
   logoAlt?: string;
   items: CardNavItem[];
   className?: string;
-  ease?: string;
+
   baseColor?: string;
   menuColor?: string;
   buttonBgColor?: string;
@@ -38,7 +38,7 @@ const CardNav: FC<CardNavProps> = ({
   logoAlt = 'Logo',
   items,
   className = '',
-  ease = 'power3.out',
+
   baseColor = '#fff',
   menuColor,
   buttonBgColor,

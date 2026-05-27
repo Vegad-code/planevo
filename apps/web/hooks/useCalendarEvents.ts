@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
 
 export function useCalendarEvents() {
@@ -10,13 +11,26 @@ export function useCalendarEvents() {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
 
+  // Helper to check for conflicts
+  const hasConflict = useCallback((start: Date, end: Date, excludeEventId?: string) => {
+    return events.some(e => {
+      if (excludeEventId && e.id === excludeEventId) return false;
+      if (e.is_all_day) return false;
+      const eStart = new Date(e.start_time);
+      const eEnd = new Date(e.end_time);
+      // overlap condition: (StartA < EndB) and (EndA > StartB)
+      return start < eEnd && end > eStart;
+    });
+  }, [events]);
+
   // Load events for a given date range
   const loadEvents = useCallback(async (startDate?: Date, endDate?: Date) => {
     setLoading(true);
     setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
         setError('Not authenticated');
         setLoading(false);
@@ -87,7 +101,8 @@ export function useCalendarEvents() {
 
   // Create event
   const createEvent = useCallback(async (eventData: Partial<CalendarEvent>) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return null;
 
     const now = new Date().toISOString();
@@ -123,6 +138,12 @@ export function useCalendarEvents() {
 
     if (data) {
       setEvents(prev => [...prev, data as CalendarEvent]);
+      
+      const eventStart = new Date(data.start_time as string);
+      const eventEnd = new Date(data.end_time as string);
+      if (!data.is_all_day && hasConflict(eventStart, eventEnd, data.id)) {
+        toast.warning('This event overlaps with an existing scheduled block.');
+      }
     }
 
     return data as CalendarEvent;
@@ -161,8 +182,32 @@ export function useCalendarEvents() {
             : e
         )
       );
+      toast.error('Failed to reschedule event');
+    } else {
+      if (hasConflict(newStart, newEnd, eventId)) {
+        toast.warning('This event overlaps with an existing scheduled block.', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              // revert visually
+              setEvents(prev => prev.map(e => e.id === eventId ? { ...e, start_time: event.start_time, end_time: event.end_time } : e));
+              await supabase.from('calendar_events').update({ start_time: event.start_time, end_time: event.end_time }).eq('id', eventId);
+            }
+          }
+        });
+      } else {
+        toast.success('Event rescheduled', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              setEvents(prev => prev.map(e => e.id === eventId ? { ...e, start_time: event.start_time, end_time: event.end_time } : e));
+              await supabase.from('calendar_events').update({ start_time: event.start_time, end_time: event.end_time }).eq('id', eventId);
+            }
+          }
+        });
+      }
     }
-  }, [supabase, events]);
+  }, [supabase, events, hasConflict]);
 
   // Resize an event (drag bottom edge)
   const resizeEvent = useCallback(async (eventId: string, newEnd: Date) => {
@@ -196,8 +241,31 @@ export function useCalendarEvents() {
             : e
         )
       );
+      toast.error('Failed to resize event');
+    } else {
+      if (hasConflict(new Date(event.start_time), newEnd, eventId)) {
+        toast.warning('This event overlaps with an existing scheduled block.', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              setEvents(prev => prev.map(e => e.id === eventId ? { ...e, end_time: event.end_time } : e));
+              await supabase.from('calendar_events').update({ end_time: event.end_time }).eq('id', eventId);
+            }
+          }
+        });
+      } else {
+        toast.success('Event updated', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              setEvents(prev => prev.map(e => e.id === eventId ? { ...e, end_time: event.end_time } : e));
+              await supabase.from('calendar_events').update({ end_time: event.end_time }).eq('id', eventId);
+            }
+          }
+        });
+      }
     }
-  }, [supabase, events]);
+  }, [supabase, events, hasConflict]);
 
   // Update arbitrary fields of an event
   const updateEvent = useCallback(async (eventId: string, updates: Partial<CalendarEvent>) => {
@@ -248,12 +316,25 @@ export function useCalendarEvents() {
     if (error) {
       console.error('Failed to delete event:', error);
       setEvents(previousEvents); // Revert on error
+      toast.error('Failed to delete event');
+    } else {
+      const event = previousEvents.find(e => e.id === eventId);
+      toast.success('Event deleted', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            setEvents(previousEvents);
+            await supabase.from('calendar_events').update({ is_deleted: false, updated_at: new Date().toISOString() }).eq('id', eventId);
+          }
+        }
+      });
     }
   }, [supabase, events]);
 
   // Clear all events (Start Fresh)
   const clearAll = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     // Optimistic clear

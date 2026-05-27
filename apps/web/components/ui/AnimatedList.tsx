@@ -29,10 +29,10 @@ const AnimatedItem = ({ children, index, onMouseEnter, onClick }: AnimatedItemPr
   );
 };
 
-interface AnimatedListProps {
-  items: any[];
-  renderItem: (item: any, index: number) => React.ReactNode;
-  onItemSelect?: (item: any, index: number) => void;
+interface AnimatedListProps<T> {
+  items: T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  onItemSelect?: (item: T, index: number) => void;
   showGradients?: boolean;
   enableArrowNavigation?: boolean;
   className?: string;
@@ -41,7 +41,7 @@ interface AnimatedListProps {
   initialSelectedIndex?: number;
 }
 
-const AnimatedList = ({
+const AnimatedList = <T extends { id?: string | number } | string | number>({
   items = [],
   renderItem,
   onItemSelect,
@@ -51,7 +51,7 @@ const AnimatedList = ({
   itemClassName = '',
   displayScrollbar = true,
   initialSelectedIndex = -1
-}: AnimatedListProps) => {
+}: AnimatedListProps<T>) => {
   const listRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(initialSelectedIndex);
   const [keyboardNav, setKeyboardNav] = useState(false);
@@ -63,7 +63,7 @@ const AnimatedList = ({
   }, []);
 
   const handleItemClick = useCallback(
-    (item: any, index: number) => {
+    (item: T, index: number) => {
       setSelectedIndex(index);
       if (onItemSelect) {
         onItemSelect(item, index);
@@ -131,14 +131,14 @@ const AnimatedList = ({
       <div ref={listRef} className={`scroll-list ${!displayScrollbar ? 'no-scrollbar' : ''}`} onScroll={handleScroll}>
         {items.map((item, index) => (
           <AnimatedItem
-            key={item.id || index}
+            key={(item as any).id || index}
             delay={0.1}
             index={index}
             onMouseEnter={() => handleItemMouseEnter(index)}
             onClick={() => handleItemClick(item, index)}
           >
             <div className={`item-wrapper ${selectedIndex === index ? 'selected' : ''} ${itemClassName}`}>
-              {renderItem ? renderItem(item, index) : <p className="item-text">{item}</p>}
+              {renderItem ? renderItem(item, index) : <p className="item-text">{String(item)}</p>}
             </div>
           </AnimatedItem>
         ))}

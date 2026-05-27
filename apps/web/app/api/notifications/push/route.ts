@@ -8,7 +8,7 @@ type PushUser = {
   preferred_morning_time: string | null;
 };
 
-const ACTIVE_PLAN_TYPES = ['pro_monthly', 'pro_annual', 'trialing', 'premium', 'admin', 'student'];
+const ACTIVE_PLAN_TYPES = ['trialing', 'premium', 'admin', 'student'];
 
 function isAuthorized(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;

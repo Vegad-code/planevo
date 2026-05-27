@@ -1,8 +1,8 @@
 import WidgetKit
 import SwiftUI
 
-private let appGroup = "group.com.planpilot.mobile"
-private let deepLinkURL = URL(string: "planpilot://dashboard")!
+private let appGroup = "group.com.planevo.mobile"
+private let deepLinkURL = URL(string: "planevo://dashboard")!
 
 // MARK: - Data model
 

@@ -42,6 +42,7 @@ export function useSubscription(): SubscriptionState {
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profile } = await (supabase as any)
         .from('users')
         .select('plan_type, subscription_status, trial_end')
@@ -82,6 +83,9 @@ export function useSubscription(): SubscriptionState {
  * Redirects the user to Stripe Checkout for a new subscription.
  */
 export async function redirectToCheckout(interval: 'monthly' | 'annual' = 'monthly') {
+  const { posthog } = await import('@/lib/posthog');
+  posthog.capture('checkout_started', { interval });
+
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

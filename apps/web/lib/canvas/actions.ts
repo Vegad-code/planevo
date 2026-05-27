@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use server';
 
 import { CanvasAssignment } from './api';
@@ -9,11 +10,22 @@ import { encryptToken, decryptToken } from '@/lib/crypto';
  */
 export async function testCanvasConnectionAction(url: string, token: string): Promise<boolean> {
   try {
-    const decryptedToken = decryptToken(token);
+    let cleanToken = '';
+    if (token && token.startsWith('••••')) {
+      const { success, data } = await getCanvasCredentialsAction(true); // pass true to get unmasked token
+      if (success && data?.canvasToken) {
+        cleanToken = data.canvasToken.trim();
+      } else {
+        return false;
+      }
+    } else {
+      cleanToken = decryptToken(token).trim();
+    }
+    
     const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self`, {
       headers: {
-        'Authorization': `Bearer ${decryptedToken.trim()}`
+        'Authorization': `Bearer ${cleanToken}`
       },
       cache: 'no-store'
     });
@@ -246,14 +258,18 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
       return { success: false, error: 'Unauthorized' };
     }
 
-    const encryptedToken = token ? encryptToken(token) : null;
+    const updateData: { canvas_url?: string | null; canvas_token?: string | null } = { canvas_url: url };
+    
+    // Only update the token if a new, unmasked token was provided
+    if (token && !token.startsWith('••••')) {
+      updateData.canvas_token = encryptToken(token);
+    } else if (!token) {
+      updateData.canvas_token = null;
+    }
 
     const { error } = await supabase
       .from('users')
-      .update({
-        canvas_url: url,
-        canvas_token: encryptedToken
-      })
+      .update(updateData)
       .eq('id', user.id);
 
     if (error) {
@@ -315,7 +331,7 @@ export async function saveOnboardingDataAction(data: {
   }
 }
 
-export async function getCanvasCredentialsAction(): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
+export async function getCanvasCredentialsAction(returnUnmasked = false): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
   try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -335,12 +351,17 @@ export async function getCanvasCredentialsAction(): Promise<{ success: boolean; 
     }
 
     const decryptedToken = data?.canvas_token ? decryptToken(data.canvas_token) : '';
+    let displayToken = decryptedToken;
+    
+    if (!returnUnmasked && decryptedToken) {
+      displayToken = decryptedToken.length > 4 ? `••••${decryptedToken.slice(-4)}` : '••••';
+    }
 
     return {
       success: true,
       data: {
         canvasUrl: data?.canvas_url || '',
-        canvasToken: decryptedToken
+        canvasToken: displayToken
       }
     };
   } catch (err: any) {
@@ -348,4 +369,44 @@ export async function getCanvasCredentialsAction(): Promise<{ success: boolean; 
     return { success: false, error: err.message || 'Unknown error' };
   }
 }
+
+export async function disconnectCanvasAction(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { error: eventsError } = await supabase
+      .from('calendar_events')
+      .update({ is_deleted: true })
+      .eq('user_id', user.id)
+      .eq('source', 'canvas');
+
+    if (eventsError) {
+      console.error('Failed to soft-delete Canvas events:', eventsError);
+      return { success: false, error: eventsError.message };
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        canvas_url: null,
+        canvas_token: null
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Failed to disconnect Canvas:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error disconnecting Canvas:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+
 

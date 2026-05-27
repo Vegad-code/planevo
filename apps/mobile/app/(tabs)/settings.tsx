@@ -31,6 +31,7 @@ export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
@@ -40,6 +41,7 @@ export default function SettingsScreen() {
       .eq('id', user.id)
       .single();
     setProfile(data);
+    setNotificationsEnabled(data?.push_notifications_enabled !== false);
     setLoading(false);
   }, [user]);
 
@@ -56,6 +58,26 @@ export default function SettingsScreen() {
         onPress: signOut,
       },
     ]);
+  };
+
+  const toggleNotifications = async (value: boolean) => {
+    setNotificationsEnabled(value);
+    if (!user) return;
+    
+    try {
+      await (supabase as any)
+        .from('users')
+        .update({ push_notifications_enabled: value })
+        .eq('id', user.id);
+        
+      if (value) {
+        const { registerForPushNotifications, scheduleMorningReminder } = await import('@/lib/notifications');
+        await registerForPushNotifications(user.id);
+        await scheduleMorningReminder(9, 0);
+      }
+    } catch (err) {
+      console.warn('Failed to update notifications:', err);
+    }
   };
 
   if (loading) {
@@ -136,7 +158,8 @@ export default function SettingsScreen() {
               <Text style={[styles.rowLabel, { color: colors.text }]}>Notifications</Text>
             </View>
             <Switch
-              value={false}
+              value={notificationsEnabled}
+              onValueChange={toggleNotifications}
               trackColor={{ false: colors.separator, true: Colors.brand[300] }}
               thumbColor={Colors.brand[500]}
               testID="settings-notifications-toggle"

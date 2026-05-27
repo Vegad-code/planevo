@@ -13,6 +13,7 @@ interface TaskBacklogProps {
   onScheduleAll: (tasks: Task[]) => void;
   onScheduleOne: (task: Task) => void;
   isProcessing: boolean;
+  scheduledTaskIds: string[];
 }
 
 function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: Task) => void; index: number }) {
@@ -29,17 +30,17 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
     <motion.div
       ref={ref}
       draggable
-      onDragStart={((e: React.DragEvent) => {
+      onDragStart={(e: any) => {
         // We set the drag data to the task JSON so the drop target knows what task it is
         e.dataTransfer.setData('application/json', JSON.stringify(task));
         e.dataTransfer.effectAllowed = 'move';
         
         // Optional: create a drag image or just rely on default element dragging
-        (e.currentTarget as any).style.opacity = '0.5';
-      }) as any}
-      onDragEnd={((e: React.DragEvent) => {
-        (e.currentTarget as any).style.opacity = '1';
-      }) as any}
+        e.currentTarget.style.opacity = '0.5';
+      }}
+      onDragEnd={(e: any) => {
+        e.currentTarget.style.opacity = '1';
+      }}
       initial={{ scale: 0.95, opacity: 0, y: 8 }}
       animate={inView ? { scale: 1, opacity: 1, y: 0 } : { scale: 0.95, opacity: 0, y: 8 }}
       transition={{ duration: 0.15, delay: Math.min(index * 0.02, 0.15) }}
@@ -91,7 +92,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
   );
 }
 
-export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing }: TaskBacklogProps) {
+export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing, scheduledTaskIds = [] }: TaskBacklogProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
@@ -126,13 +127,13 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
   };
 
   const handleScheduleAll = () => {
-    if (tasks.length === 0) return;
-    onScheduleAll(tasks);
-    // Optimistically clear
-    setTasks([]);
+    if (visibleTasks.length === 0) return;
+    onScheduleAll(visibleTasks);
+    // Optimistically clear is handled by the parent re-rendering with new scheduledTaskIds
   };
 
-  const unscheduledCount = tasks.length;
+  const visibleTasks = tasks.filter(t => !scheduledTaskIds.includes(t.id));
+  const unscheduledCount = visibleTasks.length;
 
   return (
     <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] overflow-hidden shadow-sm transition-all">
@@ -184,7 +185,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
                 <div className="flex items-center justify-center py-8">
                   <div className="w-6 h-6 border-2 border-[var(--color-ink)] border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : tasks.length === 0 ? (
+              ) : visibleTasks.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-sm font-medium text-[var(--color-ink-soft)]">Backlog is clear! ✅</p>
                   <p className="font-mono text-[10px] text-[var(--color-ink-soft)]/70 mt-1 uppercase tracking-wide">
@@ -192,7 +193,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
                   </p>
                 </div>
               ) : (
-                tasks.map((task, i) => (
+                visibleTasks.map((task, i) => (
                   <BacklogItem
                     key={task.id}
                     task={task}
@@ -204,7 +205,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
             </div>
             
             {/* Auto-Schedule Button */}
-            {tasks.length > 0 && (
+            {visibleTasks.length > 0 && (
               <div className="p-4 pt-0">
                 <button
                   onClick={handleScheduleAll}

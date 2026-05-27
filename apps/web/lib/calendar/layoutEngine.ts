@@ -39,7 +39,7 @@ export function durationToHeight(startTime: string, endTime: string): number {
 /**
  * Check if two events overlap in time.
  */
-function eventsOverlap(a: CalendarEvent, b: CalendarEvent): boolean {
+export function eventsOverlap(a: CalendarEvent, b: CalendarEvent): boolean {
   const aStart = new Date(a.start_time).getTime();
   const aEnd = new Date(a.end_time).getTime();
   const bStart = new Date(b.start_time).getTime();

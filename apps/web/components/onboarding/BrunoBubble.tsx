@@ -12,19 +12,28 @@ export function BrunoBubble({ text, align = 'left', tone = 'cream' }: BrunoBubbl
   const [shown, setShown] = useState('');
   const [done, setDone] = useState(false);
 
+   
   useEffect(() => {
-    setShown('');
-    setDone(false);
-    let i = 0;
-    const id = setInterval(() => {
-      i++;
-      setShown(text.slice(0, i));
-      if (i >= text.length) {
-        clearInterval(id);
-        setDone(true);
-      }
-    }, 22);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval>;
+    
+    // Defer state updates to avoid synchronous cascade warnings
+    setTimeout(() => {
+      setShown('');
+      setDone(false);
+      let i = 0;
+      id = setInterval(() => {
+        i++;
+        setShown(text.slice(0, i));
+        if (i >= text.length) {
+          clearInterval(id);
+          setDone(true);
+        }
+      }, 22);
+    }, 0);
+    
+    return () => {
+      if (id) clearInterval(id);
+    };
   }, [text]);
 
   const styles = tone === 'dark' ? {

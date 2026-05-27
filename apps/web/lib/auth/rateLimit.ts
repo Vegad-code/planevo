@@ -14,6 +14,16 @@ export const AI_DAILY_LIMITS: Record<PlanType, number> = {
   canceled: 5,
 };
 
+// Define the hourly limits for each plan to prevent burst abuse
+export const AI_HOURLY_LIMITS: Record<PlanType, number> = {
+  free: 2,
+  trialing: 20,
+  premium: 20,
+  student: 20,
+  admin: 100,
+  canceled: 2,
+};
+
 /** Rate-limit check for cookie-authenticated web requests */
 export async function checkRateLimit(feature: string) {
   const { plan, user, error: planError } = await getUserPlan();
@@ -23,6 +33,41 @@ export async function checkRateLimit(feature: string) {
   }
 
   return _consumeQuota(user.id, feature, plan);
+}
+
+/** Pre-validation rate-limit check without consuming quota (for Bruno Chat) */
+export async function validateHourlyRateLimit(userId: string, feature: string) {
+  const { plan } = await getUserPlanById(userId);
+  const limit = AI_HOURLY_LIMITS[plan] || AI_HOURLY_LIMITS.free;
+
+  try {
+    const { count, error: countError } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('feature', feature)
+      .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+
+    if (countError) throw countError;
+
+    if ((count ?? 0) >= limit) {
+      return { 
+        allowed: false, 
+        error: 'Rate Limit Reached', 
+        message: `You have reached your hourly limit of ${limit} requests. Please try again later.`,
+        plan
+      };
+    }
+    return { allowed: true, userId, plan };
+  } catch (err) {
+    console.error('Hourly rate limit validation failed:', err);
+    return { allowed: false, error: 'Rate Limit Unavailable' };
+  }
+}
+
+/** Consumes the quota after a successful action (for Bruno Chat) */
+export async function consumeHourlyRateLimit(userId: string, feature: string) {
+  return logAiUsage(userId, feature);
 }
 
 /** Rate-limit check for Bearer-token-authenticated mobile requests */

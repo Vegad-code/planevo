@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useNetworkState } from '@/hooks/useNetworkState';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +29,7 @@ interface ChatMessage {
 export default function BrunoChatScreen() {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { isOffline } = useNetworkState();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -62,6 +64,10 @@ export default function BrunoChatScreen() {
   }, [user]);
 
   const sendMessage = useCallback(async () => {
+    if (isOffline) {
+      Alert.alert('Offline', 'Cannot send messages while offline.');
+      return;
+    }
     if (!inputText.trim() || sending) return;
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -93,7 +99,14 @@ export default function BrunoChatScreen() {
         content: m.content
       }));
 
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      let apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        if (__DEV__) {
+          apiUrl = 'http://localhost:3000';
+        } else {
+          throw new Error('EXPO_PUBLIC_API_URL is required in production builds.');
+        }
+      }
 
       const response = await fetch(`${apiUrl}/api/ai/chat`, {
         method: 'POST',
@@ -176,6 +189,12 @@ export default function BrunoChatScreen() {
         </View>
       </View>
 
+      {isOffline && (
+        <View style={[styles.offlineBanner, { backgroundColor: Colors.error }]}>
+          <Text style={styles.offlineText}>You're offline. Chat is unavailable.</Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={styles.chatArea}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -236,6 +255,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  offlineBanner: { padding: 8, marginHorizontal: 20, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
+  offlineText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   headerTitle: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   chatArea: { flex: 1 },

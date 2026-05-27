@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GraduationCap, CalendarBlank, Kanban, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
-import { testCanvasConnectionAction, getCanvasCredentialsAction, saveCanvasCredentialsAction } from '@/lib/canvas/actions';
+import { testCanvasConnectionAction, getCanvasCredentialsAction, saveCanvasCredentialsAction, disconnectCanvasAction } from '@/lib/canvas/actions';
+import { disconnectGoogleCalendarAction } from '@/lib/integrations/google-calendar';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -130,6 +132,8 @@ export default function Integrations() {
       const data = await res.json();
       if (data.success) {
         setTestResult({ success: true, message: data.message });
+        // Optimistically update last synced
+        setProfile(prev => prev ? { ...prev, google_calendar_last_synced_at: new Date().toISOString() } : null);
       } else {
         setTestResult({ success: false, message: data.error || 'Sync failed' });
       }
@@ -319,6 +323,26 @@ export default function Integrations() {
                       {saving ? 'Locking...' : 'Lock Config'}
                     </Button>
                   </div>
+                  {!!profile?.canvas_token && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 border-2 border-surface-700 text-[10px] font-black uppercase text-error hover:bg-error hover:text-white transition-all"
+                      onClick={async () => {
+                        const res = await disconnectCanvasAction();
+                        if (res.success) {
+                           setProfile(prev => prev ? { ...prev, canvas_token: null, canvas_url: null } : null);
+                           setCanvasToken('');
+                           setCanvasUrl('');
+                           setActiveConfig(null);
+                        } else {
+                           setTestResult({ success: false, message: res.error || 'Failed to disconnect' });
+                        }
+                      }}
+                    >
+                      Disconnect Integration
+                    </Button>
+                  )}
                 </div>
 
                 <div className="bg-surface-100 border-2 border-surface-900 p-6 rounded-xl relative">
@@ -381,6 +405,11 @@ export default function Integrations() {
                       <div className="flex items-center justify-center gap-2 text-success mb-2 font-black uppercase text-xs">
                         <CheckCircle weight="fill" /> Linked Successfully
                       </div>
+                      {(profile as any).google_calendar_last_synced_at && (
+                        <div className="text-[10px] text-surface-500 font-bold mb-4">
+                          Last Synced: {new Date((profile as any).google_calendar_last_synced_at).toLocaleString()}
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Button 
                           className="w-full bg-surface-900 text-white font-black uppercase text-[10px] tracking-widest border-2 border-surface-900"
@@ -394,11 +423,12 @@ export default function Integrations() {
                           size="sm" 
                           className="w-full border-2 border-surface-700 text-[10px] font-black uppercase text-error hover:bg-error hover:text-white transition-all"
                           onClick={async () => {
-                            const { error } = await (supabase as any).from('users').update({ 
-                              google_calendar_connected: false,
-                              google_calendar_refresh_token: null 
-                            }).eq('id', (profile as any).id);
-                            if (!error) setProfile({ ...profile, google_calendar_connected: false });
+                            const res = await disconnectGoogleCalendarAction();
+                            if (res.success) {
+                              setProfile(prev => prev ? { ...prev, google_calendar_connected: false, google_calendar_last_synced_at: null } : null);
+                            } else {
+                              setTestResult({ success: false, message: res.error || 'Failed to disconnect.' });
+                            }
                           }}
                         >
                           Disconnect Integration
@@ -446,21 +476,24 @@ export default function Integrations() {
       <hr className="border-t-2 border-surface-900" />
 
       {/* Professional & Automation Sensors */}
-      <div className="space-y-6 opacity-80">
-        <div className="flex justify-between items-end">
-          <h3 className="text-xl font-black text-surface-900 uppercase tracking-tight flex items-center gap-2">
-            <div className="w-3 h-3 bg-accent-500 border-2 border-surface-900 rounded-full" />
-            Professional Sources
-          </h3>
-          <span className="bg-surface-900 text-surface-100 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-[2px_2px_0_0_var(--accent-500)]">
-            Premium Tier
-          </span>
+      {proSensors.length > 0 && (
+        <div className="space-y-6 opacity-80">
+          <div className="flex justify-between items-end">
+            <h3 className="text-xl font-black text-surface-900 uppercase tracking-tight flex items-center gap-2">
+              <div className="w-3 h-3 bg-accent-500 border-2 border-surface-900 rounded-full" />
+              Professional Sources
+            </h3>
+            <span className="bg-surface-900 text-surface-100 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-[2px_2px_0_0_var(--accent-500)]">
+              Premium Tier
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {proSensors.map(renderSensorCard)}
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {proSensors.map(renderSensorCard)}
-        </div>
-      </div>
+      )}
       
     </div>
   );
 }
+

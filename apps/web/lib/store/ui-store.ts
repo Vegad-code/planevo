@@ -7,6 +7,8 @@ interface UIState {
   toggleSidebar: () => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
+  quickCaptureOpen: boolean;
+  setQuickCaptureOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -17,9 +19,12 @@ export const useUIStore = create<UIState>()(
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       mobileMenuOpen: false,
       setMobileMenuOpen: (mobileMenuOpen) => set({ mobileMenuOpen }),
+      quickCaptureOpen: false,
+      setQuickCaptureOpen: (quickCaptureOpen) => set({ quickCaptureOpen }),
     }),
     {
       name: 'planevo-ui-storage',
+      partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }),
     }
   )
 );

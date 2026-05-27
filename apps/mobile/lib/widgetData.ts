@@ -2,7 +2,7 @@ import SharedGroupPreferences from 'react-native-shared-group-preferences';
 import { Platform } from 'react-native';
 import { format } from 'date-fns';
 
-const APP_GROUP = 'group.com.planpilot.mobile';
+const APP_GROUP = 'group.com.planevo.mobile';
 
 export interface NextActionData {
   title: string;

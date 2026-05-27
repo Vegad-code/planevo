@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
+import { posthogServer } from '@/lib/posthog-server';
 
 export async function POST() {
   try {
@@ -12,6 +13,12 @@ export async function POST() {
     }
 
     const count = await syncGoogleCalendar(user.id);
+
+    posthogServer.capture({
+      distinctId: user.id,
+      event: 'google_connected',
+      properties: { event_count: count },
+    });
 
     return NextResponse.json({ 
       success: true, 

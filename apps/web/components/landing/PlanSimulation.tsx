@@ -84,7 +84,7 @@ export default function PlanSimulation() {
               {step.type === 'prompt' && (
                 <div className="flex justify-end">
                   <div className="bg-brand-100 border-2 border-surface-900 p-4 rounded-2xl rounded-tr-none max-w-[80%]">
-                    <p className="text-sm font-bold text-surface-900 italic">"{step.text}"</p>
+                    <p className="text-sm font-bold text-surface-900 italic">&quot;{step.text}&quot;</p>
                   </div>
                 </div>
               )}

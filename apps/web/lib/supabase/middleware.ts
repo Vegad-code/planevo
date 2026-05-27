@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { normalizePlanType } from '@/lib/auth/plan-types';
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -65,37 +66,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Onboarding & Subscription Gate: Protect the app from unauthorized access
+  // Database checks have been moved to the client/layout level to prevent blocking navigation.
   if (user && !['/', '/onboarding', '/pricing'].includes(request.nextUrl.pathname) && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.startsWith('/_next')) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('onboarding_complete, plan_type')
-      .eq('id', user.id)
-      .single();
-
-    if (profile) {
-      const planType = profile.plan_type || 'free';
-      const onboardingComplete = !!profile.onboarding_complete;
-      const isAdminEmail = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
-      const isActive = ['pro_monthly', 'pro_annual', 'trialing', 'premium'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
-
-      console.log(`[Middleware] User: ${user.email}, Onboarding: ${onboardingComplete}, Plan: ${planType}, Active: ${isActive}`);
-
-      if (isAdminEmail) {
-        return supabaseResponse;
-      }
-
-      if (!onboardingComplete) {
-        const url = request.nextUrl.clone();
-        url.pathname = '/onboarding';
-        return NextResponse.redirect(url);
-      } else if (!isActive) {
-        const url = request.nextUrl.clone();
-        url.pathname = '/onboarding';
-        return NextResponse.redirect(url);
-      }
-    } else {
-      console.log(`[Middleware] No profile found for ${user.email}`);
-    }
+    // If we wanted to enforce strict server-side redirects without DB queries,
+    // we would check for a JWT claim or a custom cookie here.
+    // For now, we allow the request to proceed to the DashboardLayout which performs the onboarding check securely.
   }
 
   return supabaseResponse;

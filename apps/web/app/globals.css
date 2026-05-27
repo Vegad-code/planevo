@@ -53,6 +53,73 @@
   --font-mono: var(--font-mono), monospace;
 }
 
+[data-theme='sepia'] {
+  --color-bg-dark: #f5f0e6;
+  --color-card-dark: #fdfaf6;
+  --color-card-dark-hover: #f5eedc;
+  --color-border-dark: #e8dfcc;
+  --color-text-dark: #2a2118;
+  --color-text-dark-muted: #8a7b66;
+}
+
+[data-theme='light'] {
+  --color-bg-dark: #ffffff;
+  --color-card-dark: #fafafa;
+  --color-card-dark-hover: #f4f4f5;
+  --color-border-dark: #e4e4e7;
+  --color-text-dark: #09090b;
+  --color-text-dark-muted: #71717a;
+}
+
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
+@import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
+
+/* Custom react-big-calendar styling to match planevo */
+.rbc-calendar {
+  font-family: var(--font-sans);
+}
+.rbc-event {
+  border-radius: 8px;
+  border: none;
+}
+.rbc-time-view, .rbc-month-view {
+  border: none;
+  background: var(--color-paper);
+}
+.rbc-header {
+  border-bottom: 1px solid var(--color-line) !important;
+  border-left: 1px solid var(--color-line) !important;
+  padding: 8px 0;
+  font-weight: 600;
+}
+.rbc-time-content, .rbc-time-header {
+  border-color: var(--color-line) !important;
+}
+.rbc-day-bg + .rbc-day-bg, .rbc-month-row + .rbc-month-row, .rbc-time-content > * + * > * {
+  border-color: var(--color-line) !important;
+}
+.rbc-timeslot-group {
+  border-color: var(--color-line) !important;
+}
+.rbc-day-slot .rbc-time-slot {
+  border-color: var(--color-line-strong) !important;
+}
+/* Red line for current time */
+.rbc-current-time-indicator {
+  background-color: #ea4335 !important;
+  height: 2px !important;
+}
+.rbc-current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #ea4335;
+}
+
 body {
   background: var(--color-bg-dark);
   color: var(--color-text-dark);
@@ -145,4 +212,18 @@ body {
   vertical-align: -2px;
   margin-left: 2px;
   animation: blink-cursor 0.8s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bruno-host,
+  .bruno-host.react,
+  .bruno-host.tilt,
+  .bruno-host.peek,
+  .bruno-host.pop,
+  .bruno-eye,
+  .bruno-arm-wave,
+  .bubble-in {
+    animation: none !important;
+    transform: none !important;
+  }
 }

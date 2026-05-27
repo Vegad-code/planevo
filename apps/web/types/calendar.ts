@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type CalendarSource = 
   | 'manual' 
   | 'google_calendar' 
@@ -23,6 +24,8 @@ export interface CalendarEvent {
   icon?: string;
   color?: string;
   energy_level?: EnergyLevel;
+  is_ai_suggested?: boolean;
+  status?: 'pending' | 'accepted' | 'rejected' | 'confirmed';
   is_completed: boolean;
   completed_at?: string; // ISO String
   location?: string;
@@ -59,3 +62,4 @@ export interface DayLayoutEvent extends CalendarEvent {
   top: number;
   height: number;
 }
+

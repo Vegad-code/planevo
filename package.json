@@ -8,8 +8,14 @@
   "scripts": {
     "dev": "npm run dev --workspace planevo",
     "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspace planevo",
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run check --workspace planevo"
   },
   "devDependencies": {
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.8.13"
   }
 }

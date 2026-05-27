@@ -41,7 +41,9 @@ export default function BrunoChatSidebar({
   // Update messages when initialMessage changes (context switch)
   useEffect(() => {
     if (initialMessage) {
-      setMessages([{ role: 'bruno', content: initialMessage }]);
+      setTimeout(() => {
+        setMessages([{ role: 'bruno', content: initialMessage }]);
+      }, 0);
     }
   }, [initialMessage, assignmentId]);
 

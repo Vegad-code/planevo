@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { stripe, subscriptionStatusToPlanType } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { posthogServer } from '@/lib/posthog-server';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -61,6 +62,19 @@ async function updateUser(
     console.error('[Stripe Webhook] DB update failed:', error);
   } else {
     console.log(`[Stripe Webhook] User ${userId} → plan_type=${planType}, status=${subscription.status}`);
+
+    // Track subscription activation in PostHog
+    if (['active', 'trialing'].includes(subscription.status)) {
+      posthogServer.capture({
+        distinctId: userId,
+        event: 'subscription_active',
+        properties: {
+          plan_type: planType,
+          status: subscription.status,
+          stripe_subscription_id: subscription.id,
+        },
+      });
+    }
   }
 }
 
@@ -84,6 +98,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Idempotency check: insert event into stripe_webhook_events
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: insertError } = await (supabaseAdmin as any)
+      .from('stripe_webhook_events')
+      .insert({ id: event.id, event_type: event.type });
+
+    if (insertError) {
+      if (insertError.code === '23505') { // Unique violation
+        console.log(`[Stripe Webhook] Event ${event.id} already processed. Skipping.`);
+        return NextResponse.json({ received: true });
+      }
+      console.error('[Stripe Webhook] Error logging event for idempotency:', insertError);
+      // We proceed even if logging fails, but it could also be a 500 error.
+    }
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -125,6 +154,30 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error('[Stripe Webhook] Cancellation DB update failed:', error);
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = typeof invoice.customer === 'string'
+          ? invoice.customer
+          : invoice.customer?.id;
+          
+        if (customerId) {
+          console.log(`[Stripe Webhook] Payment failed for customer ${customerId}. Downgrading to free/canceled.`);
+          // Downgrade user immediately upon payment failure to restrict access
+          const { error } = await supabaseAdmin
+            .from('users')
+            .update({
+              plan_type: 'canceled',
+              subscription_status: 'past_due' // Mark as past_due
+            })
+            .eq('stripe_customer_id', customerId);
+
+          if (error) {
+            console.error('[Stripe Webhook] Payment failed DB update failed:', error);
+          }
         }
         break;
       }

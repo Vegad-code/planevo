@@ -66,7 +66,7 @@ function buildAIGroups(tasks: Task[], ai: AITaskResponse): TaskGroup[] {
   if (todayFocus.length > 0) {
     groups.push({
       id: 'today-focus',
-      title: "Today's Focus",
+      title: "Focus/Urgent",
       icon: 'flash',
       ai_generated: true,
       sort_order: 0,
@@ -78,7 +78,7 @@ function buildAIGroups(tasks: Task[], ai: AITaskResponse): TaskGroup[] {
   if (thisWeek.length > 0) {
     groups.push({
       id: 'this-week',
-      title: 'This Week',
+      title: 'Up Next',
       icon: 'calendar',
       ai_generated: true,
       sort_order: 1,
@@ -90,7 +90,7 @@ function buildAIGroups(tasks: Task[], ai: AITaskResponse): TaskGroup[] {
   if (waiting.length > 0) {
     groups.push({
       id: 'waiting',
-      title: 'Waiting (No Rush)',
+      title: 'Backlog/Sometime',
       icon: 'pause-circle',
       ai_generated: true,
       sort_order: 2,
@@ -152,7 +152,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   if (todayFocus.length > 0) {
     groups.push({
       id: 'today-focus',
-      title: "Today's Focus",
+      title: "Focus/Urgent",
       icon: 'flash',
       ai_generated: false,
       sort_order: 0,
@@ -164,7 +164,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   if (thisWeek.length > 0) {
     groups.push({
       id: 'this-week',
-      title: 'This Week',
+      title: 'Up Next',
       icon: 'calendar',
       ai_generated: false,
       sort_order: 1,
@@ -176,7 +176,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   if (waiting.length > 0) {
     groups.push({
       id: 'waiting',
-      title: 'Waiting (No Rush)',
+      title: 'Backlog/Sometime',
       icon: 'pause-circle',
       ai_generated: false,
       sort_order: 2,
@@ -189,7 +189,7 @@ function buildFallbackGroups(tasks: Task[]): TaskGroup[] {
   if (groups.length === 0 && tasks.length > 0) {
     groups.push({
       id: 'this-week',
-      title: 'This Week',
+      title: 'Up Next',
       icon: 'calendar',
       ai_generated: false,
       sort_order: 0,

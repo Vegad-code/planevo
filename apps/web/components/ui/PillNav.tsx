@@ -20,7 +20,7 @@ interface PillNavProps {
   items: PillNavItem[];
   activeHref?: string;
   className?: string;
-  ease?: string;
+
   baseColor?: string;
   pillColor?: string;
   hoveredPillTextColor?: string;
@@ -36,7 +36,7 @@ const PillNav = ({
   items,
   activeHref: manualActiveHref,
   className = '',
-  ease = 'power3.easeOut',
+
   baseColor = '#22201e',
   pillColor = '#ffffff',
   hoveredPillTextColor = '#ffffff',
