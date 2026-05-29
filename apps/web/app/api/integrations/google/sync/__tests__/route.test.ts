@@ -31,7 +31,7 @@ describe('Google Sync API', () => {
     });
 
     try {
-      const res = await POST();
+      const res = await POST(req);
       const data = await res.json();
       expect(res.status).toBe(200);
       expect(data).toHaveProperty('results');

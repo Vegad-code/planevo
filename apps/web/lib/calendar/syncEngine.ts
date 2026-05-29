@@ -76,6 +76,7 @@ export async function processBrunoRollover(userId: string) {
     .eq('user_id', userId)
     .eq('is_completed', false)
     .eq('is_deleted', false)
+    .neq('source', 'google_calendar')
     .lt('end_time', now.toISOString());
 
   if (error || !pastEvents || pastEvents.length === 0) return 0;

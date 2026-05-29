@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useCalendarPreferences } from '@/hooks/useCalendarPreferences';
@@ -14,6 +14,7 @@ import type { CalendarEvent } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import QuickAddSidebar from '@/components/calendar/dialogs/QuickAddSidebar';
 import { format, startOfWeek, addDays } from 'date-fns';
+import BrunoChatSidebar from '@/components/dashboard/BrunoChatSidebar';
 
 interface QuickAddData {
   title: string;
@@ -48,8 +49,27 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [chatProcessing, setChatProcessing] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const supabase = createClient();
 
   const loading = prefsLoading;
+
+  useEffect(() => {
+    async function checkGoogleConnection() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data } = await supabase
+        .from('users')
+        .select('google_calendar_connected')
+        .eq('id', session.user.id)
+        .single();
+      if (data?.google_calendar_connected) {
+        setGoogleConnected(true);
+      }
+    }
+    checkGoogleConnection();
+  }, [supabase]);
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const delta = direction === 'next' ? 1 : -1;
@@ -148,6 +168,27 @@ export default function CalendarPage() {
     await updateEvent(id, updates);
   };
 
+  const handleReExtractGoogle = async () => {
+    setIsProcessing(true);
+    const toastId = toast.loading('Re-extracting events from Google Calendar...', { id: 're-extract' });
+    try {
+      const response = await fetch('/api/integrations/google/sync?force=true', {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to re-extract events');
+      }
+      const data = await response.json();
+      toast.success(data.message || 'Events re-extracted successfully', { id: toastId });
+      loadEvents(); 
+    } catch (err: any) {
+      console.error(err);
+      toast.error(`Re-extract failed: ${err.message || err}`, { id: toastId });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleTaskDrop = async (task: Task, time: Date) => {
     const endTime = new Date(time.getTime() + (task.estimated_minutes || 60) * 60 * 1000); 
     const newEvent = await createEvent({
@@ -175,6 +216,11 @@ export default function CalendarPage() {
 
   const handleRangeChange = useCallback((start: Date, end: Date) => {
     loadEvents(start, end);
+  }, [loadEvents]);
+
+  // Initial load
+  useEffect(() => {
+    loadEvents();
   }, [loadEvents]);
 
   const handleAutoSchedule = async (backlogTasks?: Task[]) => {
@@ -206,6 +252,9 @@ export default function CalendarPage() {
       setIsProcessing(false);
     }
   };
+
+
+
 
   if (loading) {
     return (
@@ -276,6 +325,18 @@ export default function CalendarPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {googleConnected && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleReExtractGoogle}
+                disabled={isProcessing}
+                className="text-[var(--color-blue)] hover:text-blue-600 hover:bg-blue-50/50 text-xs font-mono uppercase tracking-wider font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 mr-2"
+              >
+                <ArrowsCounterClockwise className={`w-3.5 h-3.5 mr-1.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                Sync Google
+              </Button>
+            )}
             {/* Start Fresh / Action buttons */}
             <Button 
               variant="ghost" 
@@ -364,45 +425,15 @@ export default function CalendarPage() {
           scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
         />
 
-        {/* Bruno Helper Card */}
-        <div className="bg-[#2c221a] text-[#fdfbf7] rounded-[22px] p-6 border border-[#3e3227] shadow-lg flex flex-col gap-4 relative overflow-hidden group">
-          {/* Subtle background glow/bear print */}
-          <div className="absolute -right-6 -bottom-6 opacity-[0.03] pointer-events-none transition-transform group-hover:scale-110 duration-500">
-            <span className="text-[120px] select-none">🐻</span>
+        {/* Bruno Chat Sidebar */}
+        <div className="flex-1 min-h-[500px] flex flex-col mb-4">
+          <div className="h-full">
+            <BrunoChatSidebar 
+              onFinish={loadEvents}
+              isProcessing={chatProcessing}
+              initialMessage="Hey! I'm Bruno, your elite academic advisor and schedule heavy-lifter. Tell me what we need to get done this week."
+            />
           </div>
-
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#fdfbf7]/10 flex items-center justify-center border border-[#fdfbf7]/20">
-              <span className="text-sm">🐻</span>
-            </div>
-            <span className="font-mono text-[10px] tracking-widest text-[#fdfbf7]/60 uppercase">Bruno helper</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <h4 className="text-xl font-bold tracking-tight text-[#fdfbf7] leading-snug">
-              Let Bruno organize your week in a single click.
-            </h4>
-            <p className="text-xs text-[#fdfbf7]/70 leading-relaxed font-sans">
-              Analyze your energy levels, task duration, and calendar openings to construct the perfect schedule.
-            </p>
-          </div>
-
-          <button
-            onClick={() => handleAutoSchedule()}
-            disabled={isProcessing}
-            className="w-full mt-2 py-2.5 px-5 bg-[#fdfbf7] hover:bg-[#f4ebe1] disabled:opacity-50 text-[#2c221a] font-medium text-sm rounded-full transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#fdfbf7] focus-visible:ring-offset-[#2c221a]"
-          >
-            {isProcessing ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-[#2c221a] border-t-transparent rounded-full animate-spin" />
-                <span>Scheduling...</span>
-              </>
-            ) : (
-              <>
-                <span>Auto-schedule</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
 

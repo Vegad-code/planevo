@@ -34,7 +34,7 @@ export default function IntegrationsScreen() {
 
         const canvasRes = await getCanvasCredentialsAction();
         if (canvasRes.success && canvasRes.data) {
-          setProfile((p: any) => ({ ...p, canvas_token: canvasRes.data.canvasToken, canvas_url: canvasRes.data.canvasUrl }));
+          setProfile((p: any) => ({ ...p, canvas_token: canvasRes.data!.canvasToken, canvas_url: canvasRes.data!.canvasUrl }));
         }
       }
       setLoading(false);
@@ -52,7 +52,7 @@ export default function IntegrationsScreen() {
           access_type: 'offline',
           prompt: 'consent',
         },
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly',
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
       },
     });
     if (error) {

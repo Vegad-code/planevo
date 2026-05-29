@@ -325,13 +325,44 @@ export default function DailyPlanPage() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to reach Bruno');
-      const data = await response.json();
-      // Try to parse schedule from response, fall back to text
-      if (data.updated_schedule) {
-        setSchedule(data.updated_schedule || []);
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          if (errorData.message || errorData.error) {
+            throw new Error(errorData.message || errorData.error);
+          }
+        } catch (e) {
+          // Fallback
+        }
+        throw new Error('Failed to reach Bruno');
       }
-      return data.text || data.bruno_response;
+
+      // The API now returns a Vercel AI SDK data stream, not JSON.
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'text') {
+                fullText += data.text;
+              }
+            } catch {
+              // Skip malformed lines
+            }
+          }
+        }
+      }
+
+      return fullText || null;
     } catch {
       toast.error("Bruno's connection is a bit fuzzy.");
       return null;
@@ -356,9 +387,44 @@ export default function DailyPlanPage() {
         }),
       });
 
-      if (!response.ok) throw new Error('Bruno is overthinking...');
-      const data = await response.json();
-      return data.text || data.bruno_response;
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          if (errorData.message || errorData.error) {
+            throw new Error(errorData.message || errorData.error);
+          }
+        } catch (e) {
+          // Fallback
+        }
+        throw new Error('Bruno is overthinking...');
+      }
+
+      // The API now returns a Vercel AI SDK data stream, not JSON.
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'text') {
+                fullText += data.text;
+              }
+            } catch {
+              // Skip malformed lines
+            }
+          }
+        }
+      }
+
+      return fullText || null;
     } catch (error) {
       console.error('Bruno chat error:', error);
       toast.error("Bruno is offline for a quick nap.");

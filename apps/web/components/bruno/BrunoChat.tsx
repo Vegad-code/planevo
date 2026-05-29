@@ -7,15 +7,8 @@ import BrunoAvatar from './BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
 import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
-import {
-  buildChatClientLatencyDiagnostic,
-  reportChatLatencyDiagnostic,
-} from '@/lib/diagnostics/clientLatency';
-
-interface Message {
-  role: 'user' | 'bruno';
-  content: string;
-}
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, UIMessage } from 'ai';
 
 interface Conversation {
   id: string;
@@ -23,11 +16,15 @@ interface Conversation {
   last_active: string;
 }
 
-type ChatResponseBody = {
-  text?: string;
-  error?: string;
-  diagnostic?: Parameters<typeof buildChatClientLatencyDiagnostic>[0]['server'];
-};
+const LOADING_PHRASES = [
+  "Thinking...",
+  "Calculating...",
+  "Manifesting...",
+  "Brewing...",
+  "Solving...",
+  "Vibing...",
+  "Cooking..."
+];
 
 export default function BrunoChat() {
   const supabase = createClient();
@@ -37,14 +34,57 @@ export default function BrunoChat() {
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'bruno', content: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [input, setInput] = useState('');
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
+
+  // useChat replaces manual message state and manual fetching
+  const { messages, setMessages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/ai/chat',
+    }),
+    messages: [
+      { id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as UIMessage
+    ],
+    onFinish: async (event) => {
+      const message = (event as any).message || event;
+      const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
+      
+      // Persist Bruno's final response to Supabase when the stream completes
+      if (currentConversationId && message.role === 'assistant' && textPart) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await (supabase as any).from('bruno_messages').insert({
+            conversation_id: currentConversationId,
+            message_type: 'assistant',
+            content: textPart,
+            user_id: user.id
+          });
+          await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
+        }
+      }
+    }
+  });
+
+  const isLoading = status === 'submitted' || status === 'streaming';
+
+  const isWaitingForFirstToken = isLoading && (
+    messages.length === 0 ||
+    messages[messages.length - 1]?.role === 'user' ||
+    (messages[messages.length - 1]?.role === 'assistant' && 
+     !(messages[messages.length - 1].parts?.some((p: any) => p.type === 'text' && p.text.length > 0)) &&
+     !(messages[messages.length - 1].parts?.some((p: any) => p.type.startsWith('tool-'))))
+  );
+
+  useEffect(() => {
+    if (error?.message?.includes('403') || error?.message?.includes('429')) {
+      setShowPaywall(true);
+    }
+  }, [error]);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -105,18 +145,17 @@ export default function BrunoChat() {
       window.removeEventListener('open-bruno-chat', handleOpen);
       window.removeEventListener('bruno-suppress', handleSuppress);
     };
-  }, [fetchConversations]);
+  }, [fetchConversations, setInput]);
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([{ role: 'bruno', content: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }]);
+    setMessages([{ id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as UIMessage]);
     setShowHistory(false);
   };
 
   const loadConversation = async (id: string) => {
     setCurrentConversationId(id);
     setShowHistory(false);
-    setLoading(true);
 
     const { data } = await supabase
       .from('bruno_messages')
@@ -125,12 +164,12 @@ export default function BrunoChat() {
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data.map(m => ({
-        role: m.message_type === 'user' ? 'user' : 'bruno',
-        content: m.content
-      })));
+      setMessages(data.map((m, i) => ({
+        id: `msg-${id}-${i}`,
+        role: m.message_type === 'user' ? 'user' : 'assistant',
+        parts: [{ type: 'text', text: m.content }]
+      } as UIMessage)));
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -139,13 +178,11 @@ export default function BrunoChat() {
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || isLoading) return;
 
-    const clickAt = performance.now();
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setLoading(true);
+    setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
 
     try {
       let convId = currentConversationId;
@@ -167,69 +204,27 @@ export default function BrunoChat() {
         }
       }
 
-      // Save user message
+      // Save user message to Supabase
       if (convId) {
-        await (supabase as any).from('bruno_messages').insert({
-          conversation_id: convId,
-          message_type: 'user',
-          content: userMessage,
-          user_id: (await supabase.auth.getUser()).data.user?.id as string
-        });
-      }
-
-      const requestStartedAt = performance.now();
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          diagnostics: true,
-          messages: [...messages, { role: 'user', content: userMessage }].map(m => ({
-            role: m.role === 'bruno' ? 'assistant' : 'user',
-            content: m.content
-          }))
-        }),
-      });
-      const responseReceivedAt = performance.now();
-
-      const data = await response.json() as ChatResponseBody;
-      const parsedAt = performance.now();
-      
-      if (response.status === 403) {
-        setShowPaywall(true);
-        return;
-      }
-
-      if (data.text) {
-        const brunoResponse = data.text;
-        setMessages(prev => [...prev, { role: 'bruno', content: brunoResponse }]);
-        
-        // Save Bruno message
-        if (convId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
           await (supabase as any).from('bruno_messages').insert({
             conversation_id: convId,
-            message_type: 'assistant',
-            content: brunoResponse,
-            user_id: (await supabase.auth.getUser()).data.user?.id as string
+            message_type: 'user',
+            content: userMessage,
+            user_id: user.id
           });
-          // Update last active
-          await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', convId);
         }
-        const answerReadyAt = performance.now();
-        reportChatLatencyDiagnostic(buildChatClientLatencyDiagnostic({
-          clickAt,
-          requestStartedAt,
-          responseReceivedAt,
-          parsedAt,
-          answerReadyAt,
-          server: data.diagnostic,
-        }));
-      } else {
-        throw new Error(data.error || 'Connection lost');
       }
-    } catch {
-      setMessages(prev => [...prev, { role: 'bruno', content: "Sorry, I hit a slight connection issue. Could you repeat that?" }]);
-    } finally {
-      setLoading(false);
+
+      // Trigger the stream
+      sendMessage({ text: userMessage }, {
+        body: { diagnostics: true, conversationId: convId }
+      });
+      
+    } catch (err) {
+      console.error("Failed to start chat stream:", err);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', parts: [{ type: 'text', text: "Sorry, I hit a slight connection issue. Could you repeat that?" }] } as UIMessage]);
     }
   };
 
@@ -258,7 +253,7 @@ export default function BrunoChat() {
       {/* Header */}
       <div className="bg-[#121212] p-4 flex items-center justify-between border-b-4 border-[#121212]">
         <div className="flex items-center gap-3">
-          <BrunoAvatar mood={loading ? "thinking" : "happy"} size="sm" />
+          <BrunoAvatar mood={isLoading ? "thinking" : "happy"} size="sm" />
           <div>
             <h3 className="text-sm font-black text-white uppercase tracking-widest">Bruno Assistant</h3>
             <div className="flex items-center gap-1.5">
@@ -330,30 +325,59 @@ export default function BrunoChat() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#121212] custom-scrollbar">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`
-              max-w-[85%] p-3 text-xs font-bold leading-relaxed
-              ${m.role === 'user' 
-                ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none border-2 border-[#121212]' 
-                : 'bg-white text-black rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]'
-              }
-            `}>
-              <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-accent-600">
-                <ReactMarkdown>
-                  {m.content}
-                </ReactMarkdown>
-              </div>
+        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => {
+          const textPart = (m.parts?.find(p => p.type === 'text') as any)?.text;
+          const toolParts = m.parts?.filter(p => p.type.startsWith('tool-'));
+
+          // Hide empty intermediate messages (e.g., system messages without content or tools)
+          if (!textPart && (!toolParts || toolParts.length === 0)) return null;
+
+          return (
+            <div key={i} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+              
+              {/* Tool Execution indicators */}
+              {toolParts && toolParts.length > 0 && (
+                <div className="flex flex-col gap-1 items-start w-full mb-2">
+                   {toolParts.map((tool: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 bg-surface-800 text-surface-400 px-3 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest border border-surface-700 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                        {(tool.state === 'input-streaming' || tool.state === 'input-available') && <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping" />}
+                        {tool.state === 'output-available' && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
+                        {(tool.state === 'input-streaming' || tool.state === 'input-available') ? 'Executing Tool...' : 'Tool Completed'}
+                      </div>
+                   ))}
+                </div>
+              )}
+
+              {/* Text Bubble */}
+              {textPart && (
+                <div className={`
+                  max-w-[85%] p-3 text-xs font-bold leading-relaxed
+                  ${m.role === 'user' 
+                    ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none border-2 border-[#121212]' 
+                    : 'bg-white text-black rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]'
+                  }
+                `}>
+                  <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-accent-600">
+                    <ReactMarkdown>
+                      {textPart}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
             </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
+          );
+        })}
+        {isWaitingForFirstToken && (
+          <div className="flex justify-start animate-in fade-in duration-200">
             <div className="bg-white p-3 rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]">
-              <div className="flex gap-1">
-                <div className="w-1.5 h-1.5 bg-[#888] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 bg-[#888] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 bg-[#888] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest text-[#888] ml-1">( {loadingPhrase} )</span>
               </div>
             </div>
           </div>
@@ -393,13 +417,13 @@ export default function BrunoChat() {
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Ask Bruno anything..."
           className="flex-1 bg-white border-2 border-[#121212] px-4 py-2 text-xs font-bold uppercase text-black placeholder:text-[#888] focus:outline-none focus:ring-2 focus:ring-accent-500 transition-all"
         />
         <button
           type="submit"
-          disabled={!input.trim() || loading}
+          disabled={!input.trim() || isLoading}
           className="bg-[#121212] text-white p-2 border-2 border-[#121212] hover:bg-accent-500 hover:text-black disabled:opacity-50 transition-all active:translate-x-0.5 active:translate-y-0.5"
         >
           <PaperPlaneTilt weight="bold" size={20} />
@@ -408,4 +432,3 @@ export default function BrunoChat() {
     </div>
   );
 }
-

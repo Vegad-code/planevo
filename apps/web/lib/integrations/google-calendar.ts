@@ -23,7 +23,7 @@ export async function refreshGoogleToken(refreshToken: string) {
   return data.access_token;
 }
 
-export async function syncGoogleCalendar(userId: string) {
+export async function syncGoogleCalendar(userId: string, force = false) {
   const supabase = await createClient();
 
   // 1. Get the refresh token
@@ -52,9 +52,9 @@ export async function syncGoogleCalendar(userId: string) {
     }
   }
 
-  // 4. Fetch events (next 7 days) for each selected calendar
-  const timeMin = new Date().toISOString();
-  const timeMax = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  // 4. Fetch events (last 30 days to next 60 days) for each selected calendar
+  const timeMin = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
   
   let allEventsData: any[] = [];
 
@@ -82,7 +82,7 @@ export async function syncGoogleCalendar(userId: string) {
   }
 
   // 5. Transform to calendar_events format
-  const events = allEventsData.map((item: Record<string, unknown>) => {
+  const rawEvents = allEventsData.map((item: Record<string, unknown>) => {
     const start = item.start as Record<string, unknown>;
     const end = item.end as Record<string, unknown>;
     const isAllDay = !!start.date;
@@ -105,55 +105,133 @@ export async function syncGoogleCalendar(userId: string) {
     };
   });
 
+  const uniqueEventsMap = new Map();
+  for (const ev of rawEvents) {
+    if (ev.external_id) uniqueEventsMap.set(ev.external_id, ev);
+  }
+  const events = Array.from(uniqueEventsMap.values());
+
   if (events.length === 0) {
     await supabase.from('users').update({ google_calendar_last_synced_at: new Date().toISOString() }).eq('id', userId);
     return 0;
   }
 
-  // 6. Upsert into calendar_events
+  // 6. Ghost Events Cleanup and Upsert
   const now = new Date().toISOString();
-  const futureEvents = events.filter((e: Record<string, unknown>) => new Date(e.start_time as string) >= new Date(now));
-
-  if (futureEvents.length > 0) {
-    // Supabase JS doesn't support partial index constraints for ON CONFLICT.
-    // We must fetch existing events to get their PKs (id) and update them, or insert if new.
-    const externalIds = futureEvents.map((e: any) => e.external_id);
-    const { data: existingEvents } = await supabase
+  
+  if (force) {
+    await supabase.from('calendar_events')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source', 'google_calendar')
+      .gte('start_time', timeMin)
+      .lte('start_time', timeMax);
+  } else if (events.length > 0) {
+    const currentGoogleEventIds = events.map((e: any) => e.external_id);
+    const { data: existingWindowEvents } = await supabase
       .from('calendar_events')
       .select('id, external_id')
       .eq('user_id', userId)
       .eq('source', 'google_calendar')
-      .in('external_id', externalIds);
+      .gte('start_time', timeMin)
+      .lte('start_time', timeMax);
+      
+    if (existingWindowEvents) {
+      const currentIdsSet = new Set(currentGoogleEventIds);
+      const ghosts = existingWindowEvents.filter(e => !currentIdsSet.has(e.external_id));
+      if (ghosts.length > 0) {
+        const ghostIds = ghosts.map(g => g.id);
+        for (let i = 0; i < ghostIds.length; i += 100) {
+          const chunk = ghostIds.slice(i, i + 100);
+          await supabase.from('calendar_events').update({ is_deleted: true }).in('id', chunk);
+        }
+      }
+    }
+  }
 
-    const existingMap = new Map(existingEvents?.map((e: any) => [e.external_id, e.id]) || []);
+  if (events.length > 0) {
+    // Supabase JS doesn't support partial index constraints for ON CONFLICT.
+    // We must fetch existing events to get their PKs (id) and update them, or insert if new.
+    const externalIds = events.map((e: any) => e.external_id);
+    const existingEvents: any[] = [];
+    for (let i = 0; i < externalIds.length; i += 100) {
+      const chunk = externalIds.slice(i, i + 100);
+      const { data } = await supabase
+        .from('calendar_events')
+        .select('id, external_id, source, metadata, start_time, end_time')
+        .eq('user_id', userId)
+        .in('external_id', chunk);
+      if (data) existingEvents.push(...data);
+    }
+
+    const { data: pushedEvents } = await supabase
+      .from('calendar_events')
+      .select('id, external_id, source, metadata, start_time, end_time')
+      .eq('user_id', userId)
+      .not('metadata->>google_event_id', 'is', null);
+
+    if (pushedEvents) {
+      for (const p of pushedEvents) {
+        if (!existingEvents.some(e => e.id === p.id)) {
+          existingEvents.push(p);
+        }
+      }
+    }
+
+    const knownGoogleIds = new Map(
+      existingEvents
+        .filter(e => e.source === 'google_calendar' && e.external_id)
+        .map(e => [e.external_id, e])
+    );
+    const canvasPushedEvents = new Map(
+      existingEvents
+        .filter(e => e.metadata?.google_event_id)
+        .map(e => [e.metadata.google_event_id, e])
+    );
 
     const toInsert = [];
-    const toUpdate = [];
+    const toUpdateFull = [];
+    const toUpdatePartial = [];
 
-    for (const event of futureEvents) {
+    for (const event of events) {
       const extId = (event as any).external_id;
-      if (existingMap.has(extId)) {
-        toUpdate.push({ ...event, id: existingMap.get(extId) });
+      if (canvasPushedEvents.has(extId)) {
+        const existing = canvasPushedEvents.get(extId);
+        if (existing.start_time !== event.start_time || existing.end_time !== event.end_time) {
+          toUpdatePartial.push({
+            id: existing.id,
+            start_time: event.start_time,
+            end_time: event.end_time
+          });
+        }
+      } else if (knownGoogleIds.has(extId)) {
+        toUpdateFull.push({ ...event, id: knownGoogleIds.get(extId).id });
       } else {
         toInsert.push(event);
       }
     }
 
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase.from('calendar_events').insert(toInsert);
+      const { error: insertError } = await supabase.from('calendar_events').insert(toInsert as any);
       if (insertError) throw insertError;
     }
 
-    if (toUpdate.length > 0) {
-      const { error: updateError } = await supabase.from('calendar_events').upsert(toUpdate, { onConflict: 'id' });
+    if (toUpdateFull.length > 0) {
+      const { error: updateError } = await supabase.from('calendar_events').upsert(toUpdateFull as any, { onConflict: 'id' });
       if (updateError) throw updateError;
+    }
+
+    if (toUpdatePartial.length > 0) {
+      await Promise.all(toUpdatePartial.map(p => 
+        supabase.from('calendar_events').update({ start_time: p.start_time, end_time: p.end_time }).eq('id', p.id)
+      ));
     }
   }
 
   // Record successful sync
   await supabase.from('users').update({ google_calendar_last_synced_at: now }).eq('id', userId);
 
-  return futureEvents.length;
+  return events.length;
 }
 
 export async function disconnectGoogleCalendarAction() {
@@ -232,4 +310,110 @@ export async function fetchGoogleCalendars(userId: string) {
   }));
 
   return calendars;
+}
+
+export async function pushEventToGoogle(userId: string, eventData: any) {
+  const supabase = await createClient();
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('google_calendar_refresh_token, google_calendar_id, scheduling_preferences')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user?.google_calendar_refresh_token) {
+    return; // Silently fail if not connected, meaning it's a local event
+  }
+
+  const decryptedToken = decryptToken(user.google_calendar_refresh_token);
+  const accessToken = await refreshGoogleToken(decryptedToken);
+
+  // We need the primary calendar ID if there's no specific external_calendar_id on the event.
+  // We'll assume external_id is the Google Event ID if it exists and the source is google_calendar.
+  const googleEventId = eventData.metadata?.google_event_id || (eventData.source === 'google_calendar' ? eventData.external_id : null);
+  const isUpdate = !!googleEventId;
+  
+  // Extract calendarId if available from metadata or preferences
+  const preferences = user.scheduling_preferences as Record<string, any> || {};
+  let calendarId = eventData.metadata?.google_calendar_id || user.google_calendar_id;
+  if (!calendarId && preferences.google_selected_calendars && preferences.google_selected_calendars.length > 0) {
+    calendarId = preferences.google_selected_calendars[0];
+  }
+  if (!calendarId) calendarId = 'primary';
+  
+  const url = isUpdate 
+    ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${googleEventId}`
+    : `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+
+  const method = isUpdate ? 'PUT' : 'POST';
+
+  const body = {
+    summary: eventData.title || eventData.description || 'Untitled Event',
+    description: eventData.description,
+    location: eventData.location,
+    start: eventData.is_all_day ? { date: eventData.start_time.split('T')[0] } : { dateTime: eventData.start_time },
+    end: eventData.is_all_day ? { date: eventData.end_time.split('T')[0] } : { dateTime: eventData.end_time },
+  };
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Failed to push event to Google Calendar', errorText);
+    return { success: false, error: errorText };
+  }
+
+  const result = await response.json();
+  
+  if (!isUpdate && eventData.id) {
+    // If it was a new event, we need to update the Supabase event with the new google_event_id
+    const newMetadata = { ...(eventData.metadata || {}), google_event_id: result.id };
+    await supabase.from('calendar_events').update({
+      metadata: newMetadata
+    }).eq('id', eventData.id);
+  }
+
+  return { success: true, googleEventId: result.id };
+}
+
+export async function deleteEventFromGoogle(userId: string, externalId: string, calendarId?: string) {
+  const supabase = await createClient();
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('google_calendar_refresh_token, google_calendar_id, scheduling_preferences')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user?.google_calendar_refresh_token) {
+    return;
+  }
+
+  const decryptedToken = decryptToken(user.google_calendar_refresh_token);
+  const accessToken = await refreshGoogleToken(decryptedToken);
+
+  const preferences = user.scheduling_preferences as Record<string, any> || {};
+  let calId = calendarId || user.google_calendar_id;
+  if (!calId && preferences.google_selected_calendars && preferences.google_selected_calendars.length > 0) {
+    calId = preferences.google_selected_calendars[0];
+  }
+  if (!calId) calId = 'primary';
+  
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${externalId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok && response.status !== 410 && response.status !== 404) {
+    const errorText = await response.text();
+    console.error('Failed to delete event from Google Calendar', errorText);
+    return { success: false, error: errorText };
+  }
+
+  return { success: true };
 }

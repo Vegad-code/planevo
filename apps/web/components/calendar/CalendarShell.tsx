@@ -172,6 +172,16 @@ export default function CalendarShell({
           view={rbcView}
           onNavigate={handleNavigate}
           onView={handleViewChange}
+          onRangeChange={(range: Date[] | { start: Date; end: Date }) => {
+            if (!onRangeChange) return;
+            if (Array.isArray(range)) {
+              if (range.length > 0) {
+                onRangeChange(range[0], range[range.length - 1]);
+              }
+            } else {
+              onRangeChange(range.start, range.end);
+            }
+          }}
           onEventDrop={handleEventDrop}
           onEventResize={handleEventResize}
           onSelectSlot={handleSelectSlot}

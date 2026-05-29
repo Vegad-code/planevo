@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.193",
     "@bacons/apple-targets": "^4.0.7",
     "@expo/vector-icons": "^15.0.3",
     "@gorhom/bottom-sheet": "^5.2.14",

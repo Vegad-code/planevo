@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
+import { pushEventToGoogle, deleteEventFromGoogle } from '@/lib/integrations/google-calendar';
 
 export function useCalendarEvents() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -24,9 +25,11 @@ export function useCalendarEvents() {
   }, [events]);
 
   // Load events for a given date range
-  const loadEvents = useCallback(async (startDate?: Date, endDate?: Date) => {
-    setLoading(true);
-    setError(null);
+  const loadEvents = useCallback(async (startDate?: Date, endDate?: Date, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -55,12 +58,45 @@ export function useCalendarEvents() {
       } else {
         setEvents((data || []) as CalendarEvent[]);
       }
+      
+      // Fire-and-forget background polling for Google Calendar
+      if (user) {
+        fetch('/api/integrations/google/sync', { method: 'POST' })
+          .then(res => res.json())
+          .then(async syncData => {
+            if (syncData.success && syncData.count > 0) {
+              // Silently re-fetch from supabase
+              const { data: freshData } = await supabase
+                .from('calendar_events')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('is_deleted', false)
+                .gte('start_time', start.toISOString())
+                .lte('start_time', end.toISOString())
+                .order('start_time', { ascending: true });
+                
+              if (freshData) {
+                setEvents(freshData as CalendarEvent[]);
+              }
+            }
+          })
+          .catch(err => console.error('Background Google sync failed', err));
+      }
+      
     } catch {
-      setError('Failed to load calendar events');
+      if (!silent) setError('Failed to load calendar events');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [supabase]);
+
+  // Background polling every 60 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      loadEvents(undefined, undefined, true);
+    }, 60000);
+    return () => clearInterval(intervalId);
+  }, [loadEvents]);
 
   // Complete an event
   const completeEvent = useCallback(async (eventId: string) => {
@@ -144,6 +180,20 @@ export function useCalendarEvents() {
       if (!data.is_all_day && hasConflict(eventStart, eventEnd, data.id)) {
         toast.warning('This event overlaps with an existing scheduled block.');
       }
+      
+      // Fire-and-forget push to Google
+      pushEventToGoogle(user.id, data).then((res) => {
+        if (res && !res.success) {
+          if (res.error?.includes('403') || res.error?.includes('insufficient')) {
+            toast.error('Failed to sync to Google: Please reconnect your Google Calendar to grant write permissions.');
+          } else {
+            toast.error('Failed to sync event to Google Calendar');
+          }
+        } else if (res && res.success && res.googleEventId) {
+          // Update the local state with the new google_event_id so it can be deleted later
+          setEvents(prev => prev.map(e => e.id === data.id ? { ...e, metadata: { ...(e.metadata || {}), google_event_id: res.googleEventId } } : e));
+        }
+      }).catch(err => console.error('Background Google sync failed', err));
     }
 
     return data as CalendarEvent;
@@ -206,6 +256,10 @@ export function useCalendarEvents() {
           }
         });
       }
+
+      // Fire-and-forget push to Google
+      pushEventToGoogle(event.user_id, { ...event, start_time: newStart.toISOString(), end_time: newEnd.toISOString() })
+        .catch(err => console.error('Background Google sync failed', err));
     }
   }, [supabase, events, hasConflict]);
 
@@ -264,6 +318,10 @@ export function useCalendarEvents() {
           }
         });
       }
+
+      // Fire-and-forget push to Google
+      pushEventToGoogle(event.user_id, { ...event, end_time: newEnd.toISOString() })
+        .catch(err => console.error('Background Google sync failed', err));
     }
   }, [supabase, events, hasConflict]);
 
@@ -299,6 +357,9 @@ export function useCalendarEvents() {
             : e
         )
       );
+    } else {
+      pushEventToGoogle(event.user_id, { ...event, ...updates })
+        .catch(err => console.error('Background Google sync failed', err));
     }
   }, [supabase, events]);
 
@@ -318,7 +379,25 @@ export function useCalendarEvents() {
       setEvents(previousEvents); // Revert on error
       toast.error('Failed to delete event');
     } else {
-      const event = previousEvents.find(e => e.id === eventId);
+      // Fire-and-forget delete from Google
+      const deletedEvent = previousEvents.find(e => e.id === eventId);
+      if (deletedEvent) {
+        // Fire-and-forget delete from Google Calendar
+        if (deletedEvent.source === 'google_calendar' || deletedEvent.metadata?.google_event_id) {
+          const externalId = deletedEvent.metadata?.google_event_id || deletedEvent.external_id;
+          if (externalId) {
+            deleteEventFromGoogle(deletedEvent.user_id, externalId, deletedEvent.metadata?.google_calendar_id).then((res) => {
+              if (res && !res.success) {
+                if (res.error?.includes('403') || res.error?.includes('insufficient')) {
+                  toast.error('Failed to sync to Google: Please reconnect your Google Calendar to grant write permissions.');
+                } else {
+                  toast.error('Failed to sync event deletion to Google Calendar');
+                }
+              }
+            }).catch(err => console.error('Background Google delete sync failed', err));
+          }
+        }
+      }
       toast.success('Event deleted', {
         action: {
           label: 'Undo',

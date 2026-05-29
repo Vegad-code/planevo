@@ -99,10 +99,20 @@
   border-color: var(--color-line) !important;
 }
 .rbc-timeslot-group {
-  border-color: var(--color-line) !important;
+  border-bottom: 1px solid var(--color-line-strong) !important;
+  border-color: var(--color-line-strong) !important;
+}
+.rbc-time-slot {
+  min-height: 16px; /* 4 slots * 16px = 64px per hour */
 }
 .rbc-day-slot .rbc-time-slot {
-  border-color: var(--color-line-strong) !important;
+  border-top: none !important;
+  border-bottom: none !important;
+}
+.rbc-label {
+  font-size: 11px;
+  color: var(--color-ink-faint);
+  font-weight: 500;
 }
 /* Red line for current time */
 .rbc-current-time-indicator {

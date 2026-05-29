@@ -3,8 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 import { posthogServer } from '@/lib/posthog-server';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const url = new URL(req.url);
+    const force = url.searchParams.get('force') === 'true';
+
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -12,7 +15,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const count = await syncGoogleCalendar(user.id);
+    const count = await syncGoogleCalendar(user.id, force);
 
     posthogServer.capture({
       distinctId: user.id,

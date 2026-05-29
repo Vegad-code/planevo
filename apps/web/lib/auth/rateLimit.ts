@@ -36,8 +36,8 @@ export async function checkRateLimit(feature: string) {
 }
 
 /** Pre-validation rate-limit check without consuming quota (for Bruno Chat) */
-export async function validateHourlyRateLimit(userId: string, feature: string) {
-  const { plan } = await getUserPlanById(userId);
+export async function validateHourlyRateLimit(userId: string, feature: string, email?: string | null) {
+  const { plan } = await getUserPlanById(userId, email);
   const limit = AI_HOURLY_LIMITS[plan] || AI_HOURLY_LIMITS.free;
 
   try {

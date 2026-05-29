@@ -14,81 +14,142 @@ import { z } from 'zod';
 import * as Sentry from '@sentry/nextjs';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 import { posthogServer } from '@/lib/posthog-server';
+import { streamText, tool, stepCountIs, jsonSchema, convertToModelMessages } from 'ai';
+import { openai } from '@ai-sdk/openai';
 
-
-const messageSchema = z.object({
-  role: z.enum(['user', 'assistant']),
-  content: z.string().trim().min(1).max(10000),
-});
-
+// --- Request validation (Zod v3 is fine here, not passed to AI SDK) ---
 const requestSchema = z.object({
-  messages: z.array(messageSchema).min(1).max(20),
+  messages: z.array(z.any()).min(1).max(50),
   assignmentId: z.string().optional(),
   diagnostics: z.boolean().optional(),
 });
 
-const createTaskSchema = z.object({
-  title: z.string().min(1),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  due_date: z.string().nullable().optional(),
-  estimated_minutes: z.number().optional(),
-  description: z.string().nullable().optional()
+// --- Tool schemas as raw JSON Schema objects ---
+// We use jsonSchema() from 'ai' to bypass the broken Zod v3→v4 conversion.
+// This sends valid JSON Schema directly to OpenAI without any Zod intermediary.
+
+const createTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    title: { type: 'string', description: 'Task title' },
+    priority: { type: 'string', enum: ['low', 'medium', 'high'], description: "Task priority. Default to 'medium'" },
+    due_date: { type: 'string', description: 'ISO 8601 date, or empty string if unknown' },
+    estimated_minutes: { type: 'number', description: 'Duration in minutes, or 30 if unknown' },
+    description: { type: 'string', description: 'Task description, or empty string if none' },
+  },
+  required: ['title', 'priority', 'due_date', 'estimated_minutes', 'description'],
+  additionalProperties: false,
 });
 
-const rescheduleTaskSchema = z.object({
-  task_id: z.string().uuid(),
-  new_due_date: z.string().nullable()
+const rescheduleTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    task_id: { type: 'string', description: 'UUID of the task to reschedule' },
+    new_due_date: { type: 'string', description: 'New ISO 8601 due date, or empty string to remove' },
+  },
+  required: ['task_id', 'new_due_date'],
+  additionalProperties: false,
 });
 
-const updateTaskSchema = z.object({
-  task_id: z.string().uuid(),
-  title: z.string().optional(),
-  description: z.string().nullable().optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  estimated_minutes: z.number().optional()
+const updateTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    task_id: { type: 'string', description: 'UUID of the task to update' },
+    title: { type: 'string', description: 'New title, or empty string to keep current' },
+    description: { type: 'string', description: 'New description, or empty string to keep current' },
+    priority: { type: 'string', enum: ['low', 'medium', 'high'], description: "New priority, or 'medium' to keep current" },
+    estimated_minutes: { type: 'number', description: 'New duration in minutes, or 0 to keep current' },
+  },
+  required: ['task_id', 'title', 'description', 'priority', 'estimated_minutes'],
+  additionalProperties: false,
 });
 
-const completeTaskSchema = z.object({
-  task_id: z.string().uuid(),
-  completed: z.boolean()
+const completeTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    task_id: { type: 'string', description: 'UUID of the task' },
+    completed: { type: 'boolean', description: 'Whether the task is completed' },
+  },
+  required: ['task_id', 'completed'],
+  additionalProperties: false,
 });
 
-const deleteTaskSchema = z.object({
-  task_id: z.string().uuid()
+const deleteTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    task_id: { type: 'string', description: 'UUID of the task to delete' },
+  },
+  required: ['task_id'],
+  additionalProperties: false,
 });
 
-const createCalendarBlockSchema = z.object({
-  title: z.string().min(1),
-  start_time: z.string().describe("ISO 8601 datetime format"),
-  end_time: z.string().describe("ISO 8601 datetime format"),
-  linked_task_id: z.string().uuid().optional(),
+const createCalendarBlockParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    title: { type: 'string', description: 'Block title' },
+    start_time: { type: 'string', description: 'ISO 8601 datetime format' },
+    end_time: { type: 'string', description: 'ISO 8601 datetime format' },
+    linked_task_id: { type: 'string', description: 'UUID of linked task, or empty string if none' },
+  },
+  required: ['title', 'start_time', 'end_time', 'linked_task_id'],
+  additionalProperties: false,
 });
 
-const moveCalendarBlockSchema = z.object({
-  event_id: z.string().uuid(),
-  new_start_time: z.string().describe("ISO 8601 datetime format"),
-  new_end_time: z.string().describe("ISO 8601 datetime format"),
+const moveCalendarBlockParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    event_id: { type: 'string', description: 'UUID of the calendar event' },
+    new_start_time: { type: 'string', description: 'ISO 8601 datetime format' },
+    new_end_time: { type: 'string', description: 'ISO 8601 datetime format' },
+  },
+  required: ['event_id', 'new_start_time', 'new_end_time'],
+  additionalProperties: false,
 });
 
-const acceptBlockSchema = z.object({
-  event_id: z.string().uuid(),
+const acceptBlockParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    event_id: { type: 'string', description: 'UUID of the calendar event to accept' },
+  },
+  required: ['event_id'],
+  additionalProperties: false,
 });
 
-const rejectBlockSchema = z.object({
-  event_id: z.string().uuid(),
+const rejectBlockParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    event_id: { type: 'string', description: 'UUID of the calendar event to reject' },
+  },
+  required: ['event_id'],
+  additionalProperties: false,
 });
 
-const breakDownTaskSchema = z.object({
-  task_id: z.string().uuid(),
-  subtasks: z.array(z.object({
-    title: z.string(),
-    estimated_minutes: z.number(),
-  }))
+const breakDownTaskParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    task_id: { type: 'string', description: 'UUID of the task to break down' },
+    subtasks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Subtask title' },
+          estimated_minutes: { type: 'number', description: 'Estimated minutes for the subtask' },
+        },
+        required: ['title', 'estimated_minutes'],
+        additionalProperties: false,
+      },
+      description: 'Array of subtasks to create',
+    },
+  },
+  required: ['task_id', 'subtasks'],
+  additionalProperties: false,
 });
 
 export async function POST(request: NextRequest) {
   const latencyTimer = createAiLatencyTimer('bruno-chat');
   let openAiMs: number | null = null;
+  const startAt = performance.now();
 
   const jsonWithDiagnostics = (
     body: Record<string, unknown>,
@@ -125,7 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     // --- RATE LIMIT (method-aware) ---
-    const rateLimitResult = await validateHourlyRateLimit(authUser.id, 'bruno-chat');
+    const rateLimitResult = await validateHourlyRateLimit(authUser.id, 'bruno-chat', authUser.email);
     latencyTimer.mark('rate_limit');
     
     if (!rateLimitResult.allowed) {
@@ -135,7 +196,6 @@ export async function POST(request: NextRequest) {
       }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 429 });
     }
 
-    // Use authUser directly — no need for redundant supabase.auth.getUser()
     const user = authUser;
 
     const parsedBody = requestSchema.safeParse(await request.json());
@@ -169,7 +229,6 @@ export async function POST(request: NextRequest) {
     Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
     Sentry.setTag('auth_method', authMethod || 'unknown');
 
-
     // Fetch active tasks for Bruno to have context of task names and IDs
     const { data: tasks } = await supabaseAdmin
       .from('tasks')
@@ -178,7 +237,7 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(100);
-    latencyTimer.mark('assignments'); // mark assignments step completed with tasks query
+    latencyTimer.mark('assignments');
 
     const taskListContext = tasks && tasks.length > 0
       ? (tasks as any[]).map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
@@ -213,7 +272,7 @@ URL: ${a.html_url || 'N/A'}
       latencyTimer.mark('assignment_context');
     }
 
-    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar and daily planning assistant for "Planevo". 
+    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and daily planning assistant for "Planevo". 
 
 User Name: ${profile?.name || 'User'}
 
@@ -225,561 +284,254 @@ ${memoryContext}
 ${assignmentContext}
 
 CORE MISSION:
-You are as capable as the world's most advanced LLMs. Your mission is to not only help the user manage their time but to actively assist them in completing their work. When an assignment context is provided, you should act as a brilliant teaching assistant. 
+You are as capable as the world's most advanced LLMs. You are an elite strategic planner and academic advisor. Your mission is to not only help the user manage their time but to actively assist them in achieving their highest ambitions (e.g., top-tier college admissions, career success). 
 
 Rules:
-1. Speak as an encouraging bear.
-2. Be utility-first. Help the user clear their schedule AND master their tasks.
-3. If the user asks "How do I do this?" regarding an assignment, analyze the ASSIGNMENT CONTEXT provided and give a comprehensive, step-by-step breakdown of how to approach the work, providing examples or templates where useful.
-4. Remember that Planevo acts as an instrument to handle the details so they can just focus on the deep work.
-5. If they seem overwhelmed, offer to "Deconstruct" a complex task into 15-minute micro-steps using the break_down_task tool.
-6. When you create, reschedule, complete, or delete a task, use the corresponding tool. Inform the user in a warm bear-like way of what you did. Always make sure to refer to tasks by their exact name when interacting with them.
-7. Use calendar block tools to manage the user's schedule.`;
+1. Speak as a hyper-intelligent, encouraging bear who gives elite, no-nonsense advice.
+2. **Push back and guide:** If a user proposes a flawed plan (like skipping foundational classes, cramming too much, or prioritizing the wrong tasks), you must politely but firmly explain why it is a bad idea and propose a smarter path. 
+3. **Be hyper-specific:** When giving advice, give exact, actionable steps (e.g., "Tomorrow, do exactly these 3 things"). Do not give vague platitudes.
+4. **Build the schedule directly:** You are a heavy lifter. Use the \`create_calendar_block\` tool aggressively to populate entire weeks of balanced, well-thought-out study schedules directly onto the user's calendar when asked. Ensure you spread out work logically.
+5. **Deconstruct complexity:** If a task is huge, offer to "Deconstruct" it into 15-minute micro-steps using the \`break_down_task\` tool.
+6. When you create, reschedule, complete, or delete a task, use the corresponding tool. Inform the user of what you did. Always make sure to refer to tasks by their exact name when interacting with them.
+7. Use calendar block tools (\`create_calendar_block\`, \`move_calendar_block\`, etc.) to actively manage and optimize the user's schedule. Do the work for them.`;
 
-    const tools = [
-      {
-        type: 'function',
-        function: {
-          name: 'create_task',
-          description: 'Create a new task for the user.',
-          parameters: {
-            type: 'object',
-            properties: {
-              title: {
-                type: 'string',
-                description: 'The title of the task.',
-              },
-              priority: {
-                type: 'string',
-                enum: ['low', 'medium', 'high'],
-                description: 'The priority of the task. Defaults to medium.',
-              },
-              due_date: {
-                type: 'string',
-                description: 'ISO 8601 datetime format (e.g. 2026-05-22T09:00:00Z) when the task is due.',
-              },
-              estimated_minutes: {
-                type: 'integer',
-                description: 'Estimated time to complete in minutes. Defaults to 30.',
-              },
-            },
-            required: ['title'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'reschedule_task',
-          description: 'Reschedule an existing task to a new due date.',
-          parameters: {
-            type: 'object',
-            properties: {
-              task_id: {
-                type: 'string',
-                description: 'The UUID of the task to reschedule.',
-              },
-              new_due_date: {
-                type: 'string',
-                description: 'ISO 8601 datetime format (e.g. 2026-05-23T14:00:00Z) for the new due date.',
-              },
-            },
-            required: ['task_id', 'new_due_date'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'update_task',
-          description: 'Update a task\'s title, description, priority, or estimated duration.',
-          parameters: {
-            type: 'object',
-            properties: {
-              task_id: {
-                type: 'string',
-                description: 'The UUID of the task to update.',
-              },
-              title: {
-                type: 'string',
-                description: 'The new title of the task.',
-              },
-              description: {
-                type: 'string',
-                description: 'The new description of the task.',
-              },
-              priority: {
-                type: 'string',
-                enum: ['low', 'medium', 'high'],
-                description: 'The new priority.',
-              },
-              estimated_minutes: {
-                type: 'integer',
-                description: 'New estimated time to complete in minutes.',
-              },
-            },
-            required: ['task_id'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'complete_task',
-          description: 'Mark a task as completed or uncompleted.',
-          parameters: {
-            type: 'object',
-            properties: {
-              task_id: {
-                type: 'string',
-                description: 'The UUID of the task.',
-              },
-              completed: {
-                type: 'boolean',
-                description: 'Whether the task is completed (true) or todo (false).',
-              },
-            },
-            required: ['task_id', 'completed'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'delete_task',
-          description: 'Delete a task (soft delete).',
-          parameters: {
-            type: 'object',
-            properties: {
-              task_id: {
-                type: 'string',
-                description: 'The UUID of the task to delete.',
-              },
-            },
-            required: ['task_id'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'create_calendar_block',
-          description: 'Create a new calendar block (event).',
-          parameters: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' },
-              start_time: { type: 'string', description: 'ISO 8601 datetime format' },
-              end_time: { type: 'string', description: 'ISO 8601 datetime format' },
-              linked_task_id: { type: 'string', description: 'UUID of the linked task if applicable' },
-            },
-            required: ['title', 'start_time', 'end_time'],
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'move_calendar_block',
-          description: 'Move an existing calendar block to a new time.',
-          parameters: {
-            type: 'object',
-            properties: {
-              event_id: { type: 'string', description: 'UUID of the calendar event' },
-              new_start_time: { type: 'string', description: 'ISO 8601 datetime format' },
-              new_end_time: { type: 'string', description: 'ISO 8601 datetime format' },
-            },
-            required: ['event_id', 'new_start_time', 'new_end_time'],
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'accept_block',
-          description: 'Accept an AI-suggested calendar block.',
-          parameters: {
-            type: 'object',
-            properties: {
-              event_id: { type: 'string', description: 'UUID of the calendar event' },
-            },
-            required: ['event_id'],
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'reject_block',
-          description: 'Reject (delete) an AI-suggested calendar block.',
-          parameters: {
-            type: 'object',
-            properties: {
-              event_id: { type: 'string', description: 'UUID of the calendar event' },
-            },
-            required: ['event_id'],
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'break_down_task',
-          description: 'Break down a complex task into smaller subtasks (15-min increments).',
-          parameters: {
-            type: 'object',
-            properties: {
-              task_id: { type: 'string', description: 'UUID of the task to break down' },
-              subtasks: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' },
-                    estimated_minutes: { type: 'integer' }
-                  },
-                  required: ['title', 'estimated_minutes']
-                }
-              }
-            },
-            required: ['task_id', 'subtasks'],
-          }
-        }
-      }
-    ];
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
-
-    const openAiStartedAt = performance.now();
-    const response = await Sentry.startSpan(
-      { name: 'OpenAI Chat Completion - First Call', op: 'ai.completion' },
-      async () => {
-        return await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiApiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...messages.map((m) => ({
-                role: m.role,
-                content: m.content
-              }))
-            ],
-            tools,
-            tool_choice: 'auto',
-            max_tokens: 1000,
-          }),
-          signal: controller.signal,
+    const logToolExecution = async (name: string, args: any, result: any) => {
+      try {
+        await supabaseAdmin.from('bruno_tool_logs').insert({
+          user_id: user.id,
+          tool_name: name,
+          arguments: args,
+          result: result,
         });
-      }
-    );
-    clearTimeout(timeoutId);
-
-    openAiMs = performance.now() - openAiStartedAt;
-    latencyTimer.mark('openai');
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('OpenAI Error:', response.status, response.statusText, errorData);
-      throw new Error(`OpenAI API failure: ${response.status}`);
-    }
-
-    const data = await response.json();
-    latencyTimer.mark('openai_json');
-
-    const choice = data.choices[0];
-    let text = '';
-
-    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
-      const toolCalls = choice.message.tool_calls;
-      const toolMessages: any[] = [];
-
-      for (const toolCall of toolCalls) {
-        const { name } = toolCall.function;
-        const args = JSON.parse(toolCall.function.arguments);
-        let result: any = { success: false };
-
-        try {
-          if (name === 'create_task') {
-            const parsed = createTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin.from('tasks').insert({
-              user_id: user.id,
-              title: validArgs.title.trim(),
-              description: validArgs.description?.trim() || null,
-              estimated_minutes: validArgs.estimated_minutes || 30,
-              due_date: validArgs.due_date || null,
-              priority: validArgs.priority || 'medium',
-              status: 'todo',
-              completed: false,
-              is_ai_suggested: false,
-              ai_confidence_score: 0,
-              is_recurring: false,
-              rescheduled_count: 0,
-            });
-            if (error) throw error;
-            result = { success: true, message: `Task "${validArgs.title}" created successfully.` };
-          } 
-          else if (name === 'reschedule_task') {
-            const parsed = rescheduleTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { data: currentTask } = await supabaseAdmin
-              .from('tasks')
-              .select('rescheduled_count')
-              .eq('id', validArgs.task_id)
-              .eq('user_id', user.id)
-              .single();
-
-            const count = ((currentTask as any)?.rescheduled_count || 0) + 1;
-
-            const { error } = await supabaseAdmin
-              .from('tasks')
-              .update({
-                due_date: validArgs.new_due_date,
-                rescheduled_count: count,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', validArgs.task_id)
-              .eq('user_id', user.id);
-
-            if (error) throw error;
-            result = { success: true, message: `Task rescheduled to ${validArgs.new_due_date} successfully.` };
-          } 
-          else if (name === 'update_task') {
-            const parsed = updateTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const updates: any = { updated_at: new Date().toISOString() };
-            if (validArgs.title !== undefined) updates.title = validArgs.title;
-            if (validArgs.description !== undefined) updates.description = validArgs.description;
-            if (validArgs.priority !== undefined) updates.priority = validArgs.priority;
-            if (validArgs.estimated_minutes !== undefined) updates.estimated_minutes = validArgs.estimated_minutes;
-
-            const { error } = await supabaseAdmin
-              .from('tasks')
-              .update(updates)
-              .eq('id', validArgs.task_id)
-              .eq('user_id', user.id);
-
-            if (error) throw error;
-            result = { success: true, message: `Task updated successfully.` };
-          }
-          else if (name === 'complete_task') {
-            const parsed = completeTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const updates = validArgs.completed
-              ? { completed: true, completed_at: new Date().toISOString(), status: 'done', updated_at: new Date().toISOString() }
-              : { completed: false, completed_at: null, status: 'todo', updated_at: new Date().toISOString() };
-
-            const { error } = await supabaseAdmin
-              .from('tasks')
-              .update(updates)
-              .eq('id', validArgs.task_id)
-              .eq('user_id', user.id);
-
-            if (error) throw error;
-            result = { success: true, message: `Task marked as ${validArgs.completed ? 'completed' : 'todo'} successfully.` };
-          } 
-          else if (name === 'delete_task') {
-            const parsed = deleteTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin
-              .from('tasks')
-              .update({ 
-                deleted_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', validArgs.task_id)
-              .eq('user_id', user.id);
-
-            if (error) throw error;
-            result = { success: true, message: `Task deleted successfully.` };
-          }
-          else if (name === 'create_calendar_block') {
-            const parsed = createCalendarBlockSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin.from('calendar_events').insert({
-              user_id: user.id,
-              title: validArgs.title,
-              start_time: validArgs.start_time,
-              end_time: validArgs.end_time,
-              linked_task_id: validArgs.linked_task_id || null,
-              source: 'schedule',
-              status: 'pending',
-              is_ai_suggested: true,
-            });
-            if (error) throw error;
-            result = { success: true, message: 'Calendar block created successfully.' };
-          }
-          else if (name === 'move_calendar_block') {
-            const parsed = moveCalendarBlockSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin.from('calendar_events').update({
-              start_time: validArgs.new_start_time,
-              end_time: validArgs.new_end_time,
-              updated_at: new Date().toISOString()
-            }).eq('id', validArgs.event_id).eq('user_id', user.id);
-            if (error) throw error;
-            result = { success: true, message: 'Calendar block moved successfully.' };
-          }
-          else if (name === 'accept_block') {
-            const parsed = acceptBlockSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin.from('calendar_events').update({
-              status: 'accepted',
-              updated_at: new Date().toISOString()
-            }).eq('id', validArgs.event_id).eq('user_id', user.id);
-            if (error) throw error;
-            result = { success: true, message: 'Calendar block accepted.' };
-          }
-          else if (name === 'reject_block') {
-            const parsed = rejectBlockSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            const { error } = await supabaseAdmin.from('calendar_events').update({
-              is_deleted: true,
-              deleted_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }).eq('id', validArgs.event_id).eq('user_id', user.id);
-            if (error) throw error;
-            result = { success: true, message: 'Calendar block rejected and deleted.' };
-          }
-          else if (name === 'break_down_task') {
-            const parsed = breakDownTaskSchema.safeParse(args);
-            if (!parsed.success) throw new Error(`Invalid arguments: ${parsed.error.message}`);
-            const validArgs = parsed.data;
-            
-            const subtaskInserts = validArgs.subtasks.map((st: any) => ({
-              user_id: user.id,
-              parent_task_id: validArgs.task_id,
-              title: st.title,
-              estimated_minutes: st.estimated_minutes,
-              status: 'todo',
-            }));
-
-            const { error } = await supabaseAdmin.from('tasks').insert(subtaskInserts);
-            if (error) throw error;
-            result = { success: true, message: `Task broken down into ${validArgs.subtasks.length} subtasks.` };
-          }
-        } catch (opError: any) {
-          console.error(`Error executing tool ${name}:`, opError);
-          result = { success: false, error: opError.message || 'Operation failed' };
-        }
-
-        // Log the tool call
-        try {
-          await supabaseAdmin.from('bruno_tool_logs').insert({
-            user_id: user.id,
-            tool_name: name,
-            arguments: args,
-            result: result,
-          });
-        } catch (logError) {
-          console.error(`Failed to log tool execution to bruno_tool_logs:`, logError);
-        }
-
-        // Track tool usage in PostHog
         posthogServer.capture({
           distinctId: user.id,
           event: 'chat_tool_used',
-          properties: {
-            tool_name: name,
-            success: result.success,
-          },
+          properties: { tool_name: name, success: result.success },
         });
-
-        toolMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: name,
-          content: JSON.stringify(result),
-        });
+      } catch (e) {
+        console.error('Failed to log tool execution:', e);
       }
+    };
 
-      let secondResponse: Response;
-      let secondOpenAiStartedAt = performance.now();
-      
-      const makeSecondCall = async (model: string) => {
-        const secondController = new AbortController();
-        const secondTimeout = setTimeout(() => secondController.abort(), 15000);
-        try {
-          const res = await Sentry.startSpan(
-            { name: `OpenAI Chat Completion - Second Call (${model})`, op: 'ai.completion' },
-            async () => {
-              return await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${openaiApiKey}`,
-                },
-                body: JSON.stringify({
-                  model,
-                  messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages.map((m) => ({
-                      role: m.role,
-                      content: m.content
-                    })),
-                    choice.message,
-                    ...toolMessages
-                  ],
-                  max_tokens: 1000,
-                }),
-                signal: secondController.signal,
-              });
-            }
-          );
-          clearTimeout(secondTimeout);
-          return res;
-        } catch (err) {
-          clearTimeout(secondTimeout);
-          throw err;
+    const tools = {
+      create_task: tool({
+        description: 'Create a new task for the user.',
+        inputSchema: createTaskParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin.from('tasks').insert({
+            user_id: user.id,
+            title: validArgs.title.trim(),
+            description: validArgs.description ? validArgs.description.trim() : null,
+            estimated_minutes: validArgs.estimated_minutes || 30,
+            due_date: validArgs.due_date || null,
+            priority: validArgs.priority || 'medium',
+            status: 'todo',
+            completed: false,
+            is_ai_suggested: false,
+            ai_confidence_score: 0,
+            is_recurring: false,
+            rescheduled_count: 0,
+          });
+          if (error) throw error;
+          const result = { success: true, message: `Task "${validArgs.title}" created successfully.` };
+          await logToolExecution('create_task', validArgs, result);
+          return result;
         }
-      };
+      } as any),
+      reschedule_task: tool({
+        description: 'Reschedule an existing task to a new due date.',
+        inputSchema: rescheduleTaskParams,
+        execute: async (validArgs: any) => {
+          const { data: currentTask } = await supabaseAdmin
+            .from('tasks')
+            .select('rescheduled_count')
+            .eq('id', validArgs.task_id)
+            .eq('user_id', user.id)
+            .single();
 
+          const count = ((currentTask as any)?.rescheduled_count || 0) + 1;
 
-      try {
-        secondResponse = await makeSecondCall('gpt-4o-mini');
-      } catch (err: any) {
-        if (err.name === 'AbortError' || err.message.includes('timeout')) {
-          console.log('[Bruno Chat] Second call timed out with gpt-4o-mini, falling back to gpt-4o');
-          secondOpenAiStartedAt = performance.now();
-          secondResponse = await makeSecondCall('gpt-4o');
-        } else {
-          throw err;
+          const { error } = await supabaseAdmin
+            .from('tasks')
+            .update({
+              due_date: validArgs.new_due_date || null,
+              rescheduled_count: count,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', validArgs.task_id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+          const result = { success: true, message: `Task rescheduled to ${validArgs.new_due_date} successfully.` };
+          await logToolExecution('reschedule_task', validArgs, result);
+          return result;
         }
+      } as any),
+      update_task: tool({
+        description: 'Update a task\'s title, description, priority, or estimated duration.',
+        inputSchema: updateTaskParams,
+        execute: async (validArgs: any) => {
+          const updates: any = { updated_at: new Date().toISOString() };
+          if (validArgs.title) updates.title = validArgs.title;
+          if (validArgs.description) updates.description = validArgs.description;
+          if (validArgs.priority && validArgs.priority !== 'medium') updates.priority = validArgs.priority;
+          if (validArgs.estimated_minutes > 0) updates.estimated_minutes = validArgs.estimated_minutes;
+
+          const { error } = await supabaseAdmin
+            .from('tasks')
+            .update(updates)
+            .eq('id', validArgs.task_id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+          const result = { success: true, message: `Task updated successfully.` };
+          await logToolExecution('update_task', validArgs, result);
+          return result;
+        }
+      } as any),
+      complete_task: tool({
+        description: 'Mark a task as completed or uncompleted.',
+        inputSchema: completeTaskParams,
+        execute: async (validArgs: any) => {
+          const updates = validArgs.completed
+            ? { completed: true, completed_at: new Date().toISOString(), status: 'done', updated_at: new Date().toISOString() }
+            : { completed: false, completed_at: null, status: 'todo', updated_at: new Date().toISOString() };
+
+          const { error } = await supabaseAdmin
+            .from('tasks')
+            .update(updates)
+            .eq('id', validArgs.task_id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+          const result = { success: true, message: `Task marked as ${validArgs.completed ? 'completed' : 'todo'} successfully.` };
+          await logToolExecution('complete_task', validArgs, result);
+          return result;
+        }
+      } as any),
+      delete_task: tool({
+        description: 'Delete a task (soft delete).',
+        inputSchema: deleteTaskParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin
+            .from('tasks')
+            .update({ 
+              deleted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', validArgs.task_id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+          const result = { success: true, message: `Task deleted successfully.` };
+          await logToolExecution('delete_task', validArgs, result);
+          return result;
+        }
+      } as any),
+      create_calendar_block: tool({
+        description: 'Create a new calendar block (event).',
+        inputSchema: createCalendarBlockParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin.from('calendar_events').insert({
+            user_id: user.id,
+            title: validArgs.title,
+            start_time: validArgs.start_time,
+            end_time: validArgs.end_time,
+            linked_task_id: validArgs.linked_task_id || null,
+            source: 'schedule',
+            status: 'pending',
+            is_ai_suggested: true,
+          });
+          if (error) throw error;
+          const result = { success: true, message: 'Calendar block created successfully.' };
+          await logToolExecution('create_calendar_block', validArgs, result);
+          return result;
+        }
+      } as any),
+      move_calendar_block: tool({
+        description: 'Move an existing calendar block to a new time.',
+        inputSchema: moveCalendarBlockParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin.from('calendar_events').update({
+            start_time: validArgs.new_start_time,
+            end_time: validArgs.new_end_time,
+            updated_at: new Date().toISOString()
+          }).eq('id', validArgs.event_id).eq('user_id', user.id);
+          if (error) throw error;
+          const result = { success: true, message: 'Calendar block moved successfully.' };
+          await logToolExecution('move_calendar_block', validArgs, result);
+          return result;
+        }
+      } as any),
+      accept_block: tool({
+        description: 'Accept an AI-suggested calendar block.',
+        inputSchema: acceptBlockParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin.from('calendar_events').update({
+            status: 'accepted',
+            updated_at: new Date().toISOString()
+          }).eq('id', validArgs.event_id).eq('user_id', user.id);
+          if (error) throw error;
+          const result = { success: true, message: 'Calendar block accepted.' };
+          await logToolExecution('accept_block', validArgs, result);
+          return result;
+        }
+      } as any),
+      reject_block: tool({
+        description: 'Reject (delete) an AI-suggested calendar block.',
+        inputSchema: rejectBlockParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin.from('calendar_events').update({
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }).eq('id', validArgs.event_id).eq('user_id', user.id);
+          if (error) throw error;
+          const result = { success: true, message: 'Calendar block rejected and deleted.' };
+          await logToolExecution('reject_block', validArgs, result);
+          return result;
+        }
+      } as any),
+      break_down_task: tool({
+        description: 'Break down a complex task into smaller subtasks (15-min increments).',
+        inputSchema: breakDownTaskParams,
+        execute: async (validArgs: any) => {
+          const subtaskInserts = validArgs.subtasks.map((st: any) => ({
+            user_id: user.id,
+            parent_task_id: validArgs.task_id,
+            title: st.title,
+            estimated_minutes: st.estimated_minutes,
+            status: 'todo',
+          }));
+
+          const { error } = await supabaseAdmin.from('tasks').insert(subtaskInserts);
+          if (error) throw error;
+          const result = { success: true, message: `Task broken down into ${validArgs.subtasks.length} subtasks.` };
+          await logToolExecution('break_down_task', validArgs, result);
+          return result;
+        }
+      } as any),
+    };
+
+    latencyTimer.mark('openai');
+    const modelMessages = await convertToModelMessages(messages);
+    const result = streamText({
+      model: openai('gpt-4o-mini'),
+      system: systemPrompt,
+      messages: modelMessages,
+      tools,
+      stopWhen: stepCountIs(5),
+      onFinish: async () => {
+        // --- CONSUME RATE LIMIT ONLY AFTER SUCCESSFUL STREAM COMPLETION ---
+        await consumeHourlyRateLimit(user.id, 'bruno-chat');
       }
-      openAiMs = (openAiMs || 0) + (performance.now() - secondOpenAiStartedAt);
-      latencyTimer.mark('openai_second_call');
+    });
 
-      const secondData = await secondResponse.json();
-      if (!secondResponse.ok) {
-        console.error('OpenAI Second Call Error:', secondResponse.status, secondResponse.statusText, secondData);
-        throw new Error(`OpenAI API second call failure: ${secondResponse.status}`);
+    return result.toUIMessageStreamResponse({
+      headers: {
+        'Server-Timing': buildServerTimingHeader(latencyTimer.complete(performance.now() - startAt)),
       }
-
-      text = secondData.choices[0].message.content;
-      latencyTimer.mark('openai_second_json');
-    } else {
-      text = choice.message.content;
-    }
-
-    // --- CONSUME RATE LIMIT ONLY AFTER SUCCESSFUL RESPONSE ---
-    await consumeHourlyRateLimit(user.id, 'bruno-chat');
-
-    return jsonWithDiagnostics({ text }, undefined, diagnostics);
+    });
   } catch (error: any) {
     console.error('Error in Bruno chat:', error?.stack || error);
     Sentry.captureException(error);

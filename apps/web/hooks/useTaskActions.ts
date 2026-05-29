@@ -81,11 +81,22 @@ export function useTaskActions(onRefresh: () => void) {
       .update(updates)
       .eq('id', taskId);
 
+    // Refresh UI immediately — don't wait for metrics tracking
+    onRefresh();
+
     if (!currentlyCompleted) {
       posthog.capture('task_completed', { task_id: taskId });
     }
-
-    onRefresh();
+      
+    // Fire-and-forget: track in daily_user_metrics (non-blocking)
+    fetch('/api/metrics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        type: 'task_completed', 
+        value: currentlyCompleted ? -1 : 1 
+      }),
+    }).catch(e => console.error('Error tracking task metric:', e));
   }, [supabase, onRefresh]);
 
   // Soft delete a task

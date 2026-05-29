@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { format, isToday } from 'date-fns';
+import { format } from 'date-fns';
 import { getRandomGreeting } from '@/lib/bruno';
 import { useUIStore } from '@/lib/store/ui-store';
-import { calculateUserStats, type UserStats } from '@/lib/stats';
+import { calculateMomentumStats, type MomentumStats } from '@/lib/stats';
 import type { ScheduleBlock } from '@/lib/ai/agentic-scheduler';
+import EventDialog from '@/components/calendar/dialogs/EventDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useCalendarEvents } from '@/hooks/useCalendarEvents';
+import type { CalendarEvent } from '@/types/calendar';
+import { Check, X, Calendar as CalendarIcon, Clock } from '@phosphor-icons/react';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: string }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} style={{ flex: 'none' }}>
@@ -44,8 +49,85 @@ const SourcePill = ({ kind, label, count, status = 'synced' }: { kind: 'canvas' 
         </span>
       )}
       {status === 'synced' && (
-        <span className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.06em]">· SYNCED</span>
+        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[var(--color-cream-2)] text-[var(--color-sage)] tracking-wider">
+          SYNCED
+        </span>
       )}
+    </div>
+  );
+};
+
+const NextActionCard = ({ nextAction }: { nextAction: any }) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    // Only set up interval if the action is currently happening (NOW)
+    if (nextAction.status === 'NOW') {
+      const interval = setInterval(() => setNow(new Date()), 60000);
+      return () => clearInterval(interval);
+    }
+  }, [nextAction.status]);
+
+  const totalDurationMin = Math.round((nextAction.endTime.getTime() - nextAction.startTime.getTime()) / 60000);
+  
+  let elapsedMin = 0;
+  let progressPercent = 0;
+  
+  if (nextAction.status === 'NOW') {
+    elapsedMin = Math.max(0, Math.round((now.getTime() - nextAction.startTime.getTime()) / 60000));
+    progressPercent = Math.min(100, Math.max(0, (elapsedMin / totalDurationMin) * 100));
+  } else if (now > nextAction.endTime) {
+    elapsedMin = totalDurationMin;
+    progressPercent = 100;
+  }
+
+  return (
+    <div className="bg-[var(--color-paper)] text-[var(--color-ink)] rounded-2xl p-5 shadow-sm border border-[var(--color-line-strong)]">
+      <div className="flex justify-between items-center mb-3">
+        <span className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em]">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
+        <span className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em]">● FOCUS</span>
+      </div>
+      <div className="font-serif text-xl tracking-tight mb-2 leading-tight">{nextAction.title}</div>
+      <div className="text-xs text-[var(--color-ink-soft)] font-mono tracking-wide mb-3 flex items-center gap-2">
+        <span className="text-[var(--color-rose)]">●</span> 
+        {totalDurationMin} min
+      </div>
+      <div className="h-1.5 bg-[var(--color-cream-2)] rounded-full overflow-hidden mb-2.5">
+        <div 
+          className="h-full bg-[var(--color-honey)] rounded-full transition-all duration-1000 ease-in-out" 
+          style={{ width: `${progressPercent}%` }} 
+        />
+      </div>
+      <div className="flex justify-between">
+        <span className="font-mono text-[10px] text-[var(--color-ink-soft)] tracking-[0.06em]">{elapsedMin} MIN IN</span>
+        <span className="font-mono text-[10px] text-[var(--color-honey-deep)] tracking-[0.06em]">BRUNO: YOU GOT THIS</span>
+      </div>
+    </div>
+  );
+};
+
+const UpcomingAgendaItem = ({ item, onView }: { item: any, onView: (item: any) => void }) => {
+  return (
+    <div className="flex items-start gap-4 py-3 border-t border-[var(--color-line)]">
+      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-wide min-w-[40px] mt-0.5">
+        {item.date.getTime() === 8640000000000000 ? 'ANY' : format(item.date, 'EEE').toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[14px] font-medium text-[var(--color-ink)] truncate">
+          {item.title}
+        </div>
+        {item.description && (
+          <div className="text-[12px] text-[var(--color-ink-soft)] truncate max-w-full opacity-80 mt-0.5">
+            {item.description}
+          </div>
+        )}
+        <div className="font-mono text-[11px] text-[var(--color-ink-soft)] mt-1 truncate">
+          <span className={item.type === 'task' ? 'text-[var(--color-rose)]' : 'text-[var(--color-blue)]'}>●</span> {item.type === 'task' ? 'Open task' : 'Calendar event'}
+        </div>
+      </div>
+      <button onClick={() => onView(item)} className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-3 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] shrink-0">
+        {item.actionText}
+      </button>
     </div>
   );
 };
@@ -85,10 +167,16 @@ export default function DashboardPage() {
   });
   const [tasks, setTasks] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [thisWeekEvents, setThisWeekEvents] = useState<any[]>([]);
   const [insight, setInsight] = useState<string>('');
   const [insightLoading, setInsightLoading] = useState<boolean>(true);
   const [connections, setConnections] = useState({ canvasConnected: false, canvasDueCount: 0, googleConnected: false });
   const [loading, setLoading] = useState(true);
+
+  const [selectedEventModal, setSelectedEventModal] = useState<CalendarEvent | null>(null);
+  const [selectedTaskModal, setSelectedTaskModal] = useState<any | null>(null);
+
+  const { updateEvent, deleteEvent } = useCalendarEvents();
 
   useEffect(() => {
     async function fetchAll() {
@@ -105,7 +193,7 @@ export default function DashboardPage() {
 
         const tasksPromise = supabase
           .from('tasks')
-          .select('id, title, completed, completed_at, due_date')
+          .select('*')
           .is('deleted_at', null)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
@@ -128,11 +216,32 @@ export default function DashboardPage() {
           .gte('due_at', new Date().toISOString())
           .lte('due_at', sevenDaysOut);
 
-        const [{ data: profile }, { data: taskRows }, { data: blocks }, { count: canvasDueCount }] = await Promise.all([
+        const sevenDaysAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const metricsPromise = supabase
+          .from('daily_user_metrics')
+          .select('date, focus_time_seconds, tasks_completed, tasks_planned')
+          .eq('user_id', user.id)
+          .gte('date', sevenDaysAgoStr)
+          .order('date', { ascending: false });
+
+        const thisWeekEventsPromise = supabase
+          .from('calendar_events')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_deleted', false)
+          .neq('status', 'rejected')
+          .gte('start_time', new Date().toISOString())
+          .lte('start_time', sevenDaysOut)
+          .order('start_time', { ascending: true })
+          .limit(10);
+
+        const [{ data: profile }, { data: taskRows }, { data: blocks }, { count: canvasDueCount }, { data: metricsRows }, { data: thisWeekEventsData }] = await Promise.all([
           profilePromise,
           tasksPromise,
           blocksPromise,
-          canvasDuePromise
+          canvasDuePromise,
+          metricsPromise,
+          thisWeekEventsPromise
         ]);
           
         if (profile?.name) {
@@ -147,6 +256,29 @@ export default function DashboardPage() {
         });
 
         setTasks(taskRows || []);
+        setThisWeekEvents(thisWeekEventsData || []);
+
+        // Calculate momentum stats from the parallel-fetched metrics
+        const threeDaysFromNow = new Date();
+        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+        const upcomingDeadlineCount = (taskRows || []).filter((t: any) => {
+          if (t.completed || !t.due_date) return false;
+          const due = new Date(t.due_date);
+          return due >= new Date() && due <= threeDaysFromNow;
+        }).length;
+
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const tasksPlannedTodayCount = (taskRows || []).filter((t: any) => {
+          if (t.completed && t.completed_at) {
+            return new Date(t.completed_at).toISOString().split('T')[0] === todayDateStr;
+          }
+          if (!t.completed && t.due_date) {
+            return new Date(t.due_date).toISOString().split('T')[0] <= todayDateStr;
+          }
+          return false;
+        }).length;
+
+        setMomentumStats(calculateMomentumStats(metricsRows || [], upcomingDeadlineCount, tasksPlannedTodayCount));
 
         if (blocks && blocks.length > 0) {
           const mappedBlocks: ScheduleBlock[] = blocks.map((g: any) => ({
@@ -185,6 +317,72 @@ export default function DashboardPage() {
     fetchAll();
   }, [supabase]);
 
+  // Background sync for Google Calendar
+  useEffect(() => {
+    if (!connections.googleConnected) return;
+    
+    let isMounted = true;
+    fetch('/api/integrations/google/sync', { method: 'POST' })
+      .then(res => res.json())
+      .then(async data => {
+        if (!isMounted) return;
+        if (data.success && data.count > 0) {
+          // New events were synced, pull them from Supabase silently
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) return;
+          
+          const sevenDaysOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          
+          const [blocksRes, eventsRes] = await Promise.all([
+            supabase
+              .from('calendar_events')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .eq('is_deleted', false)
+              .neq('status', 'rejected')
+              .gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString())
+              .lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString())
+              .order('start_time', { ascending: true }),
+              
+            supabase
+              .from('calendar_events')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .eq('is_deleted', false)
+              .neq('status', 'rejected')
+              .gte('start_time', new Date().toISOString())
+              .lte('start_time', sevenDaysOut)
+              .order('start_time', { ascending: true })
+              .limit(10)
+          ]);
+
+          if (!isMounted) return;
+
+          if (blocksRes.data) {
+            const mappedBlocks: ScheduleBlock[] = blocksRes.data.map((g: any) => ({
+              id: g.id,
+              title: g.title,
+              time: format(new Date(g.start_time), 'HH:mm'),
+              duration: g.end_time ? Math.round((new Date(g.end_time).getTime() - new Date(g.start_time).getTime()) / 60000) : 30,
+              type: (g.energy_level === 'low' ? 'break' : 'focus') as any,
+              description: g.description || '',
+              status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
+              is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true,
+              startTime: g.start_time,
+              endTime: g.end_time || new Date(new Date(g.start_time).getTime() + 30 * 60000).toISOString()
+            }));
+            setSchedule(mappedBlocks);
+          }
+          if (eventsRes.data) {
+            setThisWeekEvents(eventsRes.data);
+          }
+        }
+      })
+      .catch(err => console.error("Background sync failed", err));
+
+    return () => { isMounted = false; };
+  }, [connections.googleConnected, supabase]);
+
   const parsedSchedule = useMemo(() => {
     if (!schedule) return null;
     return schedule.map(b => {
@@ -217,12 +415,54 @@ export default function DashboardPage() {
     return parsedSchedule.filter(b => b.startTime > now).slice(0, 3);
   }, [parsedSchedule]);
 
-  const stats = useMemo(() => {
-    const completedToday = tasks.filter(t => t.completed && t.completed_at && isToday(new Date(t.completed_at))).length;
-    const openTasks = tasks.filter(t => !t.completed).length;
-    const userStats = calculateUserStats(tasks as any);
-    return { completedToday, openTasks, ...userStats };
-  }, [tasks]);
+  const [momentumStats, setMomentumStats] = useState<MomentumStats>({
+    focusTimeMinutes: 0,
+    tasksCrushed: 0,
+    tasksPlanned: 0,
+    upcomingDeadlines: 0,
+    consistencyPercent: 0,
+  });
+
+  const upcomingAgenda = useMemo(() => {
+    const items: Array<{ id: string, type: 'task' | 'event', title: string, description?: string, date: Date, actionText: string, raw: any }> = [];
+    
+    // Add upcoming events
+    if (thisWeekEvents) {
+      thisWeekEvents.forEach(e => {
+        items.push({
+          id: e.id,
+          type: 'event',
+          title: e.title || 'Event',
+          description: e.description || '',
+          date: new Date(e.start_time),
+          actionText: 'View',
+          raw: e
+        });
+      });
+    }
+
+    // Add upcoming tasks
+    if (tasks) {
+      const openTasks = tasks.filter(t => !t.completed);
+      openTasks.forEach(t => {
+        items.push({
+          id: t.id,
+          type: 'task',
+          title: t.title,
+          description: t.description || '',
+          date: t.due_date ? new Date(t.due_date) : new Date(8640000000000000), // Far future if no due date
+          actionText: 'View',
+          raw: t
+        });
+      });
+    }
+
+    // Sort by date
+    items.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    // Return top 4
+    return items.slice(0, 4);
+  }, [thisWeekEvents, tasks]);
 
   if (loading) {
     return (
@@ -344,8 +584,8 @@ export default function DashboardPage() {
           <div className="flex gap-3 mt-auto pt-7">
             {nextAction ? (
               <>
-                <button className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
-                  Start focus block <span>&rarr;</span>
+                <button onClick={() => router.push(`/dashboard/deep-work?taskId=${nextAction.id}`)} className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
+                  Dive in <span>&rarr;</span>
                 </button>
                 <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-paper)]">
                   See full plan
@@ -362,26 +602,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-col gap-3.5">
-          {nextAction && (
-            <div className="bg-[var(--color-paper)] text-[var(--color-ink)] rounded-2xl p-5 shadow-sm border border-[var(--color-line-strong)]">
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em]">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
-                <span className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em]">● FOCUS</span>
-              </div>
-              <div className="font-serif text-xl tracking-tight mb-2 leading-tight">{nextAction.title}</div>
-              <div className="text-xs text-[var(--color-ink-soft)] font-mono tracking-wide mb-3 flex items-center gap-2">
-                <span className="text-[var(--color-rose)]">●</span> 
-                {Math.round((nextAction.endTime.getTime() - nextAction.startTime.getTime()) / 60000)} min
-              </div>
-              <div className="h-1.5 bg-[var(--color-cream-2)] rounded-full overflow-hidden mb-2.5">
-                <div className="h-full bg-[var(--color-honey)] rounded-full w-1/3" />
-              </div>
-              <div className="flex justify-between">
-                <span className="font-mono text-[10px] text-[var(--color-ink-soft)] tracking-[0.06em]">0 MIN IN</span>
-                <span className="font-mono text-[10px] text-[var(--color-honey-deep)] tracking-[0.06em]">BRUNO: YOU GOT THIS</span>
-              </div>
-            </div>
-          )}
+          {nextAction && <NextActionCard nextAction={nextAction} />}
 
           {upNextBlocks.length > 0 && (
             <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-2xl p-4">
@@ -400,17 +621,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* STATS ROW */}
+      {/* STATS ROW — Momentum & Balance */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
-        <Stat label="Done today" big={stats.completedToday} sub={`${tasks.length ? Math.round(stats.completedToday/tasks.length*100) : 0}% of all tasks`} tone="sage" />
-        <Stat label="Focus time" big="--" sub="Start a focus session" tone="honey" />
-        <Stat label="Open tasks" big={stats.openTasks} sub="Across all lists" tone="ink" />
-        <Stat label="Streak" big={`${stats.currentStreak}d`} sub={stats.currentStreak > 1 ? `${stats.consistencyScore}% consistency this week` : 'Complete a task to start!'} tone="bruno" />
+        <Stat label="Focus time" big={momentumStats.focusTimeMinutes > 0 ? `${momentumStats.focusTimeMinutes}m` : '0m'} sub={momentumStats.focusTimeMinutes > 0 ? 'Logged today' : 'Dive in to start tracking'} tone="honey" />
+        <Stat label="Tasks crushed" big={`${momentumStats.tasksCrushed}${momentumStats.tasksPlanned > 0 ? `/${momentumStats.tasksPlanned}` : ''}`} sub={momentumStats.tasksCrushed > 0 ? 'Keep it up!' : 'Complete a task to start'} tone="sage" />
+        <Stat label="Upcoming" big={momentumStats.upcomingDeadlines} sub={momentumStats.upcomingDeadlines > 0 ? 'Due in the next 3 days' : 'Nothing due soon — nice!'} tone="ink" />
+        <Stat label="Consistency" big={`${momentumStats.consistencyPercent}%`} sub={momentumStats.consistencyPercent >= 70 ? "You're on fire this week!" : 'Stay consistent this week'} tone="bruno" />
       </div>
 
       {/* DETAIL ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
-        <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] shadow-sm">
+        <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] shadow-sm min-w-0">
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] mb-1.5">THIS WEEK</div>
@@ -422,23 +643,20 @@ export default function DashboardPage() {
           </div>
           
           <div className="flex flex-col">
-            {tasks.filter(t => !t.completed).slice(0, 4).map((task, i) => (
-              <div key={task.id} className="flex items-center gap-4 py-3 border-t border-[var(--color-line)]">
-                <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-wide min-w-[40px]">
-                  {task.due_date ? format(new Date(task.due_date), 'EEE').toUpperCase() : 'ANY'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-medium truncate text-[var(--color-ink)]">{task.title}</div>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] mt-1 truncate">
-                    <span className="text-[var(--color-rose)]">●</span> Open task
-                  </div>
-                </div>
-                <button className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-3 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
-                  Focus
-                </button>
-              </div>
+            {upcomingAgenda.map((item) => (
+              <UpcomingAgendaItem 
+                key={`${item.type}-${item.id}`} 
+                item={item} 
+                onView={(i) => {
+                  if (i.type === 'event') {
+                    setSelectedEventModal(i.raw as CalendarEvent);
+                  } else {
+                    setSelectedTaskModal(i.raw);
+                  }
+                }} 
+              />
             ))}
-            {tasks.filter(t => !t.completed).length === 0 && (
+            {upcomingAgenda.length === 0 && (
               <div className="py-8 text-center font-serif text-lg text-[var(--color-ink-soft)] italic">
                 You&apos;re all caught up for the week.
               </div>
@@ -462,7 +680,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
-                  You have <em className="text-[var(--color-honey)] not-italic">{stats.openTasks}</em> open tasks. Let&apos;s get to work! 🐻
+                  You have <em className="text-[var(--color-honey)] not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks. Let&apos;s get to work! 🐻
                 </p>
                 <p className="text-[13px] text-[rgba(251,246,234,0.65)] mt-3.5 leading-relaxed">
                   I&apos;ll prioritize the deep work for you. Anything else you want me to learn?
@@ -479,6 +697,58 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Modals */}
+      <EventDialog
+        isOpen={!!selectedEventModal}
+        onOpenChange={(open) => !open && setSelectedEventModal(null)}
+        event={selectedEventModal}
+        onSave={async (id, updates) => {
+          await updateEvent(id, updates);
+          // Optimistically update local state for Dashboard
+          setThisWeekEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+          setSelectedEventModal(null);
+        }}
+        onDelete={async (id) => {
+          await deleteEvent(id);
+          setThisWeekEvents(prev => prev.filter(e => e.id !== id));
+          setSelectedEventModal(null);
+        }}
+      />
+
+      <Dialog open={!!selectedTaskModal} onOpenChange={(open) => !open && setSelectedTaskModal(null)}>
+        <DialogContent className="p-0 overflow-hidden sm:max-w-[420px] bg-[var(--color-paper)] border-[var(--color-line)] shadow-2xl rounded-[24px]">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--color-rose)]">●</span>
+                <span className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-wide">OPEN TASK</span>
+              </div>
+              <button onClick={() => setSelectedTaskModal(null)} className="p-1.5 rounded-full hover:bg-[var(--color-cream-2)] text-[var(--color-ink-soft)] transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-2">{selectedTaskModal?.title}</h2>
+            {selectedTaskModal?.due_date && (
+              <div className="text-[13px] text-[var(--color-ink-soft)] mb-6 flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                Due {format(new Date(selectedTaskModal.due_date), 'MMM d, yyyy h:mm a')}
+              </div>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button 
+                onClick={() => {
+                  setSelectedTaskModal(null);
+                  router.push(`/dashboard/deep-work?taskId=${selectedTaskModal?.id}`);
+                }}
+                className="flex-1 bg-[var(--color-ink)] text-[var(--color-paper)] py-2.5 rounded-full text-sm font-bold tracking-wide hover:opacity-90 transition-opacity"
+              >
+                Focus on Task
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

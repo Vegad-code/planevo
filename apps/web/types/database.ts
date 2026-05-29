@@ -12,6 +12,46 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_user_metrics: {
+        Row: {
+          id: string
+          user_id: string
+          date: string
+          focus_time_seconds: number
+          tasks_completed: number
+          tasks_planned: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          date: string
+          focus_time_seconds?: number
+          tasks_completed?: number
+          tasks_planned?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          date?: string
+          focus_time_seconds?: number
+          tasks_completed?: number
+          tasks_planned?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_user_metrics_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
       ai_feedback: {
         Row: {
           action: string
