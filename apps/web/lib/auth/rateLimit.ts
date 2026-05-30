@@ -65,10 +65,7 @@ export async function validateHourlyRateLimit(userId: string, feature: string, e
   }
 }
 
-/** Consumes the quota after a successful action (for Bruno Chat) */
-export async function consumeHourlyRateLimit(userId: string, feature: string) {
-  return logAiUsage(userId, feature);
-}
+// Removed consumeHourlyRateLimit as consumption will now happen before streaming via checkRateLimitForUser
 
 /** Rate-limit check for Bearer-token-authenticated mobile requests */
 export async function checkRateLimitForUser(userId: string, feature: string, email?: string | null) {
@@ -79,10 +76,7 @@ export async function checkRateLimitForUser(userId: string, feature: string, ema
 async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
   const limit = AI_DAILY_LIMITS[plan] || AI_DAILY_LIMITS.free;
 
-  // Use admin client to bypass RLS for the consume_ai_usage RPC
-  let allowed = false;
   try {
-    // Direct count + insert via admin client to avoid RLS auth.uid() checks
     const { count, error: countError } = await supabaseAdmin
       .from('ai_usage_logs')
       .select('id', { count: 'exact', head: true })
@@ -100,23 +94,27 @@ async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
     }
 
     if ((count ?? 0) >= limit) {
-      allowed = false;
-    } else {
-      // Insert usage log
-      const { error: insertError } = await supabaseAdmin
-        .from('ai_usage_logs')
-        .insert({ user_id: userId, feature });
-
-      if (insertError) {
-        console.error('Rate limit insert error:', insertError);
-        return {
-          allowed: false,
-          error: 'Rate Limit Unavailable',
-          message: 'AI usage checks are temporarily unavailable. Please try again shortly.'
-        };
-      }
-      allowed = true;
+      return {
+        allowed: false,
+        error: 'Rate Limit Reached',
+        message: `You have reached your daily limit of ${limit} AI requests for the ${plan} plan. Updates reset every 24 hours.`
+      };
     }
+
+    const { error: insertError } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .insert({ user_id: userId, feature: feature.slice(0, 100) });
+
+    if (insertError) {
+      console.error('Rate limit insert error:', insertError);
+      return {
+        allowed: false,
+        error: 'Rate Limit Unavailable',
+        message: 'AI usage checks are temporarily unavailable. Please try again shortly.'
+      };
+    }
+
+    return { allowed: true, userId, plan };
   } catch (err) {
     console.error('Rate limit check failed:', err);
     return {
@@ -125,16 +123,6 @@ async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
       message: 'AI usage checks are temporarily unavailable. Please try again shortly.'
     };
   }
-
-  if (!allowed) {
-    return { 
-      allowed: false, 
-      error: 'Limit Reached', 
-      message: `You have reached your daily limit of ${limit} AI requests for the ${plan} plan. Updates reset every 24 hours.`
-    };
-  }
-
-  return { allowed: true, userId, plan };
 }
 
 /**

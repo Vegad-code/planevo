@@ -129,6 +129,9 @@ export default function DailyPlanPage() {
           disliked_patterns: memoryData.disliked_patterns as UserAiMemory['disliked_patterns'],
           accepted_patterns: memoryData.accepted_patterns as UserAiMemory['accepted_patterns'],
           source_counters: memoryData.source_counters as UserAiMemory['source_counters'],
+          task_duration_preferences: (memoryData as any).task_duration_preferences as UserAiMemory['task_duration_preferences'] ?? [],
+          task_time_preferences: (memoryData as any).task_time_preferences as UserAiMemory['task_time_preferences'] ?? [],
+          task_grouping_preferences: (memoryData as any).task_grouping_preferences as UserAiMemory['task_grouping_preferences'] ?? [],
         });
       } else {
         setAiMemory(null);
@@ -501,41 +504,41 @@ export default function DailyPlanPage() {
     return (
       <div className="animate-pulse fade-in duration-500 pb-12 w-full max-w-7xl mx-auto">
         {/* Header Skeleton */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-line mb-8">
           <div>
-            <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-4"></div>
-            <div className="w-64 h-12 md:w-96 md:h-14 bg-[var(--color-line-strong)] rounded-xl mb-4"></div>
-            <div className="w-48 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-32 h-3 bg-line-strong rounded-full mb-4"></div>
+            <div className="w-64 h-12 md:w-96 md:h-14 bg-line-strong rounded-xl mb-4"></div>
+            <div className="w-48 h-4 bg-line-strong rounded-full"></div>
           </div>
           <div className="flex gap-2.5 flex-wrap justify-end">
-            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
-            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
-            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full hidden md:block"></div>
+            <div className="w-24 h-9 bg-line-strong rounded-full"></div>
+            <div className="w-24 h-9 bg-line-strong rounded-full"></div>
+            <div className="w-24 h-9 bg-line-strong rounded-full hidden md:block"></div>
           </div>
         </div>
 
         {/* Content Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-             <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 min-h-[400px]">
+             <div className="bg-paper border border-line rounded-[22px] p-6 min-h-100">
                 <div className="flex justify-between items-start mb-6">
                   <div>
-                    <div className="w-24 h-3 bg-[var(--color-line-strong)] rounded-full mb-3"></div>
-                    <div className="w-48 h-8 bg-[var(--color-line-strong)] rounded-lg"></div>
+                    <div className="w-24 h-3 bg-line-strong rounded-full mb-3"></div>
+                    <div className="w-48 h-8 bg-line-strong rounded-lg"></div>
                   </div>
-                  <div className="w-20 h-8 bg-[var(--color-line-strong)] rounded-full"></div>
+                  <div className="w-20 h-8 bg-line-strong rounded-full"></div>
                 </div>
                 <div className="space-y-4">
-                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
-                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
-                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
-                  <div className="w-full h-20 bg-[var(--color-cream)] rounded-xl"></div>
+                  <div className="w-full h-20 bg-cream rounded-xl"></div>
+                  <div className="w-full h-20 bg-cream rounded-xl"></div>
+                  <div className="w-full h-20 bg-cream rounded-xl"></div>
+                  <div className="w-full h-20 bg-cream rounded-xl"></div>
                 </div>
              </div>
           </div>
           <div className="space-y-6 hidden lg:block">
-            <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-48"></div>
-            <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-64"></div>
+            <div className="bg-paper border border-line rounded-[22px] p-6 h-48"></div>
+            <div className="bg-paper border border-line rounded-[22px] p-6 h-64"></div>
           </div>
         </div>
       </div>
@@ -545,15 +548,15 @@ export default function DailyPlanPage() {
   return (
     <div className={`${sidebarCollapsed ? 'max-w-full' : 'max-w-7xl'} mx-auto animate-fade-in pb-20 transition-all duration-300`}>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-7 border-b border-line mb-8">
         <div>
-          <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-ink-soft)] uppercase mb-2">
+          <div className="font-mono text-[11px] tracking-[0.18em] text-(--color-ink-soft) uppercase mb-2">
             DAILY PLAN · {format(new Date(), 'EEEE LLLL d').toUpperCase()}
           </div>
-          <h1 className="font-serif text-[40px] md:text-[42px] leading-tight text-[var(--color-ink)] m-0">
-            Today, <em className="text-[var(--color-honey-deep)] italic font-serif">at a glance.</em>
+          <h1 className="font-serif text-[40px] md:text-[42px] leading-tight text-ink m-0">
+            Today, <em className="text-(--color-honey-deep) italic font-serif">at a glance.</em>
           </h1>
-          <p className="font-sans text-[14.5px] text-[var(--color-ink-soft)] mt-3 mb-0">
+          <p className="font-sans text-[14.5px] text-(--color-ink-soft) mt-3 mb-0">
             {view === 'schedule' 
               ? `Bruno built a plan with ${schedule ? schedule.length : 0} block${schedule && schedule.length !== 1 ? 's' : ''} from your sources.`
               : "Let's gather your tasks and schedule to build your daily plan."}
@@ -566,14 +569,14 @@ export default function DailyPlanPage() {
               <button 
                 onClick={handleSyncAll} 
                 disabled={processing}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 {processing ? 'Syncing...' : 'Refresh sources'}
               </button>
               <button 
                 onClick={handleGeneratePlan}
                 disabled={processing}
-                className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                className="bg-ink text-paper px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Regenerate plan
               </button>
@@ -583,27 +586,27 @@ export default function DailyPlanPage() {
               <button 
                 onClick={handleSyncAll} 
                 disabled={processing}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Refresh sources
               </button>
               <button 
                 onClick={handleGeneratePlan}
                 disabled={processing}
-                className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                className="bg-ink text-paper px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Regenerate plan
               </button>
               <button 
                 onClick={handleSavePlan}
-                className="bg-[var(--color-honey)] hover:scale-105 text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-transform flex items-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)]"
+                className="bg-honey hover:scale-105 text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-transform flex items-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-honey"
               >
                 <Save className="w-4 h-4 mr-1.5" />
                 Save Plan
               </button>
               <button 
                 onClick={() => setView('sync')}
-                className="bg-transparent border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Reset
               </button>
@@ -624,43 +627,43 @@ export default function DailyPlanPage() {
             >
               {/* Sync Cards Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
-                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
-                    <Calendar className="w-4 h-4 text-[var(--color-ink)]" />
+                <Card className="bg-paper border border-line rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) flex items-center gap-2 uppercase mb-4">
+                    <Calendar className="w-4 h-4 text-ink" />
                     Calendar Events
                   </div>
                   <div className="max-h-60 overflow-y-auto no-scrollbar">
                     {calendarEvents.length === 0 ? (
-                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No events found</div>
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-ink-faint">No events found</div>
                     ) : (
-                      <ul className="divide-y divide-[var(--color-line)]">
+                      <ul className="divide-y divide-line">
                         {calendarEvents.map((e) => (
-                          <li key={e.id} className="py-3 text-[13.5px] font-medium text-[var(--color-ink)]">{e.summary}</li>
+                          <li key={e.id} className="py-3 text-[13.5px] font-medium text-ink">{e.summary}</li>
                         ))}
                       </ul>
                     )}
                   </div>
                 </Card>
 
-                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
-                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
-                    <GraduationCap className="w-4 h-4 text-[var(--color-ink)]" />
+                <Card className="bg-paper border border-line rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) flex items-center gap-2 uppercase mb-4">
+                    <GraduationCap className="w-4 h-4 text-ink" />
                     Canvas Tasks
                   </div>
                   <div className="max-h-60 overflow-y-auto no-scrollbar">
                     {assignments.length === 0 ? (
-                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No tasks synced</div>
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-ink-faint">No tasks synced</div>
                     ) : (
-                      <ul className="divide-y divide-[var(--color-line)]">
+                      <ul className="divide-y divide-line">
                         {assignments.map((a) => (
-                          <li key={a.id} className="py-2.5 hover:bg-[var(--color-cream-2)] rounded-lg transition-colors flex items-center justify-between group px-2 -mx-2">
-                            <span className="text-[13.5px] font-medium text-[var(--color-ink)] truncate mr-2">{a.name}</span>
+                          <li key={a.id} className="py-2.5 hover:bg-(--color-cream-2) rounded-lg transition-colors flex items-center justify-between group px-2 -mx-2">
+                            <span className="text-[13.5px] font-medium text-ink truncate mr-2">{a.name}</span>
                             <button 
                               onClick={() => {
                                 setSelectedAssignment(a);
                                 setIsDetailOpen(true);
                               }}
-                              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink)] border border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] focus-visible:opacity-100"
+                              className="text-[10px] font-mono uppercase tracking-wide text-ink border border-line-strong hover:bg-(--color-cream-2) px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink focus-visible:opacity-100"
                             >
                               Details
                             </button>
@@ -671,18 +674,18 @@ export default function DailyPlanPage() {
                   </div>
                 </Card>
 
-                <Card className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] shadow-sm overflow-hidden p-6">
-                  <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] flex items-center gap-2 uppercase mb-4">
-                    <Activity className="w-4 h-4 text-[var(--color-ink)]" />
+                <Card className="bg-paper border border-line rounded-[22px] shadow-sm overflow-hidden p-6">
+                  <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) flex items-center gap-2 uppercase mb-4">
+                    <Activity className="w-4 h-4 text-ink" />
                     Project Tasks
                   </div>
                   <div className="max-h-60 overflow-y-auto no-scrollbar">
                     {manualTasks.length === 0 ? (
-                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-[var(--color-ink-faint)]">No project tasks</div>
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-ink-faint">No project tasks</div>
                     ) : (
-                      <ul className="divide-y divide-[var(--color-line)]">
+                      <ul className="divide-y divide-line">
                         {manualTasks.map((t) => (
-                          <li key={t.id} className="py-3 text-[13.5px] font-medium text-[var(--color-ink)]">{t.title}</li>
+                          <li key={t.id} className="py-3 text-[13.5px] font-medium text-ink">{t.title}</li>
                         ))}
                       </ul>
                     )}
@@ -691,36 +694,36 @@ export default function DailyPlanPage() {
               </div>
 
               {/* CTA Box */}
-              <div className="bg-[var(--color-paper)] p-8 md:p-12 border border-[var(--color-line)] rounded-[22px] shadow-sm text-[var(--color-ink)] relative overflow-hidden">
+              <div className="bg-paper p-8 md:p-12 border border-line rounded-[22px] shadow-sm text-ink relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                   <Sparkles size={200} />
                 </div>
                 
                 <div className="relative z-10 space-y-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-[var(--color-cream-2)] rounded-2xl flex items-center justify-center border border-[var(--color-line)]">
-                      <Sparkles className="text-[var(--color-ink)] w-7 h-7" />
+                    <div className="w-14 h-14 bg-(--color-cream-2) rounded-2xl flex items-center justify-center border border-line">
+                      <Sparkles className="text-ink w-7 h-7" />
                     </div>
                     <div>
                       <h3 className="font-serif text-3xl tracking-tight m-0 font-normal">Bruno is ready.</h3>
-                      <p className="text-[var(--color-ink-soft)] font-mono uppercase text-[10px] tracking-[0.16em] mt-1">Building a constraint-aware plan for your day.</p>
+                      <p className="text-(--color-ink-soft) font-mono uppercase text-[10px] tracking-[0.16em] mt-1">Building a constraint-aware plan for your day.</p>
                     </div>
                   </div>
                   
                   <div className="flex flex-col gap-6">
                     <div className="space-y-3">
-                      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">Set your energy level:</p>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-(--color-ink-soft)">Set your energy level:</p>
                       <div className="flex flex-wrap gap-2.5" role="radiogroup" aria-label="Current Energy Level">
                         {(['low', 'medium', 'high'] as const).map((level) => (
                           <button
                             key={level}
                             role="radio"
-                            aria-checked={energyLevel === level}
+                            aria-checked={energyLevel === level ? 'true' : 'false'}
                             onClick={() => setEnergyLevel(level)}
-                            className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] ${
+                            className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink ${
                               energyLevel === level 
-                                ? 'bg-[var(--color-ink)] text-[var(--color-paper)] border-[var(--color-ink)] shadow-sm' 
-                                : 'text-[var(--color-ink-soft)] border-[var(--color-line-strong)] hover:border-[var(--color-ink)]'
+                                ? 'bg-ink text-paper border-ink shadow-sm' 
+                                : 'text-(--color-ink-soft) border-line-strong hover:border-ink'
                             }`}
                           >
                             {level}
@@ -732,11 +735,11 @@ export default function DailyPlanPage() {
                     <button 
                       onClick={handleGeneratePlan}
                       disabled={processing}
-                      className="w-full bg-[var(--color-ink)] text-[var(--color-paper)] hover:bg-[var(--color-ink-soft)] text-sm font-medium py-3 rounded-full shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
+                      className="w-full bg-ink text-paper hover:bg-(--color-ink-soft) text-sm font-medium py-3 rounded-full shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
                     >
                       {processing ? (
                         <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 border-2 border-[var(--color-paper)] border-t-transparent rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-paper border-t-transparent rounded-full animate-spin" />
                           Generating Plan...
                         </div>
                       ) : (
@@ -760,19 +763,19 @@ export default function DailyPlanPage() {
               {/* Left Column: Timeline & Backlog */}
               <div className="space-y-6">
                 {/* Timeline Card */}
-                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
+                <div className="bg-paper border border-line rounded-[22px] p-6 shadow-sm">
                   {/* Timeline Header */}
                   <div className="flex justify-between items-start mb-6">
                     <div>
-                      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase">YOUR DAY · {schedule ? schedule.length : 0} BLOCKS</div>
-                      <div className="font-serif text-3xl text-[var(--color-ink)] mt-1.5 font-normal tracking-tight">9:00 AM — 9:30 PM</div>
+                      <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] uppercase">YOUR DAY · {schedule ? schedule.length : 0} BLOCKS</div>
+                      <div className="font-serif text-3xl text-ink mt-1.5 font-normal tracking-tight">9:00 AM — 9:30 PM</div>
                     </div>
                     {/* Selector Segment */}
-                    <div className="flex bg-[var(--color-cream-2)] p-1 rounded-full border border-[var(--color-line)]">
-                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
+                    <div className="flex bg-(--color-cream-2) p-1 rounded-full border border-line">
+                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium bg-ink text-paper shadow-sm cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink">
                         DAY
                       </button>
-                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium text-[var(--color-ink-soft)] bg-transparent hover:text-[var(--color-ink)] cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]">
+                      <button className="px-4 py-1.5 rounded-full text-xs font-mono tracking-wide font-medium text-(--color-ink-soft) bg-transparent hover:text-ink cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink">
                         WEEK
                       </button>
                     </div>
@@ -810,21 +813,21 @@ export default function DailyPlanPage() {
               {/* Right Column: Widgets */}
               <div className="space-y-6">
                 {/* Energy levels */}
-                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase mb-4">
+                <div className="bg-paper border border-line rounded-[22px] p-6 shadow-sm">
+                  <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] uppercase mb-4">
                     YOUR ENERGY · {format(new Date(), 'EEEE').toUpperCase()}
                   </div>
                   
                   {/* Segmented Picker */}
-                  <div className="grid grid-cols-3 bg-[var(--color-cream-2)] p-0.5 rounded-full border border-[var(--color-line)] mb-4">
+                  <div className="grid grid-cols-3 bg-(--color-cream-2) p-0.5 rounded-full border border-line mb-4">
                     {(['low', 'medium', 'high'] as const).map((level) => (
                       <button
                         key={level}
                         onClick={() => setEnergyLevel(level)}
-                        className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] ${
+                        className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink ${
                           energyLevel === level 
-                            ? 'bg-[var(--color-ink)] text-[var(--color-paper)] shadow-sm' 
-                            : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] bg-transparent cursor-pointer'
+                            ? 'bg-ink text-paper shadow-sm' 
+                            : 'text-(--color-ink-soft) hover:text-ink bg-transparent cursor-pointer'
                         }`}
                       >
                         {level}
@@ -832,7 +835,7 @@ export default function DailyPlanPage() {
                     ))}
                   </div>
                   
-                  <p className="text-[13px] text-[var(--color-ink-soft)] leading-relaxed font-sans">
+                  <p className="text-[13px] text-(--color-ink-soft) leading-relaxed font-sans">
                     {energyLevel === 'high' 
                       ? "Bruno scheduled deep work blocks for your morning when focus is highest."
                       : energyLevel === 'medium'
@@ -842,19 +845,19 @@ export default function DailyPlanPage() {
                 </div>
 
                 {/* Sources Pulled */}
-                <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 shadow-sm">
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] uppercase mb-4">
+                <div className="bg-paper border border-line rounded-[22px] p-6 shadow-sm">
+                  <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] uppercase mb-4">
                     SOURCES PULLED
                   </div>
                   <div className="space-y-3">
                     <SourceRow initial="C" color="bg-[var(--color-rose)]" name="Canvas LMS" detail={`${assignments.length} deadlines`} />
                     <SourceRow initial="G" color="bg-[var(--color-blue)]" name="Google Calendar" detail={`${calendarEvents.length} events`} />
-                    <SourceRow initial="T" color="bg-[var(--color-honey)]" name="Tasks & reminders" detail={`${manualTasks.length} items`} />
+                    <SourceRow initial="T" color="bg-honey" name="Tasks & reminders" detail={`${manualTasks.length} items`} />
                   </div>
                 </div>
 
                 {/* Bruno notices */}
-                <div className="bg-[var(--color-bruno-deep)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[22px] p-6 shadow-sm flex flex-col relative overflow-hidden">
+                <div className="bg-bruno-deep border border-line text-paper rounded-[22px] p-6 shadow-sm flex flex-col relative overflow-hidden">
                   <div className="flex items-center gap-2.5 mb-3.5">
                     <svg viewBox="0 0 48 48" width="24" height="24" className="shrink-0">
                       <circle cx="24" cy="24" r="24" fill="var(--color-bruno)" />
@@ -863,16 +866,16 @@ export default function DailyPlanPage() {
                       <circle cx="29" cy="23" r="1.7" fill="var(--color-ink)" />
                       <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-ink)" />
                     </svg>
-                    <span className="font-mono text-[10.5px] tracking-[0.16em] text-[var(--color-honey)] uppercase">BRUNO NOTICED</span>
+                    <span className="font-mono text-[10.5px] tracking-[0.16em] text-honey uppercase">BRUNO NOTICED</span>
                   </div>
-                  <p className="text-[13.5px] leading-relaxed text-[var(--color-paper)] mb-5 font-serif italic">
+                  <p className="text-[13.5px] leading-relaxed text-paper mb-5 font-serif italic">
                     {schedule && schedule.length > 0
                       ? `"I've set up ${schedule.length} block${schedule.length !== 1 ? 's' : ''} for you today. Tap to adjust if anything feels off."`
                       : `"Looking good so far. Generate a plan to see what Bruno recommends."`}
                   </p>
                   <button 
                     onClick={() => router.push('/dashboard/chat')}
-                    className="w-full bg-transparent text-[var(--color-honey)] hover:text-[var(--color-honey-soft)] border border-[rgba(251,246,234,0.25)] hover:border-[var(--color-honey)] text-xs font-mono font-medium py-3 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                    className="w-full bg-transparent text-honey hover:text-(--color-honey-soft) border border-[rgba(251,246,234,0.25)] hover:border-honey text-xs font-mono font-medium py-3 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
                   >
                     Keep tomorrow morning
                   </button>
@@ -896,17 +899,17 @@ export default function DailyPlanPage() {
 
 const SourceRow = ({ initial, color, name, detail }: { initial: string, color: string, name: string, detail: string }) => {
   return (
-    <div className="flex items-center justify-between py-2 border-t border-[var(--color-line)] first:border-0 first:pt-0">
+    <div className="flex items-center justify-between py-2 border-t border-line first:border-0 first:pt-0">
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-[13px] font-bold ${color}`}>
           {initial}
         </div>
         <div>
-          <div className="text-[13.5px] font-medium text-[var(--color-ink)]">{name}</div>
-          <div className="text-[11.5px] text-[var(--color-ink-soft)] font-sans">{detail}</div>
+          <div className="text-[13.5px] font-medium text-ink">{name}</div>
+          <div className="text-[11.5px] text-(--color-ink-soft) font-sans">{detail}</div>
         </div>
       </div>
-      <div className="font-mono text-[9px] tracking-wide text-[var(--color-sage)] flex items-center gap-1.5 uppercase font-semibold">
+      <div className="font-mono text-[9px] tracking-wide text-(--color-sage) flex items-center gap-1.5 uppercase font-semibold">
         <span>CONNECTED</span>
       </div>
     </div>

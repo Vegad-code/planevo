@@ -75,6 +75,23 @@ export default function TasksScreen() {
 
   useEffect(() => {
     fetchTasks();
+
+    if (!user) return;
+
+    const channel = supabase
+      .channel('tasks_changes_tasks_screen')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` },
+        () => {
+          fetchTasks(); // refetch on change
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const handleCreateTask = async () => {

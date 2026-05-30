@@ -170,7 +170,13 @@ export default function DashboardPage() {
   const [thisWeekEvents, setThisWeekEvents] = useState<any[]>([]);
   const [insight, setInsight] = useState<string>('');
   const [insightLoading, setInsightLoading] = useState<boolean>(true);
-  const [connections, setConnections] = useState({ canvasConnected: false, canvasDueCount: 0, googleConnected: false });
+  const [connections, setConnections] = useState({ 
+    canvasConnected: false, 
+    canvasDueCount: 0, 
+    googleConnected: false,
+    googleLastSyncedAt: null as string | null,
+    googleSyncFrequency: 'hourly'
+  });
   const [loading, setLoading] = useState(true);
 
   const [selectedEventModal, setSelectedEventModal] = useState<CalendarEvent | null>(null);
@@ -187,7 +193,7 @@ export default function DashboardPage() {
         
         const profilePromise = (supabase as any)
           .from('users')
-          .select('name, canvas_token, google_calendar_connected')
+          .select('name, canvas_token, google_calendar_connected, google_calendar_last_synced_at, scheduling_preferences')
           .eq('id', user.id)
           .single();
 
@@ -253,6 +259,8 @@ export default function DashboardPage() {
           canvasConnected: !!profile?.canvas_token,
           canvasDueCount: canvasDueCount ?? 0,
           googleConnected: !!profile?.google_calendar_connected,
+          googleLastSyncedAt: profile?.google_calendar_last_synced_at || null,
+          googleSyncFrequency: profile?.scheduling_preferences?.google_sync_frequency || 'hourly',
         });
 
         setTasks(taskRows || []);
@@ -320,7 +328,23 @@ export default function DashboardPage() {
   // Background sync for Google Calendar
   useEffect(() => {
     if (!connections.googleConnected) return;
+    if (connections.googleSyncFrequency === 'manual') return;
+
+    let shouldSync = false;
+    if (!connections.googleLastSyncedAt) {
+       shouldSync = true;
+    } else {
+       const lastSynced = new Date(connections.googleLastSyncedAt).getTime();
+       const now = Date.now();
+       const hoursSinceSync = (now - lastSynced) / (1000 * 60 * 60);
+       
+       if (connections.googleSyncFrequency === 'hourly' && hoursSinceSync >= 1) shouldSync = true;
+       if (connections.googleSyncFrequency === 'daily' && hoursSinceSync >= 24) shouldSync = true;
+       if (connections.googleSyncFrequency === 'weekly' && hoursSinceSync >= 24 * 7) shouldSync = true;
+    }
     
+    if (!shouldSync) return;
+
     let isMounted = true;
     fetch('/api/integrations/google/sync', { method: 'POST' })
       .then(res => res.json())

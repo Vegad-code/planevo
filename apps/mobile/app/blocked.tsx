@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
-import { LogOut, RefreshCw, AlertCircle } from 'lucide-react-native';
+import { LogOut, RefreshCw, AlertCircle, ExternalLink } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 
 export default function BlockedScreen() {
   const { colors } = useTheme();
@@ -31,10 +32,20 @@ export default function BlockedScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: Colors.brand[600] }]}
+            onPress={() => {
+              Linking.openURL(process.env.EXPO_PUBLIC_WEB_URL ?? 'https://planevo.app');
+            }}
+          >
+            <ExternalLink size={18} color="#fff" strokeWidth={2.5} />
+            <Text style={styles.buttonText}>Open Web App</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.buttonOutlined, { borderColor: Colors.brand[300] }]}
             onPress={handleCheckAgain}
           >
-            <RefreshCw size={18} color="#fff" strokeWidth={2.5} />
-            <Text style={styles.buttonText}>Check Again</Text>
+            <RefreshCw size={18} color={Colors.brand[500]} strokeWidth={2.5} />
+            <Text style={[styles.buttonTextOutlined, { color: Colors.brand[500] }]}>Check Again</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

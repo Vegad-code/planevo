@@ -10,6 +10,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react-native';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
@@ -124,6 +126,7 @@ export default function SettingsScreen() {
             connected={!!profile?.canvas_token}
             colors={colors}
             testID="settings-canvas"
+            onPress={() => router.push('/canvas-connect' as any)}
           />
           <View style={[styles.divider, { backgroundColor: colors.separator }]} />
           <SettingsRow
@@ -214,6 +217,7 @@ function SettingsRow({
   connected,
   colors,
   testID,
+  onPress,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -221,9 +225,10 @@ function SettingsRow({
   connected: boolean;
   colors: any;
   testID: string;
+  onPress?: () => void;
 }) {
   return (
-    <View style={styles.row} testID={testID}>
+    <TouchableOpacity style={styles.row} testID={testID} onPress={onPress} disabled={!onPress}>
       <View style={styles.rowLeft}>
         {icon}
         <View>
@@ -234,7 +239,7 @@ function SettingsRow({
         </View>
       </View>
       <View style={[styles.statusDot, { backgroundColor: connected ? Colors.brand[500] : colors.separator }]} />
-    </View>
+    </TouchableOpacity>
   );
 }
 

@@ -69,8 +69,7 @@ export function useDeepWorkTimer(initialMinutes: number, onComplete?: () => void
   }, [initialMinutes]);
 
   // Calculate total focus time dynamically
-  const totalElapsedFocusTime = accumulatedTimeRef.current + 
-    (isActive && startTimeRef.current ? (Date.now() - startTimeRef.current) / 1000 : 0);
+  const totalElapsedFocusTime = (initialMinutes * 60) - secondsLeft;
 
   return { 
     secondsLeft, 

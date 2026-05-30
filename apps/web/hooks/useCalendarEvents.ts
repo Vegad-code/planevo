@@ -59,30 +59,8 @@ export function useCalendarEvents() {
         setEvents((data || []) as CalendarEvent[]);
       }
       
-      // Fire-and-forget background polling for Google Calendar
-      if (user) {
-        fetch('/api/integrations/google/sync', { method: 'POST' })
-          .then(res => res.json())
-          .then(async syncData => {
-            if (syncData.success && syncData.count > 0) {
-              // Silently re-fetch from supabase
-              const { data: freshData } = await supabase
-                .from('calendar_events')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('is_deleted', false)
-                .gte('start_time', start.toISOString())
-                .lte('start_time', end.toISOString())
-                .order('start_time', { ascending: true });
-                
-              if (freshData) {
-                setEvents(freshData as CalendarEvent[]);
-              }
-            }
-          })
-          .catch(err => console.error('Background Google sync failed', err));
-      }
-      
+      // Removed the aggressive background polling for Google Calendar here
+      // Auto-sync is handled selectively by the dashboard components based on user frequency preference      
     } catch {
       if (!silent) setError('Failed to load calendar events');
     } finally {
@@ -90,13 +68,7 @@ export function useCalendarEvents() {
     }
   }, [supabase]);
 
-  // Background polling every 60 seconds
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      loadEvents(undefined, undefined, true);
-    }, 60000);
-    return () => clearInterval(intervalId);
-  }, [loadEvents]);
+  // Removed background polling interval to respect user sync frequency preferences
 
   // Complete an event
   const completeEvent = useCallback(async (eventId: string) => {

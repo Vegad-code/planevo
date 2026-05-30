@@ -58,6 +58,34 @@ const memoryPatternSchema = z.object({
 
 const sourceCountersSchema = z.record(z.string(), z.number().int().min(0)).default({});
 
+// ---------------------------------------------------------------------------
+// NEW: Task-specific preference schemas for enhanced memory
+// ---------------------------------------------------------------------------
+
+/** Learns how long a user prefers to spend on specific task categories (e.g., "Math" → 60m) */
+const taskDurationPrefSchema = z.object({
+  category: z.string().min(1).max(80),
+  preferred_minutes: z.number().int().min(5).max(480),
+  evidence_count: z.number().int().min(1).default(1),
+  last_seen_at: z.string().optional(),
+});
+
+/** Learns what time of day a user prefers for specific task categories (e.g., "Workout" → "morning") */
+const taskTimePrefSchema = z.object({
+  category: z.string().min(1).max(80),
+  preferred_time: z.enum(['early_morning', 'morning', 'afternoon', 'evening', 'night']),
+  evidence_count: z.number().int().min(1).default(1),
+  last_seen_at: z.string().optional(),
+});
+
+/** Learns which tasks the user tends to group together (habit stacking) */
+const taskGroupingPrefSchema = z.object({
+  task_a: z.string().min(1).max(80),
+  task_b: z.string().min(1).max(80),
+  evidence_count: z.number().int().min(1).default(1),
+  last_seen_at: z.string().optional(),
+});
+
 export const userAiMemorySchema = z.object({
   preferred_focus_windows: z.array(memoryWindowSchema).default([]),
   avoided_focus_windows: z.array(memoryWindowSchema).default([]),
@@ -88,6 +116,10 @@ export const userAiMemorySchema = z.object({
   disliked_patterns: z.array(memoryPatternSchema).default([]),
   accepted_patterns: z.array(memoryPatternSchema).default([]),
   source_counters: sourceCountersSchema,
+  // --- Enhanced memory fields ---
+  task_duration_preferences: z.array(taskDurationPrefSchema).default([]),
+  task_time_preferences: z.array(taskTimePrefSchema).default([]),
+  task_grouping_preferences: z.array(taskGroupingPrefSchema).default([]),
 });
 
 export type UserAiMemory = z.infer<typeof userAiMemorySchema>;
@@ -98,6 +130,7 @@ export const DEFAULT_USER_AI_MEMORY: UserAiMemory = userAiMemorySchema.parse({})
 export function parseUserAiMemory(row: UserAiMemoryRow | null | undefined): UserAiMemory {
   if (!row) return DEFAULT_USER_AI_MEMORY;
 
+  const raw = row as UserAiMemoryRow & Record<string, unknown>;
   return userAiMemorySchema.parse({
     preferred_focus_windows: row.preferred_focus_windows,
     avoided_focus_windows: row.avoided_focus_windows,
@@ -110,6 +143,10 @@ export function parseUserAiMemory(row: UserAiMemoryRow | null | undefined): User
     disliked_patterns: row.disliked_patterns,
     accepted_patterns: row.accepted_patterns,
     source_counters: row.source_counters,
+    // Enhanced memory fields (gracefully default if column doesn't exist yet)
+    task_duration_preferences: raw.task_duration_preferences ?? [],
+    task_time_preferences: raw.task_time_preferences ?? [],
+    task_grouping_preferences: raw.task_grouping_preferences ?? [],
   });
 }
 
@@ -309,6 +346,19 @@ export function buildMemoryContext(memory: UserAiMemory): string {
 
   if (memory.accepted_patterns.length > 0) {
     lines.push(`Known good patterns: ${memory.accepted_patterns.map((pattern) => pattern.label).join(', ')}`);
+  }
+
+  // --- Enhanced memory context ---
+  if (memory.task_duration_preferences.length > 0) {
+    lines.push(`Task duration preferences: ${memory.task_duration_preferences.map(p => `${p.category} → ${p.preferred_minutes}m`).join(', ')}`);
+  }
+
+  if (memory.task_time_preferences.length > 0) {
+    lines.push(`Task time-of-day preferences: ${memory.task_time_preferences.map(p => `${p.category} → ${p.preferred_time}`).join(', ')}`);
+  }
+
+  if (memory.task_grouping_preferences.length > 0) {
+    lines.push(`Task grouping (habit stacking): ${memory.task_grouping_preferences.map(p => `${p.task_a} + ${p.task_b}`).join(', ')}`);
   }
 
   return lines.join('\n');
@@ -576,6 +626,10 @@ function memoryToDb(memory: UserAiMemory) {
     disliked_patterns: memory.disliked_patterns as Json,
     accepted_patterns: memory.accepted_patterns as Json,
     source_counters: memory.source_counters as Json,
+    // Enhanced memory fields
+    task_duration_preferences: memory.task_duration_preferences as Json,
+    task_time_preferences: memory.task_time_preferences as Json,
+    task_grouping_preferences: memory.task_grouping_preferences as Json,
   };
 }
 
@@ -625,4 +679,172 @@ function incrementCounter(counters: UserAiMemory['source_counters'], key: string
     ...counters,
     [key]: (counters[key] || 0) + 1,
   };
+}
+
+// ---------------------------------------------------------------------------
+// PLAN DRAFT FEEDBACK: Learn from approved plans
+// ---------------------------------------------------------------------------
+
+export interface PlanDraftItem {
+  title: string;
+  start_time: string;
+  end_time: string;
+  energy_level: 'high' | 'medium' | 'low';
+  execution_description: string;
+}
+
+/**
+ * When a user approves a plan draft, we extract patterns from the approved items
+ * and update the memory to make future drafts smarter.
+ */
+export async function recordPlanFeedbackInMemory(
+  supabase: SupabaseServerClient,
+  userId: string,
+  approvedItems: PlanDraftItem[]
+): Promise<UserAiMemory> {
+  const current = await getUserAIMemory(supabase, userId);
+  const now = new Date().toISOString();
+
+  let updatedDurationPrefs = [...current.task_duration_preferences];
+  let updatedTimePrefs = [...current.task_time_preferences];
+  let updatedGroupingPrefs = [...current.task_grouping_preferences];
+
+  for (const item of approvedItems) {
+    // 1. Learn duration preferences
+    const startMs = new Date(item.start_time).getTime();
+    const endMs = new Date(item.end_time).getTime();
+    const durationMinutes = Math.round((endMs - startMs) / 60000);
+
+    if (durationMinutes > 0 && durationMinutes <= 480) {
+      const category = extractCategory(item.title);
+      updatedDurationPrefs = upsertDurationPref(updatedDurationPrefs, {
+        category,
+        preferred_minutes: durationMinutes,
+        evidence_count: 1,
+        last_seen_at: now,
+      });
+    }
+
+    // 2. Learn time-of-day preferences
+    const hour = new Date(item.start_time).getHours();
+    const timeSlot = hourToTimeSlot(hour);
+    const category = extractCategory(item.title);
+    updatedTimePrefs = upsertTimePref(updatedTimePrefs, {
+      category,
+      preferred_time: timeSlot,
+      evidence_count: 1,
+      last_seen_at: now,
+    });
+  }
+
+  // 3. Learn grouping preferences (consecutive items)
+  for (let i = 0; i < approvedItems.length - 1; i++) {
+    const a = approvedItems[i];
+    const b = approvedItems[i + 1];
+    const gapMs = new Date(b.start_time).getTime() - new Date(a.end_time).getTime();
+    // If items are within 15 minutes of each other, consider them grouped
+    if (gapMs >= 0 && gapMs <= 15 * 60000) {
+      const catA = extractCategory(a.title);
+      const catB = extractCategory(b.title);
+      if (catA !== catB) {
+        updatedGroupingPrefs = upsertGroupingPref(updatedGroupingPrefs, {
+          task_a: catA,
+          task_b: catB,
+          evidence_count: 1,
+          last_seen_at: now,
+        });
+      }
+    }
+  }
+
+  return updateUserAIMemory(supabase, userId, {
+    task_duration_preferences: updatedDurationPrefs.slice(-20),
+    task_time_preferences: updatedTimePrefs.slice(-20),
+    task_grouping_preferences: updatedGroupingPrefs.slice(-15),
+    accepted_patterns: upsertPattern(current.accepted_patterns, {
+      label: 'plan_draft_approved',
+      detail: `User approved a plan with ${approvedItems.length} items.`,
+      feature: 'plan_draft',
+      count: 1,
+      last_seen_at: now,
+    }),
+    source_counters: incrementCounter(current.source_counters, 'plan_draft_approved'),
+  });
+}
+
+/** Extract a rough category from a task title (first meaningful word or emoji prefix). */
+function extractCategory(title: string): string {
+  // Strip leading emoji
+  const cleaned = title.replace(/^[\p{Emoji}\s]+/u, '').trim();
+  // Take first two words as a category
+  const words = cleaned.split(/\s+/).slice(0, 2).join(' ');
+  return words || title.slice(0, 30);
+}
+
+function hourToTimeSlot(hour: number): 'early_morning' | 'morning' | 'afternoon' | 'evening' | 'night' {
+  if (hour < 7) return 'early_morning';
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  if (hour < 21) return 'evening';
+  return 'night';
+}
+
+function upsertDurationPref(
+  prefs: UserAiMemory['task_duration_preferences'],
+  next: UserAiMemory['task_duration_preferences'][number]
+) {
+  const existing = prefs.find(p => p.category.toLowerCase() === next.category.toLowerCase());
+  if (!existing) return [...prefs, next];
+  return prefs.map(p => {
+    if (p.category.toLowerCase() !== next.category.toLowerCase()) return p;
+    // Weighted average of the preferred duration
+    const totalEvidence = p.evidence_count + 1;
+    const avgMinutes = Math.round((p.preferred_minutes * p.evidence_count + next.preferred_minutes) / totalEvidence);
+    return {
+      ...p,
+      preferred_minutes: avgMinutes,
+      evidence_count: totalEvidence,
+      last_seen_at: next.last_seen_at,
+    };
+  });
+}
+
+function upsertTimePref(
+  prefs: UserAiMemory['task_time_preferences'],
+  next: UserAiMemory['task_time_preferences'][number]
+) {
+  const existing = prefs.find(p => p.category.toLowerCase() === next.category.toLowerCase());
+  if (!existing) return [...prefs, next];
+  return prefs.map(p => {
+    if (p.category.toLowerCase() !== next.category.toLowerCase()) return p;
+    return {
+      ...p,
+      // Only override if we have strong evidence (more than 2 times)
+      preferred_time: p.evidence_count >= 2 ? p.preferred_time : next.preferred_time,
+      evidence_count: p.evidence_count + 1,
+      last_seen_at: next.last_seen_at,
+    };
+  });
+}
+
+function upsertGroupingPref(
+  prefs: UserAiMemory['task_grouping_preferences'],
+  next: UserAiMemory['task_grouping_preferences'][number]
+) {
+  const existing = prefs.find(p =>
+    (p.task_a.toLowerCase() === next.task_a.toLowerCase() && p.task_b.toLowerCase() === next.task_b.toLowerCase()) ||
+    (p.task_a.toLowerCase() === next.task_b.toLowerCase() && p.task_b.toLowerCase() === next.task_a.toLowerCase())
+  );
+  if (!existing) return [...prefs, next];
+  return prefs.map(p => {
+    const matches =
+      (p.task_a.toLowerCase() === next.task_a.toLowerCase() && p.task_b.toLowerCase() === next.task_b.toLowerCase()) ||
+      (p.task_a.toLowerCase() === next.task_b.toLowerCase() && p.task_b.toLowerCase() === next.task_a.toLowerCase());
+    if (!matches) return p;
+    return {
+      ...p,
+      evidence_count: p.evidence_count + 1,
+      last_seen_at: next.last_seen_at,
+    };
+  });
 }

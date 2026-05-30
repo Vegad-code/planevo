@@ -51,6 +51,8 @@ export default function CalendarPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'backlog' | 'chat'>('chat');
+  const [backlogCount, setBacklogCount] = useState<number>(0);
   const supabase = createClient();
 
   const loading = prefsLoading;
@@ -70,6 +72,27 @@ export default function CalendarPage() {
     }
     checkGoogleConnection();
   }, [supabase]);
+
+  useEffect(() => {
+    async function loadBacklogCount() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('completed', false)
+        .is('deleted_at', null);
+
+      if (data) {
+        const scheduledIds = events.map(e => e.linked_task_id).filter(Boolean) as string[];
+        const unscheduledTasks = data.filter(t => !scheduledIds.includes(t.id));
+        setBacklogCount(unscheduledTasks.length);
+      }
+    }
+    loadBacklogCount();
+  }, [supabase, events]);
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const delta = direction === 'next' ? 1 : -1;
@@ -413,27 +436,60 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Task Backlog Sidebar */}
-      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-6 h-full lg:h-[80vh] overflow-y-auto no-scrollbar">
-        {/* Task Backlog Card */}
-        <TaskBacklog 
-          onScheduleAll={handleAutoSchedule}
-          onScheduleOne={(task) => {
-            toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
-          }}
-          isProcessing={isProcessing}
-          scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
-        />
+      {/* Sidebar (Task Backlog & Bruno Chat) */}
+      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4 h-full lg:h-[80vh]">
+        {/* Tab Switcher Pills */}
+        <div className="flex bg-[var(--color-paper)] p-1 rounded-xl border border-[var(--color-line)] shadow-sm relative shrink-0">
+          {(['backlog', 'chat'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveSidebarTab(tab)}
+              className={`
+                flex-1 px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 z-10 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--color-ink)]
+                ${activeSidebarTab === tab
+                  ? 'text-[var(--color-cream)] bg-[var(--color-ink)] shadow-sm'
+                  : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
+                }
+              `}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-1.5">
+                {tab === 'backlog' ? 'Task Backlog' : 'Bruno Chat'}
+                {tab === 'backlog' && backlogCount > 0 && (
+                  <span className={`
+                    px-1.5 py-0.5 text-[9px] font-sans font-bold rounded-full transition-colors duration-200
+                    ${activeSidebarTab === 'backlog'
+                      ? 'bg-[var(--color-paper)] text-[var(--color-ink)]'
+                      : 'bg-[var(--color-ink)] text-[var(--color-paper)]'
+                    }
+                  `}>
+                    {backlogCount}
+                  </span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
 
-        {/* Bruno Chat Sidebar */}
-        <div className="flex-1 min-h-[500px] flex flex-col mb-4">
-          <div className="h-full">
-            <BrunoChatSidebar 
-              onFinish={loadEvents}
-              isProcessing={chatProcessing}
-              initialMessage="Hey! I'm Bruno, your elite academic advisor and schedule heavy-lifter. Tell me what we need to get done this week."
+        {/* Tab Content */}
+        <div className="flex-1 min-h-0">
+          {activeSidebarTab === 'backlog' ? (
+            <TaskBacklog 
+              onScheduleAll={handleAutoSchedule}
+              onScheduleOne={(task) => {
+                toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
+              }}
+              isProcessing={isProcessing}
+              scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
             />
-          </div>
+          ) : (
+            <div className="h-[600px] flex flex-col mb-4">
+              <BrunoChatSidebar 
+                onFinish={loadEvents}
+                isProcessing={chatProcessing}
+                initialMessage="Hey! I'm Bruno, your elite academic advisor and schedule heavy-lifter. Tell me what we need to get done this week."
+              />
+            </div>
+          )}
         </div>
       </div>
 

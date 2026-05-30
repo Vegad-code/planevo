@@ -1,0 +1,421 @@
+# Completing Blocks E, F, G — Step-by-Step Implementation Plan
+
+> **Goal:** Finish the three remaining STRATEGY.md execution blocks so Planevo is fully launch-ready.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Accounts you need to create before I write code:**
+> 1. **Sentry** — Create a free project at [sentry.io](https://sentry.io). You'll get a DSN string. I need it as `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN`.
+> 2. **PostHog** — Create a free project at [posthog.com](https://posthog.com). You'll get an API key. I need it as `NEXT_PUBLIC_POSTHOG_KEY` and a host URL as `NEXT_PUBLIC_POSTHOG_HOST`.
+> 3. **Resend** — Create a free account at [resend.com](https://resend.com) and verify your sending domain. I need the API key as `RESEND_API_KEY` and your verified from-address (e.g. `bruno@planevo.app`).
+> 4. **Apple Developer Program** — Required for TestFlight + iOS widget. Confirm you have an active membership.
+> 5. **Google Play Console** — Required for Play Store internal testing track.
+
+> [!WARNING]
+> **Block F (Mobile)** has the largest scope. The iOS Home Screen Widget requires a native Swift extension that **cannot be built on Windows** — you'll need a Mac (or a CI Mac runner like EAS Build) for that step. The rest of Block F works cross-platform.
+
+## Open Questions
+
+> [!IMPORTANT]
+> - **Email sender address:** What `from` address should Bruno's weekly review emails come from? (e.g. `bruno@planevo.app`, `noreply@planevo.app`)
+> - **Referral reward:** What does a successful referral earn? A free month? A billing credit? I'll code the tracking either way, but need the reward copy.
+> - **Push notification copy:** STRATEGY.md says *"3 things on your plate today. Tap to see your plan."* — should I use this exact copy or make it dynamic based on actual task count?
+> - **Sentry environment:** Are you deploying to Vercel? I'll configure Sentry source maps upload accordingly.
+
+---
+
+## Block E — Security Hardening (remaining 20%)
+
+### Step E1: Origin/CSRF check on AI POST routes
+
+> **What:** Reject AI API requests that don't originate from your own domain.
+
+#### [NEW] [origin-guard.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/auth/origin-guard.ts)
+
+Create a reusable helper:
+```typescript
+// Checks the Origin or Referer header against allowed origins.
+// Returns true if the request is safe, false if it should be blocked.
+export function isAllowedOrigin(request: NextRequest): boolean
+```
+- Reads `NEXT_PUBLIC_APP_URL` from env (e.g. `https://planevo.app`)
+- In development, also allows `http://localhost:3000`
+- Checks `Origin` header first, falls back to `Referer`
+- Returns `false` (and logs a warning) if neither matches
+
+#### [MODIFY] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/ai/chat/route.ts)
+
+- Import `isAllowedOrigin` at the top
+- Add a 3-line guard **before** the rate limit check:
+  ```
+  if (!isAllowedOrigin(request)) return 403 "Forbidden: invalid origin"
+  ```
+
+#### [MODIFY] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/ai/daily-plan/route.ts)
+
+- Same 3-line guard added at the top of the `POST` handler.
+
+#### [MODIFY] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/ai/weekly-review/route.ts)
+
+- Same guard. Additionally add an exemption: if the request contains a `Authorization: Bearer <CRON_SECRET>` header, skip the origin check (needed for Step G1's cron trigger).
+
+---
+
+### Step E2: Sentry error tracking
+
+> **What:** Capture all unhandled exceptions on both client and server. Source maps uploaded on deploy.
+
+#### Commands to run
+```powershell
+# From apps/web
+npx @sentry/wizard@latest -i nextjs
+```
+This auto-creates:
+- `sentry.client.config.ts`
+- `sentry.server.config.ts`
+- `sentry.edge.config.ts`
+- Updates `next.config.ts` to wrap with `withSentryConfig`
+
+#### [MODIFY] `.env.local`
+Add:
+```
+SENTRY_DSN=https://xxxxx@o123456.ingest.sentry.io/789
+NEXT_PUBLIC_SENTRY_DSN=https://xxxxx@o123456.ingest.sentry.io/789
+SENTRY_AUTH_TOKEN=sntrys_xxx  # for source map upload
+```
+
+#### Manual verification
+- Throw a test error in `/dashboard` → confirm it appears in the Sentry dashboard within 30 seconds.
+
+---
+
+### Step E3: PostHog product analytics
+
+> **What:** Track page views, feature usage, and identify users for retention metrics.
+
+#### Commands to run
+```powershell
+# From apps/web
+npm install posthog-js
+```
+
+#### [NEW] [posthog.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/posthog.ts)
+- Initialize the PostHog client with `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST`
+- Export a singleton instance
+- Include `person_profiles: 'identified_only'` for privacy
+
+#### [NEW] [PostHogProvider.tsx](file:///c:/Users/jabbo/M1plan/planevo/apps/web/components/providers/PostHogProvider.tsx)
+- Client component wrapping `PostHogProvider` from `posthog-js/react`
+- Calls `posthog.identify(user.id, { email, plan_type })` on auth state change
+
+#### [MODIFY] [layout.tsx](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/layout.tsx)
+- Wrap children with `<PostHogProvider>`
+
+#### [MODIFY] `.env.local`
+Add:
+```
+NEXT_PUBLIC_POSTHOG_KEY=phc_xxxxx
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+```
+
+---
+
+## Block F — Mobile App (remaining 40%)
+
+### Step F1: Push notifications via Expo Notifications
+
+> **What:** Morning planning nudge: *"3 things on your plate today. Tap to see your plan."*
+
+#### Commands to run
+```powershell
+# From apps/mobile
+npx expo install expo-notifications expo-device expo-constants
+```
+
+#### [MODIFY] [app.json](file:///c:/Users/jabbo/M1plan/planevo/apps/mobile/app.json)
+- Add `"expo-notifications"` to the `plugins` array
+- Add under `ios`:
+  ```json
+  "entitlements": {
+    "aps-environment": "development"
+  }
+  ```
+- Add under `android`:
+  ```json
+  "googleServicesFile": "./google-services.json"
+  ```
+
+#### Supabase migration — [NEW] `migration_v8_push_tokens.sql`
+```sql
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS expo_push_token TEXT,
+  ADD COLUMN IF NOT EXISTS push_notifications_enabled BOOLEAN DEFAULT true;
+```
+
+#### [NEW] [notifications.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/mobile/lib/notifications.ts)
+- `registerForPushNotifications()`: requests permission, gets Expo push token, saves to `users.expo_push_token` via Supabase
+- `scheduleMorningReminder()`: schedules a local notification at user's preferred morning time
+- Sets up notification received/response listeners
+
+#### [MODIFY] [_layout.tsx](file:///c:/Users/jabbo/M1plan/planevo/apps/mobile/app/_layout.tsx)
+- Call `registerForPushNotifications()` after auth is confirmed
+- Set up notification response handler to navigate to the Daily Plan tab
+
+#### [NEW] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/notifications/push/route.ts)
+- Server-side endpoint that queries all users with `push_notifications_enabled = true` and a valid `expo_push_token`
+- Fetches each user's task count for today
+- Sends batch push notifications via Expo's push API (`https://exp.host/--/api/v2/push/send`)
+- Protected by `CRON_SECRET` header for use with Vercel Cron
+
+---
+
+### Step F2: EAS Build pipeline (TestFlight + Play Internal)
+
+> **What:** Configure EAS to produce signed builds for both platforms.
+
+#### Commands to run
+```powershell
+# From apps/mobile
+npx eas-cli@latest login
+npx eas-cli@latest build:configure
+```
+
+#### [MODIFY] [eas.json](file:///c:/Users/jabbo/M1plan/planevo/apps/mobile/eas.json)
+Update to include credentials and submission configuration:
+```json
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "buildConfiguration": "Release" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": { "buildConfiguration": "Release" },
+      "android": { "buildType": "app-bundle" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { "appleId": "YOUR_APPLE_ID", "ascAppId": "YOUR_ASC_APP_ID" },
+      "android": { "serviceAccountKeyPath": "./play-store-key.json" }
+    }
+  }
+}
+```
+
+#### Build commands (run when ready to test)
+```powershell
+# Internal iOS build (TestFlight)
+npx eas-cli@latest build --platform ios --profile preview
+
+# Internal Android build (Play Internal)
+npx eas-cli@latest build --platform android --profile preview
+
+# Submit to stores
+npx eas-cli@latest submit --platform ios --profile production
+npx eas-cli@latest submit --platform android --profile production
+```
+
+---
+
+### Step F3: iOS Home Screen Widget ("Next Action")
+
+> **What:** A lock screen / home screen widget that shows the user's next upcoming task.
+
+> [!WARNING]
+> This step requires **macOS with Xcode** to build natively. It cannot be developed or tested on Windows. You can either:
+> 1. Use EAS Build (cloud) which runs on Apple's infrastructure
+> 2. Defer this to v1.1 and ship without the widget
+
+#### If proceeding:
+
+#### [NEW] Native iOS widget target
+- Create a `PlanevoWidget/` directory inside the Expo iOS project (after prebuild)
+- Implement a `TimelineProvider` in Swift that reads the next task from a shared App Group container
+- The main app writes task data to the shared container on each sync
+
+#### Commands
+```powershell
+# Generate the native iOS project
+npx expo prebuild --platform ios
+
+# Then on a Mac, open in Xcode:
+# open apps/mobile/ios/Planevo.xcworkspace
+# Add a Widget Extension target
+```
+
+#### [MODIFY] [app.json](file:///c:/Users/jabbo/M1plan/planevo/apps/mobile/app.json)
+- Add app group entitlement: `"com.planpilot.mobile.shared"`
+
+> **Recommendation:** Defer this to v1.1. The push notification (Step F1) gives you the same "next action" surface with less engineering. Ship the widget after your first 20 users.
+
+---
+
+## Block G — Retention Engine (remaining 70%)
+
+### Step G1: Weekly Review email job
+
+> **What:** Every Sunday at 9 AM, Bruno emails each user their weekly review.
+
+#### Commands to run
+```powershell
+# From apps/web
+npm install resend
+```
+
+#### [NEW] [email.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/email.ts)
+- Initialize the Resend client with `RESEND_API_KEY`
+- Export `sendWeeklyReviewEmail(to: string, review: WeeklyReview): Promise<void>`
+- Uses a clean HTML email template with Bruno's bear branding
+- Template includes: headline, summary, stats, insights, suggestion
+
+#### [NEW] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/cron/weekly-review/route.ts)
+- `GET` handler (Vercel Cron uses GET)
+- Validates `Authorization: Bearer ${CRON_SECRET}` header
+- Queries all active users (`plan_type IN ('pro_monthly', 'pro_annual', 'trialing', 'premium', 'admin', 'student')`)
+- For each user: generates the weekly review (reusing the AI logic from `/api/ai/weekly-review`), then sends via Resend
+- Processes users in batches of 10 to stay within rate limits
+- Returns a summary JSON of how many emails were sent
+
+#### [NEW] [vercel.json](file:///c:/Users/jabbo/M1plan/planevo/apps/web/vercel.json)
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-review",
+      "schedule": "0 16 * * 0"
+    }
+  ]
+}
+```
+> `0 16 * * 0` = Every Sunday at 4 PM UTC (9 AM PT).
+
+#### [MODIFY] `.env.local`
+Add:
+```
+RESEND_API_KEY=re_xxxxx
+CRON_SECRET=a-long-random-string
+WEEKLY_REVIEW_FROM=bruno@planevo.app
+```
+
+---
+
+### Step G2: Push notifications for missed-deadline rescue
+
+> **What:** If a task's `due_date` is today and it's still `status = 'todo'` by 6 PM local, Bruno sends a gentle push notification.
+
+#### [NEW] [route.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/api/cron/deadline-rescue/route.ts)
+- `GET` handler protected by `CRON_SECRET`
+- Queries tasks where `due_date` is today AND `status IN ('todo', 'in_progress')` AND `deleted_at IS NULL`
+- Joins with `users` to get `expo_push_token`
+- Sends push: *"Hey! '{task_title}' is due today. Want me to reschedule? Open Bruno Chat."*
+
+#### [MODIFY] [vercel.json](file:///c:/Users/jabbo/M1plan/planevo/apps/web/vercel.json)
+Add a second cron:
+```json
+{
+  "path": "/api/cron/deadline-rescue",
+  "schedule": "0 1 * * *"
+}
+```
+> `0 1 * * *` = Every day at 1 AM UTC (6 PM PT).
+
+---
+
+### Step G3: Streak / "Bruno noticed" on Daily Plan card
+
+> **What:** Show the user's current planning streak on the dashboard's Daily Plan view.
+
+#### [MODIFY] [page.tsx](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/dashboard/page.tsx)
+- Import `calculateUserStats` from [stats.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/stats.ts) (already exists and works)
+- Fetch the user's completed tasks client-side and compute `currentStreak`
+- Replace the hardcoded `<Stat label="Streak" big="1d" sub="longest: 1 day" tone="bruno" />` (line 313) with the real computed streak value
+- Add a "Bruno noticed" micro-copy below the streak: e.g. *"Bruno noticed: you've planned 3 days in a row! 🐻"*
+
+---
+
+### Step G4: Referral link generator
+
+> **What:** Each user gets a unique referral link. When a new user signs up through it, both get credit.
+
+#### Supabase migration — [NEW] `migration_v9_referrals.sql`
+```sql
+-- Add referral tracking to users
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS referred_by UUID REFERENCES public.users(id);
+
+-- Referral events log
+CREATE TABLE IF NOT EXISTS public.referrals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  referrer_id UUID REFERENCES public.users(id) NOT NULL,
+  referred_id UUID REFERENCES public.users(id) NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'converted', 'expired')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+#### [NEW] [referral.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/referral.ts)
+- `generateReferralCode(userId: string): string` — generates a short, unique code (e.g. `PLAN-a1b2c3`)
+- `getReferralLink(code: string): string` — returns `https://planevo.app/signup?ref=PLAN-a1b2c3`
+- `processReferral(referredUserId: string, referralCode: string)` — looks up the referrer, creates the `referrals` row, applies reward
+
+#### [MODIFY] Signup flow
+- On `/signup`, check for `?ref=` query param
+- Store the referral code in the signup metadata
+- After successful signup + onboarding, call `processReferral()`
+
+#### [MODIFY] [settings.tsx](file:///c:/Users/jabbo/M1plan/planevo/apps/web/app/dashboard/settings/page.tsx)
+- Add a "Refer a Friend" card in the settings page
+- Shows the user's referral link with a copy-to-clipboard button
+- Shows count of successful referrals
+
+---
+
+## Execution Order (Recommended)
+
+| Order | Step | Time Est. | Dependencies |
+|:---:|:---|:---:|:---|
+| 1 | **E1** Origin/CSRF guard | 30 min | None |
+| 2 | **E2** Sentry setup | 30 min | Sentry DSN from you |
+| 3 | **E3** PostHog setup | 30 min | PostHog key from you |
+| 4 | **G3** Streak on dashboard | 30 min | None (stats.ts exists) |
+| 5 | **G1** Weekly review email cron | 1.5 hr | Resend API key from you |
+| 6 | **F1** Push notifications | 2 hr | Expo project, migration |
+| 7 | **G2** Deadline rescue push | 45 min | F1 must be done first |
+| 8 | **G4** Referral system | 1.5 hr | Migration, signup flow |
+| 9 | **F2** EAS build pipeline | 1 hr | Apple/Google credentials |
+| 10 | **F3** iOS widget | 3+ hr | Mac + Xcode, defer to v1.1 recommended |
+
+**Total estimated time: ~12 hours of implementation** (excluding F3 widget if deferred).
+
+---
+
+## Verification Plan
+
+### Automated
+- `npx tsc --noEmit` in both `apps/web` and `apps/mobile` — zero errors
+- `npm run build` from monorepo root — clean Next.js production build
+- Verify Sentry test error appears in dashboard
+- Verify PostHog identifies a test user
+
+### Manual
+- **E1:** Use `curl` with a spoofed `Origin` header to hit `/api/ai/chat` → expect 403
+- **G1:** Hit `/api/cron/weekly-review` with the correct `CRON_SECRET` header → expect email delivered
+- **G3:** Log in, complete a task → verify streak updates on dashboard
+- **G4:** Generate a referral link → open in incognito → sign up → verify referral row created
+- **F1:** Install dev build on phone → verify push notification permission prompt → verify morning nudge fires
+- **F2:** Run `eas build --profile preview` → download and install on device
+
+---
+
+*Awaiting your approval and the environment variable values (Sentry DSN, PostHog key, Resend API key) to begin.*

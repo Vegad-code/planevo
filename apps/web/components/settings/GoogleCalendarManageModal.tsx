@@ -2,8 +2,9 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowsClockwise, CheckCircle, WarningCircle } from '@phosphor-icons/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { createClient } from '@/lib/supabase/client';
 
 interface Calendar {
   id: string;
@@ -27,6 +28,22 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
   const [savingCalendars, setSavingCalendars] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
+
+  const [syncFrequency, setSyncFrequency] = useState<string>(
+    profile?.scheduling_preferences?.google_sync_frequency || 'hourly'
+  );
+
+  const handleFrequencyChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const freq = e.target.value;
+    setSyncFrequency(freq);
+    const newPrefs = { ...(profile?.scheduling_preferences || {}), google_sync_frequency: freq };
+    onProfileUpdate({ ...profile, scheduling_preferences: newPrefs });
+    
+    await supabase.from('users').update({
+      scheduling_preferences: newPrefs
+    }).eq('id', profile.id);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -139,6 +156,26 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                 >
                   <X size={20} className="text-[#4A3F32]" />
                 </button>
+              </div>
+
+              {/* Sync Settings Section */}
+              <div className="bg-white rounded-2xl p-5 border border-[#e6dcce] shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-[#2A2118]">Auto-Sync Frequency</h4>
+                    <p className="text-xs font-medium text-[#8a7b66] mt-0.5">How often Bruno should pull events.</p>
+                  </div>
+                  <select 
+                    value={syncFrequency}
+                    onChange={handleFrequencyChange}
+                    className="bg-[#f4ece1] border border-[#e6dcce] text-[#2A2118] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#D08741]"
+                  >
+                    <option value="manual">Manual Only</option>
+                    <option value="hourly">Every Hour</option>
+                    <option value="daily">Every Day</option>
+                    <option value="weekly">Every Week</option>
+                  </select>
+                </div>
               </div>
 
               {/* Sync Status Section */}

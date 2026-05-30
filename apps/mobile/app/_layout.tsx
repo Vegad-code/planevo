@@ -14,6 +14,7 @@ import { Colors } from '@/constants/Colors';
 import { registerForPushNotifications, scheduleMorningReminder } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { initObservability, identifyUser, resetUser, sentryWrap } from '@/lib/observability';
+import { normalizePlanType } from '@/lib/plan-types';
 
 // Initialize observability at module scope (before any render)
 initObservability();
@@ -73,14 +74,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
               return;
             }
 
+            const normalizedPlan = normalizePlanType(data.plan_type);
             const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(
-              data.plan_type || 'free'
+              normalizedPlan
             );
             const isReady = data.onboarding_complete && isPlanActive;
 
             if (isReady) {
               profileStatus.current = 'ready';
-              identifyUser(user.id, user.email ?? undefined, data.plan_type ?? 'free');
+              identifyUser(user.id, user.email ?? undefined, normalizedPlan);
               if (inAuthGroup || isBlockedRoute) {
                 router.replace('/(tabs)');
               }
@@ -198,7 +200,7 @@ function RootLayoutNav() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="blocked" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="canvas-connect" options={{ presentation: 'modal', title: 'Connect Canvas' }} />
           </Stack>
         </AuthGate>
       </ThemeProvider>

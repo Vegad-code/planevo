@@ -1,14 +1,86 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import Link from 'next/link';
 import BrunoAvatar from './BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
-import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus } from '@phosphor-icons/react';
+import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus, Stop } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
+
+const MemoizedMessage = memo(({ m, isLoading, editingMessageId, setInput, setEditingMessageId }: any) => {
+  const textPart = (m.parts?.find((p: any) => p.type === 'text'))?.text;
+  const toolParts = m.parts?.filter((p: any) => p.type.startsWith('tool-'));
+
+  if (!textPart && (!toolParts || toolParts.length === 0)) return null;
+
+  return (
+    <div className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+      
+      {/* Tool Execution indicators */}
+      {toolParts && toolParts.length > 0 && (
+        <div className="flex flex-col gap-1 items-start w-full mb-2">
+           {toolParts.map((tool: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-2 bg-surface-800 text-surface-400 px-3 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest border border-surface-700 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                {(tool.state === 'input-streaming' || tool.state === 'input-available') && <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping" />}
+                {tool.state === 'output-available' && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
+                {(tool.state === 'input-streaming' || tool.state === 'input-available') ? 'Executing Tool...' : 'Tool Completed'}
+              </div>
+           ))}
+        </div>
+      )}
+
+      {/* Text Bubble with Edit Button */}
+      {textPart && (
+        <div className={`flex flex-row items-center gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          {m.role === 'user' && !isLoading && editingMessageId !== m.id && (
+            <button 
+               onClick={() => {
+                  setInput(textPart);
+                  setEditingMessageId(m.id);
+               }}
+               className="text-surface-600 hover:text-white transition-colors"
+               title="Edit message"
+            >
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            </button>
+          )}
+          <div className={`
+            max-w-[85%] p-3 text-xs font-bold leading-relaxed
+            ${m.role === 'user' 
+              ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none border-2 border-[#121212]' 
+              : 'bg-white text-black rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]'
+            }
+            ${editingMessageId === m.id ? 'opacity-50' : ''}
+          `}>
+            <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-accent-600">
+              <ReactMarkdown>
+                {textPart}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  const prevText = prevProps.m.parts?.find((p: any) => p.type === 'text')?.text;
+  const nextText = nextProps.m.parts?.find((p: any) => p.type === 'text')?.text;
+  
+  const prevToolStates = JSON.stringify(prevProps.m.parts?.filter((p: any) => p.type.startsWith('tool-')).map((p: any) => p.state));
+  const nextToolStates = JSON.stringify(nextProps.m.parts?.filter((p: any) => p.type.startsWith('tool-')).map((p: any) => p.state));
+
+  return (
+    prevText === nextText &&
+    prevToolStates === nextToolStates &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.editingMessageId === nextProps.editingMessageId
+  );
+});
+MemoizedMessage.displayName = 'MemoizedMessage';
 
 interface Conversation {
   id: string;
@@ -34,16 +106,24 @@ export default function BrunoChat() {
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // 50px threshold to determine if we're at the bottom
+    const isBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 50;
+    setIsAtBottom(isBottom);
+  };
 
   const [input, setInput] = useState('');
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
 
-  // useChat replaces manual message state and manual fetching
-  const { messages, setMessages, sendMessage, status, error } = useChat({
+  const { messages, setMessages, sendMessage, status, error, stop } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
@@ -82,6 +162,7 @@ export default function BrunoChat() {
 
   useEffect(() => {
     if (error?.message?.includes('403') || error?.message?.includes('429')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowPaywall(true);
     }
   }, [error]);
@@ -159,22 +240,25 @@ export default function BrunoChat() {
 
     const { data } = await supabase
       .from('bruno_messages')
-      .select('content, message_type')
+      .select('id, content, message_type, created_at')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data.map((m, i) => ({
-        id: `msg-${id}-${i}`,
+      setMessages(data.map((m) => ({
+        id: m.id,
         role: m.message_type === 'user' ? 'user' : 'assistant',
-        parts: [{ type: 'text', text: m.content }]
+        parts: [{ type: 'text', text: m.content }],
+        createdAt: new Date(m.created_at)
       } as UIMessage)));
     }
   };
 
   useEffect(() => {
-    if (isOpen) scrollToBottom();
-  }, [messages, isOpen]);
+    if (isOpen && isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isOpen, isAtBottom]);
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -204,6 +288,25 @@ export default function BrunoChat() {
         }
       }
 
+      if (editingMessageId && convId) {
+        const editIndex = messages.findIndex(m => m.id === editingMessageId);
+        if (editIndex !== -1) {
+          const editedMsg = messages[editIndex] as any;
+          const timestamp = editedMsg.createdAt 
+             ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString()) 
+             : new Date().toISOString();
+             
+          // Delete messages after this point in DB
+          await supabase.from('bruno_messages').delete()
+            .eq('conversation_id', convId)
+            .gte('created_at', timestamp);
+            
+          // Truncate local messages
+          setMessages(messages.slice(0, editIndex));
+        }
+        setEditingMessageId(null);
+      }
+
       // Save user message to Supabase
       if (convId) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -218,6 +321,9 @@ export default function BrunoChat() {
       }
 
       // Trigger the stream
+      setIsAtBottom(true);
+      setTimeout(() => scrollToBottom(), 50);
+      
       sendMessage({ text: userMessage }, {
         body: { diagnostics: true, conversationId: convId }
       });
@@ -248,7 +354,7 @@ export default function BrunoChat() {
   return (
     <div className={`
       fixed bottom-6 right-6 bg-white border-4 border-surface-900 shadow-[12px_12px_0px_0px_var(--accent-500)] flex flex-col z-50 animate-in slide-in-from-bottom-4 duration-300
-      ${isExpanded ? 'w-[90vw] h-[80vh] sm:w-[800px] left-[5vw] sm:left-auto' : 'w-[350px] sm:w-[400px] h-[500px]'}
+      ${isExpanded ? 'w-[90vw] h-[80vh] sm:w-200 left-[5vw] sm:left-auto' : 'w-87.5 sm:w-100 h-125'}
     `}>
       {/* Header */}
       <div className="bg-[#121212] p-4 flex items-center justify-between border-b-4 border-[#121212]">
@@ -279,7 +385,7 @@ export default function BrunoChat() {
           >
             {isExpanded ? <ArrowsIn weight="bold" size={20} /> : <ArrowsOut weight="bold" size={20} />}
           </button>
-          <button onClick={() => setIsOpen(false)} className="text-[#888] hover:text-white p-1.5">
+          <button onClick={() => setIsOpen(false)} className="text-[#888] hover:text-white p-1.5" title="Close">
             <Minus weight="bold" size={20} />
           </button>
         </div>
@@ -324,58 +430,28 @@ export default function BrunoChat() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#121212] custom-scrollbar">
-        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => {
-          const textPart = (m.parts?.find(p => p.type === 'text') as any)?.text;
-          const toolParts = m.parts?.filter(p => p.type.startsWith('tool-'));
-
-          // Hide empty intermediate messages (e.g., system messages without content or tools)
-          if (!textPart && (!toolParts || toolParts.length === 0)) return null;
-
-          return (
-            <div key={i} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-              
-              {/* Tool Execution indicators */}
-              {toolParts && toolParts.length > 0 && (
-                <div className="flex flex-col gap-1 items-start w-full mb-2">
-                   {toolParts.map((tool: any, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2 bg-surface-800 text-surface-400 px-3 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest border border-surface-700 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                        {(tool.state === 'input-streaming' || tool.state === 'input-available') && <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping" />}
-                        {tool.state === 'output-available' && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
-                        {(tool.state === 'input-streaming' || tool.state === 'input-available') ? 'Executing Tool...' : 'Tool Completed'}
-                      </div>
-                   ))}
-                </div>
-              )}
-
-              {/* Text Bubble */}
-              {textPart && (
-                <div className={`
-                  max-w-[85%] p-3 text-xs font-bold leading-relaxed
-                  ${m.role === 'user' 
-                    ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none border-2 border-[#121212]' 
-                    : 'bg-white text-black rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]'
-                  }
-                `}>
-                  <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-accent-600">
-                    <ReactMarkdown>
-                      {textPart}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          );
-        })}
+      <div 
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#121212] custom-scrollbar"
+        onScroll={handleScroll}
+      >
+        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => (
+          <MemoizedMessage 
+            key={i} 
+            m={m} 
+            isLoading={isLoading} 
+            editingMessageId={editingMessageId} 
+            setInput={setInput} 
+            setEditingMessageId={setEditingMessageId} 
+          />
+        ))}
         {isWaitingForFirstToken && (
           <div className="flex justify-start animate-in fade-in duration-200">
             <div className="bg-white p-3 rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]">
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-bounce [animation-delay:300ms]" />
                 </div>
                 <span className="text-xs font-black uppercase tracking-widest text-[#888] ml-1">( {loadingPhrase} )</span>
               </div>
@@ -418,16 +494,28 @@ export default function BrunoChat() {
           type="text"
           value={input}
           onChange={handleInputChange}
-          placeholder="Ask Bruno anything..."
+          placeholder={editingMessageId ? "Edit your message..." : "Ask Bruno anything..."}
           className="flex-1 bg-white border-2 border-[#121212] px-4 py-2 text-xs font-bold uppercase text-black placeholder:text-[#888] focus:outline-none focus:ring-2 focus:ring-accent-500 transition-all"
         />
-        <button
-          type="submit"
-          disabled={!input.trim() || isLoading}
-          className="bg-[#121212] text-white p-2 border-2 border-[#121212] hover:bg-accent-500 hover:text-black disabled:opacity-50 transition-all active:translate-x-0.5 active:translate-y-0.5"
-        >
-          <PaperPlaneTilt weight="bold" size={20} />
-        </button>
+        {isLoading ? (
+          <button
+            type="button"
+            onClick={() => stop()}
+            className="bg-red-500 text-white p-2 border-2 border-[#121212] hover:bg-red-600 transition-all active:translate-x-0.5 active:translate-y-0.5"
+            title="Stop generation"
+          >
+            <Stop weight="bold" size={20} />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="bg-[#121212] text-white p-2 border-2 border-[#121212] hover:bg-accent-500 hover:text-black disabled:opacity-50 transition-all active:translate-x-0.5 active:translate-y-0.5"
+            title="Send message"
+          >
+            <PaperPlaneTilt weight="bold" size={20} />
+          </button>
+        )}
       </form>
     </div>
   );

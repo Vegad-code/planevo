@@ -85,6 +85,9 @@ export type Database = {
           recurring_constraints: Json
           source_counters: Json
           task_detail_preference: Json
+          task_duration_preferences: Json
+          task_grouping_preferences: Json
+          task_time_preferences: Json
           tone_preference: Json
           updated_at: string
           user_id: string
@@ -102,6 +105,9 @@ export type Database = {
           recurring_constraints?: Json
           source_counters?: Json
           task_detail_preference?: Json
+          task_duration_preferences?: Json
+          task_grouping_preferences?: Json
+          task_time_preferences?: Json
           tone_preference?: Json
           updated_at?: string
           user_id: string
@@ -119,6 +125,9 @@ export type Database = {
           recurring_constraints?: Json
           source_counters?: Json
           task_detail_preference?: Json
+          task_duration_preferences?: Json
+          task_grouping_preferences?: Json
+          task_time_preferences?: Json
           tone_preference?: Json
           updated_at?: string
           user_id?: string

@@ -19,6 +19,7 @@ export const FEATURES = {
   WEEKLY_REVIEW: true,
   CANVAS_SYNC: true,
   GOOGLE_CAL_SYNC: true,
+  AI_PLAN_DRAFT: true, // Gated by plan_type on backend (premium-only tools)
 
   // --- v1 VITAMINS (flagged off until 20 paying users ask) ---
   HABITS: process.env.NEXT_PUBLIC_ENABLE_HABITS === 'true',

@@ -188,7 +188,23 @@ export default function DailyPlanScreen() {
 
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
+
+    if (!user) return;
+
+    const channel = supabase
+      .channel('index_changes_dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` }, () => {
+        fetchAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `user_id=eq.${user.id}` }, () => {
+        fetchAll();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchAll, user]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
