@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GraduationCap, CalendarBlank, Kanban, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
-import { testCanvasConnectionAction, getCanvasCredentialsAction, saveCanvasCredentialsAction, disconnectCanvasAction } from '@/lib/canvas/actions';
+import { testCanvasConnectionAction, saveCanvasCredentialsAction, disconnectCanvasAction } from '@/lib/canvas/actions';
 import { disconnectGoogleCalendarAction } from '@/lib/integrations/google-calendar';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,20 +50,14 @@ export default function Integrations() {
       if (user) {
         const { data } = await (supabase as any)
           .from('users')
-          .select('*')
+          .select('id, preferred_morning_time, google_calendar_connected, google_calendar_last_synced_at, canvas_url')
           .eq('id', user.id)
           .single();
         
         if (data) {
           setProfile(data);
           setMorningTime(data.preferred_morning_time?.substring(0, 5) || '07:00');
-        }
-
-        // Fetch decrypted Canvas credentials securely using server action
-        const canvasRes = await getCanvasCredentialsAction();
-        if (canvasRes.success && canvasRes.data) {
-          setCanvasUrl(canvasRes.data.canvasUrl);
-          setCanvasToken(canvasRes.data.canvasToken);
+          setCanvasUrl(data.canvas_url || '');
         }
       }
       setLoading(false);
@@ -87,7 +81,8 @@ export default function Integrations() {
       setTestResult({ success: false, message: res.error || 'Failed to save Canvas settings.' });
     } else {
       setTestResult({ success: true, message: 'Canvas settings saved. Sources active.' });
-      setProfile(prev => prev ? { ...prev, canvas_token: canvasToken, canvas_url: canvasUrl } : null);
+      setProfile(prev => prev ? { ...prev, canvas_url: canvasUrl } : null);
+      setCanvasToken('');
       setTimeout(() => {
         setActiveConfig(null);
         setTestResult(null);
@@ -147,7 +142,7 @@ export default function Integrations() {
   // Compute live registry status based on profile
   const liveRegistry = INTEGRATION_REGISTRY.map(integration => {
     let currentStatus = integration.status;
-    if (integration.id === 'canvas' && profile?.canvas_token) {
+    if (integration.id === 'canvas' && profile?.canvas_url) {
       currentStatus = 'connected';
     }
     if (integration.id === 'google_calendar' && profile?.google_calendar_connected) {
@@ -323,7 +318,7 @@ export default function Integrations() {
                       {saving ? 'Locking...' : 'Lock Config'}
                     </Button>
                   </div>
-                  {!!profile?.canvas_token && (
+                  {!!profile?.canvas_url && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -331,7 +326,7 @@ export default function Integrations() {
                       onClick={async () => {
                         const res = await disconnectCanvasAction();
                         if (res.success) {
-                           setProfile(prev => prev ? { ...prev, canvas_token: null, canvas_url: null } : null);
+                           setProfile(prev => prev ? { ...prev, canvas_url: null } : null);
                            setCanvasToken('');
                            setCanvasUrl('');
                            setActiveConfig(null);

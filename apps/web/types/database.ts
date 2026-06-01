@@ -936,6 +936,272 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_accounts: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          provider_account_id: string | null
+          display_name: string | null
+          access_token_encrypted: string | null
+          refresh_token_encrypted: string | null
+          scopes: string[] | null
+          expires_at: string | null
+          metadata: Json | null
+          status: string
+          last_synced_at: string | null
+          last_error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider: string
+          provider_account_id?: string | null
+          display_name?: string | null
+          access_token_encrypted?: string | null
+          refresh_token_encrypted?: string | null
+          scopes?: string[] | null
+          expires_at?: string | null
+          metadata?: Json | null
+          status?: string
+          last_synced_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          provider_account_id?: string | null
+          display_name?: string | null
+          access_token_encrypted?: string | null
+          refresh_token_encrypted?: string | null
+          scopes?: string[] | null
+          expires_at?: string | null
+          metadata?: Json | null
+          status?: string
+          last_synced_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_accounts_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      integration_sources: {
+        Row: {
+          id: string
+          account_id: string
+          user_id: string
+          source_type: string
+          external_id: string
+          name: string
+          sync_enabled: boolean
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          user_id: string
+          source_type: string
+          external_id: string
+          name: string
+          sync_enabled?: boolean
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          user_id?: string
+          source_type?: string
+          external_id?: string
+          name?: string
+          sync_enabled?: boolean
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sources_account_id_fkey"
+            columns: ["account_id"]
+            referencedRelation: "integration_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_sources_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      source_items: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          source_id: string | null
+          external_id: string
+          item_type: string
+          title: string
+          description: string | null
+          due_date: string | null
+          url: string | null
+          raw_data: Json | null
+          imported_task_id: string | null
+          imported_event_id: string | null
+          deleted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider: string
+          source_id?: string | null
+          external_id: string
+          item_type: string
+          title: string
+          description?: string | null
+          due_date?: string | null
+          url?: string | null
+          raw_data?: Json | null
+          imported_task_id?: string | null
+          imported_event_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          source_id?: string
+          external_id?: string
+          item_type?: string
+          title?: string
+          description?: string | null
+          due_date?: string | null
+          url?: string | null
+          raw_data?: Json | null
+          imported_task_id?: string | null
+          imported_event_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_items_source_id_fkey"
+            columns: ["source_id"]
+            referencedRelation: "integration_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_items_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      integration_sync_runs: {
+        Row: {
+          id: string
+          user_id: string
+          account_id: string
+          provider: string
+          status: string
+          started_at: string
+          finished_at: string | null
+          items_seen: number
+          items_created: number
+          items_updated: number
+          error_message: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          account_id: string
+          provider: string
+          status: string
+          started_at?: string
+          finished_at?: string | null
+          items_seen?: number
+          items_created?: number
+          items_updated?: number
+          error_message?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          account_id?: string
+          provider?: string
+          status?: string
+          started_at?: string
+          finished_at?: string | null
+          items_seen?: number
+          items_created?: number
+          items_updated?: number
+          error_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_runs_account_id_fkey"
+            columns: ["account_id"]
+            referencedRelation: "integration_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_sync_runs_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      integration_waitlist_requests: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_waitlist_requests_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

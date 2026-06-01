@@ -80,6 +80,7 @@ export type Database = {
           disliked_patterns: Json
           last_compacted_at: string | null
           learned_rules: Json
+          memory_learning_settings?: Json | null
           planning_style: Json
           preferred_focus_windows: Json
           recurring_constraints: Json
@@ -100,6 +101,7 @@ export type Database = {
           disliked_patterns?: Json
           last_compacted_at?: string | null
           learned_rules?: Json
+          memory_learning_settings?: Json | null
           planning_style?: Json
           preferred_focus_windows?: Json
           recurring_constraints?: Json
@@ -120,6 +122,7 @@ export type Database = {
           disliked_patterns?: Json
           last_compacted_at?: string | null
           learned_rules?: Json
+          memory_learning_settings?: Json | null
           planning_style?: Json
           preferred_focus_windows?: Json
           recurring_constraints?: Json

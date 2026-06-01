@@ -258,24 +258,42 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
       return { success: false, error: 'Unauthorized' };
     }
 
-    const updateData: { canvas_url?: string | null; canvas_token?: string | null } = { canvas_url: url };
-    
-    // Only update the token if a new, unmasked token was provided
-    if (token && !token.startsWith('••••')) {
-      updateData.canvas_token = encryptToken(token);
-    } else if (!token) {
-      updateData.canvas_token = null;
+    const encryptedToken = (token && !token.startsWith('••••')) ? encryptToken(token) : undefined;
+
+    // Check if account exists
+    const { data: existing } = await supabase
+      .from('integration_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'canvas')
+      .maybeSingle();
+
+    if (existing) {
+      const updateData: any = {
+        metadata: { canvas_url: url },
+        status: 'connected'
+      };
+      if (encryptedToken !== undefined) updateData.access_token_encrypted = encryptedToken;
+      if (token === '') updateData.access_token_encrypted = null;
+      
+      const { error } = await (supabase.from('integration_accounts') as any).update(updateData).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await (supabase.from('integration_accounts') as any).insert({
+        user_id: user.id,
+        provider: 'canvas',
+        access_token_encrypted: encryptedToken || null,
+        metadata: { canvas_url: url },
+        status: 'connected'
+      });
+      if (error) throw error;
     }
 
-    const { error } = await supabase
-      .from('users')
-      .update(updateData)
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('Failed to save Canvas credentials:', error);
-      return { success: false, error: error.message };
-    }
+    // Also update legacy for safety
+    const legacyUpdate: any = { canvas_url: url };
+    if (encryptedToken !== undefined) legacyUpdate.canvas_token = encryptedToken;
+    if (token === '') legacyUpdate.canvas_token = null;
+    await supabase.from('users').update(legacyUpdate).eq('id', user.id);
 
     return { success: true };
   } catch (err: any) {
@@ -324,6 +342,11 @@ export async function saveOnboardingDataAction(data: {
       return { success: false, error: error.message };
     }
 
+    // Also save canvas to integration_accounts
+    if (data.canvasUrl && data.canvasToken) {
+      await saveCanvasCredentialsAction(data.canvasUrl, data.canvasToken);
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error('Error saving onboarding data:', err);
@@ -339,18 +362,46 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { data, error } = await supabase
-      .from('users')
-      .select('canvas_url, canvas_token')
-      .eq('id', user.id)
-      .single();
+    // Try integration_accounts first
+    const { data: account, error: accountError } = await supabase
+      .from('integration_accounts')
+      .select('metadata, access_token_encrypted')
+      .eq('user_id', user.id)
+      .eq('provider', 'canvas')
+      .maybeSingle();
 
-    if (error) {
-      console.error('Failed to retrieve Canvas credentials:', error);
-      return { success: false, error: error.message };
+    let encryptedToken = '';
+    let canvasUrl = '';
+
+    if (account && account.access_token_encrypted) {
+      encryptedToken = account.access_token_encrypted;
+      canvasUrl = (account.metadata as any)?.canvas_url || '';
+    } else {
+      // Fallback to legacy
+      const { data: legacyData, error: legacyError } = await supabase
+        .from('users')
+        .select('canvas_url, canvas_token')
+        .eq('id', user.id)
+        .single();
+      
+      if (legacyData?.canvas_token) {
+        encryptedToken = legacyData.canvas_token;
+        canvasUrl = legacyData.canvas_url || '';
+        
+        // Backfill silently
+        if (canvasUrl && encryptedToken) {
+          await (supabase.from('integration_accounts') as any).insert({
+            user_id: user.id,
+            provider: 'canvas',
+            access_token_encrypted: encryptedToken,
+            metadata: { canvas_url: canvasUrl },
+            status: 'connected'
+          });
+        }
+      }
     }
 
-    const decryptedToken = data?.canvas_token ? decryptToken(data.canvas_token) : '';
+    const decryptedToken = encryptedToken ? decryptToken(encryptedToken) : '';
     let displayToken = decryptedToken;
     
     if (!returnUnmasked && decryptedToken) {
@@ -360,7 +411,7 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
     return {
       success: true,
       data: {
-        canvasUrl: data?.canvas_url || '',
+        canvasUrl,
         canvasToken: displayToken
       }
     };
@@ -370,7 +421,7 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
   }
 }
 
-export async function disconnectCanvasAction(): Promise<{ success: boolean; error?: string }> {
+export async function disconnectCanvasAction(deleteData: boolean = false): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -378,17 +429,25 @@ export async function disconnectCanvasAction(): Promise<{ success: boolean; erro
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { error: eventsError } = await supabase
-      .from('calendar_events')
-      .update({ is_deleted: true })
-      .eq('user_id', user.id)
-      .eq('source', 'canvas');
-
-    if (eventsError) {
-      console.error('Failed to soft-delete Canvas events:', eventsError);
-      return { success: false, error: eventsError.message };
+    if (deleteData) {
+      // Hard delete imported items from canvas
+      await supabase.from('calendar_events').delete().eq('user_id', user.id).eq('source', 'canvas');
+      await (supabase.from('source_items') as any).delete().eq('user_id', user.id).eq('provider', 'canvas');
+      await (supabase.from('canvas_assignments') as any).delete().eq('user_id', user.id);
     }
+    // When deleteData is false, imported data stays visible but becomes stale (disconnected).
+    // We only revoke credentials below — no soft-delete, no hiding.
 
+    // Update integration_accounts
+    await (supabase.from('integration_accounts') as any)
+      .update({
+        status: 'disconnected',
+        access_token_encrypted: null
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'canvas');
+
+    // Update legacy users
     const { error } = await supabase
       .from('users')
       .update({
@@ -409,4 +468,161 @@ export async function disconnectCanvasAction(): Promise<{ success: boolean; erro
   }
 }
 
+export async function syncCanvasIntegrationAction(force = false): Promise<number> {
+  const supabase = await createClient();
 
+  // Derive userId from authenticated session — never trust client-provided userId
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+  const userId = user.id;
+
+  // 1. Get the account
+  const { data: account } = await supabase
+    .from('integration_accounts')
+    .select('id, access_token_encrypted, metadata')
+    .eq('user_id', userId)
+    .eq('provider', 'canvas')
+    .maybeSingle();
+
+  let encryptedToken = account?.access_token_encrypted;
+  let canvasUrl = (account?.metadata as any)?.canvas_url;
+  let accountId = account?.id;
+  
+  if (!encryptedToken || !canvasUrl) {
+    const { data: user } = await supabase.from('users').select('canvas_token, canvas_url').eq('id', userId).single();
+    if (!user?.canvas_token || !user?.canvas_url) {
+      throw new Error('User not connected to Canvas');
+    }
+    encryptedToken = user.canvas_token;
+    canvasUrl = user.canvas_url;
+
+    // Backfill
+    const { data: newAcc } = await supabase.from('integration_accounts').insert({
+      user_id: userId,
+      provider: 'canvas',
+      access_token_encrypted: encryptedToken,
+      metadata: { canvas_url: canvasUrl },
+      status: 'connected'
+    }).select('id').single();
+    if (newAcc) accountId = newAcc.id;
+  }
+
+  if (!encryptedToken || !canvasUrl || !accountId) throw new Error('Account unresolvable');
+
+  const { data: syncRun } = await supabase.from('integration_sync_runs').insert({
+    user_id: userId,
+    account_id: accountId,
+    provider: 'canvas',
+    status: 'running'
+  }).select('id').single();
+
+  const syncRunId = syncRun?.id;
+
+  try {
+    let upcoming = await fetchCanvasUpcomingAction(canvasUrl, encryptedToken);
+    if (upcoming.length === 0) {
+      upcoming = await fetchCanvasTodoAction(canvasUrl, encryptedToken);
+    }
+    
+    const assignmentsOnly = upcoming.filter(item => item.type === 'assignment');
+    const eventsOnly = upcoming.filter(item => item.type === 'event');
+    const milestonesOnly = upcoming.filter(item => item.type === 'milestone');
+
+    let itemsCreated = 0;
+    let itemsUpdated = 0;
+
+    // We will save courses (context_codes) as sources
+    const courseIds = new Set<string>();
+    upcoming.forEach(item => {
+      if (item.course_id) courseIds.add(String(item.course_id));
+    });
+
+    if (courseIds.size > 0) {
+      const sourcesToUpsert = Array.from(courseIds).map(cid => ({
+        account_id: accountId,
+        user_id: userId,
+        source_type: 'course',
+        external_id: cid,
+        name: `Canvas Course ${cid}`,
+        sync_enabled: true
+      }));
+      await supabase.from('integration_sources').upsert(sourcesToUpsert, { onConflict: 'account_id,external_id' });
+    }
+
+    const { data: dbSources } = await supabase.from('integration_sources')
+      .select('id, external_id')
+      .eq('account_id', accountId)
+      .in('external_id', Array.from(courseIds));
+      
+    const sourceMap = new Map<string, string>();
+    if (dbSources) {
+      dbSources.forEach(s => sourceMap.set(s.external_id, s.id));
+    }
+
+    // 1. Upsert Assignments into source_items
+    if (assignmentsOnly.length > 0) {
+      const toUpsertAssignments = assignmentsOnly.map(a => {
+        const sourceId = a.course_id ? sourceMap.get(String(a.course_id)) : null;
+        return {
+          user_id: userId,
+          provider: 'canvas',
+          source_id: sourceId,
+          external_id: String(a.id),
+          item_type: 'assignment',
+          title: a.name,
+          description: a.description || null,
+          due_date: a.due_at || null,
+          url: a.html_url || null,
+          raw_data: a as any
+        };
+      });
+      const { error } = await supabase.from('source_items').upsert(toUpsertAssignments, { onConflict: 'user_id,provider,external_id' });
+      if (error) throw error;
+      itemsCreated += toUpsertAssignments.length; // rough estimate
+    }
+
+    // 2. Upsert Events & Milestones into calendar_events
+    const allEvents = [...eventsOnly, ...milestonesOnly];
+    if (allEvents.length > 0) {
+      const toUpsertEvents = allEvents.map(e => ({
+        external_id: String(e.id),
+        user_id: userId,
+        title: e.name,
+        start_time: e.due_at, // In Canvas, events use start_at mapped to due_at in our action
+        end_time: new Date(new Date(e.due_at).getTime() + 60 * 60 * 1000).toISOString(), // Default 1hr
+        source: 'canvas',
+        description: e.description || `Canvas Course: ${e.course_id}`,
+        metadata: { canvas_course_id: e.course_id, html_url: e.html_url }
+      }));
+      const { error } = await supabase.from('calendar_events').upsert(toUpsertEvents, { onConflict: 'external_id' });
+      if (error) throw error;
+      itemsCreated += toUpsertEvents.length;
+    }
+
+    const now = new Date().toISOString();
+    await supabase.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId);
+    if (syncRunId) {
+      await supabase.from('integration_sync_runs').update({ 
+        status: 'success', 
+        finished_at: now,
+        items_seen: upcoming.length,
+        items_created: itemsCreated,
+        items_updated: itemsUpdated
+      }).eq('id', syncRunId);
+    }
+
+    return upcoming.length;
+  } catch (err: any) {
+    if (syncRunId) {
+      await supabase.from('integration_sync_runs').update({ 
+        status: 'failed', 
+        finished_at: new Date().toISOString(),
+        error_message: err.message
+      }).eq('id', syncRunId);
+    }
+    await supabase.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId);
+    throw err;
+  }
+}

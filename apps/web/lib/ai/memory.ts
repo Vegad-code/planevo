@@ -21,13 +21,19 @@ const breakPreferenceSchema = z.object({
 
 const planningStyleSchema = z.object({
   mode: z.enum(['strict', 'balanced', 'flexible']).default('balanced'),
+  proactivity: z.enum(['silent', 'light', 'active', 'high']).default('active'),
   max_focus_blocks_per_day: z.number().int().min(1).max(12).default(5),
   max_planned_minutes_per_day: z.number().int().min(30).max(720).default(240),
   allow_buffers: z.boolean().default(true),
+  rollover_style: z.enum(['automatic', 'review', 'manual']).default('automatic'),
+  weekly_review_day: z.string().default('Sunday'),
+  weekly_review_time: z.string().regex(/^\d{2}:\d{2}$/).default('17:00'),
+  work_hours: memoryWindowSchema.optional(),
 });
 
 const tonePreferenceSchema = z.object({
   style: z.enum(['direct', 'warm', 'coach']).default('warm'),
+  response_length: z.enum(['brief', 'standard', 'detailed']).default('standard'),
   emoji_level: z.enum(['none', 'low', 'medium']).default('low'),
   avoid_phrases: z.array(z.string()).default([]),
 });
@@ -54,6 +60,10 @@ const memoryPatternSchema = z.object({
   feature: z.string().max(80).default('global'),
   count: z.number().int().min(1).default(1),
   last_seen_at: z.string().optional(),
+});
+
+const memoryLearningSettingsSchema = z.object({
+  learning_enabled: z.boolean().default(true),
 });
 
 const sourceCountersSchema = z.record(z.string(), z.number().int().min(0)).default({});
@@ -96,12 +106,17 @@ export const userAiMemorySchema = z.object({
   }),
   planning_style: planningStyleSchema.default({
     mode: 'balanced',
+    proactivity: 'active',
     max_focus_blocks_per_day: 5,
     max_planned_minutes_per_day: 240,
-    allow_buffers: true
+    allow_buffers: true,
+    rollover_style: 'automatic',
+    weekly_review_day: 'Sunday',
+    weekly_review_time: '17:00'
   }),
   tone_preference: tonePreferenceSchema.default({
     style: 'warm',
+    response_length: 'standard',
     emoji_level: 'low',
     avoid_phrases: []
   }),
@@ -115,6 +130,9 @@ export const userAiMemorySchema = z.object({
   learned_rules: z.array(memoryRuleSchema).default([]),
   disliked_patterns: z.array(memoryPatternSchema).default([]),
   accepted_patterns: z.array(memoryPatternSchema).default([]),
+  memory_learning_settings: memoryLearningSettingsSchema.default({
+    learning_enabled: true,
+  }),
   source_counters: sourceCountersSchema,
   // --- Enhanced memory fields ---
   task_duration_preferences: z.array(taskDurationPrefSchema).default([]),
@@ -142,6 +160,7 @@ export function parseUserAiMemory(row: UserAiMemoryRow | null | undefined): User
     learned_rules: row.learned_rules,
     disliked_patterns: row.disliked_patterns,
     accepted_patterns: row.accepted_patterns,
+    memory_learning_settings: raw.memory_learning_settings,
     source_counters: row.source_counters,
     // Enhanced memory fields (gracefully default if column doesn't exist yet)
     task_duration_preferences: raw.task_duration_preferences ?? [],
@@ -204,16 +223,16 @@ export async function updateUserAIMemory(
 
   const { data, error } = await supabase
     .from('user_ai_memory')
-    .upsert({
-      user_id: userId,
+    .update({
       ...memoryToDb(merged),
     })
+    .eq('user_id', userId)
     .select('*')
     .single();
 
   if (error) {
     console.error('[user-ai-memory] update error:', error);
-    return current;
+    throw new Error(`Database update failed: ${error.message}`);
   }
 
   return parseUserAiMemory(data);
@@ -226,6 +245,10 @@ export async function recordScheduleBlockFeedbackInMemory(
   block: Record<string, unknown>
 ): Promise<UserAiMemory> {
   const current = await getUserAIMemory(supabase, userId);
+  if (!current.memory_learning_settings.learning_enabled) {
+    return current;
+  }
+
   const now = new Date().toISOString();
   const blockType = typeof block.type === 'string' ? block.type : 'block';
   const duration = typeof block.duration === 'number' ? block.duration : null;
@@ -324,9 +347,10 @@ export function buildMemoryContext(memory: UserAiMemory): string {
   const lines: string[] = [];
 
   lines.push(`Planning style: ${memory.planning_style.mode}`);
+  lines.push(`Proactivity: ${memory.planning_style.proactivity}`);
   lines.push(`Detail level: ${memory.task_detail_preference.detail_level}`);
   lines.push(`Break preference: ${memory.break_preference.frequency}, ${memory.break_preference.preferred_minutes} minutes`);
-  lines.push(`Tone: ${memory.tone_preference.style}, emoji level ${memory.tone_preference.emoji_level}`);
+  lines.push(`Tone: ${memory.tone_preference.style}, response length: ${memory.tone_preference.response_length}, emoji level: ${memory.tone_preference.emoji_level}`);
 
   if (memory.preferred_focus_windows.length > 0) {
     lines.push(`Preferred focus windows: ${memory.preferred_focus_windows.map(formatWindow).join('; ')}`);
@@ -359,6 +383,10 @@ export function buildMemoryContext(memory: UserAiMemory): string {
 
   if (memory.task_grouping_preferences.length > 0) {
     lines.push(`Task grouping (habit stacking): ${memory.task_grouping_preferences.map(p => `${p.task_a} + ${p.task_b}`).join(', ')}`);
+  }
+
+  if (memory.tone_preference.avoid_phrases.length > 0) {
+    lines.push(`CRITICAL - AVOID THESE PHRASES: ${memory.tone_preference.avoid_phrases.join(', ')}`);
   }
 
   return lines.join('\n');
@@ -626,10 +654,12 @@ function memoryToDb(memory: UserAiMemory) {
     disliked_patterns: memory.disliked_patterns as Json,
     accepted_patterns: memory.accepted_patterns as Json,
     source_counters: memory.source_counters as Json,
-    // Enhanced memory fields
-    task_duration_preferences: memory.task_duration_preferences as Json,
-    task_time_preferences: memory.task_time_preferences as Json,
-    task_grouping_preferences: memory.task_grouping_preferences as Json,
+    // The following fields exist in types but appear to be missing from the Supabase 
+    // remote schema cache or table, causing postgREST to reject saves:
+    // memory_learning_settings: memory.memory_learning_settings as Json,
+    // task_duration_preferences: memory.task_duration_preferences as Json,
+    // task_time_preferences: memory.task_time_preferences as Json,
+    // task_grouping_preferences: memory.task_grouping_preferences as Json,
   };
 }
 
@@ -703,6 +733,10 @@ export async function recordPlanFeedbackInMemory(
   approvedItems: PlanDraftItem[]
 ): Promise<UserAiMemory> {
   const current = await getUserAIMemory(supabase, userId);
+  if (!current.memory_learning_settings.learning_enabled) {
+    return current;
+  }
+  
   const now = new Date().toISOString();
 
   let updatedDurationPrefs = [...current.task_duration_preferences];

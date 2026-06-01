@@ -108,24 +108,26 @@ const NextActionCard = ({ nextAction }: { nextAction: any }) => {
 
 const UpcomingAgendaItem = ({ item, onView }: { item: any, onView: (item: any) => void }) => {
   return (
-    <div className="flex items-start gap-4 py-3 border-t border-[var(--color-line)]">
-      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-wide min-w-[40px] mt-0.5">
-        {item.date.getTime() === 8640000000000000 ? 'ANY' : format(item.date, 'EEE').toUpperCase()}
+    <div className="flex items-start gap-5 py-4 border-t border-[var(--color-line)]">
+      <div className="font-mono text-[11px] tracking-wide mt-0.5 shrink-0">
+        <span className="text-[var(--color-sage)] bg-[rgba(139,168,136,0.1)] px-2 py-1 rounded">
+          {item.date.getTime() === 8640000000000000 ? 'ANY TIME' : format(item.date, 'EEE h:mm a').toUpperCase()}
+        </span>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-medium text-[var(--color-ink)] truncate">
+        <div className="text-[15px] font-medium text-[var(--color-ink)] truncate leading-tight">
           {item.title}
         </div>
         {item.description && (
-          <div className="text-[12px] text-[var(--color-ink-soft)] truncate max-w-full opacity-80 mt-0.5">
+          <div className="text-[13px] text-[var(--color-ink-soft)] truncate max-w-full opacity-80 mt-1">
             {item.description}
           </div>
         )}
-        <div className="font-mono text-[11px] text-[var(--color-ink-soft)] mt-1 truncate">
+        <div className="font-mono text-[10px] text-[var(--color-ink-soft)] mt-1.5 truncate tracking-wide uppercase">
           <span className={item.type === 'task' ? 'text-[var(--color-rose)]' : 'text-[var(--color-blue)]'}>●</span> {item.type === 'task' ? 'Open task' : 'Calendar event'}
         </div>
       </div>
-      <button onClick={() => onView(item)} className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-3 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] shrink-0">
+      <button onClick={() => onView(item)} className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-4 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] shrink-0 font-medium">
         {item.actionText}
       </button>
     </div>
@@ -564,7 +566,7 @@ export default function DashboardPage() {
             {dateStr}
           </div>
           <h1 className="font-serif text-5xl md:text-6xl tracking-tight text-[var(--color-ink)] m-0 leading-none">
-            {greetingPrefix}, <em className="text-[var(--color-honey-deep)] not-italic">{userName.split(' ')[0] || 'Pilot'}.</em>
+            {greetingPrefix}, <em className="text-[var(--color-honey-deep)] not-italic">{userName.split(' ')[0] || 'Planevo'}.</em>
           </h1>
           <p className="font-sans text-[15px] text-[var(--color-ink-soft)] mt-3 mb-0">
             {parsedSchedule && parsedSchedule.length > 0
@@ -629,14 +631,16 @@ export default function DashboardPage() {
           {nextAction && <NextActionCard nextAction={nextAction} />}
 
           {upNextBlocks.length > 0 && (
-            <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-2xl p-4">
-              <div className="font-mono text-[10px] text-[rgba(251,246,234,0.5)] tracking-[0.16em] mb-2.5">UP NEXT TODAY</div>
+            <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-2xl p-5">
+              <div className="font-mono text-[10px] text-[rgba(251,246,234,0.5)] tracking-[0.16em] mb-3">UP NEXT TODAY</div>
               <div className="flex flex-col">
                 {upNextBlocks.map((block, i) => (
-                  <div key={i} className="flex items-center gap-3.5 py-2 border-t border-[rgba(251,246,234,0.06)] first:border-0">
-                    <span className="font-mono text-[11px] text-[rgba(251,246,234,0.5)] w-12">{format(block.startTime, 'h:mm')}</span>
-                    <span className="text-[13px] font-medium flex-1 truncate text-[var(--color-paper)]">{block.title}</span>
-                    <span className="font-mono text-[10px] text-[rgba(251,246,234,0.5)]">{Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}m</span>
+                  <div key={i} className="flex items-start gap-4 py-3 border-t border-[rgba(251,246,234,0.06)] first:border-0">
+                    <span className="font-mono text-[11px] text-[#A3B899] bg-[rgba(163,184,153,0.15)] px-2 py-0.5 rounded whitespace-nowrap">
+                      {format(block.startTime, 'h:mm a')}
+                    </span>
+                    <span className="text-[14px] font-medium flex-1 truncate text-[var(--color-paper)] leading-tight">{block.title}</span>
+                    <span className="font-mono text-[10px] text-[rgba(251,246,234,0.5)] mt-0.5">{Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}m</span>
                   </div>
                 ))}
               </div>
@@ -647,10 +651,10 @@ export default function DashboardPage() {
 
       {/* STATS ROW — Momentum & Balance */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
-        <Stat label="Focus time" big={momentumStats.focusTimeMinutes > 0 ? `${momentumStats.focusTimeMinutes}m` : '0m'} sub={momentumStats.focusTimeMinutes > 0 ? 'Logged today' : 'Dive in to start tracking'} tone="honey" />
-        <Stat label="Tasks crushed" big={`${momentumStats.tasksCrushed}${momentumStats.tasksPlanned > 0 ? `/${momentumStats.tasksPlanned}` : ''}`} sub={momentumStats.tasksCrushed > 0 ? 'Keep it up!' : 'Complete a task to start'} tone="sage" />
+        <Stat label="Focus time" big={momentumStats.focusTimeMinutes > 0 ? `${momentumStats.focusTimeMinutes}m` : 'Clean Slate'} sub={momentumStats.focusTimeMinutes > 0 ? 'Logged today' : 'Dive in to start tracking'} tone="honey" />
+        <Stat label="Daily Progress" big={momentumStats.tasksCrushed > 0 ? `${momentumStats.tasksCrushed}${momentumStats.tasksPlanned > 0 ? `/${momentumStats.tasksPlanned}` : ''}` : 'Ready to focus'} sub={momentumStats.tasksCrushed > 0 ? 'Keep it up!' : 'Complete a task to start'} tone="sage" />
         <Stat label="Upcoming" big={momentumStats.upcomingDeadlines} sub={momentumStats.upcomingDeadlines > 0 ? 'Due in the next 3 days' : 'Nothing due soon — nice!'} tone="ink" />
-        <Stat label="Consistency" big={`${momentumStats.consistencyPercent}%`} sub={momentumStats.consistencyPercent >= 70 ? "You're on fire this week!" : 'Stay consistent this week'} tone="bruno" />
+        <Stat label="Consistency" big={momentumStats.consistencyPercent > 0 ? `${momentumStats.consistencyPercent}%` : 'Fresh Start'} sub={momentumStats.consistencyPercent >= 70 ? "You're on fire this week!" : 'Pace yourself today'} tone="bruno" />
       </div>
 
       {/* DETAIL ROW */}
@@ -698,27 +702,42 @@ export default function DashboardPage() {
                 <span className="text-sm font-serif italic">Bruno is thinking...</span>
               </div>
             ) : insight ? (
-              <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
-                {insight}
-              </p>
+              <div className="space-y-4">
+                {insight.split(/(?<=[.!?])\s+(?=[A-Z])/).map((sentence, idx) => (
+                  <p key={idx} className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
+                    {sentence}
+                  </p>
+                ))}
+              </div>
             ) : (
-              <>
-                <p className="font-serif text-[22px] leading-[1.2] text-[var(--color-paper)] m-0">
-                  You have <em className="text-[var(--color-honey)] not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks. Let&apos;s get to work! 🐻
+              <div className="space-y-4">
+                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
+                  You have <em className="text-[var(--color-honey)] not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks.
                 </p>
-                <p className="text-[13px] text-[rgba(251,246,234,0.65)] mt-3.5 leading-relaxed">
-                  I&apos;ll prioritize the deep work for you. Anything else you want me to learn?
+                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
+                  Let&apos;s gently get to work. 🐻
                 </p>
-              </>
+                <p className="text-[14px] text-[rgba(251,246,234,0.7)] mt-3.5 leading-relaxed">
+                  I&apos;ll prioritize the deep work for you. Take it one step at a time.
+                </p>
+              </div>
             )}
           </div>
 
-          <button 
-            onClick={() => router.push('/dashboard/chat')}
-            className="mt-4 bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
-          >
-            Open chat with Bruno
-          </button>
+          <div className="mt-6 flex flex-col gap-2">
+            <button 
+              onClick={() => router.push('/dashboard/daily-plan')}
+              className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
+            >
+              Let&apos;s prep your day
+            </button>
+            <button 
+              onClick={() => router.push('/dashboard/chat')}
+              className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-paper)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
+            >
+              Open chat with Bruno
+            </button>
+          </div>
         </div>
       </div>
 

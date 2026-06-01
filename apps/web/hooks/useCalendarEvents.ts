@@ -153,9 +153,11 @@ export function useCalendarEvents() {
         toast.warning('This event overlaps with an existing scheduled block.');
       }
       
-      // Fire-and-forget push to Google
+      // Fire-and-forget push to Google (silently skips if read-only scope)
       pushEventToGoogle(user.id, data).then((res) => {
         if (res && !res.success) {
+          // Silently skip if user only has read-only scope — not an error
+          if (res.error?.includes('Write scope not granted')) return;
           if (res.error?.includes('403') || res.error?.includes('insufficient')) {
             toast.error('Failed to sync to Google: Please reconnect your Google Calendar to grant write permissions.');
           } else {
@@ -360,6 +362,8 @@ export function useCalendarEvents() {
           if (externalId) {
             deleteEventFromGoogle(deletedEvent.user_id, externalId, deletedEvent.metadata?.google_calendar_id).then((res) => {
               if (res && !res.success) {
+                // Silently skip if user only has read-only scope — not an error
+                if (res.error?.includes('Write scope not granted')) return;
                 if (res.error?.includes('403') || res.error?.includes('insufficient')) {
                   toast.error('Failed to sync to Google: Please reconnect your Google Calendar to grant write permissions.');
                 } else {

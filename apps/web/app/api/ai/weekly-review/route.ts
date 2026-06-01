@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
 
     // Set Sentry user and tags
     const { data: profile } = await supabaseAdmin
-      .from('users')
-      .select('plan_type')
-      .eq('id', user.id)
-      .single();
+        .from('users')
+        .select('name, plan_type, energy_preference, scheduling_preferences')
+        .eq('id', user.id)
+        .single();
     Sentry.setUser({ id: user.id, email: user.email || undefined });
     Sentry.setTag('route', '/api/ai/weekly-review');
     Sentry.setTag('feature', 'weekly-review');
@@ -103,6 +103,12 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = `You are Bruno, the AI Life Pilot for Planevo. Generate a warm, insightful weekly review.
+
+USER PROFILE:
+Name: ${profile?.name || 'User'}
+Context: ${(profile?.scheduling_preferences as any)?.context_type || 'Professional'} (School/Workplace: ${(profile?.scheduling_preferences as any)?.organization_name || 'N/A'})
+Workload Style: ${(profile?.scheduling_preferences as any)?.workload_style || 'balanced'}
+Energy Preference: ${profile?.energy_preference || 'balanced'}
 
 USER AI MEMORY:
 ${memoryContext}

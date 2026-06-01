@@ -9,7 +9,7 @@ import { posthog } from '@/lib/posthog';
 interface CanvasConnectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (url: string, token: string) => void;
+  onSuccess: (url: string) => void;
 }
 
 export function CanvasConnectModal({ isOpen, onClose, onSuccess }: CanvasConnectModalProps) {
@@ -47,7 +47,7 @@ export function CanvasConnectModal({ isOpen, onClose, onSuccess }: CanvasConnect
     } else {
       setResult({ success: true, message: 'Canvas connected successfully.' });
       posthog.capture('canvas_connected', { source: 'settings' });
-      onSuccess(canvasUrl, canvasToken);
+      onSuccess(canvasUrl);
     }
     setSaving(false);
   };
@@ -68,26 +68,26 @@ export function CanvasConnectModal({ isOpen, onClose, onSuccess }: CanvasConnect
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#f4ece1] rounded-3xl p-8 max-w-lg w-full pointer-events-auto shadow-2xl border border-[#e6dcce] flex flex-col gap-6"
+              className="bg-settings-bg rounded-3xl p-8 max-w-lg w-full pointer-events-auto shadow-2xl border border-settings-border flex flex-col gap-6"
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-2xl font-serif italic text-[#2A2118]">Connect Canvas</h3>
-                  <p className="text-sm font-medium text-[#8a7b66] mt-1">
+                  <h3 className="text-2xl font-serif italic text-settings-text">Connect Canvas</h3>
+                  <p className="text-sm font-medium text-settings-text-muted mt-1">
                     Paste your Canvas URL and New Access Token below.
                   </p>
                 </div>
                 <button 
                   onClick={onClose}
-                  className="p-2 bg-white/50 hover:bg-white rounded-full transition-colors border border-[#e6dcce]"
+                  className="p-2 bg-settings-card/50 hover:bg-settings-card rounded-full transition-colors border border-settings-border"
                 >
-                  <X size={20} className="text-[#4A3F32]" />
+                  <X size={20} className="text-[var(--color-ink-soft)]" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66]">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-settings-text-muted">
                     Instance URL
                   </label>
                   <input
@@ -95,11 +95,11 @@ export function CanvasConnectModal({ isOpen, onClose, onSuccess }: CanvasConnect
                     value={canvasUrl}
                     onChange={(e) => setCanvasUrl(e.target.value)}
                     placeholder="https://canvas.instructure.com"
-                    className="w-full bg-white border border-[#e6dcce] p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-[#D08741] transition-colors text-[#2A2118]"
+                    className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-[#D08741] transition-colors text-settings-text"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66]">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-settings-text-muted">
                     Access Token
                   </label>
                   <input
@@ -107,29 +107,29 @@ export function CanvasConnectModal({ isOpen, onClose, onSuccess }: CanvasConnect
                     value={canvasToken}
                     onChange={(e) => setCanvasToken(e.target.value)}
                     placeholder="Paste your token..."
-                    className="w-full bg-white border border-[#e6dcce] p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-[#D08741] transition-colors text-[#2A2118]"
+                    className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-[#D08741] transition-colors text-settings-text"
                   />
                 </div>
 
                 {result && (
-                  <div className={`p-4 text-xs font-bold rounded-xl border ${result.success ? 'bg-[#D8E2D6] border-[#4A3F32]/10 text-[#4A3F32]' : 'bg-[#F5D5D0] border-[#C56B5E]/10 text-[#C56B5E]'}`}>
+                  <div className={`p-4 text-xs font-bold rounded-xl border ${result.success ? 'bg-[var(--color-sage-soft)] border-[#4A3F32]/10 text-[var(--color-ink-soft)]' : 'bg-[var(--color-rose-soft)] border-[#C56B5E]/10 text-[var(--color-rose)]'}`}>
                     {result.message}
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-[#e6dcce]/50">
+              <div className="flex gap-3 pt-4 border-t border-settings-border/50">
                 <button
                   onClick={handleTest}
                   disabled={testing}
-                  className="flex-1 py-3 bg-white border border-[#e6dcce] text-[#2A2118] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+                  className="flex-1 py-3 bg-settings-card border border-settings-border text-settings-text rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
                 >
                   {testing ? 'Testing...' : 'Test Connection'}
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !canvasUrl || !canvasToken}
-                  className="flex-1 py-3 bg-[#2A2118] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#3d3026] transition-colors shadow-sm disabled:opacity-50"
+                  className="flex-1 py-3 bg-settings-text text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#3d3026] transition-colors shadow-sm disabled:opacity-50"
                 >
                   {saving ? 'Connecting...' : 'Connect'}
                 </button>

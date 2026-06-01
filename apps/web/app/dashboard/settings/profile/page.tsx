@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
-import ProfileForm from '@/components/settings/ProfileForm';
+import { UpdateIdentityForm } from '@/components/settings/UpdateIdentityForm';
+import { UpdateContextForm } from '@/components/settings/UpdateContextForm';
+import { UpdateBaselineForm } from '@/components/settings/UpdateBaselineForm';
+import { AccountSecuritySummary } from '@/components/settings/AccountSecuritySummary';
 import { redirect } from 'next/navigation';
 
 export default async function ProfileSettingsPage() {
@@ -10,27 +13,38 @@ export default async function ProfileSettingsPage() {
     redirect('/login');
   }
 
-  const { data } = await supabase
+  const { data: userData } = await supabase
     .from('users')
-    .select('name, energy_preference')
+    .select('name, energy_preference, scheduling_preferences')
     .eq('id', user.id)
     .single();
 
+  const profileData = (userData?.scheduling_preferences as Record<string, any>) || {};
+
   const initialData = {
-    ...data,
-    email: user.email
+    ...userData,
+    ...profileData,
+    preferred_name: userData?.name || profileData?.preferred_name,
+    email: user.email,
+    provider: user.app_metadata?.provider || 'Email',
+    last_sign_in_at: user.last_sign_in_at,
   };
 
   return (
-    <div className="space-y-8 animate-fade-in text-[#2A2118]">
+    <div className="space-y-8 animate-fade-in text-settings-text">
       <div>
-        <h2 className="text-3xl font-serif italic text-[#2A2118] mb-3">Profile</h2>
-        <p className="text-sm font-medium text-[#8a7b66] max-w-2xl leading-relaxed">
+        <h2 className="text-3xl font-serif italic text-settings-text mb-3">Profile</h2>
+        <p className="text-sm font-medium text-settings-text-muted max-w-2xl leading-relaxed">
           Manage your personal details and how Planevo identifies you.
         </p>
       </div>
       
-      <ProfileForm initialData={initialData} />
+      <div className="flex flex-col gap-12">
+        <UpdateIdentityForm initialData={initialData} />
+        <UpdateContextForm initialData={initialData} />
+        <UpdateBaselineForm initialData={initialData} />
+        <AccountSecuritySummary initialData={initialData} />
+      </div>
     </div>
   );
 }

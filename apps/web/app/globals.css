@@ -51,9 +51,18 @@
   --font-serif: var(--font-serif), serif;
   --font-sans: var(--font-sans), sans-serif;
   --font-mono: var(--font-mono), monospace;
+
+  /* Settings Semantic Tokens */
+  --color-settings-bg: var(--color-bg-dark);
+  --color-settings-card: var(--color-card-dark);
+  --color-settings-card-hover: var(--color-card-dark-hover);
+  --color-settings-border: var(--color-border-dark);
+  --color-settings-text: var(--color-text-dark);
+  --color-settings-text-muted: var(--color-text-dark-muted);
+  --color-settings-brand: var(--color-honey);
 }
 
-[data-theme='sepia'] {
+.sepia {
   --color-bg-dark: #f5f0e6;
   --color-card-dark: #fdfaf6;
   --color-card-dark-hover: #f5eedc;
@@ -62,7 +71,7 @@
   --color-text-dark-muted: #8a7b66;
 }
 
-[data-theme='light'] {
+.light {
   --color-bg-dark: #ffffff;
   --color-card-dark: #fafafa;
   --color-card-dark-hover: #f4f4f5;

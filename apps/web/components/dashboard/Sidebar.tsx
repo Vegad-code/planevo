@@ -13,7 +13,9 @@ import {
   Calendar, 
   Gear, 
   SignOut,
-  Notebook
+  Notebook,
+  CaretDoubleLeft,
+  CaretDoubleRight
 } from '@phosphor-icons/react';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (
@@ -32,6 +34,9 @@ const BrunoMark = ({ size = 28, mood = 'normal' }) => (
     )}
   </svg>
 );
+
+import { PlanevoLogo } from '@/components/PlanevoLogo';
+
 
 const NAV_ITEMS = [
   {
@@ -58,7 +63,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { sidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [userName, setUserName] = useState('');
@@ -127,19 +132,28 @@ export default function Sidebar() {
           fixed top-0 left-0 h-full z-50
           flex flex-col bg-[var(--color-ink)] border-r border-[rgba(251,246,234,0.08)] text-[var(--color-paper)]
           transition-all duration-300 ease-in-out font-sans
-          ${sidebarCollapsed ? 'w-[68px]' : 'w-[240px] px-5 py-5'}
+          ${sidebarCollapsed ? 'w-[68px] px-2 py-5' : 'w-[240px] px-5 py-5'}
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}
       >
         {/* Brand */}
-        <div className={`flex items-center gap-2.5 pb-5 border-b border-[rgba(251,246,234,0.08)] mb-5 ${sidebarCollapsed ? 'justify-center py-5' : ''}`}>
-          <BrunoMark size={sidebarCollapsed ? 32 : 32} />
-          {!sidebarCollapsed && (
-            <span className="font-serif text-[24px] tracking-[-0.02em] leading-none">
-              <b className="font-normal">Plan</b><i className="not-italic">evo</i>
-            </span>
-          )}
+        <div className={`flex items-center pb-5 border-b border-[rgba(251,246,234,0.08)] mb-5 ${sidebarCollapsed ? 'flex-col gap-4 py-5' : 'justify-between'}`}>
+          <div className="flex items-center gap-2.5">
+            <PlanevoLogo size={32} gapColor="var(--color-ink)" />
+            {!sidebarCollapsed && (
+              <span className="font-serif text-[24px] tracking-[-0.02em] leading-none">
+                <b className="font-normal">Plan</b><i className="not-italic">evo</i>
+              </span>
+            )}
+          </div>
+          <button 
+            onClick={toggleSidebar}
+            className="hidden lg:flex text-[rgba(251,246,234,0.4)] hover:text-[var(--color-paper)] transition-colors p-1"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <CaretDoubleRight size={16} /> : <CaretDoubleLeft size={16} />}
+          </button>
         </div>
 
         {!sidebarCollapsed && (
@@ -181,7 +195,7 @@ export default function Sidebar() {
 
         {/* Bruno Ask Card */}
         {!sidebarCollapsed && (
-          <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-[14px] p-3.5 mb-auto">
+          <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-[14px] p-3.5">
             <div className="flex items-center gap-2.5 mb-3">
               <BrunoMark size={28} />
               <div>
@@ -202,7 +216,7 @@ export default function Sidebar() {
         )}
 
         {/* Footer */}
-        <div className={`mt-6 pt-4 border-t border-[rgba(251,246,234,0.08)] ${sidebarCollapsed ? 'flex flex-col items-center gap-4 pb-4' : ''}`}>
+        <div className={`mt-auto pt-4 border-t border-[rgba(251,246,234,0.08)] ${sidebarCollapsed ? 'flex flex-col items-center gap-4 pb-4' : 'flex flex-col gap-2'}`}>
           {!sidebarCollapsed ? (
             <Link 
               href="/dashboard/settings" 
@@ -218,7 +232,7 @@ export default function Sidebar() {
 
           {!sidebarCollapsed ? (
             <div className="flex items-center gap-2.5 px-1 py-1.5">
-              <div className="w-8 h-8 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono">
+              <div className="w-8 h-8 shrink-0 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono">
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
@@ -227,6 +241,13 @@ export default function Sidebar() {
                   {isPremium ? planType.replace('_', ' ') : 'Free Plan'}
                 </div>
               </div>
+              <button 
+                onClick={handleLogout} 
+                className="text-[rgba(251,246,234,0.4)] hover:text-red-400 p-1.5 rounded-md hover:bg-[rgba(251,246,234,0.05)] transition-colors shrink-0"
+                title="Log Out"
+              >
+                <SignOut size={16} />
+              </button>
             </div>
           ) : (
             <div className="w-8 h-8 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono cursor-pointer mb-2">

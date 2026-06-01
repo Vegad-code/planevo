@@ -16,38 +16,46 @@ export default async function SettingsLayout({ children }: { children: React.Rea
     profile = { ...data, email: user.email };
   }
 
+  // Mock dynamic badges for Phase 1
+  const badges = {
+    integrations: '3 / 7',
+    membership: 'TRIAL · 11D'
+  };
+
   return (
-    <div className="min-h-screen bg-[#f4ece1] p-6 max-w-7xl mx-auto flex flex-col gap-6">
+    <div className="min-h-screen bg-settings-bg p-4 md:p-10 lg:p-12 w-full mx-auto flex flex-col gap-8 transition-colors">
       {/* Header section */}
-      <header className="flex flex-col gap-3">
-        <div className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66] flex items-center gap-2">
+      <header className="flex flex-col gap-3 border-b border-settings-border/40 pb-8">
+        <div className="text-[10px] font-black uppercase tracking-widest text-settings-text-muted flex items-center gap-2">
           <span>SETTINGS</span>
           <span>·</span>
           <span>WORKSPACE</span>
         </div>
         
-        <div className="flex items-end justify-between pb-4">
-          <div className="space-y-1.5">
-            <h1 className="text-4xl tracking-tight text-[#2A2118]">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl md:text-4xl tracking-tight text-settings-text">
               <span className="font-sans font-light">Make Planevo </span>
-              <span className="font-serif italic text-[#D08741]">yours.</span>
+              <span className="font-serif italic text-settings-brand">yours.</span>
             </h1>
-            <p className="text-sm font-medium text-[#8a7b66]">
+            <p className="text-base text-settings-text-muted max-w-xl">
               Tune what Bruno knows about your week, your tools, and how loud he should be.
             </p>
           </div>
           
-          <div className="pb-1">
+          <div className="pb-1 w-full md:w-auto">
             <SettingsSearch />
           </div>
         </div>
       </header>
 
       {/* Main Content Layout */}
-      <div className="flex gap-6 flex-col md:flex-row pb-20">
-        <SettingsSidebar profile={profile} />
+      <div className="flex gap-6 lg:gap-12 flex-col md:flex-row pb-20 pt-2">
+        <aside className="md:w-64 lg:w-72 flex-shrink-0 md:sticky md:top-8 self-start md:max-h-[calc(100vh-4rem)] md:overflow-y-auto hidden-scrollbar w-full">
+          <SettingsSidebar profile={profile} badges={badges} />
+        </aside>
         
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 w-full">
           {children}
         </main>
       </div>

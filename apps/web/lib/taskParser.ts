@@ -54,7 +54,7 @@ export function parseTaskInput(input: string): ParsedTask {
   // 4. Basic Date Extraction (tomorrow, today, days of week)
   const lowerTitle = title.toLowerCase();
   const today = new Date();
-  let baseDate = new Date(today);
+  const baseDate = new Date(today);
   let dateFound = false;
   
   if (lowerTitle.includes('tomorrow')) {
@@ -75,8 +75,8 @@ export function parseTaskInput(input: string): ParsedTask {
       const regex = new RegExp(`(?:on |this )?${days[i]}`, 'i');
       const match = title.match(regex);
       if (match) {
-        let targetDay = i;
-        let currentDay = today.getDay();
+        const targetDay = i;
+        const currentDay = today.getDay();
         let daysUntil = targetDay - currentDay;
         if (daysUntil <= 0) daysUntil += 7; // Next occurrence
         
@@ -112,8 +112,8 @@ export function parseTaskInput(input: string): ParsedTask {
         if (hours === 12) hours = 12;
       } else {
         // Today heuristic: pick the next occurrence
-        let candidateAM = hours === 12 ? 0 : hours;
-        let candidatePM = hours === 12 ? 12 : hours + 12;
+        const candidateAM = hours === 12 ? 0 : hours;
+        const candidatePM = hours === 12 ? 12 : hours + 12;
         
         if (candidateAM > currentHour) {
           hours = candidateAM;

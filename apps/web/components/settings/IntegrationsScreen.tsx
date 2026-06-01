@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { disconnectCanvasAction, getCanvasCredentialsAction } from '@/lib/canvas/actions';
+import { disconnectCanvasAction } from '@/lib/canvas/actions';
 import { disconnectGoogleCalendarAction } from '@/lib/integrations/google-calendar';
+import { formatDistanceToNow } from 'date-fns';
 import { IntegrationCard } from './IntegrationCard';
 import { CanvasConnectModal } from './CanvasConnectModal';
 import { GoogleCalendarManageModal } from './GoogleCalendarManageModal';
@@ -13,33 +14,39 @@ export default function IntegrationsScreen() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
-  
+  const [accounts, setAccounts] = useState<any[]>([]);
+
   // Modal state
   const [isCanvasModalOpen, setIsCanvasModalOpen] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
-  useEffect(() => {
-    async function getProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (data) {
-          setProfile({ ...data, email: user.email });
-        }
-
-        const canvasRes = await getCanvasCredentialsAction();
-        if (canvasRes.success && canvasRes.data) {
-          setProfile((p: any) => ({ ...p, canvas_token: canvasRes.data!.canvasToken, canvas_url: canvasRes.data!.canvasUrl }));
-        }
+  const fetchIntegrationsData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('id, google_calendar_connected, google_calendar_last_synced_at, scheduling_preferences, canvas_url')
+        .eq('id', user.id)
+        .single();
+      
+      if (userProfile) {
+        setProfile({ ...userProfile, email: user.email });
       }
-      setLoading(false);
+
+      const { data: integrationAccounts } = await supabase
+        .from('integration_accounts')
+        .select('id, provider, provider_account_id, display_name, status, last_synced_at, last_error')
+        .eq('user_id', user.id);
+
+      if (integrationAccounts) {
+        setAccounts(integrationAccounts);
+      }
     }
-    getProfile();
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchIntegrationsData();
   }, [supabase]);
 
   const handleConnectGoogle = async () => {
@@ -52,7 +59,7 @@ export default function IntegrationsScreen() {
           access_type: 'offline',
           prompt: 'consent',
         },
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
       },
     });
     if (error) {
@@ -60,33 +67,44 @@ export default function IntegrationsScreen() {
     }
   };
 
+  const handleWaitlist = async (provider: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('integration_waitlist_requests').upsert({ user_id: user.id, provider }, { onConflict: 'user_id,provider' });
+      // You could also show a toast here
+    }
+  };
+
   // handleSyncGoogle is now inside GoogleCalendarManageModal
 
-  const isCanvasConnected = !!profile?.canvas_token;
-  const isGoogleConnected = !!profile?.google_calendar_connected;
+  const canvasAccount = accounts.find(a => a.provider === 'canvas');
+  const googleAccount = accounts.find(a => a.provider === 'google_calendar');
+  
+  const isCanvasConnected = canvasAccount ? canvasAccount.status === 'connected' : !!profile?.canvas_url;
+  const isGoogleConnected = googleAccount ? googleAccount.status === 'connected' : !!profile?.google_calendar_connected;
 
-  if (loading) return <div className="animate-pulse h-64 bg-white/50 rounded-3xl" />;
+  if (loading) return <div className="animate-pulse h-64 bg-settings-card/50 rounded-3xl" />;
 
   return (
-    <div className="space-y-6 animate-fade-in text-[#2A2118]">
+    <div className="space-y-6 animate-fade-in text-settings-text">
       {/* Page Header */}
       <div>
-        <h2 className="text-[32px] font-serif italic text-[#2A2118] mb-1 leading-tight">Sources & Integrations</h2>
-        <p className="text-[13px] font-medium text-[#8a7b66] max-w-2xl leading-relaxed">
+        <h2 className="text-[32px] font-serif italic text-settings-text mb-1 leading-tight">Sources & Integrations</h2>
+        <p className="text-[13px] font-medium text-settings-text-muted max-w-2xl leading-relaxed">
           The more sources you connect, the smarter Bruno&apos;s plan. We only read deadlines and events — never your private content.
         </p>
       </div>
 
       {/* Academic Sources Section */}
-      <section className="bg-white rounded-2xl border border-[#e6dcce] p-6 shadow-sm">
+      <section className="bg-settings-card rounded-2xl border border-settings-border p-6 shadow-sm">
         <div className="mb-5">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7b66] mb-2">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-settings-text-muted mb-2">
             ACADEMIC SOURCES
           </h3>
-          <h4 className="text-2xl font-light text-[#2A2118] mb-0.5 leading-tight">
-            Your <span className="font-serif italic text-[#D08741] font-normal">school</span> stuff.
+          <h4 className="text-2xl font-light text-settings-text mb-0.5 leading-tight">
+            Your <span className="font-serif italic text-settings-brand font-normal">school</span> stuff.
           </h4>
-          <p className="text-[13px] font-medium text-[#8a7b66]">
+          <p className="text-[13px] font-medium text-settings-text-muted">
             Sync courses, deadlines, and class schedules.
           </p>
         </div>
@@ -96,14 +114,18 @@ export default function IntegrationsScreen() {
             id="canvas"
             title="Canvas LMS"
             description="Pulls assignments, quizzes, and due dates from your enrolled courses."
-            status={isCanvasConnected ? 'connected' : 'available'}
-            infoText={isCanvasConnected ? 'Syncing automatically' : undefined}
-            icon={<div className="bg-[#C56B5E] w-full h-full rounded-xl flex items-center justify-center font-serif text-2xl italic shadow-inner text-white">C</div>}
+            status={canvasAccount?.status === 'error' ? 'error' : isCanvasConnected ? 'connected' : 'available'}
+            infoText={isCanvasConnected ? `Synced ${canvasAccount?.last_synced_at ? formatDistanceToNow(new Date(canvasAccount.last_synced_at)) + ' ago' : 'recently'}` : undefined}
+            icon={<div className="bg-[var(--color-rose)] w-full h-full rounded-xl flex items-center justify-center font-serif text-2xl italic shadow-inner text-white">C</div>}
             onConnect={() => setIsCanvasModalOpen(true)}
             onManage={() => setIsCanvasModalOpen(true)}
             onDisconnect={async () => {
-              await disconnectCanvasAction();
-              setProfile((p: any) => ({ ...p, canvas_token: null, canvas_url: null }));
+              const proceed = window.confirm("Are you sure you want to disconnect Canvas?");
+              if (!proceed) return;
+              const deleteData = window.confirm("Do you want to delete all imported Canvas tasks as well?\n\nClick 'OK' to delete them, or 'Cancel' to keep them.");
+              await disconnectCanvasAction(deleteData);
+              setAccounts(accs => accs.filter(a => a.provider !== 'canvas'));
+              setProfile((p: any) => ({ ...p, canvas_url: null }));
             }}
           />
 
@@ -111,9 +133,9 @@ export default function IntegrationsScreen() {
             id="google-calendar"
             title="Google Calendar"
             description="Imports your classes, meetings, and personal events."
-            status={isGoogleConnected ? 'connected' : 'available'}
-            infoText={isGoogleConnected ? `${profile?.email || 'Connected'} · synced ${profile?.google_calendar_last_synced_at ? 'recently' : 'never'}` : undefined}
-            icon={<div className="bg-[#5B8DCF] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><Calendar size={24} weight="fill" /></div>}
+            status={googleAccount?.status === 'error' ? 'error' : isGoogleConnected ? 'connected' : 'available'}
+            infoText={isGoogleConnected ? `${profile?.email || 'Connected'} · synced ${googleAccount?.last_synced_at ? formatDistanceToNow(new Date(googleAccount.last_synced_at)) + ' ago' : 'never'}` : undefined}
+            icon={<div className="bg-[var(--color-blue)] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><Calendar size={24} weight="fill" /></div>}
             onConnect={handleConnectGoogle}
             onManage={() => setIsGoogleModalOpen(true)}
           />
@@ -121,15 +143,15 @@ export default function IntegrationsScreen() {
       </section>
 
       {/* Productivity & Premium Section */}
-      <section className="bg-white rounded-2xl border border-[#e6dcce] p-6 shadow-sm">
+      <section className="bg-settings-card rounded-2xl border border-settings-border p-6 shadow-sm">
         <div className="mb-5">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7b66] mb-2">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-settings-text-muted mb-2">
             PRODUCTIVITY · PREMIUM
           </h3>
-          <h4 className="text-2xl font-light text-[#2A2118] mb-0.5 leading-tight">
-            For when <span className="font-serif italic text-[#D08741] font-normal">work</span> creeps in.
+          <h4 className="text-2xl font-light text-settings-text mb-0.5 leading-tight">
+            For when <span className="font-serif italic text-settings-brand font-normal">work</span> creeps in.
           </h4>
-          <p className="text-[13px] font-medium text-[#8a7b66]">
+          <p className="text-[13px] font-medium text-settings-text-muted">
             Bring in side-projects, internships, and team work. Available with the Builder plan.
           </p>
         </div>
@@ -140,7 +162,8 @@ export default function IntegrationsScreen() {
             title="Notion"
             description="Pull database deadlines and project pages."
             status="coming-soon"
-            icon={<div className="bg-white border border-gray-200 w-full h-full rounded-xl flex items-center justify-center text-black font-bold shadow-inner">N</div>}
+            icon={<div className="bg-settings-card border border-gray-200 w-full h-full rounded-xl flex items-center justify-center text-black font-bold shadow-inner">N</div>}
+            onConnect={() => handleWaitlist('notion')}
           />
 
           <IntegrationCard
@@ -149,6 +172,7 @@ export default function IntegrationsScreen() {
             description="Channel mentions and saved messages become tasks."
             status="coming-soon"
             icon={<div className="bg-[#4A154B] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><SlackLogo size={24} weight="fill" /></div>}
+            onConnect={() => handleWaitlist('slack')}
           />
 
           <IntegrationCard
@@ -157,6 +181,7 @@ export default function IntegrationsScreen() {
             description="Bring in issues assigned to you."
             status="coming-soon"
             icon={<div className="bg-[#5E6AD2] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><Kanban size={24} weight="fill" /></div>}
+            onConnect={() => handleWaitlist('linear')}
           />
         </div>
       </section>
@@ -164,8 +189,9 @@ export default function IntegrationsScreen() {
       <CanvasConnectModal 
         isOpen={isCanvasModalOpen} 
         onClose={() => setIsCanvasModalOpen(false)}
-        onSuccess={(url, token) => {
-          setProfile((p: any) => ({ ...p, canvas_token: token, canvas_url: url }));
+        onSuccess={(url) => {
+          setProfile((p: any) => ({ ...p, canvas_url: url }));
+          fetchIntegrationsData();
           setTimeout(() => setIsCanvasModalOpen(false), 1500);
         }}
       />
@@ -175,8 +201,9 @@ export default function IntegrationsScreen() {
         onClose={() => setIsGoogleModalOpen(false)}
         profile={profile}
         onProfileUpdate={setProfile}
-        onDisconnect={async () => {
-          await disconnectGoogleCalendarAction();
+        onDisconnect={async (deleteData: boolean) => {
+          await disconnectGoogleCalendarAction(deleteData);
+          setAccounts(accs => accs.filter(a => a.provider !== 'google_calendar'));
           setProfile((p: any) => ({ ...p, google_calendar_connected: false }));
           setIsGoogleModalOpen(false);
         }}

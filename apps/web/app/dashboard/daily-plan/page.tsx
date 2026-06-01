@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { fetchCanvasUpcomingAction, fetchCanvasTodoAction } from '@/lib/canvas/actions';
+import { syncCanvasIntegrationAction } from '@/lib/canvas/actions';
+import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 import { CanvasAssignment } from '@/lib/canvas/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,7 @@ export default function DailyPlanPage() {
 
       const profilePromise = supabase.from('users').select('*').eq('id', user.id).single();
       const memoryPromise = supabase.from('user_ai_memory').select('*').eq('user_id', user.id).maybeSingle();
-      const assignmentsPromise = supabase.from('canvas_assignments').select('*').eq('user_id', user.id);
+      const assignmentsPromise = supabase.from('source_items').select('*').eq('user_id', user.id).eq('provider', 'canvas').eq('item_type', 'assignment').is('deleted_at', null);
       const tasksPromise = supabase.from('tasks').select('*').eq('user_id', user.id).eq('completed', false).or(`due_date.eq.${today},due_date.is.null`);
       const blocksPromise = (supabase as any).from('calendar_events').select('*').eq('user_id', user.id).eq('is_deleted', false).neq('status', 'rejected').gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString()).lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString()).order('start_time', { ascending: true });
 
@@ -128,6 +129,7 @@ export default function DailyPlanPage() {
           learned_rules: memoryData.learned_rules as UserAiMemory['learned_rules'],
           disliked_patterns: memoryData.disliked_patterns as UserAiMemory['disliked_patterns'],
           accepted_patterns: memoryData.accepted_patterns as UserAiMemory['accepted_patterns'],
+          memory_learning_settings: (memoryData as any).memory_learning_settings as UserAiMemory['memory_learning_settings'],
           source_counters: memoryData.source_counters as UserAiMemory['source_counters'],
           task_duration_preferences: (memoryData as any).task_duration_preferences as UserAiMemory['task_duration_preferences'] ?? [],
           task_time_preferences: (memoryData as any).task_time_preferences as UserAiMemory['task_time_preferences'] ?? [],
@@ -138,14 +140,17 @@ export default function DailyPlanPage() {
       }
 
       if (dbAssignments) {
-        setAssignments(dbAssignments.map(a => ({
-          id: (Number(a.id) || a.id) as any,
-          name: a.name,
-          due_at: a.due_at,
-          html_url: a.html_url,
-          course_id: (a as any).course_id || '',
-          description: (a as any).description || ''
-        })) as unknown as CanvasAssignment[]);
+        setAssignments(dbAssignments.map(a => {
+          const raw = (a as any).raw_data || {};
+          return {
+            id: a.external_id,
+            name: a.title,
+            due_at: a.due_date,
+            html_url: a.url,
+            course_id: raw.course_id || '',
+            description: a.description || ''
+          };
+        }) as unknown as CanvasAssignment[]);
       }
 
       if (dbTasks) {
@@ -238,68 +243,29 @@ export default function DailyPlanPage() {
     }
   }, [launched, view, loading, autoLaunched, handleGeneratePlan]);
 
-  // --- SYNC LOGIC ---
   const handleSyncAll = useCallback(async () => {
     setProcessing(true);
     try {
-      if (profile?.canvas_url && profile?.canvas_token) {
-        let upcoming = await fetchCanvasUpcomingAction(profile.canvas_url, profile.canvas_token);
-        if (upcoming.length === 0) {
-          upcoming = await fetchCanvasTodoAction(profile.canvas_url, profile.canvas_token);
-        }
-        const sorted = upcoming.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
-        const assignmentsOnly = upcoming.filter(item => item.type === 'assignment');
-        const eventsOnly = upcoming.filter(item => item.type === 'event');
-        
-        setAssignments(assignmentsOnly);
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // 1. Upsert Assignments with user-safe composite key
-          if (assignmentsOnly.length > 0) {
-            const toUpsertAssignments = assignmentsOnly.map(a => ({
-              id: `${user.id}:${a.id}`,
-              external_id: String(a.id),
-              user_id: user.id,
-              name: a.name,
-              description: a.description || '',
-              due_at: a.due_at,
-              html_url: a.html_url,
-              synced_at: new Date().toISOString()
-            }));
-            await (supabase.from('canvas_assignments') as any).upsert(toUpsertAssignments, { onConflict: 'user_id,external_id' });
-          }
-
-          // 2. Upsert Events (Classes/Meetings) into calendar_events
-          if (eventsOnly.length > 0) {
-            const toUpsertEvents = eventsOnly.map(e => ({
-              external_id: String(e.id),
-              user_id: user.id,
-              title: e.name,
-              start_time: e.due_at, // In Canvas, events use start_at mapped to due_at in our action
-              end_time: new Date(new Date(e.due_at).getTime() + 60 * 60 * 1000).toISOString(), // Default 1hr
-              source: 'canvas',
-              description: e.description || `Canvas Course: ${e.course_id}`,
-              metadata: { canvas_course_id: e.course_id, html_url: e.html_url }
-            }));
-            
-            await supabase.from('calendar_events').upsert(toUpsertEvents, { onConflict: 'external_id' });
-          }
-        }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+      
+      // Try syncing Canvas
+      try {
+        await syncCanvasIntegrationAction();
+      } catch (err) {
+        console.warn("Canvas sync skipped or failed", err);
       }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token) {
-        const now = new Date().toISOString();
-        const response = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now}&singleEvents=true&orderBy=startTime&maxResults=10`,
-          { headers: { Authorization: `Bearer ${session.provider_token}` } }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setCalendarEvents(data.items || []);
-        }
+      
+      // Try syncing Google Calendar
+      try {
+        await syncGoogleCalendar(user.id);
+      } catch (err) {
+        console.warn("Google Calendar sync skipped or failed", err);
       }
+      
+      // Reload UI data
+      await loadData();
+      
       toast.success("Everything's synced up!");
     } catch (error) {
       console.error('Sync error:', error);
@@ -307,7 +273,7 @@ export default function DailyPlanPage() {
     } finally {
       setProcessing(false);
     }
-  }, [profile, supabase]);
+  }, [loadData, supabase]);
 
   // Removed redundant handleGeneratePlan from here (moved up)
 
@@ -599,7 +565,7 @@ export default function DailyPlanPage() {
               </button>
               <button 
                 onClick={handleSavePlan}
-                className="bg-honey hover:scale-105 text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-transform flex items-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-honey"
+                className="bg-[#FFFDD0] text-slate-900 dark:bg-[#7B8B6F] dark:text-[#FFFDD0] px-4 py-2 rounded flex items-center hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-honey"
               >
                 <Save className="w-4 h-4 mr-1.5" />
                 Save Plan

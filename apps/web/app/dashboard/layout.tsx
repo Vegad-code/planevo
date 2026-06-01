@@ -56,12 +56,11 @@ export default function DashboardLayout({
       {/* Main content area - offset by sidebar width */}
       <main
         className={`
-          transition-all duration-300 ease-in-out
-          lg:ml-[240px] min-h-screen
-          ${sidebarCollapsed ? 'lg:ml-[68px]' : ''}
+          transition-all duration-300 ease-in-out min-h-screen
+          ${sidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[240px]'}
         `}
       >
-        <div className={`p-6 lg:p-8 ${isCalendar ? 'max-w-[1400px]' : (sidebarCollapsed ? 'max-w-full px-12' : 'max-w-5xl')} mx-auto transition-all duration-300`}>
+        <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-[1400px]' : (sidebarCollapsed ? 'max-w-[1600px]' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>
           {children}
         </div>
       </main>

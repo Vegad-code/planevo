@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { List, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { PlanevoLogo } from '@/components/PlanevoLogo';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} style={{ flex: 'none' }}>
@@ -57,7 +58,7 @@ export default function LandingHeader() {
             whileHover={{ rotate: [-10, 10, -10, 0] }}
             className="flex items-center"
           >
-            <BrunoMark size={32} />
+            <PlanevoLogo size={32} gapColor="var(--color-paper)" />
           </motion.div>
           <span className="font-serif text-[28px] hidden sm:flex items-baseline tracking-tight font-normal leading-none text-[var(--color-ink)] select-none">
             <span className="font-bold">Plan</span>

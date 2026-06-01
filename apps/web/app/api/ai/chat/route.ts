@@ -17,7 +17,7 @@ import { normalizePlanType } from '@/lib/auth/plan-types';
 import { posthogServer } from '@/lib/posthog-server';
 import { streamText, generateText, tool, stepCountIs, jsonSchema, convertToModelMessages } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { pushEventToGoogle } from '@/lib/integrations/google-calendar';
+import { pushEventToGoogle, hasGoogleWriteScope } from '@/lib/integrations/google-calendar';
 
 // Secure message schema to prevent role spoofing and excessive payload sizes
 const messageSchema = z.object({
@@ -262,6 +262,15 @@ const readScheduleParams = jsonSchema({
   additionalProperties: false,
 });
 
+const updatePreferredNameParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    preferred_name: { type: 'string', description: 'The new preferred name the user wants to be called.' },
+  },
+  required: ['preferred_name'],
+  additionalProperties: false,
+});
+
 export async function POST(request: NextRequest) {
   const latencyTimer = createAiLatencyTimer('bruno-chat');
   let openAiMs: number | null = null;
@@ -340,11 +349,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user context for better responses (use admin client to bypass RLS for mobile)
-    const { data: profile } = await supabaseAdmin
-      .from('users')
-      .select('name, plan_type, canvas_token, google_calendar_refresh_token')
-      .eq('id', user.id)
-      .single();
+    const [
+      { data: profile }
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('users')
+        .select('name, plan_type, canvas_token, google_calendar_refresh_token, energy_preference, scheduling_preferences')
+        .eq('id', user.id)
+        .single()
+    ]);
     latencyTimer.mark('profile');
 
     // Set Sentry tags and user context
@@ -421,8 +434,9 @@ URL: ${a.html_url || 'N/A'}
     const userPlanType = normalizePlanType(profile?.plan_type);
     const isPremium = userPlanType !== 'free' && userPlanType !== 'canceled';
 
-    // Check if user has Google Calendar connected
+    // Check if user has Google Calendar connected WITH write scope
     const hasGoogleCalendar = !!profile?.google_calendar_refresh_token;
+    const hasGoogleWrite = hasGoogleCalendar ? await hasGoogleWriteScope(user.id) : false;
 
     const draftModeInstructions = isPremium ? `
 
@@ -444,9 +458,10 @@ NOTE: If the user asks you to build a detailed multi-step plan with calendar int
     const userTimeZone = timeZone || 'UTC';
     const userLocalTime = localTime || new Date().toLocaleString();
 
-    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and daily planning assistant for "Planevo". 
+    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and Master Planner.
+Your job is to read the user's workload (assignments, events, tasks) and architect the perfect schedule for them.
 
-USER'S CURRENT LOCAL TIME: ${userLocalTime} (Time Zone: ${userTimeZone})
+LOCAL TIME: ${userLocalTime} (Time Zone: ${(profile?.scheduling_preferences as any)?.timezone || userTimeZone})
 VERY IMPORTANT: When scheduling tasks or events, YOU MUST schedule them during the user's normal daytime waking hours (e.g., 8:00 AM to 10:00 PM in their local time) UNLESS they explicitly ask otherwise. NEVER schedule things at 1:00 AM or in the middle of the night. Calculate the proper ISO 8601 strings based on their local time offset.
 When proposing tasks or plan drafts, YOU MUST ALWAYS populate the \`execution_description\` or \`description\` with highly detailed instructions, including any helpful links, resources, or sources for them to use. NEVER leave it blank or vague.
 
@@ -454,6 +469,11 @@ For speed and efficiency, keep your conversational responses brief and get strai
 
 User Name: ${profile?.name || 'User'}
 User Plan: ${userPlanType}
+Context: ${(profile?.scheduling_preferences as any)?.context_type || 'Professional'} (School/Workplace: ${(profile?.scheduling_preferences as any)?.organization_name || 'N/A'})
+Planning Baseline:
+- Workload Style: ${(profile?.scheduling_preferences as any)?.workload_style || 'balanced'}
+- Default Task Duration: ${(profile?.scheduling_preferences as any)?.default_task_duration || 30} mins
+- Energy Preference: ${profile?.energy_preference || 'balanced'}
 
 CURRENT USER TASKS:
 ${taskListContext}
@@ -462,6 +482,7 @@ UPCOMING EVENTS (Next 7 Days):
 ${calendarListContext}
 
 USER MEMORY (Apply these preferences):
+CRITICAL: The USER MEMORY below reflects the user's explicit preferences. You MUST adhere to these preferences over any default conversational style or planning rules.
 ${memoryContext}
 ${assignmentContext}
 
@@ -476,6 +497,7 @@ Rules:
 5. **Deconstruct complexity:** If a task is huge, offer to "Deconstruct" it into 15-minute micro-steps using the \`break_down_task\` tool.
 6. When you create, reschedule, complete, or delete a task, use the corresponding tool. Inform the user of what you did. Always make sure to refer to tasks by their exact name when interacting with them.
 7. Use calendar block tools (\`create_calendar_block\`, \`move_calendar_block\`, etc.) to actively manage and optimize the user's schedule. Do the work for them.
+8. If the user tells you they want to go by a different name, use the \`update_preferred_name\` tool to remember it permanently.
 ${draftModeInstructions}`;
 
     const logToolExecution = async (name: string, args: any, result: any) => {
@@ -598,7 +620,7 @@ ${draftModeInstructions}`;
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin
             .from('tasks')
-            .update({ 
+            .update({
               deleted_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             })
@@ -608,6 +630,23 @@ ${draftModeInstructions}`;
           if (error) throw error;
           const result = { success: true, message: `Task deleted successfully.` };
           await logToolExecution('delete_task', validArgs, result);
+          return result;
+        }
+      } as any),
+      update_preferred_name: tool({
+        description: 'Update the user\'s preferred name if they ask to be called something else.',
+        inputSchema: updatePreferredNameParams,
+        execute: async (validArgs: any) => {
+          const { error } = await supabaseAdmin
+            .from('users')
+            .update({
+              name: validArgs.preferred_name
+            })
+            .eq('id', user.id);
+
+          if (error) throw error;
+          const result = { success: true, message: `Preferred name updated to ${validArgs.preferred_name}.` };
+          await logToolExecution('update_preferred_name', validArgs, result);
           return result;
         }
       } as any),
@@ -788,7 +827,7 @@ ${draftModeInstructions}`;
                   createdEvents.push(item.title);
 
                   // 3. Optionally sync to Google Calendar
-                  if (validArgs.sync_to_google && hasGoogleCalendar && eventData) {
+                  if (validArgs.sync_to_google && hasGoogleWrite && eventData) {
                     try {
                       const pushResult = await pushEventToGoogle(user.id, {
                         id: eventData.id,
@@ -818,7 +857,9 @@ ${draftModeInstructions}`;
 
             const googleMsg = googleSyncResults.length > 0
               ? ` ${googleSyncResults.length} events synced to Google Calendar.`
-              : (validArgs.sync_to_google && !hasGoogleCalendar ? ' (Google Calendar not connected — events saved locally.)' : '');
+              : (validArgs.sync_to_google && !hasGoogleWrite
+                ? (hasGoogleCalendar ? ' (Google Calendar is connected in read-only mode — events saved locally.)' : ' (Google Calendar not connected — events saved locally.)')
+                : '');
 
             const result = {
               success: true,
@@ -914,7 +955,6 @@ ${draftModeInstructions}`;
         system: systemPrompt,
         messages: modelMessages,
         tools,
-        maxSteps: 5,
       });
       return jsonWithDiagnostics({ 
         text: genResult.text, 

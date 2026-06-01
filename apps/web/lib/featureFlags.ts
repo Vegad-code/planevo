@@ -31,6 +31,9 @@ export const FEATURES = {
   COMMAND_CENTER: process.env.NEXT_PUBLIC_ENABLE_COMMAND_CENTER === 'true',
   OMNIBOX: process.env.NEXT_PUBLIC_ENABLE_OMNIBOX === 'true',
   N8N_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_N8N === 'true',
+  NOTION_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_NOTION === 'true',
+  SLACK_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_SLACK === 'true',
+  LINEAR_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_LINEAR === 'true',
 
   // --- v1 ADVANCED AI (flagged off; archived endpoints) ---
   AI_PRIORITIZE: process.env.NEXT_PUBLIC_ENABLE_AI_PRIORITIZE === 'true',
