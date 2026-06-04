@@ -864,6 +864,7 @@ export type Database = {
           plan_type: string
           preferred_morning_time: string | null
           push_notifications_enabled: boolean | null
+          email_notifications_enabled: boolean | null
           referral_code: string | null
           referred_by: string | null
           scheduling_preferences: Json | null
@@ -894,6 +895,7 @@ export type Database = {
           plan_type?: string
           preferred_morning_time?: string | null
           push_notifications_enabled?: boolean | null
+          email_notifications_enabled?: boolean | null
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
@@ -924,6 +926,7 @@ export type Database = {
           plan_type?: string
           preferred_morning_time?: string | null
           push_notifications_enabled?: boolean | null
+          email_notifications_enabled?: boolean | null
           referral_code?: string | null
           referred_by?: string | null
           scheduling_preferences?: Json | null
@@ -1145,6 +1148,7 @@ export type Database = {
           items_created?: number
           items_updated?: number
           error_message?: string | null
+          content?: string | null
         }
         Update: {
           id?: string
@@ -1196,6 +1200,83 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "integration_waitlist_requests_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          id: string
+          user_id: string
+          master_toggle: boolean
+          channels: Json
+          quiet_hours: Json
+          types: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          master_toggle?: boolean
+          channels?: Json
+          quiet_hours?: Json
+          types?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          master_toggle?: boolean
+          channels?: Json
+          quiet_hours?: Json
+          types?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      notification_deliveries: {
+        Row: {
+          id: string
+          user_id: string
+          notification_type: string
+          channel: string
+          dedupe_key: string
+          metadata: Json
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          notification_type: string
+          channel: string
+          dedupe_key: string
+          metadata?: Json
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          notification_type?: string
+          channel?: string
+          dedupe_key?: string
+          metadata?: Json
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_user_id_fkey"
             columns: ["user_id"]
             referencedRelation: "users"
             referencedColumns: ["id"]

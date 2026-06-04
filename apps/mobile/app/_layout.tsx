@@ -11,7 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { Colors } from '@/constants/Colors';
-import { registerForPushNotifications, scheduleMorningReminder } from '@/lib/notifications';
+import { syncPushNotificationState } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { initObservability, identifyUser, resetUser, sentryWrap } from '@/lib/observability';
 import { normalizePlanType } from '@/lib/plan-types';
@@ -111,9 +111,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    registerForPushNotifications(user.id).then(() => {
-      scheduleMorningReminder(9, 0); // 9:00 AM local
-    });
+    syncPushNotificationState(user.id);
 
     // Handle notification tap → navigate to the right screen
     notificationResponseListener.current =
@@ -121,6 +119,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         const screen = response.notification.request.content.data?.screen;
         if (screen === 'chat') {
           router.push('/(tabs)/chat');
+        } else if (screen === 'settings') {
+          router.push('/(tabs)/settings');
         } else {
           router.push('/(tabs)');
         }

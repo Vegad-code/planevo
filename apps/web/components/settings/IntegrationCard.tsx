@@ -5,7 +5,7 @@ export interface IntegrationCardProps {
   id: string;
   title: string;
   description: string;
-  status: 'connected' | 'available' | 'coming-soon' | 'error';
+  status: 'connected' | 'available' | 'coming-soon' | 'error' | 'upgrade';
   infoText?: string;
   icon: React.ReactNode;
   onConnect?: () => void;
@@ -13,11 +13,11 @@ export interface IntegrationCardProps {
   onDisconnect?: () => void;
 }
 
-export function IntegrationCard({ 
-  id, 
-  title, 
-  description, 
-  status, 
+export function IntegrationCard({
+  id,
+  title,
+  description,
+  status,
   infoText,
   icon,
   onConnect,
@@ -32,7 +32,7 @@ export function IntegrationCard({
             {icon}
           </div>
           <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-wider ${
-            status === 'connected' ? 'bg-[var(--color-sage-soft)] text-[var(--color-ink-soft)]' : 
+            status === 'connected' ? 'bg-[var(--color-sage-soft)] text-[var(--color-ink-soft)]' :
             status === 'error' ? 'bg-[var(--color-rose-soft)] text-[var(--color-rose)] border border-[#C56B5E]/20' :
             status === 'available' ? 'bg-settings-border text-settings-text-muted' :
             'bg-settings-bg border border-settings-border text-settings-text-muted'
@@ -50,18 +50,18 @@ export function IntegrationCard({
           </p>
         )}
       </div>
-      
+
       <div className="flex gap-2.5 mt-3 pt-3 border-t border-settings-border/50">
         {status === 'connected' || status === 'error' ? (
           <>
-            <button 
+            <button
               onClick={onManage}
               className={`py-1.5 text-[10px] font-bold uppercase tracking-wider bg-settings-card border ${status === 'error' ? 'border-[#C56B5E]/30 text-[var(--color-rose)]' : 'border-settings-border text-[var(--color-ink-soft)]'} rounded-lg hover:bg-settings-bg transition-colors ${onDisconnect ? 'px-3' : 'flex-1 w-full'}`}
             >
               {status === 'error' ? 'Fix Error' : 'Manage'}
             </button>
             {onDisconnect && (
-              <button 
+              <button
                 onClick={onDisconnect}
                 className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-rose)] hover:bg-[var(--color-rose)]/10 rounded-lg transition-colors"
               >
@@ -70,14 +70,14 @@ export function IntegrationCard({
             )}
           </>
         ) : status === 'available' ? (
-          <button 
+          <button
             onClick={onConnect}
             className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest bg-settings-text text-white rounded-xl hover:bg-[#3d3026] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
           >
             <Link weight="bold" size={12} className="text-white/70" /> CONNECT →
           </button>
         ) : (
-          <button 
+          <button
             disabled
             className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest bg-settings-bg text-settings-text-muted rounded-xl cursor-not-allowed border border-settings-border"
           >

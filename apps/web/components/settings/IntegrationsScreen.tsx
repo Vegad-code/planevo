@@ -8,6 +8,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { IntegrationCard } from './IntegrationCard';
 import { CanvasConnectModal } from './CanvasConnectModal';
 import { GoogleCalendarManageModal } from './GoogleCalendarManageModal';
+import { NotionManageModal } from './NotionManageModal';
+import { SlackManageModal } from './SlackManageModal';
+import { LinearManageModal } from './LinearManageModal';
+import { LinearConfigModal } from './LinearConfigModal';
+import { disconnectNotionAction } from '@/lib/integrations/notion';
+import { disconnectSlackAction } from '@/lib/integrations/slack';
+import { disconnectLinearAction } from '@/lib/integrations/linear';
+import { UpgradeToProModal } from './UpgradeToProModal';
 import { Calendar, SlackLogo, Kanban } from '@phosphor-icons/react';
 
 export default function IntegrationsScreen() {
@@ -19,16 +27,23 @@ export default function IntegrationsScreen() {
   // Modal state
   const [isCanvasModalOpen, setIsCanvasModalOpen] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [isNotionModalOpen, setIsNotionModalOpen] = useState(false);
+  const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
+  const [isLinearModalOpen, setIsLinearModalOpen] = useState(false);
+  const [isLinearConfigModalOpen, setIsLinearConfigModalOpen] = useState(false);
+
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeFeatureName, setUpgradeFeatureName] = useState('');
 
   const fetchIntegrationsData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: userProfile } = await supabase
         .from('users')
-        .select('id, google_calendar_connected, google_calendar_last_synced_at, scheduling_preferences, canvas_url')
+        .select('id, google_calendar_connected, google_calendar_last_synced_at, scheduling_preferences, canvas_url, plan_type')
         .eq('id', user.id)
         .single();
-      
+
       if (userProfile) {
         setProfile({ ...userProfile, email: user.email });
       }
@@ -47,6 +62,23 @@ export default function IntegrationsScreen() {
 
   useEffect(() => {
     fetchIntegrationsData();
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'oauth_result') {
+        const { provider, error } = event.data;
+        if (error) {
+          alert(`Failed to connect ${provider}: ${error}`);
+        } else {
+          fetchIntegrationsData();
+          if (provider === 'linear') {
+            setIsLinearConfigModalOpen(true);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [supabase]);
 
   const handleConnectGoogle = async () => {
@@ -67,6 +99,60 @@ export default function IntegrationsScreen() {
     }
   };
 
+  const isProUser = profile?.plan_type && !['free', 'canceled'].includes(profile.plan_type);
+
+  const handleUpgradeClick = (featureName: string) => {
+    setUpgradeFeatureName(featureName);
+    setIsUpgradeModalOpen(true);
+  };
+
+  const openOAuthPopup = (url: string, providerName: string) => {
+    const width = 600;
+    const height = 700;
+    const left = (window.innerWidth / 2) - (width / 2);
+    const top = (window.innerHeight / 2) - (height / 2);
+    window.open(url, `oauth_${providerName}`, `width=${width},height=${height},top=${top},left=${left}`);
+  };
+
+  const handleConnectNotion = () => {
+    if (!isProUser) return handleUpgradeClick('Notion');
+    const clientId = process.env.NEXT_PUBLIC_NOTION_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/callback/notion`);
+    if (!clientId) {
+      console.error('NEXT_PUBLIC_NOTION_CLIENT_ID is not set in environment variables.');
+      alert('Notion integration is not fully configured on the server yet.');
+      return;
+    }
+    const notionAuthUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&response_type=code&owner=user&redirect_uri=${redirectUri}`;
+    openOAuthPopup(notionAuthUrl, 'notion');
+  };
+
+  const handleConnectSlack = () => {
+    if (!isProUser) return handleUpgradeClick('Slack');
+    const clientId = process.env.NEXT_PUBLIC_SLACK_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/callback/slack`);
+    if (!clientId) {
+      console.error('NEXT_PUBLIC_SLACK_CLIENT_ID is not set in environment variables.');
+      alert('Slack integration is not fully configured on the server yet.');
+      return;
+    }
+    const slackAuthUrl = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&user_scope=stars:read&redirect_uri=${redirectUri}`;
+    openOAuthPopup(slackAuthUrl, 'slack');
+  };
+
+  const handleConnectLinear = () => {
+    if (!isProUser) return handleUpgradeClick('Linear');
+    const clientId = process.env.NEXT_PUBLIC_LINEAR_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/callback/linear`);
+    if (!clientId) {
+      console.error('NEXT_PUBLIC_LINEAR_CLIENT_ID is not set in environment variables.');
+      alert('Linear integration is not fully configured on the server yet.');
+      return;
+    }
+    const linearAuthUrl = `https://linear.app/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=read`;
+    openOAuthPopup(linearAuthUrl, 'linear');
+  };
+
   const handleWaitlist = async (provider: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -79,9 +165,15 @@ export default function IntegrationsScreen() {
 
   const canvasAccount = accounts.find(a => a.provider === 'canvas');
   const googleAccount = accounts.find(a => a.provider === 'google_calendar');
-  
+  const notionAccount = accounts.find(a => a.provider === 'notion');
+  const slackAccount = accounts.find(a => a.provider === 'slack');
+  const linearAccount = accounts.find(a => a.provider === 'linear');
+
   const isCanvasConnected = canvasAccount ? canvasAccount.status === 'connected' : !!profile?.canvas_url;
   const isGoogleConnected = googleAccount ? googleAccount.status === 'connected' : !!profile?.google_calendar_connected;
+  const isNotionConnected = notionAccount ? notionAccount.status === 'connected' : false;
+  const isSlackConnected = slackAccount ? slackAccount.status === 'connected' : false;
+  const isLinearConnected = linearAccount ? linearAccount.status === 'connected' : false;
 
   if (loading) return <div className="animate-pulse h-64 bg-settings-card/50 rounded-3xl" />;
 
@@ -108,7 +200,7 @@ export default function IntegrationsScreen() {
             Sync courses, deadlines, and class schedules.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <IntegrationCard
             id="canvas"
@@ -155,39 +247,45 @@ export default function IntegrationsScreen() {
             Bring in side-projects, internships, and team work. Available with the Builder plan.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <IntegrationCard
             id="notion"
             title="Notion"
             description="Pull database deadlines and project pages."
-            status="coming-soon"
+            status={notionAccount?.status === 'error' ? 'error' : isNotionConnected ? 'connected' : (isProUser ? 'available' : 'upgrade')}
+            infoText={isNotionConnected ? `Synced ${notionAccount?.last_synced_at ? formatDistanceToNow(new Date(notionAccount.last_synced_at)) + ' ago' : 'never'}` : undefined}
             icon={<div className="bg-settings-card border border-gray-200 w-full h-full rounded-xl flex items-center justify-center text-black font-bold shadow-inner">N</div>}
-            onConnect={() => handleWaitlist('notion')}
+            onConnect={handleConnectNotion}
+            onManage={() => setIsNotionModalOpen(true)}
           />
 
           <IntegrationCard
             id="slack"
             title="Slack"
             description="Channel mentions and saved messages become tasks."
-            status="coming-soon"
+            status={slackAccount?.status === 'error' ? 'error' : isSlackConnected ? 'connected' : (isProUser ? 'available' : 'upgrade')}
+            infoText={isSlackConnected ? `Synced ${slackAccount?.last_synced_at ? formatDistanceToNow(new Date(slackAccount.last_synced_at)) + ' ago' : 'never'}` : undefined}
             icon={<div className="bg-[#4A154B] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><SlackLogo size={24} weight="fill" /></div>}
-            onConnect={() => handleWaitlist('slack')}
+            onConnect={handleConnectSlack}
+            onManage={() => setIsSlackModalOpen(true)}
           />
 
           <IntegrationCard
             id="linear"
             title="Linear"
             description="Bring in issues assigned to you."
-            status="coming-soon"
+            status={linearAccount?.status === 'error' ? 'error' : isLinearConnected ? 'connected' : (isProUser ? 'available' : 'upgrade')}
+            infoText={isLinearConnected ? `Synced ${linearAccount?.last_synced_at ? formatDistanceToNow(new Date(linearAccount.last_synced_at)) + ' ago' : 'never'}` : undefined}
             icon={<div className="bg-[#5E6AD2] w-full h-full rounded-xl flex items-center justify-center text-white shadow-inner"><Kanban size={24} weight="fill" /></div>}
-            onConnect={() => handleWaitlist('linear')}
+            onConnect={handleConnectLinear}
+            onManage={() => setIsLinearModalOpen(true)}
           />
         </div>
       </section>
 
-      <CanvasConnectModal 
-        isOpen={isCanvasModalOpen} 
+      <CanvasConnectModal
+        isOpen={isCanvasModalOpen}
         onClose={() => setIsCanvasModalOpen(false)}
         onSuccess={(url) => {
           setProfile((p: any) => ({ ...p, canvas_url: url }));
@@ -207,6 +305,61 @@ export default function IntegrationsScreen() {
           setProfile((p: any) => ({ ...p, google_calendar_connected: false }));
           setIsGoogleModalOpen(false);
         }}
+      />
+
+      <NotionManageModal
+        isOpen={isNotionModalOpen}
+        onClose={() => setIsNotionModalOpen(false)}
+        profile={profile}
+        onProfileUpdate={setProfile}
+        onDisconnect={async (deleteData: boolean) => {
+          await disconnectNotionAction(deleteData);
+          setAccounts(accs => accs.filter(a => a.provider !== 'notion'));
+          setIsNotionModalOpen(false);
+        }}
+      />
+
+      <SlackManageModal
+        isOpen={isSlackModalOpen}
+        onClose={() => setIsSlackModalOpen(false)}
+        profile={profile}
+        onProfileUpdate={setProfile}
+        onDisconnect={async (deleteData: boolean) => {
+          await disconnectSlackAction(deleteData);
+          setAccounts(accs => accs.filter(a => a.provider !== 'slack'));
+          setIsSlackModalOpen(false);
+        }}
+      />
+
+      <LinearManageModal
+        isOpen={isLinearModalOpen}
+        onClose={() => setIsLinearModalOpen(false)}
+        profile={profile}
+        onProfileUpdate={setProfile}
+        onDisconnect={async (deleteData: boolean) => {
+          await disconnectLinearAction(deleteData);
+          setAccounts(accs => accs.filter(a => a.provider !== 'linear'));
+          setIsLinearModalOpen(false);
+        }}
+        onConfigure={() => {
+          setIsLinearModalOpen(false);
+          setIsLinearConfigModalOpen(true);
+        }}
+      />
+
+      <LinearConfigModal
+        isOpen={isLinearConfigModalOpen}
+        onClose={() => setIsLinearConfigModalOpen(false)}
+        onComplete={() => {
+          setIsLinearConfigModalOpen(false);
+          fetchIntegrationsData();
+        }}
+      />
+
+      <UpgradeToProModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        featureName={upgradeFeatureName}
       />
     </div>
   );

@@ -50,7 +50,6 @@ temp/
 # App Specific
 canvas_debug.json
 *.txt
--e 
 # Environment and credential files
 .env
 .env.*
@@ -59,39 +58,8 @@ credentials.json
 *.pem
 *.key
 .credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
+mcp_config.json
+mcp.json
+gcp-service-account.json
+.claude.json
+.claude.json.backup

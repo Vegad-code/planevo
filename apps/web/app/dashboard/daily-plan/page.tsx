@@ -7,16 +7,18 @@ import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 import { CanvasAssignment } from '@/lib/canvas/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Calendar, 
-  GraduationCap, 
-  Sparkle as Sparkles, 
-  Pulse as Activity, 
-  BatteryMedium, 
-  Sliders, 
+import {
+  Calendar,
+  GraduationCap,
+  Sparkle as Sparkles,
+  Pulse as Activity,
+  BatteryMedium,
+  Sliders,
   FloppyDisk as Save,
   Notebook,
-  Target
+  Target,
+  SlackLogo,
+  Kanban
 } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { generateAgenticSchedule, SchedulingPreferences, ScheduleBlock } from '@/lib/ai/agentic-scheduler';
@@ -73,12 +75,12 @@ export default function DailyPlanPage() {
   const router = useRouter();
   const { sidebarCollapsed } = useUIStore();
   const launched = searchParams.get('launch') === 'true';
-  
+
   // View State
   const [view, setView] = useState<'sync' | 'schedule'>('sync');
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  
+
   // Data State
   const [profile, setProfile] = useState<Profile | null>(null);
   const [aiMemory, setAiMemory] = useState<UserAiMemory | null>(null);
@@ -89,6 +91,7 @@ export default function DailyPlanPage() {
   const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [showBruno, setShowBruno] = useState(false);
   const [activeTab, setActiveTab] = useState<'focus' | 'energy'>('focus');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'school' | 'work'>('all');
   const [autoLaunched, setAutoLaunched] = useState(false);
   const [scheduledTaskIds, setScheduledTaskIds] = useState<string[]>([]);
 
@@ -107,7 +110,7 @@ export default function DailyPlanPage() {
 
       const profilePromise = supabase.from('users').select('*').eq('id', user.id).single();
       const memoryPromise = supabase.from('user_ai_memory').select('*').eq('user_id', user.id).maybeSingle();
-      const assignmentsPromise = supabase.from('source_items').select('*').eq('user_id', user.id).eq('provider', 'canvas').eq('item_type', 'assignment').is('deleted_at', null);
+      const assignmentsPromise = supabase.from('source_items').select('*').eq('user_id', user.id).in('provider', ['canvas', 'notion', 'slack', 'linear']).is('deleted_at', null);
       const tasksPromise = supabase.from('tasks').select('*').eq('user_id', user.id).eq('completed', false).or(`due_date.eq.${today},due_date.is.null`);
       const blocksPromise = (supabase as any).from('calendar_events').select('*').eq('user_id', user.id).eq('is_deleted', false).neq('status', 'rejected').gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString()).lte('start_time', new Date(new Date().setHours(23,59,59,999)).toISOString()).order('start_time', { ascending: true });
 
@@ -144,13 +147,14 @@ export default function DailyPlanPage() {
           const raw = (a as any).raw_data || {};
           return {
             id: a.external_id,
-            name: a.title,
+            name: a.title || a.description || 'Untitled',
             due_at: a.due_date,
             html_url: a.url,
             course_id: raw.course_id || '',
-            description: a.description || ''
+            description: a.description || '',
+            provider: a.provider
           };
-        }) as unknown as CanvasAssignment[]);
+        }) as any[]);
       }
 
       if (dbTasks) {
@@ -168,7 +172,7 @@ export default function DailyPlanPage() {
           status: (g.status && g.status !== 'confirmed' ? g.status : g.metadata?.status || g.status) as any,
           is_ai_suggested: g.is_ai_suggested ?? g.metadata?.is_ai_suggested ?? true
         }));
-        
+
         setSchedule(mappedBlocks);
         setScheduledTaskIds(blocks.map((b: any) => b.linked_task_id).filter(Boolean));
         setView('schedule');
@@ -192,14 +196,14 @@ export default function DailyPlanPage() {
       });
 
       if (!response.ok) throw new Error('Bruno is busy right now.');
-      
+
       const data = await response.json();
       const generatedPlan = data.schedule || data.plan || [];
-      
+
       // 1. Refresh local state immediately to sync from DB (where AI backend saved ghost blocks)
       await loadData();
       setView('schedule');
-      
+
       toast.success("Bruno has penciled in some focus blocks!", {
         description: data.message
       });
@@ -248,24 +252,24 @@ export default function DailyPlanPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
-      
+
       // Try syncing Canvas
       try {
         await syncCanvasIntegrationAction();
       } catch (err) {
         console.warn("Canvas sync skipped or failed", err);
       }
-      
+
       // Try syncing Google Calendar
       try {
         await syncGoogleCalendar(user.id);
       } catch (err) {
         console.warn("Google Calendar sync skipped or failed", err);
       }
-      
+
       // Reload UI data
       await loadData();
-      
+
       toast.success("Everything's synced up!");
     } catch (error) {
       console.error('Sync error:', error);
@@ -440,7 +444,7 @@ export default function DailyPlanPage() {
             .update({ status: newStatus })
             .eq('id', block.id)
             .eq('user_id', user.id);
-            
+
           // Record feedback
           await (supabase.from('ai_feedback') as any).insert({
             user_id: user.id,
@@ -465,6 +469,12 @@ export default function DailyPlanPage() {
       toast.error('Could not save feedback');
     }
   }, [loadData, supabase]);
+
+  const filteredAssignments = useMemo(() => {
+    if (sourceFilter === 'school') return assignments.filter((a: any) => a.provider === 'canvas');
+    if (sourceFilter === 'work') return assignments.filter((a: any) => ['notion', 'slack', 'linear'].includes(a.provider));
+    return assignments;
+  }, [assignments, sourceFilter]);
 
   if (loading) {
     return (
@@ -523,7 +533,7 @@ export default function DailyPlanPage() {
             Today, <em className="text-(--color-honey-deep) italic font-serif">at a glance.</em>
           </h1>
           <p className="font-sans text-[14.5px] text-(--color-ink-soft) mt-3 mb-0">
-            {view === 'schedule' 
+            {view === 'schedule'
               ? `Bruno built a plan with ${schedule ? schedule.length : 0} block${schedule && schedule.length !== 1 ? 's' : ''} from your sources.`
               : "Let's gather your tasks and schedule to build your daily plan."}
           </p>
@@ -532,14 +542,14 @@ export default function DailyPlanPage() {
         <div className="flex items-center gap-3">
           {view === 'sync' ? (
             <>
-              <button 
-                onClick={handleSyncAll} 
+              <button
+                onClick={handleSyncAll}
                 disabled={processing}
                 className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 {processing ? 'Syncing...' : 'Refresh sources'}
               </button>
-              <button 
+              <button
                 onClick={handleGeneratePlan}
                 disabled={processing}
                 className="bg-ink text-paper px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
@@ -549,28 +559,28 @@ export default function DailyPlanPage() {
             </>
           ) : (
             <div className="flex items-center gap-3">
-              <button 
-                onClick={handleSyncAll} 
+              <button
+                onClick={handleSyncAll}
                 disabled={processing}
                 className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Refresh sources
               </button>
-              <button 
+              <button
                 onClick={handleGeneratePlan}
                 disabled={processing}
                 className="bg-ink text-paper px-5 py-2.5 rounded-full text-sm font-medium hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
                 Regenerate plan
               </button>
-              <button 
+              <button
                 onClick={handleSavePlan}
                 className="bg-[#FFFDD0] text-slate-900 dark:bg-[#7B8B6F] dark:text-[#FFFDD0] px-4 py-2 rounded flex items-center hover:scale-105 transition-transform cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-honey"
               >
                 <Save className="w-4 h-4 mr-1.5" />
                 Save Plan
               </button>
-              <button 
+              <button
                 onClick={() => setView('sync')}
                 className="bg-transparent border border-line-strong hover:bg-(--color-cream-2) text-ink px-5 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
               >
@@ -584,7 +594,7 @@ export default function DailyPlanPage() {
       <div className="w-full">
         <AnimatePresence mode="wait">
           {view === 'sync' ? (
-            <motion.div 
+            <motion.div
               key="sync-view"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -611,25 +621,38 @@ export default function DailyPlanPage() {
                   </div>
                 </Card>
 
-                <Card className="bg-paper border border-line rounded-[22px] shadow-sm overflow-hidden p-6">
-                  <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) flex items-center gap-2 uppercase mb-4">
-                    <GraduationCap className="w-4 h-4 text-ink" />
-                    Canvas Tasks
+                <Card className="bg-paper border border-line rounded-[22px] shadow-sm overflow-hidden p-6 flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) flex items-center gap-2 uppercase">
+                      <GraduationCap className="w-4 h-4 text-ink" />
+                      Tasks from Sources
+                    </div>
+                    <div className="flex bg-(--color-cream-2) p-1 rounded-full border border-line">
+                      <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-full text-[9px] font-mono tracking-wide font-medium transition-colors ${sourceFilter === 'all' ? 'bg-ink text-paper shadow-sm' : 'text-(--color-ink-soft) hover:text-ink'}`}>ALL</button>
+                      <button onClick={() => setSourceFilter('school')} className={`px-2.5 py-1 rounded-full text-[9px] font-mono tracking-wide font-medium transition-colors ${sourceFilter === 'school' ? 'bg-ink text-paper shadow-sm' : 'text-(--color-ink-soft) hover:text-ink'}`}>SCHOOL</button>
+                      <button onClick={() => setSourceFilter('work')} className={`px-2.5 py-1 rounded-full text-[9px] font-mono tracking-wide font-medium transition-colors ${sourceFilter === 'work' ? 'bg-ink text-paper shadow-sm' : 'text-(--color-ink-soft) hover:text-ink'}`}>WORK</button>
+                    </div>
                   </div>
                   <div className="max-h-60 overflow-y-auto no-scrollbar">
-                    {assignments.length === 0 ? (
-                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-ink-faint">No tasks synced</div>
+                    {filteredAssignments.length === 0 ? (
+                      <div className="py-8 text-center text-[11px] uppercase font-mono tracking-wide text-ink-faint">No tasks found</div>
                     ) : (
                       <ul className="divide-y divide-line">
-                        {assignments.map((a) => (
+                        {filteredAssignments.map((a: any) => (
                           <li key={a.id} className="py-2.5 hover:bg-(--color-cream-2) rounded-lg transition-colors flex items-center justify-between group px-2 -mx-2">
-                            <span className="text-[13.5px] font-medium text-ink truncate mr-2">{a.name}</span>
-                            <button 
+                            <div className="flex items-center gap-2 overflow-hidden mr-2">
+                              {a.provider === 'canvas' && <div className="shrink-0 w-4 h-4 rounded bg-[var(--color-rose)] flex items-center justify-center text-white font-serif italic text-[9px]">C</div>}
+                              {a.provider === 'notion' && <div className="shrink-0 w-4 h-4 rounded bg-settings-card border border-gray-200 flex items-center justify-center text-black font-bold text-[9px]">N</div>}
+                              {a.provider === 'slack' && <div className="shrink-0 w-4 h-4 rounded bg-[#4A154B] flex items-center justify-center text-white text-[9px]"><SlackLogo weight="fill" /></div>}
+                              {a.provider === 'linear' && <div className="shrink-0 w-4 h-4 rounded bg-[#5E6AD2] flex items-center justify-center text-white text-[9px]"><Kanban weight="fill" /></div>}
+                              <span className="text-[13.5px] font-medium text-ink truncate">{a.name}</span>
+                            </div>
+                            <button
                               onClick={() => {
                                 setSelectedAssignment(a);
                                 setIsDetailOpen(true);
                               }}
-                              className="text-[10px] font-mono uppercase tracking-wide text-ink border border-line-strong hover:bg-(--color-cream-2) px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink focus-visible:opacity-100"
+                              className="text-[10px] font-mono uppercase tracking-wide text-ink border border-line-strong hover:bg-(--color-cream-2) px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink focus-visible:opacity-100 shrink-0"
                             >
                               Details
                             </button>
@@ -664,7 +687,7 @@ export default function DailyPlanPage() {
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                   <Sparkles size={200} />
                 </div>
-                
+
                 <div className="relative z-10 space-y-6">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-(--color-cream-2) rounded-2xl flex items-center justify-center border border-line">
@@ -675,7 +698,7 @@ export default function DailyPlanPage() {
                       <p className="text-(--color-ink-soft) font-mono uppercase text-[10px] tracking-[0.16em] mt-1">Building a constraint-aware plan for your day.</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col gap-6">
                     <div className="space-y-3">
                       <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-(--color-ink-soft)">Set your energy level:</p>
@@ -687,8 +710,8 @@ export default function DailyPlanPage() {
                             aria-checked={energyLevel === level ? 'true' : 'false'}
                             onClick={() => setEnergyLevel(level)}
                             className={`px-5 py-2 rounded-full text-xs font-mono tracking-wide uppercase transition-all border cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink ${
-                              energyLevel === level 
-                                ? 'bg-ink text-paper border-ink shadow-sm' 
+                              energyLevel === level
+                                ? 'bg-ink text-paper border-ink shadow-sm'
                                 : 'text-(--color-ink-soft) border-line-strong hover:border-ink'
                             }`}
                           >
@@ -698,7 +721,7 @@ export default function DailyPlanPage() {
                       </div>
                     </div>
 
-                    <button 
+                    <button
                       onClick={handleGeneratePlan}
                       disabled={processing}
                       className="w-full bg-ink text-paper hover:bg-(--color-ink-soft) text-sm font-medium py-3 rounded-full shadow-sm transition-all active:scale-[0.98] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
@@ -720,7 +743,7 @@ export default function DailyPlanPage() {
               </div>
             </motion.div>
           ) : (
-            <motion.div 
+            <motion.div
               key="schedule-view"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -749,8 +772,8 @@ export default function DailyPlanPage() {
 
                   {/* Timeline Component */}
                   {schedule && (
-                    <ScheduleTimeline 
-                      initialBlocks={schedule} 
+                    <ScheduleTimeline
+                      initialBlocks={schedule}
                       onUpdate={setSchedule}
                       onFeedback={handleScheduleFeedback}
                       onDeconstruct={async (id) => {
@@ -762,7 +785,7 @@ export default function DailyPlanPage() {
                 </div>
 
                 {/* Backlog */}
-                <TaskBacklog 
+                <TaskBacklog
                   onScheduleOne={async (task) => {
                     toast.info(`Scheduling "${task.title}"...`);
                     await handleCommand(`Find a 30 minute slot for "${task.title}".`);
@@ -783,7 +806,7 @@ export default function DailyPlanPage() {
                   <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] uppercase mb-4">
                     YOUR ENERGY · {format(new Date(), 'EEEE').toUpperCase()}
                   </div>
-                  
+
                   {/* Segmented Picker */}
                   <div className="grid grid-cols-3 bg-(--color-cream-2) p-0.5 rounded-full border border-line mb-4">
                     {(['low', 'medium', 'high'] as const).map((level) => (
@@ -791,8 +814,8 @@ export default function DailyPlanPage() {
                         key={level}
                         onClick={() => setEnergyLevel(level)}
                         className={`py-2 rounded-full text-[10.5px] font-mono font-medium tracking-wide uppercase transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink ${
-                          energyLevel === level 
-                            ? 'bg-ink text-paper shadow-sm' 
+                          energyLevel === level
+                            ? 'bg-ink text-paper shadow-sm'
                             : 'text-(--color-ink-soft) hover:text-ink bg-transparent cursor-pointer'
                         }`}
                       >
@@ -800,9 +823,9 @@ export default function DailyPlanPage() {
                       </button>
                     ))}
                   </div>
-                  
+
                   <p className="text-[13px] text-(--color-ink-soft) leading-relaxed font-sans">
-                    {energyLevel === 'high' 
+                    {energyLevel === 'high'
                       ? "Bruno scheduled deep work blocks for your morning when focus is highest."
                       : energyLevel === 'medium'
                       ? "Bruno will keep the morning block heavy and add a recovery walk at 2 PM."
@@ -816,7 +839,7 @@ export default function DailyPlanPage() {
                     SOURCES PULLED
                   </div>
                   <div className="space-y-3">
-                    <SourceRow initial="C" color="bg-[var(--color-rose)]" name="Canvas LMS" detail={`${assignments.length} deadlines`} />
+                    <SourceRow initial="S" color="bg-ink" name="Integrated Sources" detail={`${assignments.length} tasks`} />
                     <SourceRow initial="G" color="bg-[var(--color-blue)]" name="Google Calendar" detail={`${calendarEvents.length} events`} />
                     <SourceRow initial="T" color="bg-honey" name="Tasks & reminders" detail={`${manualTasks.length} items`} />
                   </div>
@@ -839,7 +862,7 @@ export default function DailyPlanPage() {
                       ? `"I've set up ${schedule.length} block${schedule.length !== 1 ? 's' : ''} for you today. Tap to adjust if anything feels off."`
                       : `"Looking good so far. Generate a plan to see what Bruno recommends."`}
                   </p>
-                  <button 
+                  <button
                     onClick={() => router.push('/dashboard/chat')}
                     className="w-full bg-transparent text-honey hover:text-(--color-honey-soft) border border-[rgba(251,246,234,0.25)] hover:border-honey text-xs font-mono font-medium py-3 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
                   >
@@ -852,7 +875,7 @@ export default function DailyPlanPage() {
         </AnimatePresence>
       </div>
 
-      <AssignmentDetailOverlay 
+      <AssignmentDetailOverlay
         assignment={selectedAssignment}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}

@@ -1,4 +1,9 @@
-export default function NotificationsSettingsPage() {
+import { NotificationPreferencesForm } from '@/components/settings/NotificationPreferencesForm';
+import { getNotificationPreferences } from './actions';
+
+export default async function NotificationsSettingsPage() {
+  const preferences = await getNotificationPreferences();
+
   return (
     <div className="space-y-8 animate-fade-in text-[#2A2118]">
       <div>
@@ -7,10 +12,8 @@ export default function NotificationsSettingsPage() {
           Control when and how Planevo reaches out to you.
         </p>
       </div>
-      
-      <div className="bg-white rounded-2xl border border-[#e6dcce] p-12 text-center shadow-sm">
-        <p className="text-[#8a7b66] font-medium">Notification settings coming soon.</p>
-      </div>
+
+      <NotificationPreferencesForm initialPreferences={preferences} />
     </div>
   );
 }

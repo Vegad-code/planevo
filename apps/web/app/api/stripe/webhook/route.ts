@@ -4,6 +4,9 @@ import Stripe from 'stripe';
 import { stripe, subscriptionStatusToPlanType } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { posthogServer } from '@/lib/posthog-server';
+import { sendSubscriptionReceiptEmail, sendPaymentFailedEmail } from '@/lib/email';
+import { canSendNotification } from '@/lib/notifications/preferences';
+import { sendExpoPushNotification } from '@/lib/notifications/expo';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -158,25 +161,92 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = typeof invoice.customer === 'string'
+          ? invoice.customer
+          : invoice.customer?.id;
+
+        if (customerId && invoice.amount_paid > 0) {
+          const { data: user } = await supabaseAdmin
+            .from('users')
+            .select('id, email, name, expo_push_token, notification_preferences ( master_toggle, channels, types, quiet_hours )')
+            .eq('stripe_customer_id', customerId)
+            .single();
+
+          if (
+            user?.email &&
+            canSendNotification((user as any).notification_preferences, 'email', 'billing')
+          ) {
+            const amount = (invoice.amount_paid / 100).toFixed(2);
+            const planName = (invoice.lines?.data[0] as any)?.price?.nickname || 'Planevo Premium';
+
+            await sendSubscriptionReceiptEmail(user.email, user.name || 'Pilot', amount, planName).catch(err => {
+              console.error('[Stripe Webhook] Failed to send receipt email:', err);
+            });
+          }
+
+          if (
+            user?.expo_push_token &&
+            canSendNotification((user as any).notification_preferences, 'push', 'billing')
+          ) {
+            const pushResult = await sendExpoPushNotification({
+              to: user.expo_push_token,
+              title: 'Payment received',
+              body: 'Your Planevo subscription payment was received. Thank you.',
+              data: { screen: 'settings', section: 'membership' },
+            });
+            if (!pushResult.ok && pushResult.deviceNotRegistered) {
+              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', user.id);
+            }
+          }
+        }
+        break;
+      }
+
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = typeof invoice.customer === 'string'
           ? invoice.customer
           : invoice.customer?.id;
-          
+
         if (customerId) {
           console.log(`[Stripe Webhook] Payment failed for customer ${customerId}. Downgrading to free/canceled.`);
           // Downgrade user immediately upon payment failure to restrict access
-          const { error } = await supabaseAdmin
+          const { data: user, error } = await supabaseAdmin
             .from('users')
             .update({
               plan_type: 'canceled',
               subscription_status: 'past_due' // Mark as past_due
             })
-            .eq('stripe_customer_id', customerId);
+            .eq('stripe_customer_id', customerId)
+            .select('id, email, name, expo_push_token, notification_preferences ( master_toggle, channels, types, quiet_hours )')
+            .single();
 
           if (error) {
             console.error('[Stripe Webhook] Payment failed DB update failed:', error);
+          } else if (
+            user?.email &&
+            canSendNotification((user as any).notification_preferences, 'email', 'billing')
+          ) {
+            await sendPaymentFailedEmail(user.email, user.name || 'Pilot').catch(err => {
+              console.error('[Stripe Webhook] Failed to send payment failed email:', err);
+            });
+          }
+
+          if (
+            user?.expo_push_token &&
+            canSendNotification((user as any).notification_preferences, 'push', 'billing')
+          ) {
+            const pushResult = await sendExpoPushNotification({
+              to: user.expo_push_token,
+              title: 'Payment needs attention',
+              body: 'We could not process your Planevo subscription payment. Open settings to review it.',
+              data: { screen: 'settings', section: 'membership' },
+            });
+            if (!pushResult.ok && pushResult.deviceNotRegistered) {
+              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', user.id);
+            }
           }
         }
         break;

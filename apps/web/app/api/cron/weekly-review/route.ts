@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendWeeklyReviewEmail, type WeeklyReviewData } from '@/lib/email';
+import {
+  canSendNotification,
+  getLocalDateKey,
+  normalizeNotificationPreferences,
+} from '@/lib/notifications/preferences';
+import {
+  hasNotificationDelivery,
+  recordNotificationDelivery,
+} from '@/lib/notifications/delivery';
 
 /**
  * GET /api/cron/weekly-review
@@ -34,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Fetch active paying users
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, email, name, plan_type')
+      .select('id, email, name, plan_type, notification_preferences ( master_toggle, channels, types, quiet_hours )')
       .in('plan_type', ['trialing', 'premium', 'admin', 'student']);
 
     if (usersError) throw usersError;
@@ -54,6 +63,16 @@ export async function GET(request: NextRequest) {
       await Promise.allSettled(
         batch.map(async (user) => {
           try {
+            const preferences = (user as any).notification_preferences;
+            if (!canSendNotification(preferences, 'email', 'weekly_review')) {
+              return;
+            }
+            const timezone = normalizeNotificationPreferences(preferences).quiet_hours.timezone;
+            const dedupeKey = getLocalDateKey(new Date(), timezone);
+            if (await hasNotificationDelivery(supabase, user.id, 'weekly_review', 'email', dedupeKey)) {
+              return;
+            }
+
             // Fetch completed tasks
             const { data: completedTasks } = await supabase
               .from('tasks')
@@ -127,6 +146,13 @@ Respond ONLY with JSON.`;
 
             // Send the email
             await sendWeeklyReviewEmail(user.email, user.name || 'Pilot', review);
+            await recordNotificationDelivery(
+              supabase,
+              user.id,
+              'weekly_review',
+              'email',
+              dedupeKey
+            );
             sent++;
           } catch (err) {
             console.error(`[cron/weekly-review] Failed for user ${user.id}:`, err);

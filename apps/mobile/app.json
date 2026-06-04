@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Planevo",
+    "owner": "planevo",
     "slug": "planevo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,7 +18,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.planevo.mobile",
       "entitlements": {
-        "aps-environment": "development",
         "com.apple.security.application-groups": ["group.com.planevo.mobile"]
       },
       "infoPlist": {

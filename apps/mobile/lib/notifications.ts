@@ -4,6 +4,10 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
+function getDeviceTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
 /**
  * Configure notification behavior (show even when app is foregrounded).
  */
@@ -24,8 +28,11 @@ Notifications.setNotificationHandler({
  * Returns the Expo push token string, or null if permission denied.
  */
 export async function registerForPushNotifications(
-  userId: string
+  userId: string,
+  options: { persistPreference?: boolean } = {}
 ): Promise<string | null> {
+  const persistPreference = options.persistPreference !== false;
+
   // Only real devices can receive push notifications
   if (!Device.isDevice) {
     console.warn('[notifications] Push notifications require a physical device.');
@@ -55,8 +62,8 @@ export async function registerForPushNotifications(
   });
   const token = tokenResponse.data;
 
-  // Save to Supabase
-  const { error } = await (supabase as any)
+  // Save token to users table
+  const { error: userError } = await (supabase as any)
     .from('users')
     .update({
       expo_push_token: token,
@@ -64,8 +71,64 @@ export async function registerForPushNotifications(
     })
     .eq('id', userId);
 
-  if (error) {
-    console.error('[notifications] Failed to save push token:', error);
+  if (userError) {
+    console.error('[notifications] Failed to save push token to users:', userError);
+  }
+
+  if (persistPreference) {
+    // Ensure notification_preferences is initialized or updated
+    const { data: existingPref } = await (supabase as any)
+      .from('notification_preferences')
+      .select('channels, types, quiet_hours')
+      .eq('user_id', userId)
+      .single();
+
+    if (existingPref) {
+      await (supabase as any)
+        .from('notification_preferences')
+        .update({
+          channels: { ...(existingPref.channels || {}), push: true },
+          quiet_hours: {
+            ...(existingPref.quiet_hours || {}),
+            timezone: existingPref.quiet_hours?.timezone &&
+              existingPref.quiet_hours.timezone !== 'UTC'
+              ? existingPref.quiet_hours.timezone
+              : getDeviceTimezone(),
+          },
+          types: {
+            daily_plan: true,
+            deadline_rescue: true,
+            weekly_review: true,
+            account: true,
+            billing: true,
+            system: true,
+            ...(existingPref.types || {}),
+          },
+        })
+        .eq('user_id', userId);
+    } else {
+      await (supabase as any)
+        .from('notification_preferences')
+        .insert({
+          user_id: userId,
+          master_toggle: true,
+          channels: { push: true, email: true },
+          quiet_hours: {
+            enabled: false,
+            start: '22:00',
+            end: '08:00',
+            timezone: getDeviceTimezone(),
+          },
+          types: {
+            daily_plan: true,
+            deadline_rescue: true,
+            weekly_review: true,
+            account: true,
+            billing: true,
+            system: true,
+          },
+        });
+    }
   }
 
   // Android requires a notification channel
@@ -77,6 +140,61 @@ export async function registerForPushNotifications(
       lightColor: '#d4a574',
     });
   }
+
+  return token;
+}
+
+export async function disablePushNotifications(userId: string) {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+
+  await (supabase as any)
+    .from('users')
+    .update({
+      expo_push_token: null,
+      push_notifications_enabled: false,
+    })
+    .eq('id', userId);
+
+  const { data: existingPref } = await (supabase as any)
+    .from('notification_preferences')
+    .select('channels')
+    .eq('user_id', userId)
+    .single();
+
+  if (existingPref) {
+    await (supabase as any)
+      .from('notification_preferences')
+      .update({
+        channels: { ...(existingPref.channels || {}), push: false },
+      })
+      .eq('user_id', userId);
+  }
+}
+
+export async function syncPushNotificationState(userId: string) {
+  // Server-side notifications are authoritative; remove legacy local reminders
+  // so users do not receive duplicate morning nudges.
+  await Notifications.cancelAllScheduledNotificationsAsync();
+
+  const { data } = await (supabase as any)
+    .from('users')
+    .select('push_notifications_enabled, notification_preferences(*)')
+    .eq('id', userId)
+    .single();
+
+  const prefs = data?.notification_preferences;
+  const legacyEnabled = data?.push_notifications_enabled !== false;
+  const preferencesAllowPush = prefs
+    ? prefs.master_toggle !== false && prefs.channels?.push !== false
+    : legacyEnabled;
+
+  if (!legacyEnabled || !preferencesAllowPush) {
+    return null;
+  }
+
+  const token = await registerForPushNotifications(userId, {
+    persistPreference: !prefs,
+  });
 
   return token;
 }

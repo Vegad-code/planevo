@@ -47,6 +47,14 @@ Ensure you have the following in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
+- `RESEND_API_KEY`
+- `WEEKLY_REVIEW_FROM`
+- `CRON_SECRET`
+- `NEXT_PUBLIC_APP_URL`
+
+Apply the notification migrations through
+`lib/supabase/migration_v19_notification_deliveries.sql` before enabling the
+hourly notification cron jobs.
 
 ### Commands
 ```bash

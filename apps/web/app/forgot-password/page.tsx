@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import BrunoBubble from '@/components/bruno/BrunoBubble';
 
@@ -10,20 +9,20 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  const supabase = createClient();
-
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    const response = await fetch('/api/auth/password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
     });
 
-    if (authError) {
-      setError(authError.message);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setError(data.error || 'Could not send reset email. Please try again.');
       setLoading(false);
       return;
     }

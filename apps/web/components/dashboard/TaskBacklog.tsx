@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { 
-  Package, CaretDown, CaretUp, Clock, 
+import {
+  Package, CaretDown, CaretUp, Clock,
   ArrowRight, DotsSixVertical, ArrowSquareOut
 } from '@phosphor-icons/react';
 import { type Task } from '@/types/tasks';
@@ -34,7 +34,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
         // We set the drag data to the task JSON so the drop target knows what task it is
         e.dataTransfer.setData('application/json', JSON.stringify(task));
         e.dataTransfer.effectAllowed = 'move';
-        
+
         // Optional: create a drag image or just rely on default element dragging
         e.currentTarget.style.opacity = '0.5';
       }}
@@ -47,7 +47,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
       className="group flex items-center gap-3 p-3 bg-[var(--color-paper)] rounded-[16px] border border-[var(--color-line)] hover:border-[var(--color-line-strong)] hover:bg-[var(--color-cream-2)] transition-all hover:shadow-sm cursor-grab active:cursor-grabbing"
     >
       <DotsSixVertical className="w-4 h-4 text-[var(--color-ink-soft)] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-      
+
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-[var(--color-ink)] truncate">
           {task.title}
@@ -80,7 +80,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
           )}
         </div>
       </div>
-      
+
       <button
         onClick={() => onSchedule(task)}
         className="p-2 rounded-full bg-[var(--color-cream-2)] text-[var(--color-ink)] hover:bg-[var(--color-line-strong)] transition-all active:scale-90 opacity-0 group-hover:opacity-100 border border-[var(--color-line)]"
@@ -109,8 +109,44 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
       .eq('completed', false)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
-    
-    if (data) setTasks(data as Task[]);
+
+    const { data: sourceItems } = await supabase
+      .from('source_items')
+      .select('*')
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    let allTasks: Task[] = [];
+    if (data) allTasks = [...(data as Task[])];
+
+    if (sourceItems) {
+      const mappedSources = sourceItems.map(item => ({
+        id: item.external_id,
+        user_id: item.user_id,
+        title: item.title || 'Untitled',
+        description: item.description,
+        due_date: item.due_date,
+        priority: 'medium',
+        estimated_minutes: 30,
+        completed: false,
+        completed_at: null,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        deleted_at: null,
+        external_id: item.external_id,
+        external_url: item.url,
+        best_time_of_day: 'anytime',
+        energy_level_required: 'medium',
+        is_recurring: false,
+        recurrence_pattern: null,
+        parent_task_id: null,
+        provider: item.provider
+      } as Task));
+      allTasks = [...allTasks, ...mappedSources];
+    }
+
+    setTasks(allTasks);
     setLoading(false);
   }, [supabase]);
 
@@ -155,7 +191,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {unscheduledCount > 0 && (
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-ink)] text-[var(--color-paper)] font-mono text-[11px] tracking-wide">
@@ -203,7 +239,7 @@ export default function TaskBacklog({ onScheduleAll, onScheduleOne, isProcessing
                 ))
               )}
             </div>
-            
+
             {/* Auto-Schedule Button */}
             {visibleTasks.length > 0 && (
               <div className="p-4 pt-0">

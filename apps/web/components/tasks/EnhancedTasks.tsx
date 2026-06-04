@@ -24,7 +24,7 @@ export default function EnhancedTasks() {
   const [showWhyModal, setShowWhyModal] = useState(false);
 
   // Tabs for source-based filtering
-  const [activeTab, setActiveTab] = useState<'all' | 'canvas' | 'calendar' | 'personal'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'canvas' | 'calendar' | 'notion' | 'linear' | 'slack' | 'personal'>('all');
 
   // Reschedule modal
   const [rescheduleTaskId, setRescheduleTaskId] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export default function EnhancedTasks() {
   const [showExtraOptions, setShowExtraOptions] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState('daily');
-  
+
   // Hide Completed tasks toggle
   const [hideCompleted, setHideCompleted] = useState(false);
 
@@ -54,7 +54,43 @@ export default function EnhancedTasks() {
       .select('*')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
-    if (data) setTasks(data as Task[]);
+
+    const { data: sourceItems } = await supabase
+      .from('source_items')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    let allTasks: Task[] = [];
+    if (data) allTasks = [...(data as Task[])];
+
+    if (sourceItems) {
+      const mappedSources = sourceItems.map(item => ({
+        id: item.external_id,
+        user_id: item.user_id,
+        title: item.title || 'Untitled',
+        description: item.description,
+        due_date: item.due_date,
+        priority: 'medium',
+        estimated_minutes: 30,
+        completed: false,
+        completed_at: null,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        deleted_at: null,
+        external_id: item.external_id,
+        external_url: item.url,
+        best_time_of_day: 'anytime',
+        energy_level_required: 'medium',
+        is_recurring: false,
+        recurrence_pattern: null,
+        parent_task_id: null,
+        provider: item.provider
+      } as Task));
+      allTasks = [...allTasks, ...mappedSources];
+    }
+
+    setTasks(allTasks);
     setLoading(false);
   }, [supabase]);
 
@@ -63,22 +99,22 @@ export default function EnhancedTasks() {
     fetchTasks();
   }, [invalidateCache, fetchTasks]);
 
-  const { 
-    saving, 
-    addTask, 
-    toggleComplete, 
-    deleteTask, 
-    rescheduleTask: doReschedule, 
-    moveToWaiting, 
-    breakDownTask, 
-    startFresh 
+  const {
+    saving,
+    addTask,
+    toggleComplete,
+    deleteTask,
+    rescheduleTask: doReschedule,
+    moveToWaiting,
+    breakDownTask,
+    startFresh
   } = useTaskActions(handleRefresh);
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);
 
   // Fetch tasks on mount
-  useEffect(() => { 
+  useEffect(() => {
     setTimeout(() => {
       fetchTasks();
     }, 0);
@@ -90,28 +126,37 @@ export default function EnhancedTasks() {
   }, [tasks, fetchAIPriorities]);
 
   // Dynamic source-based tasks partitioning
-  const canvasTasks = useMemo(() => tasks.filter(t => t.external_url?.includes('canvas') || t.external_url?.includes('instructure')), [tasks]);
+  const canvasTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'canvas' || t.external_url?.includes('canvas') || t.external_url?.includes('instructure')), [tasks]);
   const calendarTasks = useMemo(() => tasks.filter(t => t.external_url?.includes('calendar') || t.external_url?.includes('google.com/calendar')), [tasks]);
-  const personalTasks = useMemo(() => tasks.filter(t => !t.external_url?.includes('canvas') && !t.external_url?.includes('instructure') && !t.external_url?.includes('calendar') && !t.external_url?.includes('google.com/calendar')), [tasks]);
+  const notionTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'notion'), [tasks]);
+  const linearTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'linear'), [tasks]);
+  const slackTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'slack'), [tasks]);
+  const personalTasks = useMemo(() => tasks.filter(t => !(t as any).provider && !t.external_url?.includes('canvas') && !t.external_url?.includes('instructure') && !t.external_url?.includes('calendar') && !t.external_url?.includes('google.com/calendar')), [tasks]);
 
   const counts = useMemo(() => ({
     all: tasks.length,
     canvas: canvasTasks.length,
     calendar: calendarTasks.length,
+    notion: notionTasks.length,
+    linear: linearTasks.length,
+    slack: slackTasks.length,
     personal: personalTasks.length,
-  }), [tasks, canvasTasks, calendarTasks, personalTasks]);
+  }), [tasks, canvasTasks, calendarTasks, notionTasks, linearTasks, slackTasks, personalTasks]);
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
     if (activeTab === 'canvas') result = canvasTasks;
     else if (activeTab === 'calendar') result = calendarTasks;
+    else if (activeTab === 'notion') result = notionTasks;
+    else if (activeTab === 'linear') result = linearTasks;
+    else if (activeTab === 'slack') result = slackTasks;
     else if (activeTab === 'personal') result = personalTasks;
 
     if (hideCompleted) {
       result = result.filter(t => !t.completed);
     }
     return result;
-  }, [activeTab, tasks, canvasTasks, calendarTasks, personalTasks, hideCompleted]);
+  }, [activeTab, tasks, canvasTasks, calendarTasks, notionTasks, linearTasks, slackTasks, personalTasks, hideCompleted]);
 
   // Groups for the list view based on filtered tasks
   const groups = useTaskGroups(filteredTasks, aiResponse);
@@ -137,9 +182,9 @@ export default function EnhancedTasks() {
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskInput.trim()) return;
-    
+
     const parsed = parseTaskInput(taskInput);
-    
+
     const result = await addTask({
       title: parsed.title,
       estimated_minutes: overrideTime ?? parsed.estimatedMinutes ?? 30,
@@ -150,7 +195,7 @@ export default function EnhancedTasks() {
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : undefined,
     });
-    
+
     if (result.error) {
       showToast.error('Task Action Failed', result.error);
     } else {
@@ -168,7 +213,7 @@ export default function EnhancedTasks() {
   const handleBreakDown = async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-    
+
     const result = await breakDownTask(taskId);
     if (result.error) {
       showToast.error('Task Action Failed', result.error);
@@ -184,7 +229,7 @@ export default function EnhancedTasks() {
 
   const handleStartFresh = async () => {
     if (tasks.length === 0) return;
-    
+
     if (!window.confirm(`Are you sure you want to delete ALL ${tasks.length} tasks and start fresh? This cannot be undone.`)) return;
 
     const result = await startFresh();
@@ -272,7 +317,7 @@ export default function EnhancedTasks() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
           {/* Sources Filter */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto hide-scrollbar">
-            {(['all', 'canvas', 'calendar', 'personal'] as const).map((tab) => {
+            {(['all', 'canvas', 'calendar', 'notion', 'linear', 'slack', 'personal'] as const).map((tab) => {
               const isActive = activeTab === tab;
               const count = counts[tab];
               return (
@@ -431,15 +476,15 @@ export default function EnhancedTasks() {
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
             className="relative w-full max-w-2xl bg-white border border-[var(--color-line)] rounded-[22px] p-4 z-10 shadow-2xl">
             <form onSubmit={handleAddTask} className="flex flex-col">
-              <input 
-                type="text" 
-                value={taskInput} 
+              <input
+                type="text"
+                value={taskInput}
                 onChange={e => setTaskInput(e.target.value)}
-                placeholder="Finish biology reading tomorrow at 4pm #Personal ~30m" 
+                placeholder="Finish biology reading tomorrow at 4pm #Personal ~30m"
                 required autoFocus
-                className="w-full px-4 pt-4 pb-6 bg-transparent text-lg font-medium text-[var(--color-ink)] placeholder-[var(--color-ink-faint)] focus:outline-none" 
+                className="w-full px-4 pt-4 pb-6 bg-transparent text-lg font-medium text-[var(--color-ink)] placeholder-[var(--color-ink-faint)] focus:outline-none"
               />
-              
+
               {/* Extra Options Toggle & Hints Row */}
               <div className="flex items-center gap-2 px-4 pb-4">
                 <button type="button" onClick={() => setShowExtraOptions(!showExtraOptions)} className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] flex items-center gap-1.5 bg-[var(--color-paper)] border border-[var(--color-line)] rounded-md px-2 py-1 transition-colors cursor-pointer">

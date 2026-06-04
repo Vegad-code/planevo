@@ -53,14 +53,49 @@ export function useCalendarEvents() {
         .lte('start_time', end.toISOString())
         .order('start_time', { ascending: true });
 
+      let loadedEvents: CalendarEvent[] = [];
       if (fetchError) {
         setError(fetchError.message);
       } else {
-        setEvents((data || []) as CalendarEvent[]);
+        loadedEvents = (data || []) as CalendarEvent[];
       }
-      
-      // Removed the aggressive background polling for Google Calendar here
-      // Auto-sync is handled selectively by the dashboard components based on user frequency preference      
+
+      const { data: sourceItems } = await supabase
+        .from('source_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .not('due_date', 'is', null)
+        .gte('due_date', start.toISOString())
+        .lte('due_date', end.toISOString());
+
+      if (sourceItems) {
+        const sourceEvents = sourceItems.map(item => {
+          let color = 'bg-ink';
+          if (item.provider === 'canvas') color = 'bg-[var(--color-rose)]';
+          if (item.provider === 'notion') color = 'bg-settings-card text-black border border-gray-200';
+          if (item.provider === 'linear') color = 'bg-[#5E6AD2] text-white';
+          if (item.provider === 'slack') color = 'bg-[#4A154B] text-white';
+
+          return {
+            id: `source_${item.id}`,
+            user_id: item.user_id,
+            title: `Deadline: ${item.title || 'Task'}`,
+            start_time: item.due_date,
+            end_time: new Date(new Date(item.due_date).getTime() + 60 * 60 * 1000).toISOString(),
+            is_all_day: true, // Make them show as all day deadlines
+            source: item.provider,
+            color: color,
+            is_completed: false,
+            linked_task_id: item.external_id,
+            is_deleted: false,
+          } as CalendarEvent;
+        });
+        loadedEvents = [...loadedEvents, ...sourceEvents];
+      }
+
+      setEvents(loadedEvents);
+
     } catch {
       if (!silent) setError('Failed to load calendar events');
     } finally {
@@ -146,13 +181,13 @@ export function useCalendarEvents() {
 
     if (data) {
       setEvents(prev => [...prev, data as CalendarEvent]);
-      
+
       const eventStart = new Date(data.start_time as string);
       const eventEnd = new Date(data.end_time as string);
       if (!data.is_all_day && hasConflict(eventStart, eventEnd, data.id)) {
         toast.warning('This event overlaps with an existing scheduled block.');
       }
-      
+
       // Fire-and-forget push to Google (silently skips if read-only scope)
       pushEventToGoogle(user.id, data).then((res) => {
         if (res && !res.success) {

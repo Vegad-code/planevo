@@ -1,183 +1,131 @@
-# Project: AI Goal & Social Planner App
+# Planevo Developer Guidelines (CLAUDE.md)
 
-## What this app does
-An AI-powered productivity and social platform where users:
-- Input goals → AI decomposes them into plans and tasks
-- Track progress on tasks and milestones
-- Share plans/goals publicly to a social feed (like/comment/follow)
-- Subscribe for premium AI features via Stripe
+Planevo is a student-first AI planner that integrates Canvas LMS assignments, Google Calendar, and manual tasks into a cohesive daily plan. The core companion is **Bruno**, an emotionally intelligent, psychologically sophisticated planning assistant.
 
 ## Tech Stack
 
-### Web (primary)
-- Framework: Next.js 14 (App Router)
-- Styling: Tailwind CSS
-- Language: TypeScript (strict mode)
-- State: Zustand for client state, React Query for server state
+### Monorepo Structure
+- **Root**: Coordinates dependencies and scripts for the workspaces.
+- **Web App (`apps/web`)**:
+  - Framework: Next.js 16 (App Router)
+  - Styling: Tailwind CSS 4
+  - State Management: Zustand (client-side state), React Query (server-state scaffolding)
+  - Database & Auth: Supabase (Postgres & Supabase Auth)
+  - AI Integration: Vercel AI SDK (utilizing OpenAI models)
+  - UI Components: Radix UI primitives, Framer Motion, Phosphor Icons, React Big Calendar
+  - Integrations: Google Calendar OAuth, Canvas LMS Sync
+  - Communications: Resend + React Email
+  - Observability: Sentry, PostHog
+- **Mobile App (`apps/mobile`)**:
+  - Framework: React Native (Expo SDK 54)
+  - Routing: Expo Router
+  - Styling: Native/Custom styles
+  - Clients: Supabase client, posthog-react-native, sentry-react-native
+- **Core Package (`packages/core`)**:
+  - Shared TypeScript types (generated from Supabase schema), helper classes, and client wrappers.
 
-### iOS (planned)
-- Swift / SwiftUI
-- iOS 17+ deployment target
-- Architecture: MVVM
-
-### Backend & Services
-- Database + Auth: Firebase (Firestore + Firebase Auth, modular SDK v9+)
-- AI: Anthropic Claude API (claude-sonnet-4-6 for goal decomposition)
-- Payments: Stripe (subscriptions)
-- Push notifications: Firebase Cloud Messaging (web) / APNs (iOS)
-- File storage: Firebase Storage
+---
 
 ## Commands
+
+### Monorepo (Root) Commands
+- `npm run dev` — starts the web workspace dev server (`npm run dev --workspace planevo`)
+- `npm run build` — builds all workspaces (`npm run build --workspaces --if-present`)
+- `npm run lint` — runs ESLint across all workspaces
+- `npm run typecheck` — runs tsc type checking on the web workspace (`npm run typecheck --workspace planevo`)
+- `npm run test` — runs tests across all workspaces
+- `npm run check` — performs a full verification check (lint + typecheck + test + build)
+
+### Web App (`apps/web`) Commands
 - `npm run dev` — start dev server on http://localhost:3000
-- `npm run build` — production build
-- `npm run typecheck` — TypeScript check (run before committing)
-- `npm run lint` — ESLint
-- `npm test` — Vitest unit tests
-- `npx firebase emulators:start` — start local Firebase emulators (Auth + Firestore)
-- `npx firebase deploy --only firestore:rules` — deploy Firestore security rules
+- `npm run build` — create production build
+- `npm run lint` — check code quality with ESLint
+- `npm run typecheck` — run TypeScript compilation check (`tsc --noEmit`)
+- `npm run test` — run unit/component tests with Vitest (`vitest run`)
+- `npm run test:e2e` — run Playwright E2E tests (`playwright test`)
+- `npm run check` — run lint, typecheck, unit tests, and build locally
 
-## Project Structure
-```
-/app                  → Next.js App Router pages
-  /app/(auth)         → Login, signup, onboarding
-  /app/(app)          → Protected app routes (sidebar shell + dashboard)
-    /dashboard        → Main dashboard (today's goals, tasks, stats)
-    /scheduling       → AI scheduling interface
-    /goals            → Goal management (decomposed goals)
-    /calendar         → Calendar view
-    /tasks            → Quick task management
-    /settings         → User settings
-  /feed               → Social feed (stub)
-  /profile            → User profile (stub)
-  page.tsx            → Landing page with features + pricing
-/components           → Reusable UI components
-  /ui                 → Base components (buttons, animated-hero)
-  /layout             → Layout components (sidebar, app-shell)
-  /goals              → Goal-specific components (stub)
-  /feed               → Social feed components (stub)
-/lib
-  /firebase           → Firebase config, auth, Firestore helpers, FirebaseProvider
-  /ai                 → Claude API calls (goal decomposition) — stub
-  /stripe             → Stripe helpers — stub
-/types                → Global TypeScript types (not yet created)
-/hooks                → Custom React hooks (not yet created)
-/store                → Zustand stores (not yet created)
-```
+### Mobile App (`apps/mobile`) Commands
+- `npm run start` (or `npx expo start`) — start Expo development server
+- `npm run android` — start Expo development server for Android
+- `npm run ios` — start Expo development server for iOS
+- `npm run web` — start Expo development server for Web
+- `npm run test` — run Jest tests
 
-## Core Data Models
+---
+
+## Core Directory Structure
+
 ```
-users          → id, username, avatar_url, bio, subscription_tier
-goals          → id, user_id, title, description, is_public, status, created_at
-plans          → id, goal_id, title, steps (jsonb), ai_generated
-tasks          → id, plan_id, user_id, title, due_date, completed, priority
-posts          → id, user_id, goal_id, content, likes_count, created_at
-follows        → follower_id, following_id
+/apps
+  /web
+    /app              → Next.js App Router (auth, pricing, terms, dashboard, settings, api)
+    /components       → UI components (ui, layout, bruno, calendar, dashboard, tasks, onboarding)
+    /lib              → Helpers (supabase, ai/bruno, calendar, stripe, email, posthog)
+    /types            → Web-specific types
+  /mobile
+    /app              → Expo Router layouts and screens ((tabs), calendar, chat, settings, tasks)
+    /components       → Mobile-specific UI elements
+    /lib              → Mobile helpers & push notification configurations
+/packages
+  /core
+    /src
+      /types.ts       → Database schema types generated from Supabase
+      /supabase-client.ts → Shared supabase client helpers
 ```
 
-## Conventions — ALWAYS follow these
+---
 
-### General
-- TypeScript strict mode — no `any` types, ever
-- Use `async/await`, never `.then()` chains
-- All Firestore queries go through `/lib/firebase/firestore.ts` helpers, never raw in components
-- All Firebase Auth calls go through `/lib/firebase/auth.ts` helpers
-- All AI calls go through `/lib/ai` — never call Anthropic API directly from components
-- Environment variables: use `NEXT_PUBLIC_` prefix only for values safe to expose
+## Key Data Models (Supabase Public Schema)
 
-### Components
-- Server Components by default in Next.js App Router
-- Add `"use client"` only when you need interactivity or browser APIs
-- Props must be typed with explicit interfaces, not inline types
-- File naming: PascalCase for components, camelCase for utils
+- **`users`**: Profiles, integration tokens (Canvas/Google), onboarding status, Stripe customer/subscription details, and push tokens.
+- **`calendar_events`**: Canonical source of truth for all daily plan blocks (status: `pending_ai`, `accepted`, `confirmed`, `completed`, `skipped`, `rescheduled`, `rejected`).
+- **`tasks`**: Backlog of manual and imported tasks, including recurrence patterns and estimated completion times.
+- **`user_ai_memory`**: Bruno's learned behaviors, planning style, focus hours, break preferences, and tone configurations.
+- **`bruno_messages` & `chat_conversations`**: Chat transcript history for Bruno conversations.
+- **`canvas_assignments`**: Cache of imported Canvas assignments.
+- **`ai_feedback`**: Logs of user accepted/rejected plan suggestions to feed the personalization loop.
+- **`schedules`**: Historical snapshot logs of the daily plans (not read for active dashboard rendering).
 
-### Auth & Security
-- All protected routes use Firestore Security Rules — never trust client-side auth alone
-- Users can only read/write their own data unless a document is marked `is_public = true`
-- Stripe webhooks must verify the signature — never skip this
+---
 
-### AI Goal Decomposition
-- Always stream responses for the goal decomposition UI
-- Prompt structure: system prompt in `/lib/ai/prompts.ts`, never inline
-- Cap tokens at 1000 per decomposition call
-- Cache decompositions — don't re-run AI if the goal hasn't changed
+## Engineering Conventions
 
-### Git
-- Create a new branch before every feature: `git checkout -b feature/goal-decomposition`
-- Commit messages: imperative mood, under 72 chars (e.g. "Add goal decomposition stream")
-- Never commit `.env.local` or secrets
+### TypeScript & Linting
+- **Strict TypeScript**: No `any` type is allowed. Define explicit interfaces for component props.
+- **Pre-commit Gate**: Ensure `npm run check` passes with **zero lint errors** before proposing commits.
 
-## Subscriptions / Stripe
-- Free tier: up to 3 active goals, basic task tracking
-- Pro tier ($X/mo): unlimited goals, AI decomposition, social posting
-- Stripe webhooks update `users/{userId}.subscription_tier` in Firestore
-- Use `stripe.webhooks.constructEvent()` for all webhook handlers
+### Backend & Database (Supabase)
+- **RLS Enforced**: Row Level Security must be active and tested on all tables. All queries must filter by `user_id = auth.uid()`.
+- **Idempotence**: Database migrations (in `supabase/migrations`) must be idempotent and safely roll back.
+- **Plan Type Normalization**: Normalize plan types to `free`, `trialing`, `premium`, `student`, `canceled`, or `admin` in middleware and logic.
 
-## Never touch
-- `/app/api/webhooks/stripe` — webhook signature verification logic
-- Firestore Security Rules (discuss first before changing)
-- `next.config.js` without discussing first
+### Privacy & Token Security
+- **No Token Leakage**: Never return raw decrypted tokens (like Canvas API tokens) to the browser.
+- **Masking**: Display saved tokens in the UI as masked strings (e.g., `••••abcd`). Manage configuration changes through write-only replace flows.
+- **Encryption**: Encrypt all third-party API credentials on the server side prior to DB storage.
 
-## Before you write any code
-1. Check if a similar component/function already exists
-2. For new Firestore collections, sketch the document shape and security rules first and show me
-3. For AI features, confirm the prompt design before implementing
-4. For any Stripe changes, test in test mode first (`STRIPE_SECRET_KEY` should start with `sk_test_`)
+### AI Scheduling & Planning State
+- **Canonical Source**: `calendar_events` owns plan scheduling. Do not read schedules from the `schedules` snapshot table for live rendering.
+- **Lifecycle Integrity**: Do not mark a task `completed=true` just because it was scheduled.
+- **Quota Boundaries**: Enforce free tier bounds: 1 AI daily plan per week, 5 Bruno chat messages per day, and read-only Google Calendar sync.
 
-## Claude-specific instructions
-- I am a beginner — explain your reasoning as you code, briefly
-- When you add a new file, tell me where it goes and why
-- If you see a better architectural approach, suggest it but ask before diverging
-- Break large tasks into steps and confirm each one before continuing
-- If something could break auth or payments, stop and ask me first
+---
 
-## Development Phases
+## Bruno Chat AI Personality & Rules
 
-### Phase 1: Foundation ✅ COMPLETE
-- Project scaffolded with Next.js 14, Tailwind CSS, TypeScript
-- Firebase integration (auth context, config singleton)
-- Folder structure and routing established
-- Environment variables configured
+Bruno is a bear-themed planning partner designed for high performers and students:
+- **Tone**: Perceptive, grounded, and emotionally intelligent. He uses sparse, natural bear language (e.g., 'wise move') but avoids therapist scripts, wellness platitudes, and generic productivity advice.
+- **Truthfulness**: Bruno accepts tradeoffs (e.g., admitting that obsessive work patterns produce short-term gains) and does not force false depth or mindfulness on simple tasks.
+- **Tools**: Bruno interacts with the application via function-calling tools:
+  - `create_task`, `update_task`, `complete_task`
+  - `create_calendar_block`, `move_calendar_block`
+  - `accept_block`, `reject_block`
+  - `break_down_task`
+- **Scope Limits**: Do not claim integrations that are not fully built (e.g., Slack, Notion, Monday, GitHub, N8N) are supported in AI prompts.
 
-### Phase 2: UI Shell & Landing Page ✅ COMPLETE
-**Built:**
-- Landing page with animated hero, features section (4 cards), and pricing tiers (Free/Pro/Team)
-- App dashboard skeleton with sidebar navigation
-- Sidebar with nav items: Dashboard, AI Scheduling, My Plans, Calendar, Quick Tasks, Settings
-- Dashboard showing today's goals, tasks, and AI feature teasers
-- shadcn Button component + cn() utility
-- Tailwind CSS variables and spektr-cyan-50 custom color
+---
 
-**Not yet built (stubs exist):**
-- Login/signup authentication pages
-- Firestore integration (queries, mutations)
-- Zustand store + React Query setup
-- AI decomposition feature
-- Calendar component
-- Individual goal/task management pages
-- Social feed
+## Development Phases & Guidelines
 
-### Phase 3: Features & AI Integration — NEXT
-**Priority order:**
-1. Auth pages (login/signup with Firebase Auth)
-2. Goal creation + AI decomposition (Claude API integration)
-3. Calendar component integration
-4. Task management and quick-add
-5. Social feed pages
-6. Stripe subscription integration
-7. Progress tracking dashboard
-
-## Codex Integration
-Codex plugin (openai/codex-plugin-cc) is installed in this Claude Code session.
-
-### When to suggest Codex commands
-- After implementing a feature or making significant code changes → suggest `/codex:review`
-- Before committing code to git → suggest `/codex:review`
-- When stuck on a bug or complex logic → suggest `/codex:rescue`
-- For architectural decisions needing a second opinion → suggest `/codex:adversarial-review`
-
-### Rules
-- Always suggest the relevant Codex command at the end of a task, briefly explaining why
-- If Codex proposes changes, review them together before applying
-- Use `/codex:status` and `/codex:result` to retrieve async job output
-- `/codex:cancel` to stop a running job
-- Free ChatGPT tier has limited Codex allocation — prefer `/codex:review` over `/codex:rescue` for simple cases
+For major modifications, refer to [SETTINGS_IMPLEMENTATION_TASKS.md](file:///c:/Users/jabbo/M1plan/planevo/docs/SETTINGS_IMPLEMENTATION_TASKS.md) and the 14-day finalization roadmap. Avoid expanding product scope beyond the student-first planner wedge (Canvas + Google read-only + Daily plan + Bruno chat + Mobile companion).

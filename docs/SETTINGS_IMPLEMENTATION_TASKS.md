@@ -1,6 +1,6 @@
 # Settings Implementation Tasks Tracker
 
-This document serves as the official execution tracker for the Settings and AntiGravity implementation plan. Use this tracker to mark progress across all phases. 
+This document serves as the official execution tracker for the Settings and AntiGravity implementation plan. Use this tracker to mark progress across all phases.
 
 ## Reference Documents
 Always reference back to these core documents during execution:
@@ -8,13 +8,13 @@ Always reference back to these core documents during execution:
 - [Implementation Plan Artifact](file:///C:/Users/jabbo/.gemini/antigravity-ide/brain/1bfc9b0e-fadd-4a89-b9e3-e92d82b09eff/implementation_plan.md)
 
 ## Global Engineering Rules (Applies to all phases)
-- **Migrations & Schema:** 
+- **Migrations & Schema:**
   - [ ] For every new table: Add RLS policies, add indexes, test owner-only access, and update generated Supabase types.
   - [ ] **Migration Naming Rule:** Use idempotent migrations with a clear naming convention (e.g., `migration_v14_settings_foundation.sql`), avoiding ad hoc schema edits.
   - [ ] **Rollback/Compatibility Rule:** Do not break existing users while migrating fields (especially for `users.scheduling_preferences` or Canvas/Google). Write fallback/sync layers where necessary.
-- **Visual QA:** 
+- **Visual QA:**
   - [ ] For any settings UI changes, require desktop and mobile screenshots for both light and dark mode to verify visual integrity.
-- **Analytics:** 
+- **Analytics:**
   - [ ] Track non-sensitive events carefully (e.g., settings saves, integration connect/disconnect, notification opt-in, billing portal open, export, delete intent). NEVER track sensitive pasted LLM import contents or integration tokens.
 
 ---
@@ -44,7 +44,7 @@ Always reference back to these core documents during execution:
 - [x] Fix encoding artifacts across settings files (replace mojibake).
 - [x] Implement mobile-responsive behavior for the sidebar and settings cards.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [x] Every tab and search result comes from the same registry.
 - [x] No settings badge is hard-coded.
 - [x] Switching themes affects settings without breaking contrast.
@@ -66,7 +66,7 @@ Always reference back to these core documents during execution:
 - [ ] Build Profile UI with sections: Identity, School/Work Context, Planning Baseline, Account Security Summary.
 - [ ] Update sidebar profile card to use live plan and initials.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] User can save profile without full page reload.
 - [ ] Bruno receives the updated preferred name, timezone, and planning baseline in prompt context.
 
@@ -82,7 +82,7 @@ Always reference back to these core documents during execution:
 - [ ] Add controls for: Default calendar view, day start/end, work/school hours, focus/avoided windows, break preferences, buffer between events, auto-schedule aggressiveness, rollover style, max planned minutes per day, weekly review time.
 - [ ] Read and write data leveraging `calendar_preferences`, `user_ai_memory`, and safely migrating from `users.scheduling_preferences`.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] Bruno and Daily Plan use these settings correctly.
 - [ ] Calendar UI reflects these preferences without onboarding again.
 
@@ -101,7 +101,7 @@ Always reference back to these core documents during execution:
 - [x] Add server actions for memory read/update/delete.
 - [x] Update `buildMemoryContext()` and adjust system prompt precedence to respect user preferences over general rules.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [x] Saving preferences visibly changes Bruno's answer style in chat.
 - [x] Imported preferences require explicit confirmation and drop sensitive raw strings.
 
@@ -130,7 +130,7 @@ Always reference back to these core documents during execution:
   - [ ] **Slack:** Implement slash command, message shortcut, and app mention. Do NOT scrape full channels.
   - [ ] **Linear:** Implement OAuth, fetch assigned issues only, filter by project/team, and setup webhook sync.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] UI list and backend registry are 1-1.
 - [ ] Every integration has manage, sync, disconnect, and delete-imported controls.
 - [ ] NO tokens exposed client-side.
@@ -145,14 +145,14 @@ Always reference back to these core documents during execution:
 
 **Tasks:**
 - [ ] Add `notification_preferences` JSONB model to the database with RLS.
-- [ ] Use Expo for mobile push. Determine separate strategy if Web Push is required.
+- [x] Use Expo for mobile push. Implemented Resend email notifications as alternative to Web Push.
 - [ ] Build web settings UI for Notification Preferences (master toggle, channels, quiet hours, timing, types).
 - [ ] Update mobile toggle to respect preferences.
 - [ ] Implement deep-link payload handling for pushes.
 - [ ] Add server-side quiet-hours filtering before sending pushes.
 - [ ] Build a "send test notification" feature and stale token cleanup logic.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] Toggling a notification accurately persists.
 - [ ] Test push successfully delivers on mobile.
 - [ ] Push taps open the expected deep-link screen.
@@ -168,44 +168,20 @@ Always reference back to these core documents during execution:
 - `apps/web/hooks/use-subscription.ts`
 
 **Tasks:**
-- [ ] Load live subscription fields from `users` (plan type, status, trial end, Stripe details).
-- [ ] Build Current Plan Summary UI using extensive billing states (`cancel_at_period_end`, renewal date, failed payment / `past_due`, trial end).
-- [ ] Add Plan Actions (upgrade CTA, manage billing portal link).
-- [ ] Add Stripe Customer Portal integration for cancel/renew flows. Set portal return URL to go back to `/dashboard/settings/membership`.
-- [ ] Update the Membership sidebar badge to reflect live status. Keep webhook as the definitive source of truth.
+- [x] Load live subscription fields from `users` (plan type, status, trial end, Stripe details).
+- [x] Build Current Plan Summary UI using extensive billing states (`cancel_at_period_end`, renewal date, failed payment / `past_due`, trial end).
+- [x] Add Plan Actions (upgrade CTA, manage billing portal link).
+- [x] Add Stripe Customer Portal integration for cancel/renew flows. Set portal return URL to go back to `/dashboard/settings/membership`.
+- [x] Update the Membership sidebar badge to reflect live status. Keep webhook as the definitive source of truth.
 
-**Acceptance Criteria:** 
-- [ ] Free users can upgrade.
-- [ ] Paid users can open billing portal and return safely.
-- [ ] Membership badge mirrors exact Stripe webhook state.
-
----
-
-## Phase 8: Data And Privacy
-**Files to Read First:**
-- `apps/web/app/dashboard/settings/privacy/page.tsx`
-- `apps/web/app/privacy/page.tsx`, `terms/page.tsx`, `cookies/page.tsx`
-- `apps/web/lib/ai/memory.ts`
-
-**Tasks:**
-- [ ] Add Privacy Center UI (links to Privacy Policy, Terms, Cookie Policy).
-- [ ] Integrate actual Termly-generated policies (NO placeholders for launch).
-- [ ] Clean up legacy links: Explicitly replace all old `planpilot.app` references/emails with Planevo-approved domains.
-- [ ] Implement data export route (JSON/CSV).
-- [ ] Implement AI memory delete/reset controls.
-- [ ] Add controls to delete imported source data.
-- [ ] Document what data is retained, deleted, or anonymized after account deletion.
-- [ ] Add analytics consent toggle (if PostHog active).
-
-**Acceptance Criteria:** 
-- [ ] All legal documents are real Termly content.
-- [ ] No `planpilot.app` artifacts remain.
-- [ ] Export downloads valid JSON/CSV.
-- [ ] AI memory can be fully reset locally.
+**Acceptance Criteria:**
+- [x] Free users can upgrade.
+- [x] Paid users can open billing portal and return safely.
+- [x] Membership badge mirrors exact Stripe webhook state.
 
 ---
 
-## Phase 9: Danger Zone
+## Phase 8: Danger Zone
 **Files to Read First:**
 - `apps/web/app/dashboard/settings/danger/page.tsx`
 - `apps/web/lib/supabase/admin.ts`
@@ -221,14 +197,14 @@ Always reference back to these core documents during execution:
 - [ ] Revoke integration tokens where possible, delete/anonymize analytics identity if supported, delete Supabase auth user, and sign out.
 - [ ] Handle active Stripe subscriptions (cancel/schedule cancellation) before account deletion.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] Deletion requires typed confirmation.
 - [ ] Subscriptions are canceled upstream before data disappears.
 - [ ] Route rejects unauthenticated users, cross-origin/CSRF attempts, and attempts to delete any account other than the signed-in user.
 
 ---
 
-## Phase 10: Appearance
+## Phase 9: Appearance
 **Files to Read First:**
 - `apps/web/app/dashboard/settings/appearance/page.tsx`
 - `apps/web/app/globals.css`
@@ -243,17 +219,42 @@ Always reference back to these core documents during execution:
 - [ ] Add a live preview panel for theme/density.
 - [ ] Ensure persistence across reloads and align mobile/web palette.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] All tabs pass contrast/readability in both light and dark modes.
 - [ ] Desktop and mobile screenshots are captured for Visual QA to verify theme accuracy.
 
 ---
 
+## Phase 10: Data And Privacy
+**Files to Read First:**
+- `apps/web/app/dashboard/settings/privacy/page.tsx`
+- `apps/web/app/privacy/page.tsx`, `terms/page.tsx`, `cookies/page.tsx`
+- `apps/web/lib/ai/memory.ts`
+
+**Tasks:**
+- [ ] Add Privacy Center UI (links to Privacy Policy, Terms, Cookie Policy).
+- [ ] Integrate actual Termly-generated policies (NO placeholders for launch).
+- [ ] Clean up legacy links: Explicitly replace all old `planpilot.app` references/emails with Planevo-approved domains.
+- [ ] Implement data export route (JSON/CSV).
+- [ ] Implement AI memory delete/reset controls.
+- [ ] Add controls to delete imported source data.
+- [ ] Document what data is retained, deleted, or anonymized after account deletion.
+- [ ] Add analytics consent toggle (if PostHog active).
+
+**Acceptance Criteria:**
+- [ ] All legal documents are real Termly content.
+- [ ] No `planpilot.app` artifacts remain.
+- [ ] Export downloads valid JSON/CSV.
+- [ ] AI memory can be fully reset locally.
+
+---
+
 ## Phase 11: Additional Features (Help & Feedback, Search Improvements)
 - [ ] Build Help & Feedback UI (Contact support, bug reports, version info).
+- [ ] **Pre-launch:** Set up `support@planevo.co` email address and connect to a helpdesk/AI service.
 - [ ] Upgrade search functionality to index setting labels and synonyms.
 
-**Acceptance Criteria:** 
+**Acceptance Criteria:**
 - [ ] Search result deep-links directly to a section, not just the parent tab.
 
 ---

@@ -1,6 +1,11 @@
 import { Resend } from 'resend';
+import { PlanevoOnboardingEmail } from '../emails/PlanevoOnboardingEmail';
+import { PlanevoDeadlineRescueEmail } from '../emails/PlanevoDeadlineRescueEmail';
+import { PlanevoReceiptEmail } from '../emails/PlanevoReceiptEmail';
+import { PlanevoPaymentFailedEmail } from '../emails/PlanevoPaymentFailedEmail';
+import { PlanevoResetPasswordEmail } from '../emails/PlanevoResetPasswordEmail';
 
-function getResendClient() {
+export function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not configured');
@@ -115,6 +120,202 @@ export async function sendWeeklyReviewEmail(
 
   if (error) {
     console.error(`[email] Failed to send weekly review to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends the morning plan summary email.
+ */
+export async function sendMorningPlanEmail(
+  to: string,
+  name: string,
+  taskCount: number
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.app>';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #faf8f3; color: #1a1a1a; padding: 40px; text-align: center; }
+    .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px; border: 1px solid #e8e4de; }
+    .headline { font-size: 24px; font-weight: 700; margin-bottom: 16px; }
+    .cta { display: inline-block; background: #d4a574; color: #1a1a1a; text-decoration: none; padding: 14px 28px; border-radius: 999px; font-weight: 600; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="font-size: 48px; margin-bottom: 16px;">☀️</div>
+    <h1 class="headline">Good morning, ${name}!</h1>
+    <p style="font-size: 16px; color: #4a4a4a; line-height: 1.5;">
+      Your daily plan is ready. You have <strong>${taskCount} ${taskCount === 1 ? 'thing' : 'things'}</strong> on your plate today. Let's make it a great day.
+    </p>
+    <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.app'}/dashboard" class="cta">View Your Plan</a>
+  </div>
+</body>
+</html>`;
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: `☀️ Your Morning Plan: ${taskCount} ${taskCount === 1 ? 'thing' : 'things'} today`,
+    html,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send morning plan email to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends the deadline rescue email.
+ */
+export async function sendDeadlineRescueEmail(
+  to: string,
+  name: string,
+  taskCount: number,
+  firstTask: string
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.app>';
+
+  const bodyText = taskCount === 1
+    ? `"${firstTask}" is due today. Want me to help you reschedule it?`
+    : `You have ${taskCount} tasks due today including "${firstTask}". Let's knock them out!`;
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'} due today`,
+    react: PlanevoDeadlineRescueEmail({ firstName: name, taskCount, bodyText }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send deadline rescue email to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends onboarding welcome emails.
+ */
+export async function sendWelcomeEmail(
+  to: string,
+  name: string,
+  day: 1 | 3
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.app>';
+
+  const subject = day === 1
+    ? 'Welcome to Planevo!'
+    : 'Time Blocking: The secret to getting things done ⏱️';
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject,
+    react: PlanevoOnboardingEmail({ firstName: name, day }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send welcome email to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a subscription receipt.
+ */
+export async function sendSubscriptionReceiptEmail(
+  to: string,
+  name: string,
+  amount: string,
+  plan: string
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Billing <bruno@planevo.app>';
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: 'Receipt from Planevo',
+    react: PlanevoReceiptEmail({ firstName: name, amount, planName: plan }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send receipt to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a payment failed warning.
+ */
+export async function sendPaymentFailedEmail(
+  to: string,
+  name: string
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Billing <bruno@planevo.app>';
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: 'Action Required: Planevo Payment Failed',
+    react: PlanevoPaymentFailedEmail({ firstName: name }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send payment failed email to ${to}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a transactional password reset email.
+ *
+ * This intentionally does not consult notification preferences: account
+ * recovery must remain deliverable even when product notifications are muted.
+ */
+export async function sendPasswordResetEmail(
+  to: string,
+  confirmationUrl: string
+) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.app>';
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: 'Reset your Planevo password',
+    react: PlanevoResetPasswordEmail({ confirmationUrl }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send password reset email to ${to}:`, error);
+    throw error;
+  }
+}
+
+export async function sendTestNotificationEmail(to: string, name: string) {
+  const fromAddress = process.env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.app>';
+
+  const { error } = await getResendClient().emails.send({
+    from: fromAddress,
+    to,
+    subject: 'Planevo email notifications are working',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; color: #1a1a1a;">
+        <h1 style="font-size: 24px; margin-bottom: 16px;">You're all set, ${name}.</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4a4a4a;">
+          This is a test email from Planevo. Email notifications can reach this inbox.
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    console.error(`[email] Failed to send test notification email to ${to}:`, error);
     throw error;
   }
 }

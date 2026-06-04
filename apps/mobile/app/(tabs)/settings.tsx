@@ -39,11 +39,15 @@ export default function SettingsScreen() {
     if (!user) return;
     const { data } = await (supabase as any)
       .from('users')
-      .select('*')
+      .select('*, notification_preferences(*)')
       .eq('id', user.id)
       .single();
     setProfile(data);
-    setNotificationsEnabled(data?.push_notifications_enabled !== false);
+    if (data?.notification_preferences) {
+      setNotificationsEnabled(data.notification_preferences.master_toggle && data.notification_preferences.channels?.push !== false);
+    } else {
+      setNotificationsEnabled(data?.push_notifications_enabled !== false);
+    }
     setLoading(false);
   }, [user]);
 
@@ -65,17 +69,58 @@ export default function SettingsScreen() {
   const toggleNotifications = async (value: boolean) => {
     setNotificationsEnabled(value);
     if (!user) return;
-    
+
     try {
-      await (supabase as any)
-        .from('users')
-        .update({ push_notifications_enabled: value })
-        .eq('id', user.id);
-        
+      const { data: existing } = await (supabase as any)
+        .from('notification_preferences')
+        .select('channels, master_toggle')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existing) {
+        await (supabase as any)
+          .from('notification_preferences')
+          .update({
+             master_toggle: value ? true : existing.master_toggle,
+             channels: { ...(existing.channels || {}), push: value },
+             updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+      } else {
+        await (supabase as any)
+          .from('notification_preferences')
+          .insert({
+            user_id: user.id,
+            master_toggle: value,
+            channels: { push: value, email: true },
+            quiet_hours: {
+              enabled: false,
+              start: '22:00',
+              end: '08:00',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+            },
+            types: {
+              daily_plan: true,
+              deadline_rescue: true,
+              weekly_review: true,
+              account: true,
+              billing: true,
+              system: true,
+            }
+          });
+      }
+
       if (value) {
-        const { registerForPushNotifications, scheduleMorningReminder } = await import('@/lib/notifications');
-        await registerForPushNotifications(user.id);
-        await scheduleMorningReminder(9, 0);
+        const { registerForPushNotifications } = await import('@/lib/notifications');
+        const token = await registerForPushNotifications(user.id);
+        if (!token) {
+          const { disablePushNotifications } = await import('@/lib/notifications');
+          await disablePushNotifications(user.id);
+          setNotificationsEnabled(false);
+        }
+      } else {
+        const { disablePushNotifications } = await import('@/lib/notifications');
+        await disablePushNotifications(user.id);
       }
     } catch (err) {
       console.warn('Failed to update notifications:', err);
