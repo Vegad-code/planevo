@@ -4,6 +4,7 @@ import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AppearanceProvider, appearanceNoFlashScript } from "@/components/providers/AppearanceProvider";
 import "./globals.css";
 
 const instrumentSerif = Instrument_Serif({
@@ -59,12 +60,23 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: appearanceNoFlashScript }} />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <Toaster richColors position="bottom-right" />
-          <Suspense fallback={null}>
-            <PostHogProvider>{children}</PostHogProvider>
-          </Suspense>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          themes={["light", "dark", "sepia"]}
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppearanceProvider>
+            <Toaster richColors position="bottom-right" />
+            <Suspense fallback={null}>
+              <PostHogProvider>{children}</PostHogProvider>
+            </Suspense>
+          </AppearanceProvider>
         </ThemeProvider>
       </body>
     </html>

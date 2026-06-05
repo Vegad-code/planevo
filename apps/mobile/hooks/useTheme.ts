@@ -1,11 +1,3 @@
-import { useColorScheme as _useColorScheme } from 'react-native';
-import Colors from '@/constants/Colors';
-
-export function useTheme() {
-  const scheme = _useColorScheme() ?? 'light';
-  return {
-    colors: Colors[scheme],
-    isDark: scheme === 'dark',
-    scheme,
-  };
-}
+// Backwards-compatible re-export: useTheme now comes from the app ThemeProvider
+// (mode + accent aware) instead of reading the device scheme directly.
+export { useTheme } from '@/providers/ThemeProvider';

@@ -20,10 +20,10 @@ export default async function BrunoSettingsPage() {
   const memory = await getUserAIMemory(supabase, user.id);
 
   return (
-    <div className="space-y-8 animate-fade-in text-[#2A2118]">
+    <div className="space-y-8 animate-fade-in text-settings-text">
       <div>
-        <h2 className="text-3xl font-serif italic text-[#2A2118] dark:text-settings-text mb-3">Bruno preferences</h2>
-        <p className="text-sm font-medium text-[#8a7b66] max-w-2xl leading-relaxed">
+        <h2 className="text-3xl font-serif italic text-settings-text mb-3">Bruno preferences</h2>
+        <p className="text-sm font-medium text-settings-text-muted max-w-2xl leading-relaxed">
           Tune what Bruno knows about your week and how loud he should be.
         </p>
       </div>

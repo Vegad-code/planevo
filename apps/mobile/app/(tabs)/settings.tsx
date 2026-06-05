@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { Colors } from '@/constants/Colors';
+import { Colors, type AccentId } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import {
@@ -24,12 +24,18 @@ import {
   Zap,
   Shield,
   Bell,
-  Moon,
+  Check,
 } from 'lucide-react-native';
+
+const THEME_MODES: { id: 'system' | 'light' | 'dark'; label: string }[] = [
+  { id: 'system', label: 'System' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors, mode, setMode, accentId, setAccent, accents } = useTheme();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -202,24 +208,72 @@ export default function SettingsScreen() {
           <View style={[styles.divider, { backgroundColor: colors.separator }]} />
           <View style={styles.row}>
             <View style={styles.rowLeft}>
-              <Bell size={18} color={Colors.brand[500]} strokeWidth={2.5} />
+              <Bell size={18} color={colors.tint} strokeWidth={2.5} />
               <Text style={[styles.rowLabel, { color: colors.text }]}>Notifications</Text>
             </View>
             <Switch
               value={notificationsEnabled}
               onValueChange={toggleNotifications}
-              trackColor={{ false: colors.separator, true: Colors.brand[300] }}
-              thumbColor={Colors.brand[500]}
+              trackColor={{ false: colors.separator, true: colors.tint }}
+              thumbColor={'#ffffff'}
               testID="settings-notifications-toggle"
             />
           </View>
-          <View style={[styles.divider, { backgroundColor: colors.separator }]} />
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Moon size={18} color={Colors.brand[500]} strokeWidth={2.5} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Dark Mode</Text>
+        </View>
+
+        {/* Appearance Section */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>APPEARANCE</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.appearanceBlock}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+            <View style={[styles.segment, { borderColor: colors.cardBorder }]}>
+              {THEME_MODES.map((m) => {
+                const active = mode === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    testID={`settings-theme-${m.id}`}
+                    onPress={() => setMode(m.id)}
+                    style={[
+                      styles.segmentItem,
+                      active && { backgroundColor: colors.tint },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        { color: active ? '#ffffff' : colors.textMuted },
+                      ]}
+                    >
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            <Text style={[styles.rowDetail, { color: colors.textMuted }]}>System</Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: colors.separator }]} />
+          <View style={styles.appearanceBlock}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Accent color</Text>
+            <View style={styles.swatchRow}>
+              {accents.map((a) => {
+                const active = accentId === (a.id as AccentId);
+                return (
+                  <TouchableOpacity
+                    key={a.id}
+                    testID={`settings-accent-${a.id}`}
+                    onPress={() => setAccent(a.id as AccentId)}
+                    style={[
+                      styles.swatch,
+                      { backgroundColor: a.primary },
+                      active && styles.swatchActive,
+                    ]}
+                  >
+                    {active && <Check size={16} color="#ffffff" strokeWidth={3} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -350,6 +404,34 @@ const styles = StyleSheet.create({
   rowDetail: { fontSize: 11, fontWeight: '500', marginTop: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   divider: { height: 1, marginHorizontal: 16 },
+  appearanceBlock: { paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  segment: {
+    flexDirection: 'row',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 3,
+    gap: 3,
+  },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 9,
+    alignItems: 'center',
+  },
+  segmentText: { fontSize: 13, fontWeight: '800' },
+  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  swatch: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchActive: {
+    borderWidth: 2.5,
+    borderColor: '#ffffff',
+    transform: [{ scale: 1.06 }],
+  },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',

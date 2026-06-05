@@ -186,7 +186,7 @@ export function LinearManageModal({ isOpen, onClose, profile, onProfileUpdate, o
                     <p className="text-xs font-bold text-[var(--color-rose)]">How would you like to disconnect?</p>
                     <button
                       onClick={() => onDisconnect(false)}
-                      className="w-full py-2 bg-white border border-[#F5D5D0] text-[var(--color-rose)] rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
+                      className="w-full py-2 bg-settings-card border border-[#F5D5D0] text-[var(--color-rose)] rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
                     >
                       Keep Imported Items
                     </button>

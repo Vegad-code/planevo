@@ -5,10 +5,10 @@ export default async function NotificationsSettingsPage() {
   const preferences = await getNotificationPreferences();
 
   return (
-    <div className="space-y-8 animate-fade-in text-[#2A2118]">
+    <div className="space-y-8 animate-fade-in text-settings-text">
       <div>
-        <h2 className="text-3xl font-serif italic text-[#2A2118] mb-3">Notifications</h2>
-        <p className="text-sm font-medium text-[#8a7b66] max-w-2xl leading-relaxed">
+        <h2 className="text-3xl font-serif italic text-settings-text mb-3">Notifications</h2>
+        <p className="text-sm font-medium text-settings-text-muted max-w-2xl leading-relaxed">
           Control when and how Planevo reaches out to you.
         </p>
       </div>

@@ -248,7 +248,7 @@ If no date is known, use [unknown] instead.
                 </div>
               )}
             </div>
-            <p className="text-xs text-[#8a7b66]">
+            <p className="text-xs text-settings-text-muted">
               Note: The raw text will be permanently discarded to protect your privacy and ensure Bruno's core instructions aren't overridden.
             </p>
           </div>

@@ -5,11 +5,11 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
-import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { AppThemeProvider, useTheme } from '@/providers/ThemeProvider';
 import { Colors } from '@/constants/Colors';
 import { syncPushNotificationState } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
@@ -181,20 +181,22 @@ function RootExport() {
   if (!loaded) return null;
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }
 
 export default sentryWrap(RootExport);
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { isDark } = useTheme();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? PlanevoDarkTheme : PlanevoLightTheme}>
+      <ThemeProvider value={isDark ? PlanevoDarkTheme : PlanevoLightTheme}>
         <AuthGate>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

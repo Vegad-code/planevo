@@ -40,7 +40,7 @@
   --color-rollover: var(--color-rose);
   --color-rollover-soft: var(--color-rose-soft);
 
-  /* Dashboard Sleek Dark Theme Tokens */
+  /* Dashboard Sleek Dark Theme Tokens (legacy, retained) */
   --color-bg-dark: #09090b;
   --color-card-dark: #121214;
   --color-card-dark-hover: #18181b;
@@ -52,32 +52,154 @@
   --font-sans: var(--font-sans), sans-serif;
   --font-mono: var(--font-mono), monospace;
 
-  /* Settings Semantic Tokens */
-  --color-settings-bg: var(--color-bg-dark);
-  --color-settings-card: var(--color-card-dark);
-  --color-settings-card-hover: var(--color-card-dark-hover);
-  --color-settings-border: var(--color-border-dark);
-  --color-settings-text: var(--color-text-dark);
-  --color-settings-text-muted: var(--color-text-dark-muted);
+  /* Settings / surface Semantic Tokens — LIGHT (Honey) defaults.
+     These now follow the active theme (see html.dark / html.sepia below) so the
+     whole authenticated app stays consistent and readable across modes. */
+  --color-settings-bg: #FBF6EA;
+  --color-settings-card: #FFFFFF;
+  --color-settings-card-hover: #F5EFE1;
+  --color-settings-border: #E6DCCE;
+  --color-settings-text: #2A2118;
+  --color-settings-text-muted: #8A7B66;
   --color-settings-brand: var(--color-honey);
+
+  /* Entrance animation (was referenced in 20+ components but never defined) */
+  --animate-fade-in: fade-in 0.5s ease both;
 }
 
-.sepia {
-  --color-bg-dark: #f5f0e6;
-  --color-card-dark: #fdfaf6;
-  --color-card-dark-hover: #f5eedc;
-  --color-border-dark: #e8dfcc;
-  --color-text-dark: #2a2118;
-  --color-text-dark-muted: #8a7b66;
+/* User-controlled UI scale (Appearance → Text size) */
+:root {
+  --font-scale: 1;
 }
 
-.light {
-  --color-bg-dark: #ffffff;
-  --color-card-dark: #fafafa;
-  --color-card-dark-hover: #f4f4f5;
-  --color-border-dark: #e4e4e7;
-  --color-text-dark: #09090b;
-  --color-text-dark-muted: #71717a;
+/* ============================================================
+   THEME MODES  (applied as a class on <html> by next-themes)
+   light = default Honey/Cream (defined in @theme above)
+   dark  = Warm Espresso   ·   sepia = Parchment
+   Brand surface + text tokens are overridden so the ENTIRE app
+   (dashboard, settings, calendar) re-themes coherently.
+   ============================================================ */
+html.dark {
+  --color-cream: #241c14;
+  --color-cream-2: #2e251a;
+  --color-paper: #1a1410;
+  --color-ink: #f7efe1;
+  --color-ink-2: #ece0cf;
+  --color-ink-soft: #cbb89e;
+  --color-ink-faint: #9b8a70;
+  --color-line: rgba(245, 236, 221, 0.10);
+  --color-line-strong: rgba(245, 236, 221, 0.20);
+  --color-belly: #4a3a24;
+
+  --color-settings-bg: #16110c;
+  --color-settings-card: #221b14;
+  --color-settings-card-hover: #2b2219;
+  --color-settings-border: #352a1d;
+  --color-settings-text: #f7efe1;
+  --color-settings-text-muted: #b8a48a;
+}
+
+html.sepia {
+  --color-cream: #ece0c4;
+  --color-cream-2: #e2d4b4;
+  --color-paper: #f4ead2;
+  --color-ink: #3a2f1f;
+  --color-ink-2: #4a3c28;
+  --color-ink-soft: #6b5a40;
+  --color-ink-faint: #8a785a;
+  --color-line: rgba(58, 47, 31, 0.12);
+  --color-line-strong: rgba(58, 47, 31, 0.20);
+
+  --color-settings-bg: #f4ead2;
+  --color-settings-card: #fbf3df;
+  --color-settings-card-hover: #efe2c4;
+  --color-settings-border: #e0d0ac;
+  --color-settings-text: #3a2f1f;
+  --color-settings-text-muted: #7a6a4d;
+}
+
+/* ============================================================
+   ACCENT COLOR SCHEMES  (applied via data-accent on <html>)
+   Remaps only the interactive "honey" accent + focus + brand,
+   so Bruno's fur (--color-bruno) stays on-brand in every accent.
+   Each accent is tuned to sit harmoniously on cream/sepia/espresso.
+   ============================================================ */
+[data-accent="honey"] {
+  --color-honey: #D08741;
+  --color-honey-deep: #B96E2A;
+  --color-honey-soft: #F5DCB8;
+  --color-focus: #B96E2A;
+  --color-focus-soft: #F5DCB8;
+  --color-settings-brand: #D08741;
+}
+[data-accent="terracotta"] {
+  --color-honey: #C9663B;
+  --color-honey-deep: #A84E28;
+  --color-honey-soft: #F3D7C5;
+  --color-focus: #A84E28;
+  --color-focus-soft: #F3D7C5;
+  --color-settings-brand: #C9663B;
+}
+[data-accent="amber"] {
+  --color-honey: #DDA02C;
+  --color-honey-deep: #BC8216;
+  --color-honey-soft: #F7E6BE;
+  --color-focus: #BC8216;
+  --color-focus-soft: #F7E6BE;
+  --color-settings-brand: #DDA02C;
+}
+[data-accent="sage"] {
+  --color-honey: #6F9266;
+  --color-honey-deep: #557049;
+  --color-honey-soft: #DCE7D5;
+  --color-focus: #557049;
+  --color-focus-soft: #DCE7D5;
+  --color-settings-brand: #6F9266;
+}
+[data-accent="ocean"] {
+  --color-honey: #3E8194;
+  --color-honey-deep: #2C6072;
+  --color-honey-soft: #CDE3E8;
+  --color-focus: #2C6072;
+  --color-focus-soft: #CDE3E8;
+  --color-settings-brand: #3E8194;
+}
+[data-accent="plum"] {
+  --color-honey: #9A5F84;
+  --color-honey-deep: #784765;
+  --color-honey-soft: #ECDCE7;
+  --color-focus: #784765;
+  --color-focus-soft: #ECDCE7;
+  --color-settings-brand: #9A5F84;
+}
+[data-accent="rosewood"] {
+  --color-honey: #C2675C;
+  --color-honey-deep: #9E4D44;
+  --color-honey-soft: #F4D8D2;
+  --color-focus: #9E4D44;
+  --color-focus-soft: #F4D8D2;
+  --color-settings-brand: #C2675C;
+}
+
+/* ============================================================
+   GLOBAL UTILITIES — fade-in entrance + UI scale + reduced motion
+   ============================================================ */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html {
+  font-size: calc(100% * var(--font-scale));
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
 
 @import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -140,11 +262,12 @@
 }
 
 body {
-  background: var(--color-bg-dark);
-  color: var(--color-text-dark);
+  background: var(--color-paper);
+  color: var(--color-ink-2);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ============================================================

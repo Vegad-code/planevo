@@ -1,58 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Sun, Moon } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
+import { Sun, Moon, BookOpen } from '@phosphor-icons/react';
 
+/**
+ * Compact theme cycler (Light → Dark → Sepia) wired to next-themes.
+ * Safe against hydration mismatch via the `mounted` guard.
+ */
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<'light' | 'dark' | 'sepia'>('light');
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    // Check local storage or system preference
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'sepia' | null;
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const initialTheme = savedTheme || systemTheme;
-    
-    requestAnimationFrame(() => {
-      setTheme(initialTheme);
-    });
-    document.documentElement.setAttribute('data-theme', initialTheme);
-  }, []);
+  const active = (theme === 'system' ? resolvedTheme : theme) || 'light';
 
-  const toggleTheme = () => {
-    let newTheme: 'light' | 'dark' | 'sepia';
-    if (theme === 'light') newTheme = 'dark';
-    else if (theme === 'dark') newTheme = 'sepia';
-    else newTheme = 'light';
-    
-    setTheme(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
+  const cycle = () => {
+    if (active === 'light') setTheme('dark');
+    else if (active === 'dark') setTheme('sepia');
+    else setTheme('light');
   };
+
+  if (!mounted) {
+    return <div className="w-[120px] h-9 rounded-lg bg-settings-card-hover animate-pulse" />;
+  }
+
+  const label = active === 'light' ? 'Dark' : active === 'dark' ? 'Sepia' : 'Light';
+  const Icon = active === 'light' ? Moon : active === 'dark' ? BookOpen : Sun;
 
   return (
     <button
-      onClick={toggleTheme}
-      className="p-2 border-2 border-border bg-card text-foreground hover:bg-muted hover:text-card-foreground transition-all active:scale-95 flex items-center gap-2 font-bold uppercase text-xs"
-      aria-label="Toggle Theme"
+      onClick={cycle}
+      data-testid="theme-cycle-toggle"
+      className="px-3 py-2 rounded-lg border border-settings-border bg-settings-card text-settings-text hover:bg-settings-card-hover transition-colors active:scale-95 flex items-center gap-2 font-bold uppercase text-xs"
+      aria-label="Cycle theme"
     >
-      {theme === 'light' && (
-        <>
-          <Moon size={20} weight="bold" />
-          <span>Dark Mode</span>
-        </>
-      )}
-      {theme === 'dark' && (
-        <>
-          <Sun size={20} weight="bold" />
-          <span>Sepia Mode</span>
-        </>
-      )}
-      {theme === 'sepia' && (
-        <>
-          <Sun size={20} weight="bold" />
-          <span>Light Mode</span>
-        </>
-      )}
+      <Icon size={16} weight="bold" />
+      <span>{label} mode</span>
     </button>
   );
 }
