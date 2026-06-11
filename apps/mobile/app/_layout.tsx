@@ -15,9 +15,13 @@ import { syncPushNotificationState } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { initObservability, identifyUser, resetUser, sentryWrap } from '@/lib/observability';
 import { normalizePlanType } from '@/lib/plan-types';
+import { initRevenueCat, loginToRevenueCat, isPro, logoutOfRevenueCat } from '@/lib/revenuecat';
 
 // Initialize observability at module scope (before any render)
 initObservability();
+void initRevenueCat().catch((error) => {
+  console.warn('[revenuecat] Failed to initialize:', error);
+});
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -33,13 +37,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const notificationResponseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
   const isVerifying = useRef(false);
-  const profileStatus = useRef<'unknown' | 'ready' | 'blocked'>('unknown');
 
   useEffect(() => {
     if (!user) {
-      profileStatus.current = 'unknown';
       isVerifying.current = false;
       resetUser();
+      logoutOfRevenueCat();
     }
   }, [user]);
 
@@ -48,6 +51,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     const inAuthGroup = segments[0] === 'login';
     const isBlockedRoute = (segments[0] as string) === 'blocked';
+    const isOnboardingRoute = (segments[0] as string) === 'onboarding';
 
     if (!session && !inAuthGroup) {
       router.replace('/login');
@@ -55,55 +59,56 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (session && user) {
-      if (profileStatus.current === 'unknown') {
-        if (isVerifying.current) return;
-        isVerifying.current = true;
+      if (isVerifying.current) return;
+      isVerifying.current = true;
 
-        const verifyProfile = async () => {
-          try {
-            const { data, error } = await supabase
-              .from('users')
-              .select('onboarding_complete, plan_type')
-              .eq('id', user.id)
-              .single();
+      const verifyProfile = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('onboarding_complete, plan_type')
+            .eq('id', user.id)
+            .single();
 
-            isVerifying.current = false;
-            if (error || !data) {
-              profileStatus.current = 'blocked';
-              router.replace('/blocked' as any);
-              return;
+          if (error || !data) {
+            if (!isOnboardingRoute && !isBlockedRoute) {
+              router.replace('/onboarding' as any);
             }
-
-            const normalizedPlan = normalizePlanType(data.plan_type);
-            const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(
-              normalizedPlan
-            );
-            const isReady = data.onboarding_complete && isPlanActive;
-
-            if (isReady) {
-              profileStatus.current = 'ready';
-              identifyUser(user.id, user.email ?? undefined, normalizedPlan);
-              if (inAuthGroup || isBlockedRoute) {
-                router.replace('/(tabs)');
-              }
-            } else {
-              profileStatus.current = 'blocked';
-              if (!isBlockedRoute) {
-                router.replace('/blocked' as any);
-              }
-            }
-          } catch (err) {
-            isVerifying.current = false;
+            return;
           }
-        };
-        verifyProfile();
-      } else {
-        if (profileStatus.current === 'ready' && (inAuthGroup || isBlockedRoute)) {
-          router.replace('/(tabs)');
-        } else if (profileStatus.current === 'blocked' && !isBlockedRoute && !inAuthGroup) {
-          router.replace('/blocked' as any);
+
+          const normalizedPlan = normalizePlanType(data.plan_type);
+          
+          // Log in to RevenueCat to sync the user ID and fetch their subscription status
+          const customerInfo = await loginToRevenueCat(
+            user.id,
+            user.email ?? undefined
+          );
+          const isRcPro = isPro(customerInfo);
+          
+          const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(
+            normalizedPlan
+          ) || isRcPro;
+          const isReady = data.onboarding_complete && isPlanActive;
+
+          if (isReady) {
+            identifyUser(user.id, user.email ?? undefined, normalizedPlan);
+            if (inAuthGroup || isBlockedRoute || isOnboardingRoute) {
+              router.replace('/(tabs)');
+            }
+          } else if (!isOnboardingRoute && !isBlockedRoute) {
+            router.replace('/onboarding' as any);
+          }
+        } catch (err) {
+          if (!isOnboardingRoute && !isBlockedRoute) {
+            router.replace('/onboarding' as any);
+          }
+        } finally {
+          isVerifying.current = false;
         }
-      }
+      };
+
+      verifyProfile();
     }
   }, [session, loading, segments, user]);
 
@@ -201,7 +206,9 @@ function RootLayoutNav() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
             <Stack.Screen name="blocked" options={{ headerShown: false }} />
+            <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="canvas-connect" options={{ presentation: 'modal', title: 'Connect Canvas' }} />
           </Stack>
         </AuthGate>

@@ -19,6 +19,7 @@ export default async function ProfileSettingsPage() {
     .eq('id', user.id)
     .single();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profileData = (userData?.scheduling_preferences as Record<string, any>) || {};
 
   const initialData = {

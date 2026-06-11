@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 
+type PortalProfile = {
+  stripe_customer_id: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -12,13 +16,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Look up the user's Stripe customer ID
-    const { data: profile } = await supabase
+    const { data } = await supabase
       .from('users')
-      .select('*')
+      .select('stripe_customer_id')
       .eq('id', user.id)
       .single();
 
-    if (!(profile as any)?.stripe_customer_id) {
+    const profile = data as PortalProfile | null;
+
+    if (!profile?.stripe_customer_id) {
       return NextResponse.json(
         { error: 'No subscription found. Please subscribe first.' },
         { status: 400 }
@@ -27,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     // Generate a Customer Portal session
     const session = await stripe.billingPortal.sessions.create({
-      customer: (profile as any).stripe_customer_id,
+      customer: profile.stripe_customer_id,
       return_url: `${req.nextUrl.origin}/dashboard/settings/membership`,
     });
 

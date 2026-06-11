@@ -50,6 +50,7 @@ export async function fetchNotionDatabases(userId: string) {
 
   // Notion search endpoint to find all databases the bot has access to
   const response = await notion.search({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const notionDatabases = response.results.filter((res: any) => res.object === 'database');
 
   // Get currently selected databases from integration_sources
@@ -61,6 +62,7 @@ export async function fetchNotionDatabases(userId: string) {
 
   const selectedIds = sources?.map(s => s.external_id) || [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const databases = notionDatabases.map((db: any) => ({
     id: db.id,
     title: db.title?.[0]?.plain_text || 'Untitled Database',
@@ -98,6 +100,7 @@ export async function saveNotionDatabases(userId: string, databaseIds: string[])
   const newSources = [];
   for (const dbId of databaseIds) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbInfo: any = await notion.databases.retrieve({ database_id: dbId });
       newSources.push({
         account_id: account.id,
@@ -107,6 +110,7 @@ export async function saveNotionDatabases(userId: string, databaseIds: string[])
         name: dbInfo.title?.[0]?.plain_text || 'Untitled Database',
         sync_enabled: true
       });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
       console.warn('Could not retrieve Notion db details for', dbId);
     }
@@ -179,6 +183,7 @@ export async function syncNotionAction(userId: string) {
       // Filter by incomplete items if possible, or just recent ones.
       // Since Notion database schemas vary wildly, we just grab everything recently modified for now,
       // or we can just grab all (Notion paginates).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await (notion.databases as any).query({
         database_id: dbId,
         page_size: 100,
@@ -192,11 +197,13 @@ export async function syncNotionAction(userId: string) {
 
       totalSeen += response.results.length;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const itemsToUpsert = response.results.map((page: any) => {
         // Try to extract a title from properties
         let title = 'Untitled';
         let dueDate = null;
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
         for (const [key, prop] of Object.entries(page.properties) as any) {
           if (prop.type === 'title' && prop.title?.length > 0) {
             title = prop.title[0].plain_text;
@@ -254,6 +261,7 @@ export async function syncNotionAction(userId: string) {
     }
 
     return totalSeen;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Notion sync error:', err);
     if (syncRunId) {

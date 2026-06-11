@@ -38,7 +38,8 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthRe
       const { data: { user }, error } = await supabase.auth.getUser(token);
 
       if (error || !user) {
-        return { user: null, error: 'Invalid or expired Bearer token', authMethod: null };
+        console.error('[getAuthenticatedUser] Bearer token verification error:', error?.message, error);
+        return { user: null, error: `Invalid Bearer token: ${error?.message || 'unknown error'}`, authMethod: null };
       }
 
       return {

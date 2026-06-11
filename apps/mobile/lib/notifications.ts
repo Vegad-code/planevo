@@ -212,7 +212,7 @@ export async function scheduleMorningReminder(hour = 9, minute = 0) {
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🐻 Good morning!',
+      title: 'Good morning!',
       body: "Let's check what's on your plate today. Tap to see your plan.",
       data: { screen: 'index' },
       sound: 'default',

@@ -1,6 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getUserAIMemory, buildMemoryContext, UserAiMemory } from './memory';
-import { getCalendarEvents, CalendarEvent } from '@/lib/calendar';
+import { CalendarEvent } from '@/lib/calendar';
 import type { Tables } from '@/types/database';
 
 export interface BrunoWorldState {
@@ -20,7 +20,7 @@ export async function getBrunoMasterContext(
   userId: string, 
   energyLevel: 'low' | 'medium' | 'high' = 'medium'
 ): Promise<BrunoWorldState> {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   // 1. Fetch User Data & Preferences
   const { data: user, error: userError } = await supabase
@@ -93,20 +93,16 @@ export async function getBrunoMasterContext(
     ...mappedCanvasTasks
   ];
 
-  // 5. Fetch Google Calendar Events
-  const { events: googleEvents } = await getCalendarEvents();
-
-  // Merge events into a single list
-  const allEvents: CalendarEvent[] = [
-    ...googleEvents,
-    ...(manualEvents || []).map(e => ({
-      id: e.id,
-      summary: e.title,
-      start: { dateTime: e.start_time },
-      end: { dateTime: e.end_time || undefined },
-      source: e.source || 'manual'
-    }))
-  ];
+  // 5. Build Final Events List
+  // Since we already query all calendar_events from DB (including Google Sync events),
+  // we just use those without needing to ping Google API directly.
+  const allEvents: CalendarEvent[] = (manualEvents || []).map(e => ({
+    id: e.id,
+    summary: e.title,
+    start: { dateTime: e.start_time },
+    end: { dateTime: e.end_time || undefined },
+    source: e.source || 'manual'
+  }));
 
   return {
     user,

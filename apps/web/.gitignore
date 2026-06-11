@@ -1,53 +1,48 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ----------------------------------------------------------------------
+# THE GREATEST GITIGNORE - WEB APP (NEXT.JS)
+# ----------------------------------------------------------------------
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# testing
-/coverage
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+!*.env.example
 
-# next.js
-/.next/
-/out/
+# Next.js Build
+.next/
+out/
+build/
 
-# production
-/build
-
-# misc
+# IDE and Diagnostics
+.vscode/
+.idea/
 .DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# Plan Pilot — Local/Debug
-server.log
-server_utf8.log
-tsc_output.txt
-tsc_clean_check.txt
 scratch/
-mcp-servers/
 canvas_debug.json
-*.log
-*.txt
-check_encoding.*
+lint_errors.json
+lint_errors.log
+lint_output.json
+lint_output.txt
+lint_output_now.json
+dev-lan.err.log
+dev-lan.out.log
+server.log
+server_converted.log
+server_utf8.log
+*.tsbuildinfo
+
+# Vercel and Deployment
+.vercel/
+
+# Antigravity/MCP specific
+mcp-servers/
+.gemini/

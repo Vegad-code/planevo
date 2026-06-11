@@ -11,10 +11,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import type { CustomerInfo } from 'react-native-purchases';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors, type AccentId } from '@/constants/Colors';
+import { useGlobalStore } from '@/store/globalStore';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import {
+  addCustomerInfoListener,
+  getCustomerInfo,
+  isPro,
+  presentCustomerCenter,
+  presentPlanevoProPaywallIfNeeded,
+} from '@/lib/revenuecat';
 import {
   LogOut,
   User,
@@ -37,29 +46,42 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, mode, setMode, accentId, setAccent, accents } = useTheme();
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-
-  const fetchProfile = useCallback(async () => {
-    if (!user) return;
-    const { data } = await (supabase as any)
-      .from('users')
-      .select('*, notification_preferences(*)')
-      .eq('id', user.id)
-      .single();
-    setProfile(data);
-    if (data?.notification_preferences) {
-      setNotificationsEnabled(data.notification_preferences.master_toggle && data.notification_preferences.channels?.push !== false);
-    } else {
-      setNotificationsEnabled(data?.push_notifications_enabled !== false);
-    }
-    setLoading(false);
-  }, [user]);
+  const { profile, notificationPrefs, fetchProfile, updateEnergyPreference, toggleNotifications, loading: storeLoading } = useGlobalStore();
+  const notificationsEnabled = notificationPrefs?.master_toggle ?? true;
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const isPlanevoPro = isPro(customerInfo);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    if (user && !profile) {
+      fetchProfile(user.id);
+    }
+  }, [user, profile, fetchProfile]);
+
+  useEffect(() => {
+    let mounted = true;
+    let removeListener: (() => void) | undefined;
+
+    const loadSubscription = async () => {
+      const info = await getCustomerInfo();
+      if (mounted) {
+        setCustomerInfo(info);
+      }
+
+      removeListener = addCustomerInfoListener((updatedInfo) => {
+        if (mounted) {
+          setCustomerInfo(updatedInfo);
+        }
+      });
+    };
+
+    loadSubscription();
+
+    return () => {
+      mounted = false;
+      removeListener?.();
+    };
+  }, []);
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -72,68 +94,62 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const toggleNotifications = async (value: boolean) => {
-    setNotificationsEnabled(value);
-    if (!user) return;
+  const refreshSubscription = async () => {
+    const info = await getCustomerInfo();
+    setCustomerInfo(info);
+    return info;
+  };
+
+  const handleOpenCustomerCenter = async () => {
+    setSubscriptionLoading(true);
 
     try {
-      const { data: existing } = await (supabase as any)
-        .from('notification_preferences')
-        .select('channels, master_toggle')
-        .eq('user_id', user.id)
-        .single();
-
-      if (existing) {
-        await (supabase as any)
-          .from('notification_preferences')
-          .update({
-             master_toggle: value ? true : existing.master_toggle,
-             channels: { ...(existing.channels || {}), push: value },
-             updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-      } else {
-        await (supabase as any)
-          .from('notification_preferences')
-          .insert({
-            user_id: user.id,
-            master_toggle: value,
-            channels: { push: value, email: true },
-            quiet_hours: {
-              enabled: false,
-              start: '22:00',
-              end: '08:00',
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-            },
-            types: {
-              daily_plan: true,
-              deadline_rescue: true,
-              weekly_review: true,
-              account: true,
-              billing: true,
-              system: true,
-            }
-          });
-      }
-
-      if (value) {
-        const { registerForPushNotifications } = await import('@/lib/notifications');
-        const token = await registerForPushNotifications(user.id);
-        if (!token) {
-          const { disablePushNotifications } = await import('@/lib/notifications');
-          await disablePushNotifications(user.id);
-          setNotificationsEnabled(false);
-        }
-      } else {
-        const { disablePushNotifications } = await import('@/lib/notifications');
-        await disablePushNotifications(user.id);
-      }
-    } catch (err) {
-      console.warn('Failed to update notifications:', err);
+      await presentCustomerCenter();
+      await refreshSubscription();
+    } catch (err: any) {
+      Alert.alert(
+        'Subscription Unavailable',
+        err?.message ?? 'Customer Center could not be opened right now.'
+      );
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
-  if (loading) {
+  const handleOpenPaywall = async () => {
+    setSubscriptionLoading(true);
+
+    try {
+      await presentPlanevoProPaywallIfNeeded();
+      await refreshSubscription();
+    } catch (err: any) {
+      Alert.alert(
+        'Plans Unavailable',
+        err?.message ?? 'Planevo Pro plans could not be loaded right now.'
+      );
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const handleToggleNotifications = async (value: boolean) => {
+    await toggleNotifications(value);
+  };
+
+  const handleChangeEnergy = () => {
+    Alert.alert(
+      "Energy Preference",
+      "How do you prefer to tackle tasks?",
+      [
+        { text: "Low (Easy tasks first)", onPress: () => updateEnergyPreference("low") },
+        { text: "Medium (Balanced)", onPress: () => updateEnergyPreference("medium") },
+        { text: "High (Hardest tasks first)", onPress: () => updateEnergyPreference("high") },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
+
+  if (storeLoading && !profile) {
     return (
       <SafeAreaView style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={Colors.brand[500]} />
@@ -161,7 +177,7 @@ export default function SettingsScreen() {
             <View style={[styles.planBadge, { backgroundColor: Colors.brand[50], borderColor: Colors.brand[300] }]}>
               <Zap size={10} color={Colors.brand[600]} strokeWidth={2.5} fill={Colors.brand[600]} />
               <Text style={[styles.planBadgeText, { color: Colors.brand[600] }]}>
-                {(profile?.plan_type || 'trial').toUpperCase()}
+                {(isPlanevoPro ? 'Planevo Pro' : profile?.plan_type || 'trial').toUpperCase()}
               </Text>
             </View>
           </View>
@@ -193,7 +209,7 @@ export default function SettingsScreen() {
         {/* Preferences Section */}
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>PREFERENCES</Text>
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <View style={styles.row}>
+          <TouchableOpacity style={styles.row} onPress={handleChangeEnergy}>
             <View style={styles.rowLeft}>
               <Zap size={18} color={Colors.brand[500]} strokeWidth={2.5} />
               <View>
@@ -204,7 +220,7 @@ export default function SettingsScreen() {
               </View>
             </View>
             <ChevronRight size={16} color={colors.textMuted} strokeWidth={2.5} />
-          </View>
+          </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: colors.separator }]} />
           <View style={styles.row}>
             <View style={styles.rowLeft}>
@@ -213,7 +229,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={notificationsEnabled}
-              onValueChange={toggleNotifications}
+              onValueChange={handleToggleNotifications}
               trackColor={{ false: colors.separator, true: colors.tint }}
               thumbColor={'#ffffff'}
               testID="settings-notifications-toggle"
@@ -275,6 +291,30 @@ export default function SettingsScreen() {
               })}
             </View>
           </View>
+        </View>
+
+        {/* Subscription Section */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>SUBSCRIPTION</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <SettingsRow
+            icon={<Zap size={18} color={Colors.brand[500]} strokeWidth={2.5} />}
+            label="Manage Subscription"
+            detail={subscriptionLoading ? 'Loading...' : 'Open Customer Center'}
+            connected={isPlanevoPro}
+            colors={colors}
+            testID="settings-subscription-manage"
+            onPress={handleOpenCustomerCenter}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.separator }]} />
+          <SettingsRow
+            icon={<Zap size={18} color={Colors.brand[500]} strokeWidth={2.5} />}
+            label="Planevo Pro"
+            detail={isPlanevoPro ? 'Active' : 'View Plans'}
+            connected={isPlanevoPro}
+            colors={colors}
+            testID="settings-subscription-paywall"
+            onPress={handleOpenPaywall}
+          />
         </View>
 
         {/* Account Section */}

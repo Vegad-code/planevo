@@ -49,7 +49,7 @@ export const PlanevoReceiptEmail = ({
         <Body className="bg-cream font-sans text-dark py-10">
           <Container className="bg-white mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[500px] shadow-sm">
             <Section className="mb-4 text-center">
-              <Img src="https://planevo.app/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
+              <Img src="https://planevo.co/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
             </Section>
 
             <Heading className="text-2xl font-bold mb-4 text-dark text-center">
@@ -69,7 +69,7 @@ export const PlanevoReceiptEmail = ({
             <Section className="text-center">
               <Button
                 className="bg-honey text-dark font-semibold py-3 px-8 rounded-full no-underline inline-block"
-                href="https://planevo.app/dashboard"
+                href="https://planevo.co/dashboard"
               >
                 Go to Dashboard
               </Button>

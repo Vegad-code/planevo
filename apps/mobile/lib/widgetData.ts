@@ -1,4 +1,4 @@
-import SharedGroupPreferences from 'react-native-shared-group-preferences';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { format } from 'date-fns';
 
@@ -17,9 +17,12 @@ export interface NextActionData {
  * No-ops on Android (widgets handled differently there).
  */
 export async function writeWidgetData(action: NextActionData | null): Promise<void> {
-  if (Platform.OS !== 'ios') return;
+  if (Platform.OS !== 'ios' || Constants.appOwnership === 'expo') return;
 
   try {
+    const SharedGroupPreferences =
+      require('react-native-shared-group-preferences').default;
+
     if (!action) {
       await SharedGroupPreferences.setItem('nextActionTitle', 'No plan yet', APP_GROUP);
       await SharedGroupPreferences.setItem('nextActionTime', '', APP_GROUP);

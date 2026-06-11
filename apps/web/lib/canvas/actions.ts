@@ -3,6 +3,7 @@
 
 import { CanvasAssignment } from './api';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { encryptToken, decryptToken } from '@/lib/crypto';
 
 /**
@@ -302,12 +303,11 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
   }
 }
 
-export async function saveOnboardingDataAction(data: {
-  name: string;
-  energyPreference: string;
-  canvasUrl: string;
-  canvasToken: string;
-  identityChecks: Record<number, boolean>;
+export async function saveOnboardingProgressAction(data: {
+  name?: string;
+  profileType?: string;
+  energyPreference?: string;
+  googleCalendarConnected?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
@@ -316,25 +316,116 @@ export async function saveOnboardingDataAction(data: {
       return { success: false, error: 'Unauthorized' };
     }
 
+    const { data: existingProfile } = await supabase
+      .from('users')
+      .select('scheduling_preferences')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const existingPreferences =
+      existingProfile?.scheduling_preferences &&
+      typeof existingProfile.scheduling_preferences === 'object' &&
+      !Array.isArray(existingProfile.scheduling_preferences)
+        ? existingProfile.scheduling_preferences as Record<string, unknown>
+        : {};
+
+    const updates: Record<string, unknown> = {};
+    if (data.name) updates.name = data.name;
+    if (data.energyPreference) updates.energy_preference = data.energyPreference;
+    
+    // Merge new scheduling_preferences
+    const newPrefs = { ...existingPreferences };
+    if (data.profileType) newPrefs.onboarding_profile_type = data.profileType;
+    if (data.energyPreference) newPrefs.preferred_focus_time = data.energyPreference;
+    
+    if (!newPrefs.onboarding_sources) {
+      newPrefs.onboarding_sources = {};
+    }
+    if (data.googleCalendarConnected !== undefined) {
+      (newPrefs.onboarding_sources as any).google_calendar = data.googleCalendarConnected;
+    }
+
+    updates.scheduling_preferences = newPrefs;
+
+    const { error } = await supabase
+      .from('users')
+      .update(updates as any)
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Failed to save onboarding progress:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving onboarding progress:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+
+
+export async function saveOnboardingDataAction(data: {
+  name: string;
+  energyPreference: string;
+  canvasUrl: string;
+  canvasToken: string;
+  identityChecks: Record<number, boolean>;
+  profileType?: string;
+  calendarSkipped?: boolean;
+  googleCalendarConnected?: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: userError?.message || 'Unauthorized - saveOnboardingDataAction' };
+    }
+
     const activeChecks = Object.keys(data.identityChecks)
       .filter((k: any) => data.identityChecks[k])
       .map(k => parseInt(k, 10));
 
     const encryptedToken = data.canvasToken ? encryptToken(data.canvasToken) : null;
 
+    const { data: existingProfile } = await supabase
+      .from('users')
+      .select('scheduling_preferences')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const existingPreferences =
+      existingProfile?.scheduling_preferences &&
+      typeof existingProfile.scheduling_preferences === 'object' &&
+      !Array.isArray(existingProfile.scheduling_preferences)
+        ? existingProfile.scheduling_preferences as Record<string, unknown>
+        : {};
+
+    const updates: Record<string, unknown> = {
+      name: data.name || 'Pilot',
+      energy_preference: data.energyPreference || 'morning',
+      scheduling_preferences: {
+        ...existingPreferences,
+        preferred_focus_time: data.energyPreference || 'morning',
+        identity_checks: activeChecks,
+        onboarding_profile_type: data.profileType || 'student',
+        onboarding_sources: {
+          canvas: Boolean(data.canvasUrl && data.canvasToken),
+          google_calendar: Boolean(data.googleCalendarConnected),
+          skipped_canvas: !data.canvasUrl || !data.canvasToken,
+          skipped_calendar: Boolean(data.calendarSkipped && !data.googleCalendarConnected),
+        },
+      },
+    };
+
+    if (data.canvasUrl && encryptedToken) {
+      updates.canvas_url = data.canvasUrl;
+      updates.canvas_token = encryptedToken;
+    }
+
     const { error } = await supabase
       .from('users')
-      .update({
-        onboarding_complete: true,
-        name: data.name || 'Pilot',
-        energy_preference: data.energyPreference || 'morning',
-        canvas_url: data.canvasUrl,
-        canvas_token: encryptedToken,
-        scheduling_preferences: {
-          preferred_focus_time: data.energyPreference || 'morning',
-          identity_checks: activeChecks
-        }
-      } as any)
+      .update(updates as any)
       .eq('id', user.id);
 
     if (error) {
@@ -354,6 +445,35 @@ export async function saveOnboardingDataAction(data: {
   }
 }
 
+export async function completeFreeOnboardingAction() {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { success: false, error: userError?.message || 'Unauthorized - completeFreeOnboardingAction' };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('users')
+      .update({
+        onboarding_complete: true,
+        plan_type: 'free',
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Failed to complete free onboarding:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error completing free onboarding:', err);
+    return { success: false, error: err.message || 'Unknown error' };
+  }
+}
+
 export async function getCanvasCredentialsAction(returnUnmasked = false): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
   try {
     const supabase = await createClient();
@@ -363,6 +483,7 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
     }
 
     // Try integration_accounts first
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { data: account, error: accountError } = await supabase
       .from('integration_accounts')
       .select('metadata, access_token_encrypted')
@@ -378,6 +499,7 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
       canvasUrl = (account.metadata as any)?.canvas_url || '';
     } else {
       // Fallback to legacy
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { data: legacyData, error: legacyError } = await supabase
         .from('users')
         .select('canvas_url, canvas_token')
@@ -468,6 +590,7 @@ export async function disconnectCanvasAction(deleteData: boolean = false): Promi
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function syncCanvasIntegrationAction(force = false): Promise<number> {
   const supabase = await createClient();
 
@@ -531,7 +654,7 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
     const milestonesOnly = upcoming.filter(item => item.type === 'milestone');
 
     let itemsCreated = 0;
-    let itemsUpdated = 0;
+    const itemsUpdated = 0;
 
     // We will save courses (context_codes) as sources
     const courseIds = new Set<string>();

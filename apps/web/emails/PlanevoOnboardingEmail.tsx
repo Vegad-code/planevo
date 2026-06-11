@@ -5,7 +5,6 @@ import {
   Head,
   Heading,
   Html,
-  Img,
   Preview,
   Section,
   Text,
@@ -13,26 +12,19 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 
-interface OnboardingEmailProps {
+interface PlanevoOnboardingEmailProps {
   firstName?: string;
   day?: 1 | 3;
 }
 
-export const PlanevoOnboardingEmail = ({
+export function PlanevoOnboardingEmail({
   firstName = "there",
   day = 1,
-}: OnboardingEmailProps) => {
-  const isDay1 = day === 1;
-  const previewText = isDay1
-    ? "Welcome to Planevo!"
-    : "Time Blocking: The secret to getting things done";
-
-  const headline = isDay1 ? "Welcome to Planevo!" : "Master your schedule";
-  const bodyText = isDay1
-    ? `Welcome to Planevo! We'll be helping you organize your days and smash your goals without the overwhelm. To get started, try adding a few tasks to your Inbox.`
-    : `It's day 3! The best way to use Planevo is through Time Blocking. Drag your tasks directly onto your calendar to protect your focus time.`;
-
-  const showLogo = isDay1;
+}: PlanevoOnboardingEmailProps) {
+  const isDayOne = day === 1;
+  const previewText = isDayOne
+    ? "Bruno is ready to build your first Planevo plan."
+    : "A calmer way to time-block your next focus window.";
 
   return (
     <Html>
@@ -44,56 +36,50 @@ export const PlanevoOnboardingEmail = ({
             extend: {
               colors: {
                 cream: "#faf8f3",
+                paper: "#ffffff",
                 honey: "#d4a574",
-                sage: "#9caf88",
-                dark: "#1a1a1a",
+                ink: "#1a1a1a",
                 muted: "#4a4a4a",
               },
             },
           },
         }}
       >
-        <Body className="bg-cream font-sans text-dark py-10">
-          <Container className="bg-white mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[500px] text-center shadow-sm">
-            {showLogo ? (
-              <Section className="mb-4 text-center">
-                <Img src="https://planevo.app/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
-              </Section>
-            ) : (
-              <Section className="mb-4">
-                <Text className="text-5xl m-0">⏱️</Text>
-              </Section>
-            )}
-
-            <Heading className="text-2xl font-bold mb-4 text-dark">
-              {headline}
+        <Body className="bg-cream font-sans text-ink py-10">
+          <Container className="bg-paper mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[520px] shadow-sm">
+            <Heading className="text-2xl font-bold mb-4 text-ink">
+              {isDayOne ? `Welcome to Planevo, ${firstName}.` : `Time-blocking without the guilt, ${firstName}.`}
             </Heading>
 
-            <Text className="text-muted text-base leading-relaxed mb-6">
-              Hey {firstName},
+            <Text className="text-muted text-base leading-relaxed mb-5">
+              {isDayOne
+                ? "Bruno can help turn your tasks, class deadlines, and calendar into one practical plan for the day."
+                : "The trick is not filling every minute. It is protecting the right windows for the right kind of work."}
             </Text>
 
             <Text className="text-muted text-base leading-relaxed mb-8">
-              {bodyText}
+              {isDayOne
+                ? "Open Planevo, finish setup, and Bruno will show you the first useful plan before you land in the dashboard."
+                : "Open your Daily Plan when you are ready, and let Bruno move the logistics around the work that matters."}
             </Text>
 
-            <Section className="mb-8">
+            <Section className="text-center">
               <Button
-                className="bg-honey text-dark font-semibold py-3 px-8 rounded-full no-underline inline-block"
-                href="https://planevo.app/dashboard"
+                className="bg-honey text-ink font-semibold py-3 px-8 rounded-full no-underline inline-block"
+                href="https://planevo.co/onboarding"
               >
-                Open Planevo
+                {isDayOne ? "Finish setup" : "Open Planevo"}
               </Button>
             </Section>
 
-            <Text className="text-[#aaa] text-xs mt-8 leading-relaxed">
-              The Planevo Team
+            <Text className="text-[#aaa] text-xs mt-8 leading-relaxed text-center">
+              Planevo helps you plan without shame. You can change notification preferences in Settings.
             </Text>
           </Container>
         </Body>
       </Tailwind>
     </Html>
   );
-};
+}
 
 export default PlanevoOnboardingEmail;

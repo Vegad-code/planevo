@@ -280,6 +280,10 @@ export default function BrunoChatScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
+      if (!token) {
+        throw new Error('Your session has expired. Please log out and log back in.');
+      }
+
       const apiMessages = currentMessages.map(m => ({
         role: m.role === 'bruno' ? 'assistant' : 'user',
         content: m.content
@@ -314,8 +318,9 @@ export default function BrunoChatScreen() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Chat error:', response.status, errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -383,7 +388,7 @@ export default function BrunoChatScreen() {
             
             {/* Render Tool Calls */}
             {!isUser && item.toolCalls && item.toolCalls.length > 0 && (
-              <View style={{ marginTop: 12 }}>
+              <View style={{ marginTop: 12, gap: 8 }}>
                 {item.toolCalls.map((tc, idx) => {
                   if (tc.toolName === 'propose_plan_draft' && tc.args) {
                      return (
@@ -399,7 +404,19 @@ export default function BrunoChatScreen() {
                        />
                      );
                   }
-                  return null;
+                  // Render generic tool call chip
+                  return (
+                    <View key={idx} style={[styles.toolCallChip, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)' }]}>
+                      <Bot size={12} color={colors.textMuted} />
+                      <Text style={[styles.toolCallText, { color: colors.textMuted }]}>
+                        {tc.toolName === 'create_task' ? `Created Task: ${tc.args.title}` :
+                         tc.toolName === 'reschedule_task' ? `Rescheduled Task` :
+                         tc.toolName === 'break_down_task' ? `Broken down into ${tc.args.subtasks?.length || 0} subtasks` :
+                         tc.toolName === 'create_calendar_block' ? `Created Calendar Block: ${tc.args.title}` :
+                         `Ran ${tc.toolName}`}
+                      </Text>
+                    </View>
+                  );
                 })}
               </View>
             )}
@@ -450,7 +467,16 @@ export default function BrunoChatScreen() {
             <Plus size={16} color="#fff" />
             <Text style={styles.newChatText}>New Chat</Text>
           </TouchableOpacity>
-          <FlatList
+                  {messages.length === 1 && (
+          <View style={styles.quickActionsContainer}>
+            {['Plan my day', 'Break down my project', 'Reschedule my week'].map((action, idx) => (
+              <TouchableOpacity key={idx} style={[styles.quickActionBtn, { borderColor: colors.separator }]} onPress={() => setInputText(action)}>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>{action}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        <FlatList
             data={conversations}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -524,7 +550,9 @@ export default function BrunoChatScreen() {
               : options.createTasks ? 'tasks_only' 
               : 'calendar_only';
             
-            const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.`;
+            // We inject the approved items JSON into the message so the backend AI knows exactly what to commit
+            // without needing the full tool-call history from previous messages.
+            const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.\n\nApproved items to commit:\n${JSON.stringify(approvedItems, null, 2)}`;
             
             setInputText(approvalMessage);
             setPreviewPlanData(null);
@@ -549,6 +577,15 @@ export default function BrunoChatScreen() {
             <Text style={{ color: '#f59e0b', fontSize: 12, textAlign: 'center', fontWeight: '500' }}>
               This conversation is getting long. Start a new chat for better memory.
             </Text>
+          </View>
+        )}
+                {messages.length === 1 && (
+          <View style={styles.quickActionsContainer}>
+            {['Plan my day', 'Break down my project', 'Reschedule my week'].map((action, idx) => (
+              <TouchableOpacity key={idx} style={[styles.quickActionBtn, { borderColor: colors.separator }]} onPress={() => setInputText(action)}>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>{action}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
         <FlatList
@@ -789,6 +826,35 @@ const styles = StyleSheet.create({
   deleteModalConfirmText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  quickActionsContainer: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  quickActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  quickActionText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  toolCallChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  toolCallText: {
+    fontSize: 11,
     fontWeight: '600',
   },
   mentionsContainer: {

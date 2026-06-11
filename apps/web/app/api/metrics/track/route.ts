@@ -62,6 +62,7 @@ export async function POST(request: Request) {
 
     if (existing) {
       const newValue = Math.max(0, (existing[column as keyof typeof existing] as number) + value);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updatePayload = { [column]: newValue, updated_at: new Date().toISOString() } as any;
       const { error } = await supabase
         .from('daily_user_metrics')
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
     } else {
       const { error } = await supabase
         .from('daily_user_metrics')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert(insertRow as any);
 
       if (error) {

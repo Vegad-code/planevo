@@ -21,6 +21,8 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+import { supabase } from '@/lib/supabase';
+
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const deviceScheme = useDeviceColorScheme() ?? 'light';
   const [mode, setModeState] = useState<ThemeMode>('system');
@@ -29,10 +31,35 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const savedMode = (await SecureStore.getItemAsync(MODE_KEY)) as ThemeMode | null;
-        const savedAccent = (await SecureStore.getItemAsync(ACCENT_KEY)) as AccentId | null;
-        if (savedMode) setModeState(savedMode);
-        if (savedAccent && ACCENTS[savedAccent]) setAccentState(savedAccent);
+        let finalMode: ThemeMode | null = null;
+        let finalAccent: AccentId | null = null;
+
+        // 1. Try to fetch from Supabase if logged in
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('theme, accent_color')
+            .eq('id', session.user.id)
+            .single();
+          if (profile) {
+            if (profile.theme) finalMode = profile.theme as ThemeMode;
+            if (profile.accent_color) finalAccent = profile.accent_color as AccentId;
+          }
+        }
+
+        // 2. Fall back to local secure store if Supabase has nothing
+        if (!finalMode) finalMode = (await SecureStore.getItemAsync(MODE_KEY)) as ThemeMode | null;
+        if (!finalAccent) finalAccent = (await SecureStore.getItemAsync(ACCENT_KEY)) as AccentId | null;
+
+        if (finalMode) {
+          setModeState(finalMode);
+          SecureStore.setItemAsync(MODE_KEY, finalMode).catch(() => {});
+        }
+        if (finalAccent && ACCENTS[finalAccent]) {
+          setAccentState(finalAccent);
+          SecureStore.setItemAsync(ACCENT_KEY, finalAccent).catch(() => {});
+        }
       } catch {
         /* fall back to defaults */
       }
@@ -42,11 +69,21 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const setMode = useCallback((m: ThemeMode) => {
     setModeState(m);
     SecureStore.setItemAsync(MODE_KEY, m).catch(() => {});
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase.from('users').update({ theme: m }).eq('id', session.user.id).then();
+      }
+    });
   }, []);
 
   const setAccent = useCallback((a: AccentId) => {
     setAccentState(a);
     SecureStore.setItemAsync(ACCENT_KEY, a).catch(() => {});
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase.from('users').update({ accent_color: a }).eq('id', session.user.id).then();
+      }
+    });
   }, []);
 
   const scheme: 'light' | 'dark' = mode === 'system' ? (deviceScheme as 'light' | 'dark') : mode;

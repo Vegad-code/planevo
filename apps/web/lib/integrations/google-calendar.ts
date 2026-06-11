@@ -115,6 +115,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     if (calendarsToSync.length === 0) {
       // Fallback to legacy preferences
       const { data: userPrefs } = await supabase.from('users').select('scheduling_preferences, google_calendar_id').eq('id', userId).single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prefs = userPrefs?.scheduling_preferences as Record<string, any> || {};
       calendarsToSync = prefs.google_selected_calendars || [];
       if (calendarsToSync.length === 0) {
@@ -137,6 +138,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     const timeMin = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let allEventsData: any[] = [];
 
     for (const calendarId of calendarsToSync) {
@@ -150,6 +152,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
       if (eventsResponse.ok) {
         const eventsData = await eventsResponse.json();
         if (eventsData.items) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const taggedItems = eventsData.items.map((item: any) => ({
             ...item,
             _calendarId: calendarId
@@ -206,6 +209,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
         .gte('start_time', timeMin)
         .lte('start_time', timeMax);
     } else if (events.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const currentGoogleEventIds = events.map((e: any) => e.external_id);
       const { data: existingWindowEvents } = await supabase
         .from('calendar_events')
@@ -232,7 +236,9 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     let itemsUpdated = 0;
 
     if (events.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const externalIds = events.map((e: any) => e.external_id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const existingEvents: any[] = [];
       for (let i = 0; i < externalIds.length; i += 100) {
         const chunk = externalIds.slice(i, i + 100);
@@ -274,6 +280,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
       const toUpdatePartial = [];
 
       for (const event of events) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const extId = (event as any).external_id;
         if (canvasPushedEvents.has(extId)) {
           const existing = canvasPushedEvents.get(extId);
@@ -295,11 +302,13 @@ export async function syncGoogleCalendar(userId: string, force = false) {
       }
 
       if (toInsert.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insertError } = await supabase.from('calendar_events').insert(toInsert as any);
         if (insertError) throw insertError;
       }
 
       if (toUpdateFull.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: updateError } = await supabase.from('calendar_events').upsert(toUpdateFull as any, { onConflict: 'id' });
         if (updateError) throw updateError;
       }
@@ -325,6 +334,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     }
 
     return events.length;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
@@ -414,10 +424,12 @@ export async function fetchGoogleCalendars(userId: string) {
   // Fallback to preferences if no sources found
   if (selectedIds.length === 0) {
     const { data: userPrefs } = await supabase.from('users').select('scheduling_preferences').eq('id', userId).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prefs = userPrefs?.scheduling_preferences as Record<string, any> || {};
     selectedIds = prefs.google_selected_calendars || [];
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const calendars = data.items.map((cal: any) => ({
     id: cal.id,
     summary: cal.summaryOverride || cal.summary,
@@ -429,6 +441,7 @@ export async function fetchGoogleCalendars(userId: string) {
   return calendars;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function pushEventToGoogle(userId: string, eventData: any) {
   // Gate: only push if user has explicitly granted write scope
   const canWrite = await hasGoogleWriteScope(userId);

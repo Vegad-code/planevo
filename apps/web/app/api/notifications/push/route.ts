@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-import { sendMorningPlanEmail } from '@/lib/email';
+import { buildEmailIdempotencyKey, sendMorningPlanEmail } from '@/lib/email';
 import {
   canSendNotification,
   getLocalDateKey,
@@ -26,6 +26,22 @@ type PushUser = {
     quiet_hours: { enabled: boolean; start: string; end: string; timezone: string };
     types: Record<string, boolean>;
   } | null;
+};
+
+type ExpoPushMessage = {
+  to: string;
+  sound: 'default';
+  title: string;
+  body: string;
+  data: { screen: string };
+};
+
+type ExpoPushTicket =
+  | { status: 'ok'; id?: string }
+  | { status: 'error'; message?: string; details?: { error?: string } };
+
+type ExpoPushResponse = {
+  data?: ExpoPushTicket[];
 };
 
 function isAuthorized(request: NextRequest) {
@@ -106,8 +122,9 @@ async function sendMorningPushes(request: NextRequest) {
     taskCounts.set(userId, (taskCounts.get(userId) ?? 0) + 1);
   }
 
-  const messages: any[] = [];
+  const messages: ExpoPushMessage[] = [];
   const emailPromises: Promise<void>[] = [];
+  let sentEmails = 0;
   const now = new Date();
 
   // Keep track of which push corresponds to which user to clean up invalid tokens
@@ -138,14 +155,14 @@ async function sendMorningPushes(request: NextRequest) {
       user.expo_push_token &&
       !(await hasNotificationDelivery(supabase, user.id, 'daily_plan', 'push', dedupeKey))
     ) {
-        messages.push({
-          to: user.expo_push_token,
-          sound: 'default',
-          title: 'Your daily plan is ready',
-          body: `${count} ${count === 1 ? 'thing' : 'things'} on your plate today. Tap to see your plan.`,
-          data: { screen: 'index' },
-        });
-        messageDeliveries.push({ userId: user.id, dedupeKey });
+      messages.push({
+        to: user.expo_push_token,
+        sound: 'default',
+        title: 'Your daily plan is ready',
+        body: `${count} ${count === 1 ? 'thing' : 'things'} on your plate today. Tap to see your plan.`,
+        data: { screen: 'index' },
+      });
+      messageDeliveries.push({ userId: user.id, dedupeKey });
     }
 
     if (
@@ -153,20 +170,25 @@ async function sendMorningPushes(request: NextRequest) {
       user.email &&
       !(await hasNotificationDelivery(supabase, user.id, 'daily_plan', 'email', dedupeKey))
     ) {
-        emailPromises.push(
-          sendMorningPlanEmail(user.email, user.name || 'Pilot', count)
-            .then(() => recordNotificationDelivery(
-              supabase,
-              user.id,
-              'daily_plan',
-              'email',
-              dedupeKey,
-              { task_count: count }
-            ))
-            .catch((e) => {
-              console.error(`Failed to send morning plan email to ${user.email}`, e);
-            })
-        );
+      emailPromises.push(
+        sendMorningPlanEmail(user.email, user.name || 'Pilot', count, {
+          idempotencyKey: buildEmailIdempotencyKey('daily_plan', 'email', user.id, dedupeKey),
+        })
+          .then((providerMessageId) => recordNotificationDelivery(
+            supabase,
+            user.id,
+            'daily_plan',
+            'email',
+            dedupeKey,
+            { provider: 'resend', provider_message_id: providerMessageId ?? null, task_count: count }
+          ))
+          .then(() => {
+            sentEmails++;
+          })
+          .catch((e) => {
+            console.error(`Failed to send morning plan email to ${user.email}`, e);
+          })
+      );
     }
   }
 
@@ -185,21 +207,23 @@ async function sendMorningPushes(request: NextRequest) {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const result = await response.json() as ExpoPushResponse;
         // Check for DeviceNotRegistered errors
         const invalidTokens: string[] = [];
         if (result.data) {
-          result.data.forEach((receipt: any, idx: number) => {
+          for (let idx = 0; idx < result.data.length; idx++) {
+            const receipt = result.data[idx];
             if (receipt.status === 'ok') {
               sentPush++;
               const delivery = batchDeliveries[idx];
               if (delivery) {
-                void recordNotificationDelivery(
+                await recordNotificationDelivery(
                   supabase,
                   delivery.userId,
                   'daily_plan',
                   'push',
-                  delivery.dedupeKey
+                  delivery.dedupeKey,
+                  { provider: 'expo', ticket_id: receipt.id ?? null }
                 );
               }
             } else if (receipt.status === 'error') {
@@ -209,7 +233,7 @@ async function sendMorningPushes(request: NextRequest) {
                 if (userId) invalidTokens.push(userId);
               }
             }
-          });
+          }
         }
 
         // Cleanup stale tokens
@@ -233,10 +257,10 @@ async function sendMorningPushes(request: NextRequest) {
   await Promise.all(emailPromises);
 
   return NextResponse.json({
-    message: `Sent ${sentPush} morning push notifications, and ${emailPromises.length} emails`,
+    message: `Sent ${sentPush} morning push notifications, and ${sentEmails} emails`,
     sent_push: sentPush,
     failed_push: failedPush,
-    sent_emails: emailPromises.length,
+    sent_emails: sentEmails,
     total_users_targeted: pushUsers.length,
   });
 }

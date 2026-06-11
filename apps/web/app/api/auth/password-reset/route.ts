@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { sendPasswordResetEmail } from '@/lib/email';
+import { buildEmailIdempotencyKey, sendPasswordResetEmail } from '@/lib/email';
 import {
   hasNotificationDelivery,
   recordNotificationDelivery,
@@ -59,13 +59,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password reset email could not be prepared.' }, { status: 500 });
     }
 
-    await sendPasswordResetEmail(email, actionLink);
+    const providerMessageId = await sendPasswordResetEmail(email, actionLink, {
+      idempotencyKey: buildEmailIdempotencyKey('password_reset', 'email', profile.id, dedupeKey),
+    });
     await recordNotificationDelivery(
       supabaseAdmin,
       profile.id,
       'password_reset',
       'email',
-      dedupeKey
+      dedupeKey,
+      { provider: 'resend', provider_message_id: providerMessageId ?? null }
     );
 
     return NextResponse.json({ success: true });

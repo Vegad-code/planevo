@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { sendTestNotificationEmail } from '@/lib/email';
+import { buildEmailIdempotencyKey, sendTestNotificationEmail } from '@/lib/email';
 import {
   canSendNotification,
   type NotificationPreferences,
 } from '@/lib/notifications/preferences';
+import { recordNotificationDelivery, getRecentTestNotificationCount } from '@/lib/notifications/delivery';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
@@ -31,7 +33,27 @@ export async function POST() {
       return NextResponse.json({ error: 'Email notifications are disabled in your notification settings.' }, { status: 400 });
     }
 
-    await sendTestNotificationEmail(userData.email, userData.name || 'there');
+    // Rate Limit: Max 3 test emails per week (168 hours)
+    const recentCount = await getRecentTestNotificationCount(supabase, user.id, 'email', 168);
+    if (recentCount >= 3) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. You can only send 3 test emails per week to prevent abuse.' },
+        { status: 429 }
+      );
+    }
+
+    const dedupeKey = `test-${Date.now()}`;
+    const providerMessageId = await sendTestNotificationEmail(userData.email, userData.name || 'there', {
+      idempotencyKey: buildEmailIdempotencyKey('test_email', 'email', user.id, dedupeKey),
+    });
+    await recordNotificationDelivery(
+      supabaseAdmin,
+      user.id,
+      'test_email',
+      'email',
+      dedupeKey,
+      { provider: 'resend', provider_message_id: providerMessageId ?? null }
+    );
 
     return NextResponse.json({ success: true, message: 'Test email sent successfully' });
   } catch (error) {

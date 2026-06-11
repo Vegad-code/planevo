@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendWelcomeEmail } from '@/lib/email';
-import { canSendNotification } from '@/lib/notifications/preferences';
+import { buildEmailIdempotencyKey, sendWelcomeEmail } from '@/lib/email';
+import { canSendNotification, type NotificationPreferences } from '@/lib/notifications/preferences';
 import {
   hasNotificationDelivery,
   recordNotificationDelivery,
 } from '@/lib/notifications/delivery';
 
+type WelcomeUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  created_at: string;
+  notification_preferences: Partial<NotificationPreferences> | null;
+};
+
 /**
  * GET /api/cron/welcome-series
  *
- * Vercel Cron job — runs daily.
+ * Vercel Cron job - runs daily.
  * Finds users created 1 day ago and 3 days ago, and sends them
  * the respective welcome series email.
  *
@@ -59,10 +67,11 @@ export async function GET(request: NextRequest) {
     }
 
     const emailPromises: Promise<void>[] = [];
+    let sentEmails = 0;
 
-    for (const user of users) {
+    for (const user of users as unknown as WelcomeUser[]) {
       if (!user.email) continue;
-      if (!canSendNotification((user as any).notification_preferences, 'email', 'account')) {
+      if (!canSendNotification(user.notification_preferences, 'email', 'account')) {
         continue;
       }
 
@@ -76,14 +85,20 @@ export async function GET(request: NextRequest) {
       }
 
       emailPromises.push(
-        sendWelcomeEmail(user.email, user.name || 'Pilot', day)
-          .then(() => recordNotificationDelivery(
+        sendWelcomeEmail(user.email, user.name || 'Pilot', day, {
+          idempotencyKey: buildEmailIdempotencyKey('welcome_series', 'email', user.id, dedupeKey),
+        })
+          .then((providerMessageId) => recordNotificationDelivery(
             supabase,
             user.id,
             'welcome_series',
             'email',
-            dedupeKey
+            dedupeKey,
+            { provider: 'resend', provider_message_id: providerMessageId ?? null, day }
           ))
+          .then(() => {
+            sentEmails++;
+          })
           .catch(err => {
             console.error(`Failed to send Day ${day} welcome email to ${user.email}:`, err);
           })
@@ -93,10 +108,9 @@ export async function GET(request: NextRequest) {
     await Promise.all(emailPromises);
 
     return NextResponse.json({
-      message: `Sent ${emailPromises.length} welcome series emails`,
-      sent: emailPromises.length
+      message: `Sent ${sentEmails} welcome series emails`,
+      sent: sentEmails,
     });
-
   } catch (error) {
     console.error('[cron/welcome-series] Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

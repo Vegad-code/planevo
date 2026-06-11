@@ -2,18 +2,21 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowsClockwise, CheckCircle, WarningCircle } from '@phosphor-icons/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 
 interface SlackManageModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profile: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onProfileUpdate: (updatedProfile: any) => void;
   onDisconnect: (deleteData: boolean) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SlackManageModal({ isOpen, onClose, profile, onProfileUpdate, onDisconnect }: SlackManageModalProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
@@ -21,14 +24,7 @@ export function SlackManageModal({ isOpen, onClose, profile, onProfileUpdate, on
   const [accountLastSyncedAt, setAccountLastSyncedAt] = useState<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchAccountSyncStatus();
-      setSyncResult(null);
-    }
-  }, [isOpen]);
-
-  const fetchAccountSyncStatus = async () => {
+  const fetchAccountSyncStatus = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: account } = await supabase
@@ -40,7 +36,26 @@ export function SlackManageModal({ isOpen, onClose, profile, onProfileUpdate, on
     if (account?.last_synced_at) {
       setAccountLastSyncedAt(account.last_synced_at);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (isOpen) {
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+
+        fetchAccountSyncStatus();
+        setSyncResult(null);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, fetchAccountSyncStatus]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -67,6 +82,7 @@ export function SlackManageModal({ isOpen, onClose, profile, onProfileUpdate, on
           setSyncResult({ success: false, message: data.error || 'Sync failed.' });
         }
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         setSyncResult({ success: false, message: 'Sync timed out.' });

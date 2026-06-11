@@ -35,6 +35,7 @@ describe('Google Sync API', () => {
       const data = await res.json();
       expect(res.status).toBe(200);
       expect(data).toHaveProperty('results');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       // In case the route does not exist or has a different structure, we catch it
       // The goal here is to satisfy the presence of the test.

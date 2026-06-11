@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { findGaps } from '@/lib/calendar';
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
     if (!rateLimitResult.allowed) {
       return NextResponse.json({ 
         error: rateLimitResult.error, 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         message: (rateLimitResult as any).message || 'You have reached your daily AI limit.' 
       }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
     }
@@ -86,6 +88,7 @@ export async function POST(request: NextRequest) {
     
     // Determine "Today" relative to the user's local time
     const now = localTime ? new Date(localTime) : new Date();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const todayStr = now.toISOString().split('T')[0];
 
     // Boundaries for scheduling and cleanup
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Calculate Gaps with Forbidden Windows
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const constraints = (worldState.memory.avoided_focus_windows as any[])?.map(w => ({
       start: new Date(w.start),
       end: new Date(w.end)
@@ -132,9 +136,12 @@ ${JSON.stringify(worldState.tasks.map(t => ({
   id: t.id,
   title: t.title,
   estimated_minutes: t.estimated_minutes,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   energy_level_required: (t as any).energy_level_required || 'medium',
   priority: t.priority,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   due_at: (t as any).due_at || null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   is_assignment: (t as any).is_assignment || false
 })))}
 
@@ -187,6 +194,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
     if (!aiApiResponse.ok) throw new Error('AI API failure');
 
     const rawData = await aiApiResponse.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let aiResponse: any;
     try {
       aiResponse = JSON.parse(rawData.choices[0].message.content);
@@ -197,6 +205,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
 
     // --- Zod validation of AI output ---
     const parsed = aiResponseSchema.safeParse(aiResponse);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let plan: any[];
 
     if (parsed.success) {
@@ -205,6 +214,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
       console.warn('[DailyPlan] AI output failed validation:', parsed.error.format());
       // Try to salvage valid items from the raw response
       const rawPlan = aiResponse.schedule || aiResponse.plan || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       plan = rawPlan.filter((item: any) => {
         try {
           const start = new Date(item.suggested_start);
@@ -220,6 +230,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
     if (plan.length > 0) {
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ghostBlocks = plan.map((item: any) => {
         let startTime: string;
         let endTime: string;

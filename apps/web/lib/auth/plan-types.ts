@@ -27,3 +27,11 @@ export function normalizePlanType(raw: string | null | undefined): PlanType {
       return 'free';
   }
 }
+
+export function isPaidPlan(plan: PlanType, isOwner = false): boolean {
+  return plan === 'premium' || plan === 'student' || plan === 'trialing' || (plan === 'admin' && isOwner);
+}
+
+export function isFreeLikePlan(plan: PlanType): boolean {
+  return plan === 'free' || plan === 'canceled';
+}

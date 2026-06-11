@@ -2,7 +2,7 @@ import SettingsSidebar from '@/components/settings/SettingsSidebar';
 import SettingsSearch from '@/components/settings/SettingsSearch';
 import { createClient } from '@/lib/supabase/server';
 
-import { normalizePlanType } from '@/lib/auth/plan-types';
+import { isPaidPlan, normalizePlanType } from '@/lib/auth/plan-types';
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -25,12 +25,11 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       const effectivePlan = (plan === 'admin' && !isOwner) ? 'free' : plan;
 
       if (effectivePlan === 'trialing' && data.trial_end) {
+        // eslint-disable-next-line react-hooks/purity
         const daysLeft = Math.ceil((new Date(data.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         membershipBadge = daysLeft > 0 ? `TRIAL · ${daysLeft}D` : 'TRIAL ENDED';
-      } else if (['premium', 'student', 'admin'].includes(effectivePlan)) {
-        membershipBadge = effectivePlan.toUpperCase();
-      } else if (effectivePlan === 'canceled') {
-        membershipBadge = 'CANCELED';
+      } else if (isPaidPlan(effectivePlan, isOwner)) {
+        membershipBadge = effectivePlan === 'student' ? 'STUDENT' : 'PRO';
       } else {
         membershipBadge = 'FREE';
       }

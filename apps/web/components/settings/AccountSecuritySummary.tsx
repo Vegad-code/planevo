@@ -1,6 +1,7 @@
 import { SettingsSection } from './ui/SettingsSection';
 import { SettingsRow } from './ui/SettingsRow';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function AccountSecuritySummary({ initialData }: { initialData: Record<string, any> }) {
   return (
     <SettingsSection 

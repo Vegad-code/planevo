@@ -186,7 +186,7 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
                     value={prefs.quiet_hours.timezone}
                     onChange={(e) => handleUpdate({ quiet_hours: { ...prefs.quiet_hours, timezone: e.target.value } })}
                   >
-                    {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                    {timezones.map(tz => <option key={tz} value={tz} className="bg-settings-background text-settings-text">{tz}</option>)}
                   </select>
                 </div>
               </div>
@@ -210,7 +210,7 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
               }
             />
             {testMessage && (
-              <div className={`px-4 pb-4 flex items-center gap-2 text-sm font-medium ${testStatus === 'success' ? 'text-[var(--color-sage)]' : 'text-red-500'}`}>
+              <div className={`px-4 pb-4 flex items-center gap-2 text-sm font-medium ${testStatus === 'success' ? 'text-settings-brand' : 'text-red-500'}`}>
                 {testStatus === 'success' ? <CheckCircle weight="bold" /> : <WarningCircle weight="bold" />}
                 {testMessage}
               </div>
@@ -231,7 +231,7 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
               }
             />
             {emailTestMessage && (
-              <div className={`px-4 pb-4 flex items-center gap-2 text-sm font-medium ${emailTestStatus === 'success' ? 'text-[var(--color-sage)]' : 'text-red-500'}`}>
+              <div className={`px-4 pb-4 flex items-center gap-2 text-sm font-medium ${emailTestStatus === 'success' ? 'text-settings-brand' : 'text-red-500'}`}>
                 {emailTestStatus === 'success' ? <CheckCircle weight="bold" /> : <WarningCircle weight="bold" />}
                 {emailTestMessage}
               </div>

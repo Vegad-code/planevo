@@ -102,12 +102,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prefs = (profile?.scheduling_preferences || {}) as any;
+
     const prompt = `You are Bruno, the AI Life Pilot for Planevo. Generate a warm, insightful weekly review.
 
 USER PROFILE:
 Name: ${profile?.name || 'User'}
-Context: ${(profile?.scheduling_preferences as any)?.context_type || 'Professional'} (School/Workplace: ${(profile?.scheduling_preferences as any)?.organization_name || 'N/A'})
-Workload Style: ${(profile?.scheduling_preferences as any)?.workload_style || 'balanced'}
+Context: ${prefs.context_type || 'Professional'} (School/Workplace: ${prefs.organization_name || 'N/A'})
+Workload Style: ${prefs.workload_style || 'balanced'}
 Energy Preference: ${profile?.energy_preference || 'balanced'}
 
 USER AI MEMORY:

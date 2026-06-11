@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowsClockwise, CheckCircle, WarningCircle } from '@phosphor-icons/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 
@@ -17,7 +17,9 @@ interface Calendar {
 interface GoogleCalendarManageModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profile: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onProfileUpdate: (updatedProfile: any) => void;
   onDisconnect: (deleteData: boolean) => void;
 }
@@ -47,15 +49,7 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
     }).eq('id', profile.id);
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchCalendars();
-      fetchAccountSyncStatus();
-      setSyncResult(null);
-    }
-  }, [isOpen]);
-
-  const fetchAccountSyncStatus = async () => {
+  const fetchAccountSyncStatus = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: account } = await supabase
@@ -67,22 +61,43 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
     if (account?.last_synced_at) {
       setAccountLastSyncedAt(account.last_synced_at);
     }
-  };
+  }, [supabase]);
 
-  const fetchCalendars = async () => {
+  const fetchCalendars = useCallback(async () => {
     setLoadingCalendars(true);
     try {
       const res = await fetch('/api/integrations/google/calendars');
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
       const data = await res.json().catch(() => ({}));
-      if (data.success && data.calendars) {
+      if (!res.ok) {
+        console.warn('Could not fetch Google calendars:', data.error || res.statusText);
+      } else if (data.success && data.calendars) {
         setCalendars(data.calendars);
       }
     } catch (e) {
       console.error('Failed to fetch calendars', e);
     }
     setLoadingCalendars(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (isOpen) {
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+
+        fetchCalendars();
+        fetchAccountSyncStatus();
+        setSyncResult(null);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, fetchCalendars, fetchAccountSyncStatus]);
 
   const handleToggleCalendar = async (id: string) => {
     const updated = calendars.map(cal => 
@@ -132,6 +147,7 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
           setSyncResult({ success: false, message: data.error || 'Sync failed.' });
         }
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         setSyncResult({ success: false, message: 'Sync timed out.' });
@@ -176,8 +192,9 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                 <button 
                   onClick={onClose}
                   className="p-2 bg-settings-card/50 hover:bg-settings-card rounded-full transition-colors border border-settings-border"
+                  title="Close"
                 >
-                  <X size={20} className="text-[var(--color-ink-soft)]" />
+                  <X size={20} className="text-(--color-ink-soft)" />
                 </button>
               </div>
 
@@ -192,6 +209,7 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                     value={syncFrequency}
                     onChange={handleFrequencyChange}
                     className="bg-settings-bg border border-settings-border text-settings-text text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-settings-brand"
+                    title="Auto-Sync Frequency"
                   >
                     <option value="manual">Manual Only</option>
                     <option value="hourly">Every Hour</option>
@@ -229,8 +247,8 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                     animate={{ opacity: 1, y: 0 }}
                     className={`p-3 rounded-xl border flex items-start gap-3 text-xs font-bold ${
                       syncResult.success 
-                        ? 'bg-[var(--color-sage-soft)] border-[#4A3F32]/10 text-[var(--color-ink-soft)]' 
-                        : 'bg-[var(--color-rose-soft)] border-[#C56B5E]/10 text-[var(--color-rose)]'
+                        ? 'bg-(--color-sage-soft) border-[#4A3F32]/10 text-(--color-ink-soft)' 
+                        : 'bg-(--color-rose-soft) border-[#C56B5E]/10 text-(--color-rose)'
                     }`}
                   >
                     {syncResult.success ? <CheckCircle size={18} weight="fill" className="shrink-0 text-emerald-600" /> : <WarningCircle size={18} weight="fill" className="shrink-0 text-red-600" />}
@@ -269,7 +287,7 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                       {calendars.map((cal) => (
                         <div key={cal.id} className="p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => handleToggleCalendar(cal.id)}>
                           <div className="flex items-center gap-3 truncate pr-4">
-                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.colorId ? `#${cal.colorId}` : '#4A3F32' }} />
+                            <div className="w-3 h-3 rounded-full shrink-0" {...({ style: { backgroundColor: cal.colorId ? `#${cal.colorId}` : '#4A3F32' } })} />
                             <span className="text-sm font-bold text-settings-text truncate">{cal.summary}</span>
                             {cal.primary && <span className="text-[9px] font-black uppercase tracking-wider bg-settings-bg text-settings-text-muted px-2 py-0.5 rounded-full shrink-0">Primary</span>}
                           </div>
@@ -293,22 +311,22 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
                 {!isDisconnecting ? (
                   <button
                     onClick={() => setIsDisconnecting(true)}
-                    className="w-full py-3 bg-settings-card border border-[#F5D5D0] text-[var(--color-rose)] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[var(--color-rose-soft)]/30 transition-colors shadow-sm"
+                    className="w-full py-3 bg-settings-card border border-[#F5D5D0] text-(--color-rose) rounded-xl text-xs font-black uppercase tracking-widest hover:bg-(--color-rose-soft)/30 transition-colors shadow-sm"
                   >
                     Disconnect Account
                   </button>
                 ) : (
-                  <div className="bg-[var(--color-rose-soft)]/30 border border-[#F5D5D0] rounded-xl p-4 flex flex-col gap-3">
-                    <p className="text-xs font-bold text-[var(--color-rose)]">How would you like to disconnect?</p>
+                  <div className="bg-(--color-rose-soft)/30 border border-[#F5D5D0] rounded-xl p-4 flex flex-col gap-3">
+                    <p className="text-xs font-bold text-(--color-rose)">How would you like to disconnect?</p>
                     <button
                       onClick={() => onDisconnect(false)}
-                      className="w-full py-2 bg-settings-card border border-[#F5D5D0] text-[var(--color-rose)] rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
+                      className="w-full py-2 bg-settings-card border border-[#F5D5D0] text-(--color-rose) rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
                     >
                       Keep Imported Events
                     </button>
                     <button
                       onClick={() => onDisconnect(true)}
-                      className="w-full py-2 bg-[var(--color-rose)] text-white rounded-lg text-xs font-bold shadow-sm hover:bg-[#C56B5E] transition-colors"
+                      className="w-full py-2 bg-(--color-rose) text-white rounded-lg text-xs font-bold shadow-sm hover:bg-[#C56B5E] transition-colors"
                     >
                       Delete Imported Events
                     </button>

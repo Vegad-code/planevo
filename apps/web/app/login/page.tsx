@@ -45,7 +45,7 @@ export default function SignIn() {
         redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent',
+          prompt: 'select_account consent',
         },
         scopes: 'https://www.googleapis.com/auth/calendar.readonly',
       },
@@ -58,14 +58,14 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-[var(--color-paper)] text-[var(--color-ink)] font-sans">
+    <div className="min-h-screen grid lg:grid-cols-2 bg-(--color-paper) text-(--color-ink) font-sans">
       {/* Left Column: Form */}
       <div className="flex flex-col justify-center px-8 sm:px-16 md:px-24 lg:px-24 xl:px-32 py-12">
-        <div className="w-full max-w-[420px] mx-auto">
+        <div className="w-full max-w-105 mx-auto">
           {/* Back to home */}
           <Link 
             href="/" 
-            className="inline-flex items-center text-sm font-medium text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] mb-12 transition-colors group"
+            className="inline-flex items-center text-sm font-medium text-(--color-ink-faint) hover:text-(--color-ink) mb-12 transition-colors group"
           >
             <CaretLeft weight="bold" className="mr-1 h-4 w-4 transition-transform group-hover:-translate-x-1" />
             Back to Home
@@ -74,13 +74,13 @@ export default function SignIn() {
           <div className="mb-10">
             <div className="mb-8 flex items-center gap-3">
               <PlanevoLogo size={40} gapColor="var(--color-paper)" />
-              <div className="flex items-baseline tracking-tight leading-none text-[var(--color-ink)] select-none">
+              <div className="flex items-baseline tracking-tight leading-none text-(--color-ink) select-none">
                 <span className="text-4xl font-bold font-serif">Plan</span>
                 <span className="text-4xl font-serif italic">evo</span>
               </div>
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-[var(--color-ink)] mb-2">Welcome back</h1>
-            <p className="text-[var(--color-ink-soft)]">Please enter your details to sign in.</p>
+            <h1 className="text-4xl font-bold tracking-tight text-(--color-ink) mb-2">Welcome back</h1>
+            <p className="text-(--color-ink-soft)">Please enter your details to sign in.</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-6">
@@ -91,7 +91,7 @@ export default function SignIn() {
             )}
             
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-semibold text-[var(--color-ink)]">Email address</label>
+              <label htmlFor="email" className="block text-sm font-semibold text-(--color-ink)">Email address</label>
               <input 
                 id="email" 
                 type="email" 
@@ -99,21 +99,21 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] focus:outline-none focus:ring-2 focus:ring-[var(--color-honey)] focus:border-transparent transition-all placeholder:text-[var(--color-ink-faint)]"
+                className="w-full px-4 py-3 rounded-xl bg-cream border border-(--color-cream-2) focus:outline-none focus:ring-2 focus:ring-(--color-honey) focus:border-transparent transition-all placeholder:text-(--color-ink-faint)"
               />
             </div>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-semibold text-[var(--color-ink)]">Password</label>
-                <Link href="/forgot-password" className="text-sm font-medium text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] transition-colors">
+                <label htmlFor="password" className="block text-sm font-semibold text-(--color-ink)">Password</label>
+                <Link href="/forgot-password" className="text-sm font-medium text-bruno hover:text-(--color-honey-deep) transition-colors">
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
                 <input
                   id="password"
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] focus:outline-none focus:ring-2 focus:ring-[var(--color-honey)] focus:border-transparent transition-all placeholder:text-[var(--color-ink-faint)]"
+                  className="w-full px-4 py-3 rounded-xl bg-cream border border-(--color-cream-2) focus:outline-none focus:ring-2 focus:ring-(--color-honey) focus:border-transparent transition-all placeholder:text-(--color-ink-faint)"
                   placeholder="Enter your password"
                   type={isPasswordVisible ? "text" : "password"}
                   value={password}
@@ -121,7 +121,7 @@ export default function SignIn() {
                   required
                 />
                 <button
-                  className="absolute inset-y-0 right-0 flex h-full w-12 items-center justify-center text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] outline-none"
+                  className="absolute inset-y-0 right-0 flex h-full w-12 items-center justify-center text-(--color-ink-faint) hover:text-(--color-ink) outline-none"
                   type="button"
                   onClick={togglePasswordVisibility}
                   suppressHydrationWarning
@@ -141,9 +141,9 @@ export default function SignIn() {
                 id="remember" 
                 checked={rememberMe} 
                 onCheckedChange={(checked) => setRememberMe(checked === true)}
-                className="border-[var(--color-ink-soft)] data-[state=checked]:bg-[var(--color-ink)] data-[state=checked]:text-white rounded-[4px]" 
+                className="border-(--color-ink-soft) data-[state=checked]:bg-(--color-ink) data-[state=checked]:text-white rounded-sm" 
               />
-              <label htmlFor="remember" className="text-sm font-medium text-[var(--color-ink-soft)] cursor-pointer select-none">
+              <label htmlFor="remember" className="text-sm font-medium text-(--color-ink-soft) cursor-pointer select-none">
                 Remember for 30 days
               </label>
             </div>
@@ -152,7 +152,7 @@ export default function SignIn() {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full py-3.5 px-4 rounded-xl bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)] text-[var(--color-paper)] font-semibold text-base transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-ink)] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-3.5 px-4 rounded-xl bg-(--color-ink) hover:bg-(--color-ink-2) text-(--color-paper) font-semibold text-base transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-ink) disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing In...' : 'Sign In'}
               </button>
@@ -161,7 +161,7 @@ export default function SignIn() {
                 type="button" 
                 onClick={handleGoogleLogin} 
                 disabled={loading}
-                className="w-full py-3.5 px-4 rounded-xl bg-white border border-[var(--color-line-strong)] hover:bg-gray-50 text-[var(--color-ink)] font-semibold text-base transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-ink)] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-3.5 px-4 rounded-xl bg-white border border-line-strong hover:bg-gray-50 text-(--color-ink) font-semibold text-base transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-ink) disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="none">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -174,9 +174,9 @@ export default function SignIn() {
             </div>
           </form>
           
-          <p className="mt-10 text-center text-sm font-medium text-[var(--color-ink-soft)]">
-            Don't have an account?{" "}
-            <Link href="/signup" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
+          <p className="mt-10 text-center text-sm font-medium text-(--color-ink-soft)">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="text-bruno hover:text-(--color-honey-deep) font-semibold transition-colors">
               Sign up
             </Link>
           </p>
@@ -184,7 +184,7 @@ export default function SignIn() {
       </div>
 
       {/* Right Column: Hero Image */}
-      <div className="hidden lg:block relative bg-[var(--color-cream-2)] overflow-hidden">
+      <div className="hidden lg:block relative bg-(--color-cream-2) overflow-hidden">
         <Image 
           src="/planevo_login_hero.png" 
           alt="Planevo Bear Organizing Tasks" 
@@ -193,7 +193,7 @@ export default function SignIn() {
           className="object-cover"
         />
         {/* Soft overlay/gradient to blend it in slightly */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-ink)]/5 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-(--color-ink)/5 to-transparent"></div>
       </div>
     </div>
   );

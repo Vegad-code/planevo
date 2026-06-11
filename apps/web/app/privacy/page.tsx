@@ -1,9 +1,3 @@
-// TODO (pre-launch): Replace this stub with a Termly or Iubenda generated Privacy Policy.
-// Sign up at https://termly.io or https://www.iubenda.com, generate a hosted policy,
-// and either embed their script tag here or paste the generated markdown content.
-// A lawyer review is NOT required before public launch — Termly's auto-updating
-// policy is sufficient until ~500 paying users or the first school B2B contract.
-
 import Link from 'next/link';
 
 export const metadata = {
@@ -23,9 +17,7 @@ export default function PrivacyPage() {
           ← Back to Planevo
         </Link>
 
-        <div className="mb-8 inline-block bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
-          Draft — Replace with Termly before public launch
-        </div>
+
 
         <h1 className="text-5xl font-black uppercase tracking-tighter mb-2">Privacy Policy</h1>
         <p className="text-surface-500 font-bold uppercase tracking-widest text-xs mb-12">
@@ -56,10 +48,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">3. How we use AI</h2>
             <p>
-              Planevo sends task titles, due dates, and your AI memory preferences to OpenAI
-              to generate daily plans, suggestions, and chat responses. We do not send your name,
-              email, or other personal identifiers in AI prompts. OpenAI does not use Planevo
-              data to train their models (per their API terms).
+              Planevo uses AI providers to generate plans and responses from the tasks, calendar events, preferences, and messages you choose to provide. We do not sell personal data.
             </p>
           </section>
 
@@ -80,7 +69,7 @@ export default function PrivacyPage() {
             <p>
               You can export your data, delete your account, and revoke any third-party connection
               at any time from <Link href="/dashboard/settings" className="text-brand-600 underline">Settings</Link>.
-              For GDPR/CCPA requests, email us at <a href="mailto:privacy@planpilot.app" className="text-brand-600 underline">privacy@planpilot.app</a>.
+              For GDPR/CCPA requests, email us at <a href="mailto:privacy@planevo.co" className="text-brand-600 underline">privacy@planevo.co</a>.
             </p>
           </section>
 
@@ -105,7 +94,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">8. Contact</h2>
             <p>
-              Questions? Reach us at <a href="mailto:privacy@planpilot.app" className="text-brand-600 underline">privacy@planpilot.app</a>.
+              Questions? Reach us at <a href="mailto:privacy@planevo.co" className="text-brand-600 underline">privacy@planevo.co</a>.
             </p>
           </section>
         </div>

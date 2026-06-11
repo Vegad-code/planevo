@@ -48,7 +48,7 @@ export const PlanevoDeadlineRescueEmail = ({
         <Body className="bg-cream font-sans text-dark py-10">
           <Container className="bg-white mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[500px] text-center shadow-sm">
             <Section className="mb-4 text-center">
-              <Img src="https://planevo.app/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
+              <Img src="https://planevo.co/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
             </Section>
 
             <Heading className="text-2xl font-bold mb-4 text-dark">
@@ -62,7 +62,7 @@ export const PlanevoDeadlineRescueEmail = ({
             <Section className="mb-8">
               <Button
                 className="bg-dark text-white font-semibold py-3 px-8 rounded-full no-underline inline-block"
-                href="https://planevo.app/dashboard"
+                href="https://planevo.co/dashboard"
               >
                 Open Planevo
               </Button>

@@ -7,8 +7,8 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key',
     {
       cookies: {
         getAll() {
@@ -56,9 +56,11 @@ export async function updateSession(request: NextRequest) {
 
   // Redirect unauthenticated users to login
   if (!user && !isPublicRoute) {
-    // Check if it's an API request
+    // We no longer block /api routes in the middleware because mobile clients use Bearer tokens
+    // instead of cookies. The API route handlers themselves are responsible for calling 
+    // getAuthenticatedUser() to verify both cookies and Bearer tokens.
     if (request.nextUrl.pathname.startsWith('/api')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return supabaseResponse;
     }
 
     const url = request.nextUrl.clone();
@@ -66,12 +68,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages to dashboard
-  if (user && ['/login', '/signup', '/forgot-password'].includes(request.nextUrl.pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
-  }
+  // Removed auto-redirect from auth pages so users can sign into another account if they choose
 
   // Onboarding & Subscription Gate: Protect the app from unauthorized access
   // Database checks have been moved to the client/layout level to prevent blocking navigation.

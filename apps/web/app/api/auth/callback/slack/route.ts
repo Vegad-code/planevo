@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const nextUrl = new URL('/dashboard/settings/integrations', request.url);
 
   const popupHtml = (error: string | null) => `
@@ -130,6 +131,7 @@ export async function GET(request: Request) {
     }
 
     return new NextResponse(popupHtml(null), { headers: { 'Content-Type': 'text/html' } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Slack integration error:', err);
     return new NextResponse(popupHtml('slack_integration_failed'), { headers: { 'Content-Type': 'text/html' } });

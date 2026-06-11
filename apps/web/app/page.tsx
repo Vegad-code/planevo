@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import LandingHeader from '@/components/landing/LandingHeader';
 import { Check, ArrowRight } from '@phosphor-icons/react';
@@ -274,18 +275,8 @@ export default function LandingPage() {
                 className="w-full relative md:absolute md:-right-[30px] md:bottom-12 md:w-[240px] bg-[var(--color-paper)] border border-[var(--color-line-strong)] rounded-[16px] p-3 text-[10px] leading-relaxed text-[var(--color-ink)] flex items-start gap-2 shadow-2xl z-20"
               >
                 {/* Bear head SVG in beautifully matching light background circle */}
-                <div className="w-6 h-6 shrink-0 rounded-full bg-[#F5ECDB] p-0.5 flex items-center justify-center border border-[var(--color-line)] shadow-sm">
-                  <svg className="w-full h-full" viewBox="0 0 48 48" aria-hidden="true">
-                    <circle cx="14" cy="14" r="7" fill="#6B4423"/>
-                    <circle cx="34" cy="14" r="7" fill="#6B4423"/>
-                    <circle cx="14" cy="14" r="3.2" fill="#E8C896"/>
-                    <circle cx="34" cy="14" r="3.2" fill="#E8C896"/>
-                    <circle cx="24" cy="26" r="16" fill="#8B5A2B"/>
-                    <ellipse cx="24" cy="30" rx="9" ry="7" fill="#E8C896"/>
-                    <circle cx="19" cy="23" r="1.7" fill="#1A140D"/>
-                    <circle cx="29" cy="23" r="1.7" fill="#1A140D"/>
-                    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="#1A140D"/>
-                  </svg>
+                <div className="w-6 h-6 shrink-0 rounded-full bg-[#F5ECDB] p-0.5 flex items-center justify-center border border-[var(--color-line)] shadow-sm overflow-hidden">
+                  <Image src="/bruno.svg?v=2" alt="Bruno" width={24} height={24} className="w-full h-full object-contain scale-[1.3] translate-y-[2px]" aria-hidden="true" />
                 </div>
                 <div className="flex-1 text-left">
                   <div className="font-mono text-[8px] uppercase tracking-widest text-[#B96E2A] mb-1 font-bold">
@@ -593,28 +584,18 @@ export default function LandingPage() {
         >
           <div className="grid md:grid-cols-12 gap-10 md:gap-16 items-center">
             {/* Bear Portrait Left */}
-            <div className="md:col-span-4 flex justify-center">
-              <svg viewBox="0 0 200 220" className="w-[180px] h-[200px] drop-shadow-xl" aria-hidden="true">
-                <ellipse cx="100" cy="210" rx="58" ry="6" fill="rgba(0,0,0,0.18)"/>
-                <circle cx="48" cy="42" r="22" fill="#4A2F18"/>
-                <circle cx="152" cy="42" r="22" fill="#4A2F18"/>
-                <circle cx="48" cy="44" r="10" fill="#C99A5F"/>
-                <circle cx="152" cy="44" r="10" fill="#C99A5F"/>
-                <ellipse cx="100" cy="160" rx="68" ry="58" fill="#5C3B1E"/>
-                <ellipse cx="100" cy="170" rx="42" ry="40" fill="#E8C896"/>
-                <circle cx="100" cy="80" r="56" fill="#5C3B1E"/>
-                <ellipse cx="100" cy="92" rx="30" ry="22" fill="#E8C896"/>
-                <circle cx="80" cy="72" r="4.5" fill="#1A140D"/>
-                <circle cx="120" cy="72" r="4.5" fill="#1A140D"/>
-                <circle cx="81.5" cy="70.5" r="1.5" fill="#FBF6EA"/>
-                <circle cx="121.5" cy="70.5" r="1.5" fill="#FBF6EA"/>
-                <ellipse cx="100" cy="86" rx="5" ry="3.5" fill="#1A140D"/>
-                <path d="M 90 98 Q 100 104 110 98" stroke="#1A140D" strokeWidth="2.4" fill="none" strokeLinecap="round"/>
-              </svg>
+            <div className="md:col-span-5 flex justify-center">
+              <Image 
+                src="/bruno.svg?v=2" 
+                alt="Bruno" 
+                width={600}
+                height={600}
+                className="w-full max-w-[350px] md:max-w-[450px] lg:max-w-[550px] h-auto drop-shadow-2xl object-contain lg:-ml-8" 
+                aria-hidden="true" 
+              />
             </div>
-
             {/* Letter Text Right */}
-            <div className="md:col-span-8 flex flex-col items-start text-left">
+            <div className="md:col-span-7 flex flex-col items-start text-left lg:pl-8">
               <div className="font-mono text-xs uppercase tracking-widest text-[var(--color-honey)] font-bold mb-4">
                 A note from Bruno
               </div>

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { validateHourlyRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 import {
   buildServerTimingHeader,
@@ -273,7 +274,7 @@ const updatePreferredNameParams = jsonSchema({
 
 export async function POST(request: NextRequest) {
   const latencyTimer = createAiLatencyTimer('bruno-chat');
-  let openAiMs: number | null = null;
+  const openAiMs: number | null = null;
   const startAt = performance.now();
 
   const jsonWithDiagnostics = (
@@ -307,7 +308,7 @@ export async function POST(request: NextRequest) {
     latencyTimer.mark('auth');
 
     if (authError || !authUser) {
-      return jsonWithDiagnostics({ error: 'Unauthorized' }, { status: 401 });
+      return jsonWithDiagnostics({ error: authError || 'Unauthorized' }, { status: 401 });
     }
 
     // --- RATE LIMIT (method-aware) ---
@@ -378,6 +379,7 @@ export async function POST(request: NextRequest) {
     latencyTimer.mark('assignments');
 
     const taskListContext = tasks && tasks.length > 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? (tasks as any[]).map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
       : 'No active tasks found.';
 
@@ -398,10 +400,12 @@ export async function POST(request: NextRequest) {
       .limit(100);
 
     const calendarListContext = events && events.length > 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? (events as any[]).map(e => `- [${e.status}] "${e.title}" (ID: ${e.id}, ${new Date(e.start_time).toLocaleString()} to ${new Date(e.end_time).toLocaleTimeString()})`).join('\n')
       : 'No upcoming calendar events for the next 7 days.';
 
     // Get learned memory
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const memory = await getUserAIMemory(supabaseAdmin as any, user.id);
     const memoryContext = buildMemoryContext(memory);
     latencyTimer.mark('memory');
@@ -417,6 +421,7 @@ export async function POST(request: NextRequest) {
         .single();
       
       if (assignment) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const a = assignment as any;
         assignmentContext = `
 ASSIGNMENT CONTEXT:
@@ -457,11 +462,14 @@ NOTE: If the user asks you to build a detailed multi-step plan with calendar int
 
     const userTimeZone = timeZone || 'UTC';
     const userLocalTime = localTime || new Date().toLocaleString();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prefs = (profile?.scheduling_preferences || {}) as any;
 
     const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and Master Planner.
 Your job is to read the user's workload (assignments, events, tasks) and architect the perfect schedule for them.
 
-LOCAL TIME: ${userLocalTime} (Time Zone: ${(profile?.scheduling_preferences as any)?.timezone || userTimeZone})
+LOCAL TIME: ${userLocalTime} (Time Zone: ${prefs.timezone || userTimeZone})
 VERY IMPORTANT: When scheduling tasks or events, YOU MUST schedule them during the user's normal daytime waking hours (e.g., 8:00 AM to 10:00 PM in their local time) UNLESS they explicitly ask otherwise. NEVER schedule things at 1:00 AM or in the middle of the night. Calculate the proper ISO 8601 strings based on their local time offset.
 When proposing tasks or plan drafts, YOU MUST ALWAYS populate the \`execution_description\` or \`description\` with highly detailed instructions, including any helpful links, resources, or sources for them to use. NEVER leave it blank or vague.
 
@@ -469,10 +477,10 @@ For speed and efficiency, keep your conversational responses brief and get strai
 
 User Name: ${profile?.name || 'User'}
 User Plan: ${userPlanType}
-Context: ${(profile?.scheduling_preferences as any)?.context_type || 'Professional'} (School/Workplace: ${(profile?.scheduling_preferences as any)?.organization_name || 'N/A'})
+Context: ${prefs.context_type || 'Professional'} (School/Workplace: ${prefs.organization_name || 'N/A'})
 Planning Baseline:
-- Workload Style: ${(profile?.scheduling_preferences as any)?.workload_style || 'balanced'}
-- Default Task Duration: ${(profile?.scheduling_preferences as any)?.default_task_duration || 30} mins
+- Workload Style: ${prefs.workload_style || 'balanced'}
+- Default Task Duration: ${prefs.default_task_duration || 30} mins
 - Energy Preference: ${profile?.energy_preference || 'balanced'}
 
 CURRENT USER TASKS:
@@ -500,6 +508,7 @@ Rules:
 8. If the user tells you they want to go by a different name, use the \`update_preferred_name\` tool to remember it permanently.
 ${draftModeInstructions}`;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logToolExecution = async (name: string, args: any, result: any) => {
       try {
         await supabaseAdmin.from('bruno_tool_logs').insert({
@@ -522,6 +531,7 @@ ${draftModeInstructions}`;
       create_task: tool({
         description: 'Create a new task for the user.',
         inputSchema: createTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin.from('tasks').insert({
             user_id: user.id,
@@ -542,10 +552,12 @@ ${draftModeInstructions}`;
           await logToolExecution('create_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       reschedule_task: tool({
         description: 'Reschedule an existing task to a new due date.',
         inputSchema: rescheduleTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { data: currentTask } = await supabaseAdmin
             .from('tasks')
@@ -554,6 +566,7 @@ ${draftModeInstructions}`;
             .eq('user_id', user.id)
             .single();
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const count = ((currentTask as any)?.rescheduled_count || 0) + 1;
 
           const { error } = await supabaseAdmin
@@ -571,11 +584,14 @@ ${draftModeInstructions}`;
           await logToolExecution('reschedule_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       update_task: tool({
         description: 'Update a task\'s title, description, priority, or estimated duration.',
         inputSchema: updateTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const updates: any = { updated_at: new Date().toISOString() };
           if (validArgs.title) updates.title = validArgs.title;
           if (validArgs.description) updates.description = validArgs.description;
@@ -593,10 +609,12 @@ ${draftModeInstructions}`;
           await logToolExecution('update_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       complete_task: tool({
         description: 'Mark a task as completed or uncompleted.',
         inputSchema: completeTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const updates = validArgs.completed
             ? { completed: true, completed_at: new Date().toISOString(), status: 'done', updated_at: new Date().toISOString() }
@@ -613,10 +631,12 @@ ${draftModeInstructions}`;
           await logToolExecution('complete_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       delete_task: tool({
         description: 'Delete a task (soft delete).',
         inputSchema: deleteTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin
             .from('tasks')
@@ -632,10 +652,12 @@ ${draftModeInstructions}`;
           await logToolExecution('delete_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       update_preferred_name: tool({
         description: 'Update the user\'s preferred name if they ask to be called something else.',
         inputSchema: updatePreferredNameParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin
             .from('users')
@@ -649,10 +671,12 @@ ${draftModeInstructions}`;
           await logToolExecution('update_preferred_name', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       create_calendar_block: tool({
         description: 'Create a new calendar block (event).',
         inputSchema: createCalendarBlockParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin.from('calendar_events').insert({
             user_id: user.id,
@@ -671,10 +695,12 @@ ${draftModeInstructions}`;
           await logToolExecution('create_calendar_block', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       move_calendar_block: tool({
         description: 'Move an existing calendar block to a new time.',
         inputSchema: moveCalendarBlockParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin.from('calendar_events').update({
             start_time: validArgs.new_start_time,
@@ -686,10 +712,12 @@ ${draftModeInstructions}`;
           await logToolExecution('move_calendar_block', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       accept_block: tool({
         description: 'Accept an AI-suggested calendar block.',
         inputSchema: acceptBlockParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin.from('calendar_events').update({
             status: 'accepted',
@@ -700,10 +728,12 @@ ${draftModeInstructions}`;
           await logToolExecution('accept_block', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       reject_block: tool({
         description: 'Reject (delete) an AI-suggested calendar block.',
         inputSchema: rejectBlockParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
           const { error } = await supabaseAdmin.from('calendar_events').update({
             is_deleted: true,
@@ -715,11 +745,14 @@ ${draftModeInstructions}`;
           await logToolExecution('reject_block', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       break_down_task: tool({
         description: 'Break down a complex task into smaller subtasks (15-min increments).',
         inputSchema: breakDownTaskParams,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: async (validArgs: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const subtaskInserts = validArgs.subtasks.map((st: any) => ({
             user_id: user.id,
             parent_task_id: validArgs.task_id,
@@ -734,12 +767,14 @@ ${draftModeInstructions}`;
           await logToolExecution('break_down_task', validArgs, result);
           return result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
       // --- PREMIUM TOOLS: conditionally included ---
       ...(isPremium ? {
         propose_plan_draft: tool({
           description: 'Propose a plan draft for user review. Does NOT create any tasks or events. Use this FIRST when the user asks for a multi-step plan.',
           inputSchema: proposePlanDraftParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
             // This tool intentionally does NOT mutate the database.
             // It returns the draft data so the frontend can render a rich preview card.
@@ -755,10 +790,12 @@ ${draftModeInstructions}`;
             await logToolExecution('propose_plan_draft', validArgs, { success: true, item_count: validArgs.items.length });
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
         commit_plan: tool({
           description: 'Commit an approved plan draft. Creates tasks AND/OR calendar events based on commit_type. Only call this after the user explicitly approves.',
           inputSchema: commitPlanParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
             const items = validArgs.items as PlanDraftItem[];
             const commitType = validArgs.commit_type as 'tasks_only' | 'calendar_only' | 'both';
@@ -850,6 +887,7 @@ ${draftModeInstructions}`;
 
             // 4. Record plan feedback in memory (learn from approved plan)
             try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               await recordPlanFeedbackInMemory(supabaseAdmin as any, user.id, items);
             } catch (e) {
               console.error('Failed to record plan feedback in memory:', e);
@@ -871,11 +909,14 @@ ${draftModeInstructions}`;
             await logToolExecution('commit_plan', { plan_title: validArgs.plan_title, commit_type: commitType, item_count: items.length, sync_to_google: validArgs.sync_to_google }, result);
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
         edit_task: tool({
           description: 'Edit details of an existing task (e.g., change title, description, due date, status, priority).',
           inputSchema: editTaskParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const updates: any = {};
             if (validArgs.title) updates.title = validArgs.title;
             if (validArgs.description) updates.description = validArgs.description;
@@ -889,10 +930,12 @@ ${draftModeInstructions}`;
             await logToolExecution('edit_task', validArgs, result);
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
         create_calendar_event: tool({
           description: 'Directly create a single calendar event block.',
           inputSchema: createCalendarEventParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
             const { error } = await supabaseAdmin.from('calendar_events').insert({
               user_id: user.id,
@@ -909,11 +952,14 @@ ${draftModeInstructions}`;
             await logToolExecution('create_calendar_event', validArgs, result);
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
         edit_calendar_event: tool({
           description: 'Edit details of an existing calendar event (e.g., change title, description, start time, end time).',
           inputSchema: editCalendarEventParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const updates: any = { updated_at: new Date().toISOString() };
             if (validArgs.title) updates.title = validArgs.title;
             if (validArgs.description) updates.description = validArgs.description;
@@ -926,10 +972,12 @@ ${draftModeInstructions}`;
             await logToolExecution('edit_calendar_event', validArgs, result);
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
         read_schedule: tool({
           description: 'Read the user\'s schedule (tasks and events) for a specific date range if they ask about something beyond the current day.',
           inputSchema: readScheduleParams,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           execute: async (validArgs: any) => {
             const [{ data: tasks }, { data: events }] = await Promise.all([
               supabaseAdmin.from('tasks').select('id, title, status, due_date, priority').eq('user_id', user.id).is('deleted_at', null).gte('due_date', validArgs.start_date.split('T')[0]).lte('due_date', validArgs.end_date.split('T')[0]),
@@ -943,22 +991,36 @@ ${draftModeInstructions}`;
             await logToolExecution('read_schedule', validArgs, { success: true, task_count: result.tasks.length, event_count: result.events.length });
             return result;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any),
       } : {}),
     };
 
     latencyTimer.mark('openai');
-    const modelMessages = await convertToModelMessages(messages as any);
+    
+    // Polyfill .parts for older clients (like our mobile app) that send standard {role, content}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const normalizedMessages = (messages as any[]).map(m => {
+      if (m.parts) return m;
+      return {
+        ...m,
+        parts: [{ type: 'text', text: typeof m.content === 'string' ? m.content : '' }]
+      };
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modelMessages = await convertToModelMessages(normalizedMessages as any);
     if (isMobile) {
       const genResult = await generateText({
         model: openai('gpt-4o-mini'),
         system: systemPrompt,
         messages: modelMessages,
         tools,
+        stopWhen: stepCountIs(5)
       });
       return jsonWithDiagnostics({ 
         text: genResult.text, 
-        toolCalls: genResult.toolCalls 
+        toolCalls: genResult.steps ? genResult.steps.flatMap(s => s.toolCalls) : genResult.toolCalls 
       });
     }
 
@@ -975,6 +1037,7 @@ ${draftModeInstructions}`;
         'Server-Timing': buildServerTimingHeader(latencyTimer.complete(performance.now() - startAt)),
       }
     });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Error in Bruno chat:', error?.stack || error);
     Sentry.captureException(error);

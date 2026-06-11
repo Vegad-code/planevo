@@ -17,10 +17,18 @@ export async function GET() {
       success: true, 
       calendars 
     });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Fetch Calendars Error:', error);
+    
+    // Map known predictable errors to a 400 Bad Request
+    const status = error.message === 'User not connected to Google Calendar' || 
+                   error.message.includes('Failed to refresh Google token') ||
+                   error.message.includes('invalid_grant') 
+                   ? 400 : 500;
+                   
     return NextResponse.json({ 
       error: error.message || 'Failed to fetch Google calendars' 
-    }, { status: 500 });
+    }, { status });
   }
 }

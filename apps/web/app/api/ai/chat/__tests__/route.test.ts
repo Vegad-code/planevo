@@ -19,6 +19,14 @@ vi.mock('@/lib/supabase/admin', () => ({
           single: vi.fn().mockResolvedValue({ data: { name: 'Test User' } }),
           maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Test User' } }),
           is: vi.fn().mockReturnValue({
+            gte: vi.fn().mockReturnValue({
+              lte: vi.fn().mockResolvedValue({ data: [] }),
+              lt: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({ data: [] })
+                })
+              })
+            }),
             order: vi.fn().mockReturnValue({
               limit: vi.fn().mockResolvedValue({ data: [] })
             })
@@ -69,7 +77,7 @@ describe('Chat API', () => {
   it('handles chat requests and returns stream', async () => {
     const req = new NextRequest('http://localhost:3000/api/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] })
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello', parts: [{ type: 'text', text: 'Hello' }] }] })
     });
 
     const res = await POST(req);

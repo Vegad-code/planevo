@@ -10,6 +10,7 @@ import BrunoAvatar from '../bruno/BrunoAvatar';
 import PlanDraftCard from '../bruno/PlanDraftCard';
 import type { PlanDraftItemData } from '../bruno/PlanDraftCard';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 const LOADING_PHRASES = [
   "Thinking...",
@@ -40,6 +41,7 @@ export default function BrunoChatSidebar({
   const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const scrollRef = useRef<HTMLDivElement>(null);
   
+  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -110,8 +112,10 @@ export default function BrunoChatSidebar({
         parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
       } as UIMessage
     ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
       
       if (currentConversationId && message.role === 'assistant' && textPart) {
@@ -141,11 +145,13 @@ export default function BrunoChatSidebar({
       .order('created_at', { ascending: true });
 
     if (data) {
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       setMessages(data.map((m: any) => ({
         id: m.id,
         role: m.message_type === 'user' ? 'user' : 'assistant',
         parts: [{ type: 'text', text: m.content }],
         createdAt: new Date(m.created_at)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)));
     }
   };
@@ -178,6 +184,7 @@ export default function BrunoChatSidebar({
       }
     } else {
       console.error("Failed to delete conversation:", error);
+      toast.error('Planevo could not complete that action. Please try again.');
     }
     setChatToDelete(null);
   };
@@ -189,7 +196,9 @@ export default function BrunoChatSidebar({
     messages.length === 0 ||
     messages[messages.length - 1]?.role === 'user' ||
     (messages[messages.length - 1]?.role === 'assistant' && 
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
      !(messages[messages.length - 1].parts?.some((p: any) => p.type === 'text' && p.text.length > 0)) &&
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
      !(messages[messages.length - 1].parts?.some((p: any) => p.type === 'tool-invocation')))
   );
 
@@ -249,7 +258,10 @@ export default function BrunoChatSidebar({
           .then(data => {
             if (data.title) fetchConversations();
           })
-          .catch(err => console.error('Failed to generate title', err));
+          .catch(err => {
+            console.error('Failed to generate title', err);
+            toast.error('Planevo could not complete that action. Please try again.');
+          });
         }
       }
     }
@@ -257,6 +269,7 @@ export default function BrunoChatSidebar({
     if (editingMessageId && convId) {
       const editIndex = messages.findIndex(m => m.id === editingMessageId);
       if (editIndex !== -1) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const editedMsg = messages[editIndex] as any;
         const timestamp = editedMsg.createdAt 
            ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString()) 
@@ -307,18 +320,18 @@ export default function BrunoChatSidebar({
       </AnimatePresence>
 
       <div className={isExpanded ? "fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 pointer-events-none" : "relative w-full"}>
-        <div className={`flex flex-col bg-[#2c221a] overflow-hidden border border-[#3e3227] pointer-events-auto transition-all duration-300 ease-out origin-center ${
+        <div className={`flex flex-col bg-[var(--color-settings-bg)] overflow-hidden border border-[var(--color-settings-border)] pointer-events-auto transition-all duration-300 ease-out origin-center ${
           isExpanded ? "w-full max-w-[95vw] lg:max-w-6xl h-[90vh] rounded-[32px] shadow-2xl" : "w-full h-[600px] rounded-[22px] shadow-lg"
         }`}>
           
           {/* Header */}
-          <div className={`bg-[#2c221a] flex items-center justify-between border-b border-[#3e3227] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
+          <div className={`bg-[var(--color-settings-card)] flex items-center justify-between border-b border-[var(--color-settings-border)] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
             <div className="flex items-center gap-3">
               <BrunoAvatar mood={isProcessing ? 'thinking' : 'happy'} size={isExpanded ? "md" : "sm"} />
               <div>
-                <h3 className={`font-sans font-bold text-[#fdfbf7] ${isExpanded ? "text-lg" : "text-base"}`}>Bruno</h3>
+                <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-lg" : "text-base"}`}>Bruno</h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`font-serif italic text-[var(--color-belly)] ${isExpanded ? "text-base" : "text-sm"}`}>
+                  <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-base" : "text-sm"}`}>
                     {isProcessing ? 'Thinking by the fire...' : 'Your academic guide'}
                   </span>
                 </div>
@@ -329,14 +342,14 @@ export default function BrunoChatSidebar({
               <div className="flex gap-2">
                 <button 
                   onClick={() => setShowHistory(!showHistory)} 
-                  className={`p-2.5 rounded-xl transition-colors ${showHistory ? 'bg-[#4a3f32] text-[#fdfbf7]' : 'text-[#fdfbf7]/60 hover:text-[#fdfbf7] hover:bg-[#3e3227]'}`}
+                  className={`p-2.5 rounded-xl transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
                   title="Past Chats"
                 >
                   <ClockCounterClockwise weight="bold" className="w-5 h-5" />
                 </button>
                 <button 
                   onClick={() => setIsExpanded(false)} 
-                  className="flex items-center gap-2 px-4 py-2 bg-[#3e3227] hover:bg-[#4a3f32] text-[#fdfbf7] rounded-xl transition-colors font-sans text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--color-settings-card-hover)] hover:bg-[var(--color-settings-border)] text-[var(--color-settings-text)] rounded-xl transition-colors font-sans text-sm font-medium"
                 >
                   <CaretLeft weight="bold" /> Back to Calendar
                 </button>
@@ -345,14 +358,14 @@ export default function BrunoChatSidebar({
               <div className="flex gap-1">
                 <button 
                   onClick={() => setShowHistory(!showHistory)} 
-                  className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-[#4a3f32] text-[#fdfbf7]' : 'text-[#fdfbf7]/60 hover:text-[#fdfbf7] hover:bg-[#3e3227]'}`}
+                  className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
                   title="Past Chats"
                 >
                   <ClockCounterClockwise weight="bold" className="w-5 h-5" />
                 </button>
                 <button 
                   onClick={() => setIsExpanded(true)} 
-                  className="p-2 text-[#fdfbf7]/60 hover:text-[#fdfbf7] transition-colors rounded-lg hover:bg-[#3e3227]" 
+                  className="p-2 text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors rounded-lg hover:bg-[var(--color-settings-card-hover)]" 
                   title="Enter Zen Mode"
                 >
                   <ArrowsOutSimple weight="bold" className="w-5 h-5" />
@@ -380,11 +393,11 @@ export default function BrunoChatSidebar({
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute inset-0 z-50 bg-[#2c221a] flex flex-col"
+                  className="absolute inset-0 z-50 bg-[var(--color-settings-bg)] flex flex-col"
                 >
-                  <div className={`flex items-center justify-between border-b border-[#3e3227] ${isExpanded ? "p-6" : "p-4"}`}>
-                    <h3 className={`font-sans font-bold text-[#fdfbf7] ${isExpanded ? "text-lg" : "text-base"}`}>Recent Chats</h3>
-                    <button onClick={startNewConversation} className="bg-[#3e3227] text-[#fdfbf7] px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-[#4a3f32]">
+                  <div className={`flex items-center justify-between border-b border-[var(--color-settings-border)] ${isExpanded ? "p-6" : "p-4"}`}>
+                    <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-lg" : "text-base"}`}>Recent Chats</h3>
+                    <button onClick={startNewConversation} className="bg-[var(--color-settings-card-hover)] text-[var(--color-settings-text)] px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-[var(--color-settings-border)]">
                       <Plus weight="bold" /> New Chat
                     </button>
                   </div>
@@ -398,16 +411,16 @@ export default function BrunoChatSidebar({
                         <div key={c.id} className="flex items-stretch gap-2">
                           <button 
                             onClick={() => loadConversation(c.id)}
-                            className="flex-1 p-4 text-left bg-[#2c221a] hover:bg-[#3e3227] border border-[#3e3227] rounded-xl transition-colors min-w-0"
+                            className="flex-1 p-4 text-left bg-[var(--color-settings-card)] hover:bg-[var(--color-settings-card-hover)] border border-[var(--color-settings-border)] rounded-xl transition-colors min-w-0"
                           >
-                            <p className="text-sm font-bold text-[#fdfbf7] truncate">{c.title}</p>
-                            <p className="text-xs font-serif italic text-[var(--color-belly)] mt-1">
+                            <p className="text-sm font-bold text-[var(--color-settings-text)] truncate">{c.title}</p>
+                            <p className="text-xs font-serif italic text-[var(--color-settings-text-muted)] mt-1">
                               {new Date(c.last_active).toLocaleDateString()}
                             </p>
                           </button>
                           <button
                             onClick={(e) => promptDeleteConversation(e, c.id, c.title)}
-                            className="p-4 flex items-center justify-center text-[#fdfbf7]/40 hover:text-red-400 bg-[#2c221a] hover:bg-red-400/10 border border-[#3e3227] hover:border-red-400/30 rounded-xl transition-all"
+                            className="p-4 flex items-center justify-center text-[var(--color-settings-text-muted)] hover:text-red-500 bg-[var(--color-settings-card)] hover:bg-red-500/10 border border-[var(--color-settings-border)] hover:border-red-500/30 rounded-xl transition-all"
                             title="Delete Chat"
                           >
                             <Trash weight="bold" className="w-5 h-5" />
@@ -416,10 +429,10 @@ export default function BrunoChatSidebar({
                       ))
                     )}
                   </div>
-                  <div className={`p-4 border-t border-[#3e3227] ${isExpanded ? "px-6" : "px-4"}`}>
+                  <div className={`p-4 border-t border-[var(--color-settings-border)] ${isExpanded ? "px-6" : "px-4"}`}>
                     <button 
                       onClick={() => setShowHistory(false)}
-                      className="w-full py-2.5 text-center text-sm font-medium text-[#fdfbf7]/60 hover:text-[#fdfbf7] transition-colors"
+                      className="w-full py-2.5 text-center text-sm font-medium text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors"
                     >
                       Close
                     </button>
@@ -431,10 +444,10 @@ export default function BrunoChatSidebar({
             {/* Messages Area */}
             <div 
               ref={scrollRef}
-              className={`flex-1 overflow-y-auto space-y-6 scrollbar-hide bg-[var(--color-paper)] relative transition-all ${isExpanded ? "p-8 md:p-12" : "p-4"}`}
+              className={`flex-1 overflow-y-auto space-y-6 scrollbar-hide bg-[var(--color-settings-bg)] relative transition-all ${isExpanded ? "p-8 md:p-12" : "p-4"}`}
             >
               {/* Subtle campfire glow at the bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[var(--color-honey)]/5 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[var(--color-settings-brand)]/5 to-transparent pointer-events-none" />
               
               <AnimatePresence initial={false}>
                 {messages.map((message, i) => {
@@ -443,8 +456,10 @@ export default function BrunoChatSidebar({
                   const isEditing = editingMessageId === message.id;
 
                   // Check if any tool invocation is a propose_plan_draft
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const planDraftInvocation = toolParts.find((t: any) =>
                     t.toolInvocation?.toolName === 'propose_plan_draft'
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ) as any;
 
                   const planDraftArgs = planDraftInvocation?.toolInvocation?.args;
@@ -463,7 +478,7 @@ export default function BrunoChatSidebar({
                               setInput(textPart);
                               setEditingMessageId(message.id);
                            }}
-                           className="text-[#2c221a]/30 hover:text-[#2c221a]/70 transition-colors p-1"
+                           className="text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors p-1"
                            title="Edit message"
                         >
                            <PencilSimple size={16} />
@@ -497,7 +512,7 @@ export default function BrunoChatSidebar({
                             }}
                           />
                           {textPart && (
-                            <div className={`mt-2 bg-white text-[#2c221a] border border-[#E8DCC0] rounded-[16px] rounded-tl-none px-4 py-3 prose prose-sm max-w-none leading-relaxed ${isExpanded ? "text-[15px]" : "text-[13.5px]"}`}>
+                            <div className={`mt-2 bg-[var(--color-settings-card)] text-[var(--color-settings-text)] border border-[var(--color-settings-border)] rounded-[16px] rounded-tl-none px-4 py-3 prose prose-sm max-w-none leading-relaxed ${isExpanded ? "text-[15px]" : "text-[13.5px]"}`}>
                               <ReactMarkdown>{textPart}</ReactMarkdown>
                             </div>
                           )}
@@ -505,8 +520,8 @@ export default function BrunoChatSidebar({
                       ) : (
                         <div className={`max-w-[85%] rounded-[16px] px-4 py-3 ${
                           message.role === 'user' 
-                            ? 'bg-[#2c221a] text-[#fdfbf7] rounded-tr-none font-medium' 
-                            : 'bg-white text-[#2c221a] border border-[#E8DCC0] rounded-tl-none'
+                            ? 'bg-[var(--color-settings-brand)] text-white rounded-tr-none font-medium' 
+                            : 'bg-[var(--color-settings-card)] text-[var(--color-settings-text)] border border-[var(--color-settings-border)] rounded-tl-none'
                         } ${isEditing ? 'opacity-50' : ''}`}>
                           {message.role === 'user' ? (
                             <p className={isExpanded ? "text-[15px]" : "text-[13.5px]"}>{textPart}</p>
@@ -514,6 +529,7 @@ export default function BrunoChatSidebar({
                             <div className={`prose prose-sm max-w-none leading-relaxed ${isExpanded ? "text-[15px]" : "text-[13.5px]"}`}>
                               {toolParts.length > 0 && !planDraftInvocation && (
                                 <div className="text-xs text-amber-500/80 mb-2 font-mono uppercase tracking-wider">
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   {toolParts.map((t: any) => t.toolInvocation?.toolName).join(', ')}...
                                 </div>
                               )}
@@ -531,14 +547,14 @@ export default function BrunoChatSidebar({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     className="flex relative z-10 justify-start"
                   >
-                    <div className="bg-white px-4 py-3 rounded-[16px] rounded-tl-none border border-[#E8DCC0] shadow-sm">
+                    <div className="bg-[var(--color-settings-card)] px-4 py-3 rounded-[16px] rounded-tl-none border border-[var(--color-settings-border)] shadow-sm">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
-                          <div className="w-1.5 h-1.5 bg-[#2c221a]/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                          <div className="w-1.5 h-1.5 bg-[#2c221a]/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                          <div className="w-1.5 h-1.5 bg-[#2c221a]/40 rounded-full animate-bounce" />
+                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce" />
                         </div>
-                        <span className={`font-sans font-medium text-[#2c221a]/60 ml-1 ${isExpanded ? "text-[14px]" : "text-[12.5px]"}`}>( {loadingPhrase} )</span>
+                        <span className={`font-sans font-medium text-[var(--color-settings-text-muted)] ml-1 ${isExpanded ? "text-[14px]" : "text-[12.5px]"}`}>( {loadingPhrase} )</span>
                       </div>
                     </div>
                   </motion.div>
@@ -547,7 +563,7 @@ export default function BrunoChatSidebar({
             </div>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className={`bg-[#2c221a] border-t border-[#3e3227] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className={`bg-[var(--color-settings-card)] border-t border-[var(--color-settings-border)] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
             
             {/* Mentions Dropdown */}
             <AnimatePresence>
@@ -556,7 +572,7 @@ export default function BrunoChatSidebar({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-full left-4 right-4 mb-2 bg-[#1e1712] border border-[#3e3227] rounded-xl shadow-2xl overflow-hidden z-[110]"
+                  className="absolute bottom-full left-4 right-4 mb-2 bg-[var(--color-settings-card)] border border-[var(--color-settings-border)] rounded-xl shadow-2xl overflow-hidden z-[110]"
                 >
                   {suggestions.map((s, idx) => (
                     <button
@@ -571,11 +587,11 @@ export default function BrunoChatSidebar({
                         setMentionState({ active: false, text: '' });
                         setSuggestions([]);
                       }}
-                      className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${idx === suggestionSelectedIndex ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                      className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${idx === suggestionSelectedIndex ? 'bg-[var(--color-settings-card-hover)]' : 'hover:bg-[var(--color-settings-card-hover)]'}`}
                     >
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[13px] font-bold text-[#fdfbf7] truncate">{s.title}</span>
-                        <span className="text-[11px] text-[#fdfbf7]/50">{s.subtitle}</span>
+                        <span className="text-[13px] font-bold text-[var(--color-settings-text)] truncate">{s.title}</span>
+                        <span className="text-[11px] text-[var(--color-settings-text-muted)]">{s.subtitle}</span>
                       </div>
                     </button>
                   ))}
@@ -635,7 +651,7 @@ export default function BrunoChatSidebar({
                   }
                 }}
                 rows={Math.min(5, input.split('\n').length || 1)}
-                className={`w-full bg-black/20 border border-[#3e3227] rounded-xl text-[#fdfbf7] placeholder:text-[#fdfbf7]/40 focus:outline-none focus:border-[#fdfbf7]/30 transition-all resize-none ${
+                className={`w-full bg-[var(--color-settings-bg)] border border-[var(--color-settings-border)] rounded-xl text-[var(--color-settings-text)] placeholder:text-[var(--color-settings-text-muted)] focus:outline-none focus:border-[var(--color-settings-brand)] transition-all resize-none ${
                   isExpanded ? "py-4 pl-5 pr-14 text-[16px] min-h-[64px]" : "py-3 pl-4 pr-12 text-[14px] min-h-[52px]"
                 } max-h-[250px] leading-relaxed`}
               />
@@ -654,7 +670,7 @@ export default function BrunoChatSidebar({
                 <button
                   type="submit"
                   disabled={!input.trim() || isProcessing}
-                  className={`absolute bg-[#fdfbf7] hover:bg-[#f4ebe1] text-[#2c221a] rounded-lg transition-all disabled:opacity-50 disabled:bg-[#fdfbf7]/10 disabled:text-[#fdfbf7]/30 cursor-pointer ${
+                  className={`absolute bg-[var(--color-settings-brand)] hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] cursor-pointer ${
                     isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
                   }`}
                   title="Send message"
@@ -663,7 +679,7 @@ export default function BrunoChatSidebar({
                 </button>
               )}
             </div>
-            <p className={`mt-2 font-mono tracking-widest uppercase text-[#fdfbf7]/40 text-center ${isExpanded ? "text-xs" : "text-[10px]"}`}>
+            <p className={`mt-2 font-mono tracking-widest uppercase text-[var(--color-settings-text-muted)] text-center ${isExpanded ? "text-xs" : "text-[10px]"}`}>
               Shift + Enter for new line
             </p>
           </form>
@@ -683,16 +699,16 @@ export default function BrunoChatSidebar({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#2c221a] border border-[#3e3227] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              className="bg-[var(--color-settings-card)] border border-[var(--color-settings-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
             >
-              <h4 className="text-lg font-bold text-[#fdfbf7] mb-2">Delete Chat?</h4>
-              <p className="text-sm text-[#fdfbf7]/70 mb-6 leading-relaxed">
-                Are you sure you want to delete the chat <span className="font-bold text-[#fdfbf7]">&quot;{chatToDelete.title}&quot;</span>? This will be gone forever and recovery is NOT an option.
+              <h4 className="text-lg font-bold text-[var(--color-settings-text)] mb-2">Delete Chat?</h4>
+              <p className="text-sm text-[var(--color-settings-text-muted)] mb-6 leading-relaxed">
+                Are you sure you want to delete the chat <span className="font-bold text-[var(--color-settings-text)]">&quot;{chatToDelete.title}&quot;</span>? This will be gone forever and recovery is NOT an option.
               </p>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setChatToDelete(null)}
-                  className="flex-1 py-2.5 rounded-xl font-medium text-[#fdfbf7]/70 hover:text-[#fdfbf7] hover:bg-[#3e3227] transition-colors"
+                  className="flex-1 py-2.5 rounded-xl font-medium text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)] transition-colors"
                 >
                   Cancel
                 </button>

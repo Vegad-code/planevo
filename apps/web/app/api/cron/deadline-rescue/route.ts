@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendDeadlineRescueEmail } from '@/lib/email';
+import { buildEmailIdempotencyKey, sendDeadlineRescueEmail } from '@/lib/email';
 import {
   canSendNotification,
   getLocalDateKey,
   isLocalTimeWithinWindow,
+  type NotificationPreferences,
   normalizeNotificationPreferences,
 } from '@/lib/notifications/preferences';
 import {
@@ -13,10 +14,44 @@ import {
 } from '@/lib/notifications/delivery';
 import { Database } from '@/types/database';
 
+type DeadlineTaskUser = {
+  email: string | null;
+  expo_push_token: string | null;
+  name: string | null;
+  notification_preferences: Partial<NotificationPreferences> | null;
+};
+
+type DeadlineTaskRow = {
+  title: string;
+  user_id: string;
+  due_date: string | null;
+  users: DeadlineTaskUser | DeadlineTaskUser[];
+};
+
+type ExpoPushMessage = {
+  to: string;
+  sound: 'default';
+  title: string;
+  body: string;
+  data: { screen: string };
+};
+
+type ExpoPushTicket =
+  | { status: 'ok'; id?: string }
+  | { status: 'error'; message?: string; details?: { error?: string } };
+
+type ExpoPushResponse = {
+  data?: ExpoPushTicket[];
+};
+
+function getTaskUser(task: DeadlineTaskRow) {
+  return Array.isArray(task.users) ? task.users[0] : task.users;
+}
+
 /**
  * GET /api/cron/deadline-rescue
  *
- * Vercel Cron job — runs daily at 1 AM UTC (6 PM PT).
+ * Vercel Cron job - runs daily at 1 AM UTC (6 PM PT).
  * Finds tasks due today that are still incomplete and sends
  * a push notification to the user via Expo Push API.
  *
@@ -70,13 +105,15 @@ export async function GET(request: NextRequest) {
       email: string | null;
       name: string;
       tasks: string[];
-      prefs: any;
+      prefs: Partial<NotificationPreferences> | null;
     }>();
 
-    for (const task of overdueTasks) {
+    for (const task of overdueTasks as unknown as DeadlineTaskRow[]) {
       if (!task.due_date) continue;
-      const user = (task as any).users;
-      const prefs = user?.notification_preferences;
+      const user = getTaskUser(task);
+      if (!user) continue;
+
+      const prefs = user.notification_preferences;
       const timezone = normalizeNotificationPreferences(prefs).quiet_hours.timezone;
       const now = new Date();
       if (!isLocalTimeWithinWindow(now, timezone, '18:00')) continue;
@@ -96,8 +133,9 @@ export async function GET(request: NextRequest) {
       userTasks.get(task.user_id)!.tasks.push(task.title);
     }
 
-    const messages: any[] = [];
+    const messages: ExpoPushMessage[] = [];
     const emailPromises: Promise<void>[] = [];
+    let sentEmails = 0;
     const messageDeliveries: Array<{ userId: string; dedupeKey: string }> = [];
     const now = new Date();
 
@@ -116,13 +154,13 @@ export async function GET(request: NextRequest) {
         !(await hasNotificationDelivery(supabase, userId, 'deadline_rescue', 'push', dedupeKey))
       ) {
         const body = taskCount === 1
-          ? `Hey ${data.name}! "${firstTask}" is due today. Want me to reschedule? Open Bruno Chat. 🐻`
-          : `Hey ${data.name}! You have ${taskCount} tasks due today including "${firstTask}". Let's knock them out! 🐻`;
+          ? `Hey ${data.name}! "${firstTask}" is due today. Want me to reschedule? Open Bruno Chat.`
+          : `Hey ${data.name}! You have ${taskCount} tasks due today including "${firstTask}". Let's knock them out!`;
 
         messages.push({
           to: data.token,
-          sound: 'default' as const,
-          title: '🐻 Deadline Rescue',
+          sound: 'default',
+          title: 'Deadline Rescue',
           body,
           data: { screen: 'chat' },
         });
@@ -138,15 +176,25 @@ export async function GET(request: NextRequest) {
         !(await hasNotificationDelivery(supabase, userId, 'deadline_rescue', 'email', dedupeKey))
       ) {
         emailPromises.push(
-          sendDeadlineRescueEmail(data.email, data.name, taskCount, firstTask)
-            .then(() => recordNotificationDelivery(
+          sendDeadlineRescueEmail(data.email, data.name, taskCount, firstTask, {
+            idempotencyKey: buildEmailIdempotencyKey('deadline_rescue', 'email', userId, dedupeKey),
+          })
+            .then((providerMessageId) => recordNotificationDelivery(
               supabase,
               userId,
               'deadline_rescue',
               'email',
               dedupeKey,
-              { task_count: taskCount, first_task: firstTask }
+              {
+                provider: 'resend',
+                provider_message_id: providerMessageId ?? null,
+                task_count: taskCount,
+                first_task: firstTask,
+              }
             ))
+            .then(() => {
+              sentEmails++;
+            })
             .catch((e) => {
               console.error(`Failed to send deadline rescue email to ${data.email}`, e);
             })
@@ -174,21 +222,23 @@ export async function GET(request: NextRequest) {
             failedPush += batch.length;
             console.error('[deadline-rescue] Expo Push API error:', await response.text());
           } else {
-            const result = await response.json();
+            const result = await response.json() as ExpoPushResponse;
             const invalidTokens: string[] = [];
 
             if (result.data) {
-              result.data.forEach((receipt: any, idx: number) => {
+              for (let idx = 0; idx < result.data.length; idx++) {
+                const receipt = result.data[idx];
                 if (receipt.status === 'ok') {
                   sentPush++;
                   const delivery = batchDeliveries[idx];
                   if (delivery) {
-                    void recordNotificationDelivery(
+                    await recordNotificationDelivery(
                       supabase,
                       delivery.userId,
                       'deadline_rescue',
                       'push',
-                      delivery.dedupeKey
+                      delivery.dedupeKey,
+                      { provider: 'expo', ticket_id: receipt.id ?? null }
                     );
                   }
                 } else if (receipt.status === 'error') {
@@ -198,7 +248,7 @@ export async function GET(request: NextRequest) {
                     if (userId) invalidTokens.push(userId);
                   }
                 }
-              });
+              }
             }
 
             if (invalidTokens.length > 0) {
@@ -219,10 +269,10 @@ export async function GET(request: NextRequest) {
     await Promise.all(emailPromises);
 
     return NextResponse.json({
-      message: `Sent ${sentPush} deadline rescue notifications, and ${emailPromises.length} emails`,
+      message: `Sent ${sentPush} deadline rescue notifications, and ${sentEmails} emails`,
       sent_push: sentPush,
       failed_push: failedPush,
-      sent_emails: emailPromises.length,
+      sent_emails: sentEmails,
       total_overdue_tasks: overdueTasks.length,
     });
   } catch (error) {

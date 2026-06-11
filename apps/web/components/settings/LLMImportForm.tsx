@@ -11,6 +11,7 @@ export function LLMImportForm({ initialData }: { initialData: UserAiMemory }) {
   const router = useRouter();
   const [rawText, setRawText] = useState('');
   const [parsing, setParsing] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [parsedData, setParsedData] = useState<any>(null);
   
   const [saving, setSaving] = useState(false);
@@ -39,10 +40,12 @@ export function LLMImportForm({ initialData }: { initialData: UserAiMemory }) {
     setMessage(null);
 
     // Deeply remove nulls because the Zod patch schema expects undefined for optional fields, not null.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stripNulls = (obj: any): any => {
       if (obj === null) return undefined;
       if (typeof obj !== 'object') return obj;
       if (Array.isArray(obj)) return obj.map(stripNulls).filter(x => x !== undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result: any = {};
       for (const [key, value] of Object.entries(obj)) {
         const cleaned = stripNulls(value);
@@ -116,26 +119,26 @@ export function LLMImportForm({ initialData }: { initialData: UserAiMemory }) {
       title="Import Custom Instructions" 
       description="Paste your custom instructions or memories from ChatGPT/Claude. We'll securely extract your preferences and discard the raw text."
       onSubmit={handleParse}
-      defaultOpen={true}
+      defaultOpen={false}
     >
       <div className="p-6">
         {!parsedData ? (
           <div className="space-y-6">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] text-[10px] font-bold">1</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-settings-brand dark:text-[var(--color-paper)] text-[10px] font-bold">1</span>
                 <span className="text-sm font-bold text-settings-text">Copy this prompt into a chat with your other AI provider</span>
               </div>
               <div className="relative group">
                 <div className="bg-settings-card border border-settings-border p-4 rounded-xl text-sm text-settings-text-muted pr-20 font-mono text-[11px] leading-relaxed max-h-64 overflow-y-auto">
-                  Export all of my stored memories and any context you've learned about me from past conversations. Preserve my words verbatim where possible, especially for instructions and scheduling preferences.<br/><br/>
+                  Export all of my stored memories and any context you&apos;ve learned about me from past conversations. Preserve my words verbatim where possible, especially for instructions and scheduling preferences.<br/><br/>
                   
                   ## Categories (output in this order):<br/><br/>
                   
-                  1. <strong>Instructions</strong>: Rules I've explicitly asked you to follow going forward — tone, format, style, detail level, "always do X", "never do Y".<br/>
-                  2. <strong>Identity & Context</strong>: Career, education, roles, and what I generally do day-to-day.<br/>
-                  3. <strong>Projects & Courses</strong>: Major projects or classes I'm committed to. Include what it is and any specific habits I have for it.<br/>
-                  4. <strong>Productivity & Planning Preferences</strong>: How I like to work. Preferred focus hours, break lengths, whether I like strict back-to-back scheduling or flexible buffers, and proactivity preferences.<br/>
+                  1. <strong>Instructions</strong>: Rules I&apos;ve explicitly asked you to follow going forward &mdash; tone, format, style, detail level, &quot;always do X&quot;, &quot;never do Y&quot;.<br/>
+                  2. <strong>Identity &amp; Context</strong>: Career, education, roles, and what I generally do day-to-day.<br/>
+                  3. <strong>Projects &amp; Courses</strong>: Major projects or classes I&apos;m committed to. Include what it is and any specific habits I have for it.<br/>
+                  4. <strong>Productivity &amp; Planning Preferences</strong>: How I like to work. Preferred focus hours, break lengths, whether I like strict back-to-back scheduling or flexible buffers, and proactivity preferences.<br/>
                   5. <strong>General Tastes</strong>: Other working-style preferences that apply broadly.<br/><br/>
                   
                   ## Format:<br/><br/>
@@ -181,7 +184,7 @@ If no date is known, use [unknown] instead.
                     }
                   }}
                   id="copy-prompt-btn"
-                  className="absolute top-4 right-4 px-3 py-1.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1 cursor-pointer"
+                  className="absolute top-4 right-4 px-3 py-1.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-settings-brand dark:text-[var(--color-paper)] rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1 cursor-pointer"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H136V24a8,8,0,0,0-8-8H40a8,8,0,0,0-8,8V184a8,8,0,0,0,8,8h80v16a8,8,0,0,0,8,8H216a8,8,0,0,0,8-8V48A8,8,0,0,0,216,40ZM120,176H48V32h72Zm88,32H136V192h80Z"></path></svg>
                   Copy
@@ -191,8 +194,8 @@ If no date is known, use [unknown] instead.
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] text-[10px] font-bold">2</span>
-                <span className="text-sm font-bold text-settings-text">Paste results below to add to Bruno's memory</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-settings-brand dark:text-[var(--color-paper)] text-[10px] font-bold">2</span>
+                <span className="text-sm font-bold text-settings-text">Paste results below to add to Bruno&apos;s memory</span>
               </div>
               <textarea
                 value={rawText}
@@ -213,7 +216,7 @@ If no date is known, use [unknown] instead.
               {parsedData.task_detail_preference?.detail_level && <p><strong>Detail Level:</strong> {parsedData.task_detail_preference.detail_level}</p>}
               {parsedData.task_detail_preference?.require_success_condition !== undefined && <p><strong>Require Success Condition:</strong> {parsedData.task_detail_preference.require_success_condition ? 'Yes' : 'No'}</p>}
               {parsedData.task_detail_preference?.require_materials !== undefined && <p><strong>Require Materials:</strong> {parsedData.task_detail_preference.require_materials ? 'Yes' : 'No'}</p>}
-              {parsedData.task_detail_preference?.require_why_now !== undefined && <p><strong>Require "Why Now":</strong> {parsedData.task_detail_preference.require_why_now ? 'Yes' : 'No'}</p>}
+              {parsedData.task_detail_preference?.require_why_now !== undefined && <p><strong>Require &quot;Why Now&quot;:</strong> {parsedData.task_detail_preference.require_why_now ? 'Yes' : 'No'}</p>}
               
               {parsedData.planning_style?.mode && <p><strong>Planning Mode:</strong> {parsedData.planning_style.mode}</p>}
               
@@ -249,7 +252,7 @@ If no date is known, use [unknown] instead.
               )}
             </div>
             <p className="text-xs text-settings-text-muted">
-              Note: The raw text will be permanently discarded to protect your privacy and ensure Bruno's core instructions aren't overridden.
+              Note: The raw text will be permanently discarded to protect your privacy and ensure Bruno&apos;s core instructions aren&apos;t overridden.
             </p>
           </div>
         )}
@@ -260,7 +263,7 @@ If no date is known, use [unknown] instead.
           <button 
             type="submit" 
             disabled={parsing || !rawText.trim()}
-            className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="px-6 py-2.5 bg-settings-brand text-settings-bg rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             {parsing ? 'Parsing...' : 'Parse Instructions'}
           </button>
@@ -278,7 +281,7 @@ If no date is known, use [unknown] instead.
               type="button" 
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="px-6 py-2.5 bg-settings-brand text-settings-bg rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {saving ? 'Saving...' : 'Save Preferences'}
             </button>

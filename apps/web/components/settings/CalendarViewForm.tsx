@@ -7,6 +7,7 @@ import { SettingsRow } from './ui/SettingsRow';
 import { SettingsToggleRow } from './ui/SettingsToggleRow';
 import { SectionBottomActions } from './ui/SectionBottomActions';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function CalendarViewForm({ initialData }: { initialData: Record<string, any> }) {
   const [defaultView, setDefaultView] = useState(initialData?.default_view || 'day');
   const [startHour, setStartHour] = useState<number>(initialData?.start_hour ?? 8);
@@ -100,7 +101,7 @@ export function CalendarViewForm({ initialData }: { initialData: Record<string, 
         <button 
           type="submit" 
           disabled={saving}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Save Preferences'}
         </button>

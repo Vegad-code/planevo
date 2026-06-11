@@ -1,746 +1,384 @@
-/* eslint-disable react/no-unescaped-entities, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { useSubscription, redirectToCheckout } from '@/hooks/use-subscription';
-import { Bruno } from '@/components/onboarding/Bruno';
-import { BrunoBubble } from '@/components/onboarding/BrunoBubble';
-import { testCanvasConnectionAction, saveOnboardingDataAction } from '@/lib/canvas/actions';
-import { posthog } from '@/lib/posthog';
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { posthog } from "@/lib/posthog";
+import { redirectToCheckout } from "@/hooks/use-subscription";
+import { 
+  saveOnboardingProgressAction, 
+  saveOnboardingDataAction, 
+  completeFreeOnboardingAction 
+} from "@/lib/canvas/actions";
 
-const STEPS = [
-  'WELCOME',     // 01
-  'IDENTITY',    // 02
-  'NAME',        // 03
-  'ENERGY',      // 04
-  'CANVAS',      // 05
-  'CALENDAR',    // 06
-  'FIRST_PLAN',  // 07
-  'TRIAL'        // 08
-];
+import { WelcomeIntentStep } from "@/components/onboarding/WelcomeIntentStep";
+import { ConnectCalendarStep } from "@/components/onboarding/ConnectCalendarStep";
+import { MagicLoadingStep } from "@/components/onboarding/MagicLoadingStep";
+import { PlanRevealStep } from "@/components/onboarding/PlanRevealStep";
+import { Bruno } from "@/components/onboarding/Bruno";
+import { BrunoBubble } from "@/components/onboarding/BrunoBubble";
+
+const steps = ["welcome", "calendar", "building", "reveal"] as const;
+type Step = (typeof steps)[number];
+
+const storageKey = "planevo_onboarding_v3";
 
 export default function OnboardingPage() {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-
-  // Form State
-  const [identityChecks, setIdentityChecks] = useState<Record<number, boolean>>({ 0: true, 2: true });
-  const [userName, setUserName] = useState('');
-  const [energyPreference, setEnergyPreference] = useState('morning');
-  const [canvasUrl, setCanvasUrl] = useState('');
-  const [canvasToken, setCanvasToken] = useState('');
-  const [isAnnual, setIsAnnual] = useState(true);
-
-  const [reactBump, setReactBump] = useState(0);
-  const [testingCanvas, setTestingCanvas] = useState(false);
-  const [canvasError, setCanvasError] = useState<string | null>(null);
-
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  // Load from localStorage on mount + Redirect if already complete
+  const [mounted, setMounted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [user, setUser] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+
+  // Form State
+  const [userName, setUserName] = useState("");
+  const [profileType, setProfileType] = useState("student");
+  const [energyPreference, setEnergyPreference] = useState("morning");
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [isAnnual, setIsAnnual] = useState(true);
+
+  const step = steps[currentStep] as Step;
+  const progress = ((currentStep + 1) / steps.length) * 100;
+  const isEdu = user?.email?.toLowerCase().endsWith(".edu") || false;
+
   useEffect(() => {
-    async function checkCompletion() {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      setUser(authUser);
-      if (authUser) {
-        const { data: profile } = await (supabase.from('users') as any).select('onboarding_complete, plan_type').eq('id', authUser.id).single();
+    async function load() {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+
+      if (data.user?.user_metadata?.full_name && !userName) {
+        setUserName(data.user.user_metadata.full_name);
+      }
+
+      if (data.user) {
+        if (typeof window !== "undefined" && window.location.search.includes("checkout=success")) {
+          setIsPolling(true);
+          const pollInterval = setInterval(async () => {
+            const { data: check } = await supabase.from("users").select("onboarding_complete").eq("id", data.user.id).single();
+            if (check?.onboarding_complete) {
+              clearInterval(pollInterval);
+              router.replace("/dashboard");
+            }
+          }, 1500);
+          // Set a timeout to stop polling after 10 seconds and just let them in (or show error)
+          setTimeout(() => clearInterval(pollInterval), 10000);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("users")
+          .select("name, onboarding_complete, energy_preference, google_calendar_connected, scheduling_preferences")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        if (profile?.name) setUserName(profile.name);
+        if (profile?.energy_preference) setEnergyPreference(profile.energy_preference);
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prefs = profile?.scheduling_preferences as Record<string, any>;
+        if (prefs?.onboarding_profile_type) setProfileType(prefs.onboarding_profile_type);
+
+        if (profile?.google_calendar_connected) {
+          setGoogleCalendarConnected(true);
+        }
         if (profile?.onboarding_complete) {
-          const planType = profile.plan_type || 'free';
-          const isAdminEmail = authUser.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
-          const isActive = ['trialing', 'premium', 'student'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
-          
-          if (isActive) {
-            router.replace('/dashboard');
-            return;
-          } else {
-            setCurrentStep(7); // Jump to Trial/Paywall
-            setMounted(true);
-            return;
-          }
+          router.replace("/dashboard");
+          return;
         }
       }
-      
-      const saved = localStorage.getItem('onboarding_draft');
+
+      const saved = window.localStorage.getItem(storageKey);
       if (saved) {
         try {
-          const data = JSON.parse(saved);
-          if (data.userName) setUserName(data.userName);
-          if (data.identityChecks) setIdentityChecks(data.identityChecks);
-          if (data.energyPreference) setEnergyPreference(data.energyPreference);
-          if (data.currentStep && data.currentStep < 7) setCurrentStep(data.currentStep);
-        } catch (e) {
-          console.error('Failed to load onboarding draft', e);
+          const draft = JSON.parse(saved);
+          if (typeof draft.currentStep === "number") setCurrentStep(Math.min(draft.currentStep, steps.length - 1));
+          if (draft.userName) setUserName(draft.userName);
+          if (draft.profileType) setProfileType(draft.profileType);
+          if (draft.energyPreference) setEnergyPreference(draft.energyPreference);
+          if (typeof draft.googleCalendarConnected === "boolean") setGoogleCalendarConnected(draft.googleCalendarConnected);
+          if (typeof draft.isAnnual === "boolean") setIsAnnual(draft.isAnnual);
+        } catch {
+          window.localStorage.removeItem(storageKey);
         }
       }
-      
+
       setMounted(true);
+      posthog.capture("onboarding_v3_started");
     }
-    checkCompletion();
-  }, [supabase, router]);
 
-  // Save to localStorage on change
+    void load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, supabase]);
+
   useEffect(() => {
-    const draft = {
-      userName,
-      identityChecks,
-      energyPreference,
-      currentStep
-    };
-    localStorage.setItem('onboarding_draft', JSON.stringify(draft));
-  }, [userName, identityChecks, energyPreference, currentStep]);
-
-  const nextStep = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const saveOnboardingData = async () => {
-    const res = await saveOnboardingDataAction({
-      name: userName,
-      energyPreference,
-      canvasUrl,
-      canvasToken,
-      identityChecks
-    });
-    if (!res.success) {
-      throw new Error(res.error || 'Failed to save onboarding data');
-    }
-    localStorage.removeItem('onboarding_draft');
-    posthog.capture('onboarding_completed', {
-      has_canvas: !!canvasUrl && !!canvasToken,
-      energy_preference: energyPreference,
-    });
-  };
-
-  const handleConnectCalendar = async () => {
-    try {
-      setLoading(true);
-      const draft = {
+    if (!mounted) return;
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        currentStep,
         userName,
-        identityChecks,
+        profileType,
         energyPreference,
-        currentStep: 6
-      };
-      localStorage.setItem('onboarding_draft', JSON.stringify(draft));
-      
-      const redirectTo = `${window.location.origin}/api/auth/callback/google-calendar?next=/onboarding`;
-      
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          },
-          scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly'
-        }
-      });
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error connecting Google Calendar:', err);
-      setLoading(false);
-    }
-  };
+        googleCalendarConnected,
+        isAnnual,
+      })
+    );
+  }, [mounted, currentStep, userName, profileType, energyPreference, googleCalendarConnected, isAnnual]);
 
-  const handleCheckout = async () => {
+  function goTo(nextStep: number) {
+    setError(null);
+    setCurrentStep(Math.max(0, Math.min(nextStep, steps.length - 1)));
+  }
+
+  async function handleWelcomeNext() {
     if (!user) {
-      router.push('/signup?redirect=onboarding');
+      router.push("/signup?redirect=onboarding");
       return;
     }
-    setLoading(true);
-    try {
-      await saveOnboardingData();
-      posthog.capture('checkout_started', { interval: isAnnual ? 'annual' : 'monthly', source: 'onboarding' });
-      await redirectToCheckout(isAnnual ? 'annual' : 'monthly');
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
+    
+    // Save progress to DB
+    await saveOnboardingProgressAction({
+      name: userName,
+      profileType,
+      energyPreference
+    });
+    
+    posthog.capture("onboarding_v3_step_completed", { step: "welcome" });
+    goTo(1); // to calendar
+  }
+
+  async function handleConnectCalendar() {
+    if (!user) {
+      router.push("/signup?redirect=onboarding");
+      return;
     }
-  };
 
-  const stepName = STEPS[currentStep];
+    setIsConnecting(true);
+    // Move to next step locally so when we return we are past calendar
+    window.localStorage.setItem(storageKey, JSON.stringify({
+       currentStep: 2, userName, profileType, energyPreference, googleCalendarConnected: true, isAnnual 
+    }));
+    
+    await saveOnboardingProgressAction({ googleCalendarConnected: true });
 
-  if (!mounted) {
+    const redirectTo = `${window.location.origin}/api/auth/callback/google-calendar?next=/onboarding`;
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+        scopes: "https://www.googleapis.com/auth/calendar.readonly",
+      },
+    });
+
+    if (authError) {
+      setError(authError.message);
+      setIsConnecting(false);
+    }
+  }
+
+  async function handleSkipCalendar() {
+    posthog.capture("onboarding_v3_step_skipped", { step: "calendar" });
+    goTo(2); // to building
+  }
+
+  async function saveFinalSetup() {
+    if (!user) {
+      router.push("/signup?redirect=onboarding");
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+    const response = await saveOnboardingDataAction({
+      name: userName,
+      energyPreference,
+      canvasUrl: "",
+      canvasToken: "",
+      identityChecks: {},
+      profileType,
+      calendarSkipped: !googleCalendarConnected,
+      googleCalendarConnected,
+    });
+
+    if (!response.success) {
+      setError(response.error || "Planevo could not complete that action. Please try again.");
+      setSaving(false);
+      return false;
+    }
+
+    // We no longer remove the localStorage here. This ensures that if a user clicks 
+    // "Back" on the Stripe checkout page, they will return to Step 4 (Pricing) instead of Step 1.
+    posthog.capture("onboarding_v3_completed", {
+      profile_type: profileType,
+      energy_preference: energyPreference,
+      has_google_calendar: googleCalendarConnected
+    });
+    return true;
+  }
+
+  async function continueWithFreePlan() {
+    const saved = await saveFinalSetup();
+    if (!saved) return;
+    try {
+      const result = await completeFreeOnboardingAction();
+      if (result.success) {
+        window.localStorage.removeItem(storageKey);
+        router.replace("/dashboard?onboarding=complete&plan=free");
+      } else {
+        setError(result.error || "Planevo could not complete that action. Please try again.");
+        setSaving(false);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setError(e.message || "Could not complete onboarding. Try again.");
+      setSaving(false);
+    }
+  }
+
+  async function startTrial() {
+    const saved = await saveFinalSetup();
+    if (!saved) return;
+    try {
+      await redirectToCheckout(isAnnual ? "annual" : "monthly", {
+        source: "onboarding_v3",
+        returnPath: "/dashboard",
+      });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (checkoutError: any) {
+      setSaving(false);
+      setError(checkoutError?.message || "Could not start checkout. Your setup is saved.");
+    }
+  }
+
+  if (!mounted || isPolling) {
     return (
-      <div className="min-h-screen bg-[var(--color-cream)] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[var(--color-bruno)] border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--color-cream)]">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[var(--color-honey)] border-t-transparent" />
+        {isPolling && (
+          <p className="font-serif text-2xl text-[var(--color-ink)] animate-pulse">
+            Confirming your subscription...
+          </p>
+        )}
       </div>
     );
   }
 
+  const showSidebar = step === "welcome" || step === "calendar";
+
   return (
-    <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] font-sans flex flex-col items-center justify-center overflow-hidden relative selection:bg-[var(--color-honey-soft)]">
-      <div className="w-[720px] max-w-[100vw] h-[960px] max-h-[100vh] bg-[var(--color-cream)] flex flex-col relative overflow-hidden">
-        
-        {/* Onboard Chrome */}
-        <div className="pt-6 px-8 relative z-10">
-          <div className="flex justify-between items-center mb-3">
-            <button 
-              onClick={() => {
-                if (currentStep > 0) prevStep();
-                else window.location.href = '/';
-              }} 
-              className="bg-transparent border-none font-sans text-sm text-[var(--color-ink-soft)] cursor-pointer flex items-center gap-1.5 py-1.5 pr-2.5"
+    <main className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] selection:bg-[var(--color-honey)] selection:text-[var(--color-ink)]">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 -mx-4 border-b border-[var(--color-line)] bg-[var(--color-cream)]/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => (currentStep === 0 ? router.push("/") : goTo(currentStep - 1))}
+              className={`text-sm font-medium transition ${step === "building" ? "invisible" : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"}`}
             >
-              <span className="text-base">←</span> Back
+              Back
             </button>
-            <div className="text-right font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] uppercase">
-              STEP {String(currentStep + 1).padStart(2, '0')} <span className="opacity-50">/ {String(STEPS.length).padStart(2, '0')}</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-2 max-w-xs mx-auto">
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+                  Step {String(currentStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-[rgba(26,20,13,0.08)]">
+                <div className="h-full rounded-full bg-[var(--color-honey)] transition-all duration-500" style={{ width: `${progress}%` }} />
+              </div>
             </div>
+            <Link href="/login" className={`text-sm font-medium transition ${user ? 'invisible' : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'}`}>
+              Sign in
+            </Link>
           </div>
-          <div className="h-1 bg-[rgba(26,20,13,0.08)] rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[var(--color-honey)] rounded-full transition-all duration-600 ease-in-out" 
-              style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
-            />
+        </header>
+
+        <section className={`grid flex-1 items-center gap-8 py-8 lg:py-12 ${showSidebar ? "lg:grid-cols-[0.9fr_1.1fr]" : "grid-cols-1"}`}>
+          {showSidebar && (
+            <aside className="hidden rounded-[32px] border border-[var(--color-line)] bg-[var(--color-paper)] p-8 lg:block shadow-sm">
+              <div className="flex items-center gap-4">
+                <Bruno size={108} mood={step === "calendar" ? "curious" : "happy"} wave={step === "welcome"} react={0} />
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-honey-deep)]">
+                    Planevo Setup
+                  </p>
+                  <h2 className="mt-2 font-serif text-4xl leading-none">
+                    First plan, then dashboard.
+                  </h2>
+                </div>
+              </div>
+              <div className="mt-8">
+                <BrunoBubble
+                  tone="cream"
+                  text={
+                    step === "calendar"
+                      ? "Calendar tells me where not to put work. That is the difference between a planner and a useful planner."
+                      : "We are not doing a generic tour. Every step helps me build a useful day for you."
+                  }
+                />
+              </div>
+            </aside>
+          )}
+
+          <div className="mx-auto w-full">
+            {error && (
+              <div className="mb-6 rounded-2xl border border-[var(--color-rose)] bg-[var(--color-rose-soft)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] shadow-sm">
+                {error}
+              </div>
+            )}
+
+            {step === "welcome" && (
+              <WelcomeIntentStep
+                userName={userName}
+                setUserName={setUserName}
+                profileType={profileType}
+                setProfileType={setProfileType}
+                energyPreference={energyPreference}
+                setEnergyPreference={setEnergyPreference}
+                onNext={handleWelcomeNext}
+              />
+            )}
+
+            {step === "calendar" && (
+              <ConnectCalendarStep
+                onConnect={handleConnectCalendar}
+                onSkip={handleSkipCalendar}
+                isConnecting={isConnecting}
+              />
+            )}
+
+            {step === "building" && (
+              <MagicLoadingStep onComplete={() => goTo(3)} />
+            )}
+
+            {step === "reveal" && (
+              <PlanRevealStep
+                userName={userName || user?.user_metadata?.full_name?.split(" ")[0] || "Pilot"}
+                isAnnual={isAnnual}
+                setIsAnnual={setIsAnnual}
+                onStartTrial={startTrial}
+                onContinueFree={continueWithFreePlan}
+                isSaving={saving}
+                isEdu={isEdu}
+                googleCalendarConnected={googleCalendarConnected}
+                profileType={profileType}
+                energyPreference={energyPreference}
+              />
+            )}
           </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 p-6 sm:px-12 pt-6 pb-5 flex flex-col overflow-y-auto overflow-x-hidden">
-          <AnimatePresence mode="wait">
-            {/* STEP 1: WELCOME */}
-            {stepName === 'WELCOME' && (
-              <motion.div key="1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex-1 flex flex-col justify-center items-center">
-                  <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-3xl py-6 px-8 mb-6 flex justify-center items-center">
-                    <Bruno size={140} mood="happy" wave />
-                  </div>
-                  <div className="text-center max-w-[600px] mb-6 mx-auto">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">WELCOME</div>
-                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal text-[var(--color-ink)] text-balance">
-                      Hi, I'm <em className="text-[var(--color-honey-deep)] not-italic">Bruno.</em><br/>Want me to plan your week?
-                    </h1>
-                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px] text-pretty">
-                      60 seconds of setup. Then I read your school, your calendar, and your to-dos — and quietly build your day every morning.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="bg-[var(--color-paper)] rounded-[20px] border border-[var(--color-line)] p-5.5 max-w-[400px] mx-auto w-full">
-                  <div className="font-mono text-[10px] tracking-[0.18em] text-[var(--color-ink-soft)] mb-3.5 uppercase text-center">START FREE · 14 DAYS</div>
-                  <div className="flex flex-col gap-2.5">
-                    <button 
-                      onClick={() => user ? nextStep() : router.push('/signup?redirect=onboarding')}
-                      className="bg-[var(--color-ink)] text-[var(--color-paper)] border-none py-3.5 px-4 rounded-full font-sans text-sm font-medium cursor-pointer flex items-center justify-center gap-2.5 hover:scale-[1.02] transition-transform"
-                    >
-                      <span className="w-[22px] h-[22px] rounded-full bg-[var(--color-paper)] text-[var(--color-ink)] inline-flex items-center justify-center font-bold text-[13px] font-mono">G</span> 
-                      Continue with Google
-                    </button>
-                    <button 
-                      onClick={() => user ? nextStep() : router.push('/signup?redirect=onboarding')}
-                      className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] py-3.5 px-4 rounded-full font-sans text-sm font-medium cursor-pointer hover:bg-[var(--color-line)] transition-colors"
-                    >
-                      Continue with email
-                    </button>
-                  </div>
-                  <div className="text-[11px] text-[var(--color-ink-soft)] mt-3.5 text-center leading-[1.5]">
-                    By continuing you agree to our <u>Terms</u> and <u>Privacy</u>.
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 2: IDENTITY */}
-            {stepName === 'IDENTITY' && (
-              <motion.div key="2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex items-center gap-4.5 mb-4.5">
-                  <Bruno size={72} mood="curious" react={reactBump} />
-                  <div className="flex-1">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">HONESTLY · NO WRONG ANSWERS</div>
-                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
-                      Which of these sound <em className="text-[var(--color-honey-deep)] not-italic">familiar?</em>
-                    </h1>
-                  </div>
-                </div>
-                <p className="text-[15px] text-[var(--color-ink-soft)] m-0 mb-4 leading-[1.55]">
-                  Pick all that apply — I use these to figure out what's actually getting in your way.
-                </p>
-
-                <div className="flex flex-col gap-2.5">
-                  {[
-                    "I plan the perfect week, then real life happens by Tuesday.",
-                    "I keep moving deadlines and feel a little worse each time.",
-                    "I open my planner, see red badges, and close it again.",
-                    "I waste real time deciding what to work on first.",
-                    "I'm great at the work — I'm bad at the logistics."
-                  ].map((o, i) => {
-                    const on = !!identityChecks[i];
-                    return (
-                      <label 
-                        key={i} 
-                        onClick={() => {
-                          setIdentityChecks(p => ({ ...p, [i]: !p[i] }));
-                          setReactBump(r => r + 1);
-                        }} 
-                        className={`flex items-center gap-3.5 py-3.5 px-4.5 bg-[var(--color-paper)] rounded-[14px] cursor-pointer transition-all duration-150 ${on ? 'border-2 border-[var(--color-honey)] translate-x-[2px]' : 'border border-[var(--color-line)] translate-x-0'}`}
-                      >
-                        <div className={`w-[22px] h-[22px] rounded-md flex items-center justify-center shrink-0 transition-colors duration-150 ${on ? 'bg-[var(--color-honey)] border-none' : 'bg-transparent border-[1.5px] border-[var(--color-line-strong)]'}`}>
-                          {on && <span className="text-[var(--color-ink)] text-[13px] font-bold">✓</span>}
-                        </div>
-                        <span className="text-[15px] leading-[1.4] select-none">{o}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3.5">
-                  <BrunoBubble
-                    tone="dark"
-                    text={Object.values(identityChecks).filter(Boolean).length === 0
-                      ? "Tap whichever ones ring true — no judgement."
-                      : "Got it. You're not alone, by the way."}
-                  />
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
-                  <button 
-                    onClick={nextStep}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
-                  >
-                    That's me · continue <span className="ml-1.5">→</span>
-                  </button>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
-                    {Object.values(identityChecks).filter(Boolean).length} SELECTED
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 3: NAME */}
-            {stepName === 'NAME' && (
-              <motion.div key="3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex flex-col items-center flex-1 justify-center">
-                  <Bruno size={120} mood={userName.length % 2 === 1 ? 'thinking' : 'happy'} className={userName.length > 0 ? 'tilt' : ''} />
-                  
-                  <div className="mt-6 text-center max-w-[600px]">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">GOOD · YOU'RE EXACTLY WHO I'M FOR</div>
-                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal">
-                      What should I <em className="text-[var(--color-honey-deep)] not-italic">call</em> you?
-                    </h1>
-                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px]">
-                      I'll use this when I check in. No formal titles — just whatever your friends call you.
-                    </p>
-                  </div>
-
-                  <div className="w-full max-w-[500px] mt-2">
-                    <input
-                      value={userName}
-                      onChange={(e) => {
-                        setUserName(e.target.value);
-                      }}
-                      placeholder="Type your name…"
-                      className="w-full bg-[var(--color-paper)] border-2 border-[var(--color-honey)] rounded-[14px] py-4 px-5 font-serif text-[26px] text-[var(--color-ink)] outline-none tracking-[-0.01em] box-border focus:shadow-[0_0_0_4px_rgba(208,135,65,0.2)] transition-shadow"
-                    />
-                    <div className="mt-3.5">
-                      <BrunoBubble
-                        text={userName.trim() ? `Hey ${userName.trim()} — nice to meet you. I'll keep things light unless you tell me otherwise.` : "Whenever you're ready."}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
-                  <button 
-                    onClick={nextStep}
-                    disabled={!userName.trim()}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] disabled:opacity-50 hover:scale-[1.02] transition-transform"
-                  >
-                    Continue · 5 more steps <span className="ml-1.5">→</span>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 4: ENERGY */}
-            {stepName === 'ENERGY' && (() => {
-              const opts = [
-                { id: 'morning',   label: 'Morning',           desc: 'I think clearest before 11 AM',           hours: '6 — 11',   ico: '☀️', mood: 'happy' as const },
-                { id: 'afternoon', label: 'Afternoon',         desc: 'I hit my stride after lunch',             hours: '12 — 5',   ico: '🥪', mood: 'normal' as const },
-                { id: 'night',     label: 'Night',             desc: 'My brain wakes up after 9 PM',            hours: '9 — 1',    ico: '🌙', mood: 'sleepy' as const },
-                { id: 'chaos',     label: 'Honestly, it varies', desc: 'It changes day to day — Bruno adapts', hours: 'all day',  ico: '🎲', mood: 'curious' as const },
-              ];
-              const currentMood = opts.find(o => o.id === energyPreference)?.mood || 'normal';
-
-              return (
-              <motion.div key="4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex items-start gap-4.5 mb-4.5">
-                  <Bruno size={80} mood={currentMood} react={reactBump} />
-                  <div className="flex-1">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">QUICK ONE</div>
-                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
-                      When does your brain <em className="text-[var(--color-honey-deep)] not-italic">actually</em> work?
-                    </h1>
-                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
-                      Not when you wish it did — when it really does. I'll put hard work in those windows.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2.5 mt-1.5">
-                  {opts.map((o) => {
-                    const on = energyPreference === o.id;
-                    return (
-                      <div 
-                        key={o.id} 
-                        onClick={() => { setEnergyPreference(o.id); setReactBump(b => b + 1); }} 
-                        className={`flex items-center gap-4 py-4 px-5 bg-[var(--color-paper)] rounded-[14px] cursor-pointer transition-all duration-150 ${on ? 'border-2 border-[var(--color-honey)] scale-[1.01]' : 'border border-[var(--color-line)] scale-100'}`}
-                      >
-                        <div className={`w-11 h-11 rounded-[10px] flex items-center justify-center text-[22px] ${on ? 'bg-[var(--color-honey-soft)]' : 'bg-[var(--color-cream)]'}`}>
-                          {o.ico}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-serif text-[22px] tracking-[-0.01em]">{o.label}</div>
-                          <div className="text-[12px] text-[var(--color-ink-soft)] mt-0.5">{o.desc}</div>
-                        </div>
-                        <div className={`font-mono text-[11px] tracking-[0.08em] uppercase ${on ? 'text-[var(--color-honey-deep)]' : 'text-[var(--color-ink-soft)]'}`}>
-                          {o.hours}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
-                  <button 
-                    onClick={nextStep}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
-                  >
-                    Continue <span className="ml-1.5">→</span>
-                  </button>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
-                    Bruno picks the rest
-                  </div>
-                </div>
-              </motion.div>
-              );
-            })()}
-
-            {/* STEP 5: CANVAS */}
-            {stepName === 'CANVAS' && (
-              <motion.div key="5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex items-start gap-4.5 mb-4.5">
-                  <Bruno size={80} mood="curious" className="peek" />
-                  <div className="flex-1">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">THE WOW MOMENT · 30 SECONDS</div>
-                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
-                      Let me read your <em className="text-[var(--color-honey-deep)] not-italic">Canvas.</em>
-                    </h1>
-                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
-                      I'll pull deadlines, quizzes, and class times — that's it. Never your essays, grades, or private docs.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[var(--color-paper)] rounded-[18px] border border-[var(--color-line)] p-5.5 mt-2">
-                  <div className="flex items-center gap-3.5 py-1">
-                    <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[var(--color-paper)] font-mono text-base font-semibold bg-[var(--color-rose)]">C</div>
-                    <div className="flex-1">
-                      <div className="text-[14px] font-medium">Canvas LMS</div>
-                      <input 
-                        value={canvasUrl}
-                        onChange={(e) => setCanvasUrl(e.target.value)}
-                        placeholder="https://canvas.instructure.com"
-                        className="text-[12px] text-[var(--color-ink)] mt-0.5 font-mono bg-[var(--color-cream)] border border-[var(--color-line)] rounded px-2 py-1 w-full outline-none focus:border-[var(--color-honey)]" 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3.5 py-2 mt-2">
-                    <div className="flex-1 pl-[52px]">
-                      <input 
-                        type="password"
-                        value={canvasToken}
-                        onChange={(e) => setCanvasToken(e.target.value)}
-                        placeholder="Paste Access Token..."
-                        className="text-[12px] text-[var(--color-ink)] font-mono bg-[var(--color-cream)] border border-[var(--color-line)] rounded px-2 py-1.5 w-full outline-none focus:border-[var(--color-honey)]" 
-                      />
-                    </div>
-                  </div>
-
-                  {canvasError && (
-                    <div className="mt-3 bg-[rgba(235,94,85,0.08)] border border-[var(--color-rose)] text-[var(--color-rose)] rounded-xl p-3 text-[13px] flex items-center gap-2">
-                      <span>⚠️</span> {canvasError}
-                    </div>
-                  )}
-
-                  <div className="mt-5.5 p-4 bg-[var(--color-cream)] rounded-xl">
-                    <div className="font-mono text-[10px] tracking-[0.16em] text-[var(--color-ink-soft)] mb-3 uppercase">I'LL READ</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Course names & assignment titles</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Due dates & times</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Class schedule</div>
-                    <div className="font-mono text-[10px] tracking-[0.16em] text-[var(--color-ink-soft)] mt-3.5 mb-3 uppercase">I WON'T READ</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Essays, submissions, or grades</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Messages or discussion posts</div>
-                  </div>
-                </div>
-                
-                <div className="text-center mt-3.5">
-                  <button onClick={nextStep} className="bg-transparent border-none text-[var(--color-ink-soft)] text-[13px] cursor-pointer underline p-1.5">
-                    I'll connect later
-                  </button>
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-4">
-                  <button 
-                    onClick={async () => {
-                      if (canvasUrl && canvasToken) {
-                        setTestingCanvas(true);
-                        setCanvasError(null);
-                        const isOk = await testCanvasConnectionAction(canvasUrl, canvasToken);
-                        setTestingCanvas(false);
-                        if (isOk) {
-                          nextStep();
-                        } else {
-                          setCanvasError('Failed to connect. Please check your URL and Access Token.');
-                        }
-                      } else {
-                        nextStep();
-                      }
-                    }}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
-                  >
-                    {testingCanvas ? 'Syncing...' : 'Connect Canvas · 30s'} <span className="ml-1.5">→</span>
-                  </button>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
-                    Encrypted in transit & at rest
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 6: CALENDAR */}
-            {stepName === 'CALENDAR' && (
-              <motion.div key="6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex items-start gap-4.5 mb-4.5">
-                  <Bruno size={80} mood="thinking" />
-                  <div className="flex-1">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">ONE MORE · ALMOST THERE</div>
-                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
-                      Now your <em className="text-[var(--color-honey-deep)] not-italic">calendar.</em>
-                    </h1>
-                    <p className="text-[14px] text-[var(--color-ink-soft)] mt-2.5 mb-0 leading-[1.5]">
-                      So I don't schedule deep work over your bio lab. I read events, never meeting notes.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[var(--color-paper)] rounded-[18px] border border-[var(--color-line)] p-5.5 mt-2">
-                  <div className="flex items-center gap-3.5 py-1">
-                    <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[var(--color-paper)] font-mono text-base font-semibold bg-[var(--color-blue)]">G</div>
-                    <div className="flex-1">
-                      <div className="text-[14px] font-medium">Google Calendar</div>
-                      <div className="text-[12px] text-[var(--color-ink-soft)] mt-0.5 font-mono">{user?.email || 'email@example.com'}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 p-3.5 px-4 bg-[var(--color-cream)] rounded-xl">
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Event titles & times</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px]"><span className="text-[var(--color-sage)] font-bold text-[14px] w-4 inline-block">✓</span> Recurring class blocks</div>
-                    <div className="flex items-center gap-2.5 py-1.5 text-[13px] text-[var(--color-ink-soft)]"><span className="text-[var(--color-rose)] font-bold text-[14px] w-4 inline-block">×</span> Meeting notes or attachments</div>
-                  </div>
-                </div>
-
-                <div className="mt-3.5">
-                  <BrunoBubble
-                    tone="dark"
-                    text="I'll look for empty windows between your classes and slot in the right work — never on top of your calendar."
-                  />
-                </div>
-                
-                <div className="text-center mt-3.5">
-                  <button onClick={nextStep} className="bg-transparent border-none text-[var(--color-ink-soft)] text-[13px] cursor-pointer underline p-1.5">
-                    I'll connect later
-                  </button>
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-4">
-                  <button 
-                    onClick={handleConnectCalendar}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
-                  >
-                    Connect Calendar · 20s <span className="ml-1.5">→</span>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 7: FIRST PLAN */}
-            {stepName === 'FIRST_PLAN' && (
-              <motion.div key="7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex items-start gap-4.5 mb-3.5">
-                  <Bruno size={76} mood="happy" className="pop" />
-                  <div className="flex-1">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-2 uppercase">HERE'S WHAT I FOUND</div>
-                    <h1 className="font-serif text-[38px] leading-[1.05] tracking-[-0.02em] m-0 font-normal">
-                      Your first <em className="text-[var(--color-honey-deep)] not-italic">plan</em>, {userName || 'Pilot'}.
-                    </h1>
-                    <p className="text-[13px] text-[var(--color-ink-soft)] mt-2 mb-0 leading-[1.5]">
-                      Preview plan built around your {energyPreference} energy. You can edit anything after setup.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 mt-1 mb-3.5">
-                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-ink)]">--</div>
-                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">ITEMS READ</div>
-                  </div>
-                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-honey-deep)]">--</div>
-                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">BLOCKS PLANNED</div>
-                  </div>
-                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-sage)]">--</div>
-                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DEEP FOCUS</div>
-                  </div>
-                  <div className="bg-[var(--color-paper)] rounded-xl border border-[var(--color-line)] p-3 px-3.5 flex-1">
-                    <div className="font-serif text-[26px] tracking-[-0.02em] leading-none text-[var(--color-rose)]">--</div>
-                    <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.12em] mt-1.5 uppercase">DUE THIS WEEK</div>
-                  </div>
-                </div>
-
-                <div className="bg-[var(--color-paper)] rounded-2xl border border-[var(--color-line)] p-4.5">
-                  <div className="flex justify-between items-center mb-2.5 pb-3 border-b border-[var(--color-line)]">
-                    <div className="font-serif text-[20px]">Sample plan <em className="text-[var(--color-honey-deep)] not-italic">preview</em></div>
-                    <div className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em] uppercase">PREVIEW</div>
-                  </div>
-                  {[
-                    { t: '09:00', dur: '90m', tx: 'Deep work block — morning focus', src: 'var(--color-rose)', lbl: 'SAMPLE · FOCUS' },
-                    { t: '10:30', dur: '15m', tx: 'Recovery break', src: 'var(--color-honey)', lbl: 'SAMPLE · BREAK' },
-                    { t: '11:00', dur: '60m', tx: 'Class or calendar block', src: 'var(--color-blue)', lbl: 'SAMPLE · CALENDAR' },
-                    { t: '14:00', dur: '60m', tx: 'Lighter afternoon task', src: 'var(--color-rose)', lbl: 'SAMPLE · LIGHTER TIME' },
-                  ].map((r, i) => (
-                    <div key={i} className="flex items-center gap-3 py-2.5">
-                      <div className="font-mono text-[11px] text-[var(--color-ink-soft)] min-w-[44px]">{r.t}</div>
-                      <div className="w-[3px] rounded-sm self-stretch" style={{ background: r.src }} />
-                      <div className="flex-1">
-                        <div className="text-[13px] font-medium">{r.tx}</div>
-                        <div className="font-mono text-[9px] text-[var(--color-ink-soft)] tracking-[0.08em] mt-0.5">{r.lbl}</div>
-                      </div>
-                      <div className="font-mono text-[10px] text-[var(--color-ink-soft)]">{r.dur}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
-                  <button 
-                    onClick={nextStep}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] hover:scale-[1.02] transition-transform"
-                  >
-                    Looks good — keep going <span className="ml-1.5">→</span>
-                  </button>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
-                    You can edit later · always
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 8: TRIAL */}
-            {stepName === 'TRIAL' && (
-              <motion.div key="8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex flex-col items-center">
-                  <Bruno size={86} mood="celebrating" className="pop" />
-                  <div className="mt-3 text-center max-w-[600px] mb-6">
-                    <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-bruno-deep)] mb-3.5 uppercase">ONE LAST THING · 14 DAYS FREE</div>
-                    <h1 className="font-serif text-[46px] leading-[1.04] tracking-[-0.02em] m-0 font-normal">
-                      Keep Bruno <em className="text-[var(--color-honey-deep)] not-italic">on your side.</em>
-                    </h1>
-                    <p className="font-sans text-base text-[var(--color-ink-soft)] leading-[1.55] mt-[18px]">
-                      14 days free. Then {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99/mo' : '$9.99/mo'} — or $4.99 with your .edu email. Card on file so we keep planning the day you forget.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[var(--color-ink)] text-[var(--color-paper)] rounded-[18px] p-6 mb-3.5">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-mono text-[10px] tracking-[0.18em] text-[var(--color-honey)] mb-2 uppercase">PLANEVO · ALL OF IT</div>
-                      <div className="font-serif text-[40px] text-[var(--color-paper)] tracking-[-0.025em] leading-none">
-                        $0<span className="text-[18px] opacity-60 ml-1">· 14 days</span>
-                      </div>
-                      <div className="font-mono text-[11px] text-[rgba(251,246,234,0.5)] mt-1.5 tracking-[0.06em] uppercase">
-                        THEN {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99/MO' : '$9.99/MO'} · CANCEL ANY TIME
-                      </div>
-                    </div>
-                    {user?.email?.toLowerCase().endsWith('.edu') && (
-                      <div className="bg-[rgba(208,135,65,0.12)] border border-[rgba(208,135,65,0.3)] rounded-[10px] p-2.5 px-3.5 text-right">
-                        <div className="font-mono text-[9px] tracking-[0.12em] text-[var(--color-honey)] uppercase">.EDU DETECTED</div>
-                        <div className="font-serif text-[22px] text-[var(--color-paper)] mt-1">
-                          $4.99<span className="text-[12px] opacity-60">/mo</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5 mt-5.5 pt-4.5 border-t border-[rgba(251,246,234,0.1)]">
-                    {[
-                      'Daily Plan, written each morning',
-                      'No-Shame Rollover when life slips',
-                      'Unlimited Bruno chat & rescheduling',
-                      'iOS & Android · sync everywhere',
-                    ].map((p, i) => (
-                      <div key={i} className="text-[12px] text-[rgba(251,246,234,0.75)] flex items-center gap-2">
-                        <span className="text-[var(--color-honey)]">✓</span> {p}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-1.5 mt-2 bg-[var(--color-paper)] p-1 rounded-full border border-[var(--color-line)]">
-                  <button 
-                    onClick={() => setIsAnnual(false)} 
-                    className={`flex-1 bg-transparent border-none py-2.5 px-3.5 rounded-full font-sans text-[13px] font-medium cursor-pointer transition-colors ${!isAnnual ? 'bg-[var(--color-ink)] text-[var(--color-paper)]' : 'text-[var(--color-ink-soft)]'}`}
-                  >
-                    Monthly <span className="opacity-60">· {user?.email?.toLowerCase().endsWith('.edu') ? '$4.99' : '$9.99'}</span>
-                  </button>
-                  <button 
-                    onClick={() => setIsAnnual(true)} 
-                    className={`flex-1 bg-transparent border-none py-2.5 px-3.5 rounded-full font-sans text-[13px] font-medium cursor-pointer transition-colors ${isAnnual ? 'bg-[var(--color-ink)] text-[var(--color-paper)]' : 'text-[var(--color-ink-soft)]'}`}
-                  >
-                    Annual <span className="bg-[var(--color-honey)] text-[var(--color-ink)] py-0.5 px-1.5 rounded text-[9px] font-mono ml-1">SAVE 34%</span>
-                  </button>
-                </div>
-
-                <div className="flex flex-col items-center gap-3.5 mt-auto pt-6">
-                  <button 
-                    onClick={handleCheckout}
-                    disabled={loading}
-                    className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none py-4 px-8 rounded-full font-sans text-[15px] font-medium cursor-pointer min-w-[280px] inline-flex items-center justify-center shadow-[0_1px_0_var(--color-honey-deep)] disabled:opacity-50 hover:scale-[1.02] transition-transform"
-                  >
-                    {loading ? 'Processing...' : 'Start my 14 days free'} <span className="ml-1.5">→</span>
-                  </button>
-                  <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em] uppercase">
-                    No charge until day 15 · email reminder
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Brand Footer */}
-        <div className="pt-3.5 px-8 pb-5 flex justify-center">
-          <span className="font-mono text-[10px] text-[var(--color-ink-faint)] tracking-[0.16em] uppercase">
-            🔒 SECURE · PLANEVO
-          </span>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
-

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { PlanType } from '@/lib/stripe';
-import { normalizePlanType } from '@/lib/auth/plan-types';
+import { isFreeLikePlan, isPaidPlan, normalizePlanType, type PlanType } from '@/lib/auth/plan-types';
 
 const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
 
@@ -56,16 +55,16 @@ export function useSubscription(): SubscriptionState {
         // Only the owner can be 'admin'
         const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' as PlanType : planType;
         
-        const isActive = ['premium', 'student'].includes(effectivePlan) || (effectivePlan === 'admin' && isOwner);
+        const isActive = isPaidPlan(effectivePlan, isOwner);
         const isTrialing = effectivePlan === 'trialing';
 
         setState({
           planType: effectivePlan,
           subscriptionStatus: profile.subscription_status || 'none',
           trialEnd: profile.trial_end,
-          isActive: isActive || isTrialing,
+          isActive,
           isTrialing,
-          isFree: effectivePlan === 'free',
+          isFree: isFreeLikePlan(effectivePlan),
           loading: false,
         });
       } else {
@@ -82,14 +81,21 @@ export function useSubscription(): SubscriptionState {
 /**
  * Redirects the user to Stripe Checkout for a new subscription.
  */
-export async function redirectToCheckout(interval: 'monthly' | 'annual' = 'monthly') {
+export async function redirectToCheckout(
+  interval: 'monthly' | 'annual' = 'monthly',
+  options: { source?: string; returnPath?: string } = {}
+) {
   const { posthog } = await import('@/lib/posthog');
-  posthog.capture('checkout_started', { interval });
+  posthog.capture('checkout_started', { interval, source: options.source });
 
   const res = await fetch('/api/stripe/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ interval }),
+    body: JSON.stringify({
+      interval,
+      source: options.source,
+      returnPath: options.returnPath,
+    }),
   });
 
   const data = await res.json();

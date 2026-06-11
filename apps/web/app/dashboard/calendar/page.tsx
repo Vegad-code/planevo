@@ -32,6 +32,7 @@ interface QuickAddData {
 export default function CalendarPage() {
   const {
     events,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     loading: eventsLoading,
     completeEvent,
     createEvent,
@@ -49,6 +50,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [chatProcessing, setChatProcessing] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'backlog' | 'chat'>('chat');
@@ -204,6 +206,7 @@ export default function CalendarPage() {
       const data = await response.json();
       toast.success(data.message || 'Events re-extracted successfully', { id: toastId });
       loadEvents(); 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(err);
       toast.error(`Re-extract failed: ${err.message || err}`, { id: toastId });
@@ -246,6 +249,7 @@ export default function CalendarPage() {
     loadEvents();
   }, [loadEvents]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleAutoSchedule = async (backlogTasks?: Task[]) => {
     setIsProcessing(true);
     const toastId = toast.loading('Bruno is finding optimal slots...', { id: 'auto-schedule' });
@@ -268,6 +272,7 @@ export default function CalendarPage() {
       const data = await response.json();
       toast.success(data.message || 'Schedule generated successfully', { id: toastId });
       loadEvents(); 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(err);
       toast.error(`Auto-scheduling failed: ${err.message || err}`, { id: toastId });

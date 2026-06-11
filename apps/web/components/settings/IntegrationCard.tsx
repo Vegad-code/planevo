@@ -14,6 +14,7 @@ export interface IntegrationCardProps {
 }
 
 export function IntegrationCard({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   id,
   title,
   description,
@@ -72,9 +73,9 @@ export function IntegrationCard({
         ) : status === 'available' ? (
           <button
             onClick={onConnect}
-            className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest bg-settings-text text-white rounded-xl hover:bg-[#3d3026] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+            className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest bg-settings-text text-settings-bg rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <Link weight="bold" size={12} className="text-white/70" /> CONNECT →
+            <Link weight="bold" size={12} className="opacity-70" /> CONNECT →
           </button>
         ) : (
           <button

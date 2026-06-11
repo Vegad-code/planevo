@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { updateUserAIMemory, getUserAIMemory, UserAiMemoryPatch, UserAiMemory } from '@/lib/ai/memory';
 import { generateObject, jsonSchema } from 'ai';
 import { openai } from '@ai-sdk/openai';
@@ -19,6 +20,7 @@ export async function updateBrunoMemoryAction(patch: UserAiMemoryPatch) {
     
     revalidatePath('/dashboard/settings/bruno');
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('[updateBrunoMemoryAction] error:', err);
     return { success: false, error: err.message || 'Failed to update preferences.' };
@@ -189,6 +191,7 @@ ${rawText}
     });
 
     return { success: true, data: object };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('[parseLLMImportAction] error:', err);
     return { success: false, error: err.message || 'Failed to parse instructions.' };

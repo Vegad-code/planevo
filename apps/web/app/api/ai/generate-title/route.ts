@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ title: cleanTitle });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('[Generate Title] Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

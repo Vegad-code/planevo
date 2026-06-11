@@ -117,6 +117,7 @@ export default function QuickCaptureModal() {
                     <select
                       className="text-xs bg-[var(--color-cream)] border border-[var(--color-line)] rounded-full px-3 py-1.5 outline-none text-[var(--color-ink-soft)] cursor-pointer"
                       value={dueDate}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e) => setDueDate(e.target.value as any)}
                       disabled={saving}
                     >
@@ -129,6 +130,7 @@ export default function QuickCaptureModal() {
                     <select
                       className="text-xs bg-[var(--color-cream)] border border-[var(--color-line)] rounded-full px-3 py-1.5 outline-none text-[var(--color-ink-soft)] cursor-pointer"
                       value={duration}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e) => setDuration(Number(e.target.value) as any)}
                       disabled={saving}
                     >

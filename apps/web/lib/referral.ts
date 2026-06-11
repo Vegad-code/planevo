@@ -55,7 +55,7 @@ export async function getOrCreateReferralCode(
  * Build a full referral link from a code.
  */
 export function getReferralLink(code: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.co';
   return `${baseUrl}/signup?ref=${code}`;
 }
 

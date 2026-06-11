@@ -7,6 +7,7 @@ import { SettingsRow } from './ui/SettingsRow';
 import { SettingsToggleRow } from './ui/SettingsToggleRow';
 import { SectionBottomActions } from './ui/SectionBottomActions';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function PlanningStyleForm({ initialData }: { initialData: Record<string, any> }) {
   const [mode, setMode] = useState<'strict' | 'balanced' | 'flexible'>(initialData?.mode || 'balanced');
   const [maxMinutes, setMaxMinutes] = useState<number>(initialData?.max_planned_minutes_per_day || 240);
@@ -59,12 +60,13 @@ export function PlanningStyleForm({ initialData }: { initialData: Record<string,
       title="AI Planning Style" 
       description="Control how Bruno generates your daily schedule."
       onSubmit={handleSubmit}
-      defaultOpen={false}
+      defaultOpen={true}
     >
       <div className="space-y-0">
         <SettingsRow title="Aggressiveness Mode" description="Strict mode packs the schedule tightly. Flexible leaves room for changes.">
           <select
             value={mode}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e) => setMode(e.target.value as any)}
             className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-settings-text transition-colors text-settings-text appearance-none"
           >
@@ -96,6 +98,7 @@ export function PlanningStyleForm({ initialData }: { initialData: Record<string,
         <SettingsRow title="Rollover Style" description="How unfinished tasks are handled at the end of the day.">
           <select
             value={rolloverStyle}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e) => setRolloverStyle(e.target.value as any)}
             className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-settings-text transition-colors text-settings-text appearance-none"
           >
@@ -162,7 +165,7 @@ export function PlanningStyleForm({ initialData }: { initialData: Record<string,
         <button 
           type="submit" 
           disabled={saving}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Save Style'}
         </button>

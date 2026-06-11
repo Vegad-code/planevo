@@ -9,6 +9,7 @@ export interface PlanevoLogoProps {
 export const PlanevoLogo = ({ 
   size = 32, 
   className = "", 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   gapColor
 }: PlanevoLogoProps) => (
   <svg 

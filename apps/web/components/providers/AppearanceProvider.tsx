@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 
 export const ACCENTS = [
   { id: 'honey', name: 'Honey', color: '#D08741' },
@@ -51,47 +51,169 @@ function applyMotion(reduce: boolean) {
   document.documentElement.classList.toggle('reduce-motion', reduce);
 }
 
+import { useTheme } from 'next-themes';
+import { createClient } from '@/lib/supabase/client';
+import { usePathname } from 'next/navigation';
+
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const [accent, setAccentState] = useState<AccentId>('honey');
   const [fontSize, setFontSizeState] = useState<FontSizeId>('default');
   const [reduceMotion, setReduceMotionState] = useState(false);
+  
+  const { theme, setTheme } = useTheme();
+  // Memoize the supabase client so it isn't recreated on every render
+  const supabase = useMemo(() => createClient(), []);
+  
+  const [isReady, setIsReady] = useState(false);
+  const pathname = usePathname();
 
-  // Hydrate from storage on mount (mirrors the no-flash inline script).
   useEffect(() => {
-    const savedAccent = (localStorage.getItem(STORAGE_KEYS.accent) as AccentId) || 'honey';
-    const savedFont = (localStorage.getItem(STORAGE_KEYS.fontSize) as FontSizeId) || 'default';
-    const savedMotion = localStorage.getItem(STORAGE_KEYS.motion) === 'reduced';
-    setAccentState(savedAccent);
-    setFontSizeState(savedFont);
-    setReduceMotionState(savedMotion);
-    applyAccent(savedAccent);
-    applyFontSize(savedFont);
-    applyMotion(savedMotion);
-  }, []);
+    if (!pathname?.startsWith('/dashboard')) {
+      document.documentElement.setAttribute('data-public', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-public');
+    }
+  }, [pathname]);
 
-  const setAccent = useCallback((a: AccentId) => {
+  // Hydrate from storage / Supabase strictly once on mount
+  useEffect(() => {
+    // Apply visual changes immediately (no React state) to prevent flash
+    const localAccent = (localStorage.getItem(STORAGE_KEYS.accent) as AccentId) || 'honey';
+    const localFont = (localStorage.getItem(STORAGE_KEYS.fontSize) as FontSizeId) || 'default';
+    const localMotion = localStorage.getItem(STORAGE_KEYS.motion) === 'reduced';
+    applyFontSize(localFont);
+    applyMotion(localMotion);
+
+    // Defer React state updates to avoid synchronous setState in effect body
+    let isMounted = true;
+    (async () => {
+      await Promise.resolve(); // microtask boundary
+      if (!isMounted) return;
+
+      let savedAccent = localAccent;
+      let savedFont = localFont;
+      let savedMotion = localMotion;
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && isMounted) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('theme, accent_color, font_size, reduce_motion')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profile && isMounted) {
+            if (profile.accent_color && ACCENTS.some(a => a.id === profile.accent_color)) {
+              savedAccent = profile.accent_color as AccentId;
+              localStorage.setItem(STORAGE_KEYS.accent, savedAccent);
+            }
+            if (profile.font_size && FONT_SIZES.some(f => f.id === profile.font_size)) {
+              savedFont = profile.font_size as FontSizeId;
+              localStorage.setItem(STORAGE_KEYS.fontSize, savedFont);
+            }
+            if (profile.reduce_motion !== null) {
+              savedMotion = profile.reduce_motion;
+              localStorage.setItem(STORAGE_KEYS.motion, savedMotion ? 'reduced' : 'normal');
+            }
+            if (profile.theme && profile.theme !== theme) {
+              setTheme(profile.theme);
+            }
+          }
+        }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        // ignore auth/network errors
+      } finally {
+        if (isMounted) {
+          setAccentState(savedAccent);
+          applyAccent(savedAccent);
+          setFontSizeState(savedFont);
+          applyFontSize(savedFont);
+          setReduceMotionState(savedMotion);
+          applyMotion(savedMotion);
+          setIsReady(true);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]); // Removed setTheme to prevent unnecessary triggers
+
+  // Sync theme changes back to Supabase
+  // We use a ref to prevent syncing the very first load
+  const themeInitialLoadRef = React.useRef(true);
+  useEffect(() => {
+    if (!isReady || !theme) return;
+    if (themeInitialLoadRef.current) {
+      themeInitialLoadRef.current = false;
+      return;
+    }
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await supabase.from('users').update({ theme }).eq('id', session.user.id);
+        }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {}
+    }, 1000); // Debounce network request
+    
+    return () => clearTimeout(timeoutId);
+  }, [theme, isReady, supabase]);
+
+  const setAccent = useCallback(async (a: AccentId) => {
+    // 1. Optimistic local update
     setAccentState(a);
     localStorage.setItem(STORAGE_KEYS.accent, a);
     applyAccent(a);
-  }, []);
+    
+    // 2. Async background sync
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.from('users').update({ accent_color: a }).eq('id', session.user.id);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {}
+  }, [supabase]);
 
-  const setFontSize = useCallback((f: FontSizeId) => {
+  const setFontSize = useCallback(async (f: FontSizeId) => {
     setFontSizeState(f);
     localStorage.setItem(STORAGE_KEYS.fontSize, f);
     applyFontSize(f);
-  }, []);
 
-  const setReduceMotion = useCallback((v: boolean) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.from('users').update({ font_size: f }).eq('id', session.user.id);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {}
+  }, [supabase]);
+
+  const setReduceMotion = useCallback(async (v: boolean) => {
     setReduceMotionState(v);
-    localStorage.setItem(STORAGE_KEYS.motion, v ? 'reduced' : 'on');
+    localStorage.setItem(STORAGE_KEYS.motion, v ? 'reduced' : 'normal');
     applyMotion(v);
-  }, []);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.from('users').update({ reduce_motion: v }).eq('id', session.user.id);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {}
+  }, [supabase]);
 
   const resetAppearance = useCallback(() => {
     setAccent('honey');
     setFontSize('default');
     setReduceMotion(false);
-  }, [setAccent, setFontSize, setReduceMotion]);
+    setTheme('system');
+  }, [setAccent, setFontSize, setReduceMotion, setTheme]);
 
   return (
     <AppearanceContext.Provider
@@ -113,6 +235,9 @@ export function useAppearance() {
  * BEFORE first paint, preventing a flash of the default theme.
  */
 export const appearanceNoFlashScript = `(function(){try{
+  if (!window.location.pathname.startsWith('/dashboard')) {
+    document.documentElement.setAttribute('data-public', 'true');
+  }
   var a=localStorage.getItem('${STORAGE_KEYS.accent}')||'honey';
   document.documentElement.setAttribute('data-accent',a);
   var f=localStorage.getItem('${STORAGE_KEYS.fontSize}')||'default';

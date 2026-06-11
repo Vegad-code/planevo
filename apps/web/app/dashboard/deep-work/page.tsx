@@ -65,6 +65,7 @@ function DeepWorkContent() {
             .eq('id', eventId)
             .single();
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const currentMetadata = (event?.metadata as Record<string, any>) || {};
           const newMetadata = {
              ...currentMetadata,
@@ -85,10 +86,7 @@ function DeepWorkContent() {
     }
   }, [eventId, supabase]);
 
-  const timer = useDeepWorkTimer(duration, () => {
-    // When natural timer finishes
-    handleComplete(timer.totalElapsedFocusTime);
-  });
+  const timer = useDeepWorkTimer(duration, handleComplete);
 
   const handleExit = () => {
     if (timer.totalElapsedFocusTime > 0) {

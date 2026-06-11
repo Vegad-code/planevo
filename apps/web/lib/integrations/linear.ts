@@ -80,6 +80,7 @@ export async function syncLinearAction(userId: string) {
   let importedCount = 0;
   const issues = data.data.viewer.assignedIssues.nodes || [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectedTeams = (account.metadata as any)?.selected_teams;
 
   for (const issue of issues) {
@@ -176,6 +177,7 @@ export async function fetchLinearTeams(userId: string) {
   }
 
   const teams = data.data.teams.nodes || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectedTeams = (account.metadata as any)?.selected_teams || [];
 
   return { teams, selectedTeams };
@@ -192,6 +194,7 @@ export async function saveLinearPreferences(userId: string, teamIds: string[]) {
 
   if (!account) throw new Error('Account not found');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metadata: any = account.metadata || {};
   metadata.selected_teams = teamIds;
 

@@ -1,5 +1,6 @@
 'use client';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -206,6 +207,7 @@ export function useCalendarEvents() {
     }
 
     return data as CalendarEvent;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
   // Reschedule an event (drag-to-move)

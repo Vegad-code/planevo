@@ -37,10 +37,11 @@ export default async function CalendarSettingsPage() {
       .eq('id', user.id)
       .single();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const legacyPrefs = userData?.scheduling_preferences as Record<string, any>;
     
     // Default values
-    let defaultView = 'day';
+    const defaultView = 'day';
     let startHour = 8;
     let endHour = 20;
 
@@ -97,7 +98,9 @@ export default async function CalendarSettingsPage() {
         <PlanningStyleForm initialData={memory.planning_style} />
         <BreakPreferencesForm initialData={memory.break_preference} />
         <FocusWindowsForm 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           initialPreferred={memory.preferred_focus_windows as any} 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           initialAvoided={memory.avoided_focus_windows as any} 
         />
       </div>

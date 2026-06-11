@@ -34,6 +34,7 @@ export async function updateProfileAction(data: {
       .eq('id', user.id)
       .single();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existingPrefs = (currentUser?.scheduling_preferences as Record<string, any>) || {};
 
     const newPrefs = {
@@ -52,6 +53,7 @@ export async function updateProfileAction(data: {
       preferred_planning_time: data.preferred_planning_time !== undefined ? data.preferred_planning_time : existingPrefs.preferred_planning_time,
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: any = {
       scheduling_preferences: newPrefs
     };
@@ -75,6 +77,7 @@ export async function updateProfileAction(data: {
     revalidatePath('/dashboard/settings/profile');
     
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error updating profile:', err);
     return { success: false, error: err.message || 'Unknown error' };

@@ -22,8 +22,10 @@ const TaskCard = React.memo(function TaskCard({
   onToggleComplete,
   onDelete,
   onReschedule,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onBreakDown,
   onMoveToWaiting,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onFocus,
   isJustOneThingMode = false,
   showCompletionToast,

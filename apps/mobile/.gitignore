@@ -1,41 +1,47 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# ----------------------------------------------------------------------
+# THE GREATEST GITIGNORE - MOBILE APP (EXPO / REACT NATIVE)
+# ----------------------------------------------------------------------
 
-# dependencies
+# Dependencies
 node_modules/
 
-# Expo
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+!*.env.example
+
+# Expo and React Native
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# IDE, Tools, and OS
+.vscode/
+.idea/
 .DS_Store
-*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+build_logs.txt
 
-# local env files
-.env*.local
+# Native Build Artifacts (Only if using prebuild)
+# If you run `npx expo run:ios` or `npx expo run:android`, uncomment these:
+# android/
+# ios/
 
-# typescript
-*.tsbuildinfo
+# CodePush and Fastlane
+.code-push/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
 
-# generated native folders
-/ios
-/android
+# Antigravity/MCP
+.gemini/
+mcp-servers/

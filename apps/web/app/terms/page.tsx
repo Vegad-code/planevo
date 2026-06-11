@@ -1,8 +1,3 @@
-// TODO (pre-launch): Replace this stub with a Termly or Iubenda generated Terms of Service.
-// Sign up at https://termly.io or https://www.iubenda.com to generate a hosted policy.
-// A lawyer review is NOT required before public launch — it becomes important before the
-// first school B2B contract or once paid users exceed ~500.
-
 import Link from 'next/link';
 
 export const metadata = {
@@ -22,9 +17,7 @@ export default function TermsPage() {
           ← Back to Planevo
         </Link>
 
-        <div className="mb-8 inline-block bg-accent-100 border-2 border-accent-500 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-accent-700 rounded-full">
-          Draft — Replace with Termly before public launch
-        </div>
+
 
         <h1 className="text-5xl font-black uppercase tracking-tighter mb-2">Terms of Service</h1>
         <p className="text-surface-500 font-bold uppercase tracking-widest text-xs mb-12">
@@ -105,7 +98,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-black uppercase tracking-tight text-surface-900 mb-3">9. Contact</h2>
             <p>
-              Questions? Reach us at <a href="mailto:legal@planpilot.app" className="text-brand-600 underline">legal@planpilot.app</a>.
+              Questions? Reach us at <a href="mailto:legal@planevo.co" className="text-brand-600 underline">legal@planevo.co</a>.
             </p>
           </section>
         </div>

@@ -10,7 +10,7 @@ import { NextRequest } from 'next/server';
  */
 
 const ALLOWED_ORIGINS: string[] = [
-  process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.app',
+  process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.co',
 ];
 
 if (process.env.NODE_ENV === 'development') {

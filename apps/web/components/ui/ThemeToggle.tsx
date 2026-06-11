@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTheme } from 'next-themes';
 import { Sun, Moon, BookOpen } from '@phosphor-icons/react';
 
@@ -10,8 +10,7 @@ import { Sun, Moon, BookOpen } from '@phosphor-icons/react';
  */
 export default function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [mounted] = useState(() => typeof window !== 'undefined');
 
   const active = (theme === 'system' ? resolvedTheme : theme) || 'light';
 

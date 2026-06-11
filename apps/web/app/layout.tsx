@@ -66,8 +66,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
-          themes={["light", "dark", "sepia"]}
+          defaultTheme="system"
+          themes={["light", "dark"]}
           enableSystem
           disableTransitionOnChange
         >

@@ -1,23 +1,32 @@
 {
   "cli": {
-    "version": ">= 14.2.0"
+    "version": ">= 20.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development"
+    },
+    "development-simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
       "ios": {
         "simulator": true
       }
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "ios": {
         "buildConfiguration": "Release"
       }
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "ios": {
         "buildConfiguration": "Release"
       },
@@ -27,14 +36,6 @@
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "YOUR_APPLE_ID",
-        "ascAppId": "YOUR_ASC_APP_ID"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./play-store-key.json"
-      }
-    }
+    "production": {}
   }
 }

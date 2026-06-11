@@ -70,7 +70,7 @@ export function BrunoPreferencesForm({ initialData }: { initialData: UserAiMemor
       title="Bruno Preferences" 
       description="Customize how Bruno talks to you and plans your week."
       onSubmit={handleSubmit}
-      defaultOpen={true}
+      defaultOpen={false}
     >
       <div className="space-y-0">
         <SettingsRow title="Tone & Style">
@@ -183,7 +183,7 @@ export function BrunoPreferencesForm({ initialData }: { initialData: UserAiMemor
         <button 
           type="submit" 
           disabled={saving}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-settings-bg rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Save Preferences'}
         </button>

@@ -1,5 +1,5 @@
 export type ExpoPushResult =
-  | { ok: true }
+  | { ok: true; ticketId?: string }
   | { ok: false; error: string; deviceNotRegistered: boolean };
 
 export async function sendExpoPushNotification(message: {
@@ -35,7 +35,7 @@ export async function sendExpoPushNotification(message: {
       };
     }
 
-    return { ok: true };
+    return { ok: true, ticketId: result.data?.id };
   } catch (error) {
     return {
       ok: false,

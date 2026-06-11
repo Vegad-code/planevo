@@ -38,6 +38,7 @@ export async function updateCalendarPreferencesAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error updating calendar preferences:', err);
     return { success: false, error: err.message || 'Unknown error' };
@@ -51,6 +52,7 @@ export async function updatePlanningStyleAction(data: {
   rollover_style?: 'automatic' | 'review' | 'manual';
   weekly_review_day?: string;
   weekly_review_time?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   work_hours?: any;
 }) {
   try {
@@ -68,6 +70,7 @@ export async function updatePlanningStyleAction(data: {
       .eq('user_id', user.id)
       .maybeSingle();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const currentStyle = (currentMemory?.planning_style as any) || {};
 
     await updateUserAIMemory(supabase, user.id, {
@@ -87,6 +90,7 @@ export async function updatePlanningStyleAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error updating planning style:', err);
     return { success: false, error: err.message || 'Unknown error' };
@@ -111,6 +115,7 @@ export async function updateBreakPreferencesAction(data: {
       .eq('user_id', user.id)
       .maybeSingle();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const currentPref = (currentMemory?.break_preference as any) || {};
 
     await updateUserAIMemory(supabase, user.id, {
@@ -125,6 +130,7 @@ export async function updateBreakPreferencesAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error updating break preferences:', err);
     return { success: false, error: err.message || 'Unknown error' };
@@ -132,7 +138,9 @@ export async function updateBreakPreferencesAction(data: {
 }
 
 export async function updateFocusWindowsAction(data: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preferred_focus_windows?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   avoided_focus_windows?: any[];
 }) {
   try {
@@ -143,6 +151,7 @@ export async function updateFocusWindowsAction(data: {
       return { success: false, error: 'Unauthorized' };
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: any = {};
     if (data.preferred_focus_windows) updates.preferred_focus_windows = data.preferred_focus_windows;
     if (data.avoided_focus_windows) updates.avoided_focus_windows = data.avoided_focus_windows;
@@ -153,6 +162,7 @@ export async function updateFocusWindowsAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error updating focus windows:', err);
     return { success: false, error: err.message || 'Unknown error' };

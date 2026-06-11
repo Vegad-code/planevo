@@ -131,6 +131,7 @@ const AnimatedList = <T extends { id?: string | number } | string | number>({
       <div ref={listRef} className={`scroll-list ${!displayScrollbar ? 'no-scrollbar' : ''}`} onScroll={handleScroll}>
         {items.map((item, index) => (
           <AnimatedItem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             key={(item as any).id || index}
             delay={0.1}
             index={index}

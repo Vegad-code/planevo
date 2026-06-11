@@ -46,7 +46,7 @@ export const PlanevoWelcomeEmail = ({
         <Body className="bg-cream font-sans text-dark py-10">
           <Container className="bg-white mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[500px] text-center shadow-sm">
             <Section className="mb-4 text-center">
-              <Img src="https://planevo.app/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
+              <Img src="https://planevo.co/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
             </Section>
 
             <Heading className="text-2xl font-bold mb-4 text-dark">
@@ -54,7 +54,7 @@ export const PlanevoWelcomeEmail = ({
             </Heading>
 
             <Text className="text-muted text-base leading-relaxed mb-6">
-              We are absolutely thrilled to have you here. Planevo was built to help you master your day and find focus without the pressure. We can't wait to see what you achieve.
+              We are absolutely thrilled to have you here. Planevo was built to help you master your day and find focus without the pressure. We can&apos;t wait to see what you achieve.
             </Text>
 
             <Text className="text-muted text-base leading-relaxed mb-8">
@@ -71,7 +71,7 @@ export const PlanevoWelcomeEmail = ({
             </Section>
 
             <Text className="text-[#aaa] text-xs mt-8 leading-relaxed">
-              If you didn't create this account, you can safely ignore this email.<br />
+              If you didn&apos;t create this account, you can safely ignore this email.<br />
               The Planevo Team
             </Text>
           </Container>

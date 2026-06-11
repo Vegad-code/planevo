@@ -1,21 +1,20 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { format } from 'date-fns';
-import { getRandomGreeting } from '@/lib/bruno';
-import { useUIStore } from '@/lib/store/ui-store';
 import { calculateMomentumStats, type MomentumStats } from '@/lib/stats';
 import type { ScheduleBlock } from '@/lib/ai/agentic-scheduler';
 import EventDialog from '@/components/calendar/dialogs/EventDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import type { CalendarEvent } from '@/types/calendar';
-import { Check, X, Calendar as CalendarIcon, Clock } from '@phosphor-icons/react';
+import { X, Clock } from '@phosphor-icons/react';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: string }) => (
-  <svg viewBox="0 0 48 48" width={size} height={size} style={{ flex: 'none' }}>
+  <svg viewBox="0 0 48 48" width={size} height={size} className="flex-none">
     <circle cx="14" cy="14" r="7" fill="var(--color-bruno-deep)" />
     <circle cx="34" cy="14" r="7" fill="var(--color-bruno-deep)" />
     <circle cx="14" cy="14" r="3.2" fill="var(--color-belly)" />
@@ -33,23 +32,23 @@ const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: strin
 
 const SourcePill = ({ kind, label, count, status = 'synced' }: { kind: 'canvas' | 'cal' | 'task' | 'project', label: string, count?: string, status?: string }) => {
   const colorMap = {
-    canvas: { dot: 'bg-[var(--color-rose)]' },
-    cal: { dot: 'bg-[var(--color-blue)]' },
-    task: { dot: 'bg-[var(--color-honey)]' },
-    project: { dot: 'bg-[var(--color-sage)]' },
+    canvas: { dot: 'bg-(--color-rose)' },
+    cal: { dot: 'bg-(--color-blue)' },
+    task: { dot: 'bg-(--color-honey)' },
+    project: { dot: 'bg-(--color-sage)' },
   };
   const c = colorMap[kind] || colorMap.task;
   return (
-    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-[var(--color-paper)] border border-[var(--color-line-strong)] text-[13px] font-sans shadow-sm">
+    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-(--color-paper) border border-line-strong text-[13px] font-sans shadow-sm">
       <span className={`w-2 h-2 rounded-full ${c.dot}`} />
-      <span className="text-[var(--color-ink)] font-medium">{label}</span>
+      <span className="text-(--color-ink) font-medium">{label}</span>
       {count && (
-        <span className="font-mono text-[11px] text-[var(--color-ink-soft)]">
+        <span className="font-mono text-[11px] text-(--color-ink-soft)">
           {count}
         </span>
       )}
       {status === 'synced' && (
-        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[var(--color-cream-2)] text-[var(--color-sage)] tracking-wider">
+        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-(--color-cream-2) text-(--color-sage) tracking-wider">
           SYNCED
         </span>
       )}
@@ -82,25 +81,25 @@ const NextActionCard = ({ nextAction }: { nextAction: any }) => {
   }
 
   return (
-    <div className="bg-[var(--color-paper)] text-[var(--color-ink)] rounded-2xl p-5 shadow-sm border border-[var(--color-line-strong)]">
+    <div className="bg-(--color-paper) text-(--color-ink) rounded-2xl p-5 shadow-sm border border-line-strong">
       <div className="flex justify-between items-center mb-3">
-        <span className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.1em]">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
-        <span className="font-mono text-[10px] text-[var(--color-sage)] tracking-[0.1em]">● FOCUS</span>
+        <span className="font-mono text-[11px] text-(--color-ink-soft) tracking-widest">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
+        <span className="font-mono text-[10px] text-(--color-sage) tracking-widest">● FOCUS</span>
       </div>
       <div className="font-serif text-xl tracking-tight mb-2 leading-tight">{nextAction.title}</div>
-      <div className="text-xs text-[var(--color-ink-soft)] font-mono tracking-wide mb-3 flex items-center gap-2">
-        <span className="text-[var(--color-rose)]">●</span> 
+      <div className="text-xs text-(--color-ink-soft) font-mono tracking-wide mb-3 flex items-center gap-2">
+        <span className="text-(--color-rose)">●</span> 
         {totalDurationMin} min
       </div>
-      <div className="h-1.5 bg-[var(--color-cream-2)] rounded-full overflow-hidden mb-2.5">
+      <div className="h-1.5 bg-(--color-cream-2) rounded-full overflow-hidden mb-2.5">
         <div 
-          className="h-full bg-[var(--color-honey)] rounded-full transition-all duration-1000 ease-in-out" 
+          className="h-full bg-(--color-honey) rounded-full transition-all duration-1000 ease-in-out" 
           style={{ width: `${progressPercent}%` }} 
         />
       </div>
       <div className="flex justify-between">
-        <span className="font-mono text-[10px] text-[var(--color-ink-soft)] tracking-[0.06em]">{elapsedMin} MIN IN</span>
-        <span className="font-mono text-[10px] text-[var(--color-honey-deep)] tracking-[0.06em]">BRUNO: YOU GOT THIS</span>
+        <span className="font-mono text-[10px] text-(--color-ink-soft) tracking-[0.06em]">{elapsedMin} MIN IN</span>
+        <span className="font-mono text-[10px] text-(--color-honey-deep) tracking-[0.06em]">BRUNO: YOU GOT THIS</span>
       </div>
     </div>
   );
@@ -108,26 +107,26 @@ const NextActionCard = ({ nextAction }: { nextAction: any }) => {
 
 const UpcomingAgendaItem = ({ item, onView }: { item: any, onView: (item: any) => void }) => {
   return (
-    <div className="flex items-start gap-5 py-4 border-t border-[var(--color-line)]">
+    <div className="flex items-start gap-5 py-4 border-t border-line">
       <div className="font-mono text-[11px] tracking-wide mt-0.5 shrink-0">
-        <span className="text-[var(--color-sage)] bg-[rgba(139,168,136,0.1)] px-2 py-1 rounded">
+        <span className="text-(--color-sage) bg-[rgba(139,168,136,0.1)] px-2 py-1 rounded">
           {item.date.getTime() === 8640000000000000 ? 'ANY TIME' : format(item.date, 'EEE h:mm a').toUpperCase()}
         </span>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[15px] font-medium text-[var(--color-ink)] truncate leading-tight">
+        <div className="text-[15px] font-medium text-(--color-ink) truncate leading-tight">
           {item.title}
         </div>
         {item.description && (
-          <div className="text-[13px] text-[var(--color-ink-soft)] truncate max-w-full opacity-80 mt-1">
+          <div className="text-[13px] text-(--color-ink-soft) truncate max-w-full opacity-80 mt-1">
             {item.description}
           </div>
         )}
-        <div className="font-mono text-[10px] text-[var(--color-ink-soft)] mt-1.5 truncate tracking-wide uppercase">
-          <span className={item.type === 'task' ? 'text-[var(--color-rose)]' : 'text-[var(--color-blue)]'}>●</span> {item.type === 'task' ? 'Open task' : 'Calendar event'}
+        <div className="font-mono text-[10px] text-(--color-ink-soft) mt-1.5 truncate tracking-wide uppercase">
+          <span className={item.type === 'task' ? 'text-(--color-rose)' : 'text-(--color-blue)'}>●</span> {item.type === 'task' ? 'Open task' : 'Calendar event'}
         </div>
       </div>
-      <button onClick={() => onView(item)} className="bg-transparent text-[var(--color-ink)] border border-[var(--color-line-strong)] px-4 py-1.5 rounded-full text-xs hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)] shrink-0 font-medium">
+      <button onClick={() => onView(item)} className="bg-transparent text-(--color-ink) border border-line-strong px-4 py-1.5 rounded-full text-xs hover:bg-(--color-cream-2) transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-ink) shrink-0 font-medium">
         {item.actionText}
       </button>
     </div>
@@ -136,20 +135,20 @@ const UpcomingAgendaItem = ({ item, onView }: { item: any, onView: (item: any) =
 
 const Stat = ({ label, big, sub, tone }: { label: string, big: string | number, sub: string, tone: 'sage' | 'honey' | 'ink' | 'bruno' }) => {
   const tones = {
-    sage: 'bg-[var(--color-sage)]',
-    honey: 'bg-[var(--color-honey)]',
-    ink: 'bg-[var(--color-ink)]',
-    bruno: 'bg-[var(--color-bruno)]',
+    sage: 'bg-(--color-sage)',
+    honey: 'bg-(--color-honey)',
+    ink: 'bg-(--color-ink)',
+    bruno: 'bg-(--color-bruno)',
   };
   const dotColor = tones[tone] || tones.ink;
   return (
-    <div className="bg-[var(--color-paper)] rounded-[22px] p-5 border border-[var(--color-line)] shadow-sm">
+    <div className="bg-(--color-paper) rounded-[22px] p-5 border border-line shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-        <span className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-ink-soft)] uppercase">{label}</span>
+        <span className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) uppercase">{label}</span>
       </div>
-      <div className="font-serif text-4xl leading-none tracking-tight text-[var(--color-ink)]">{big}</div>
-      <div className="text-xs text-[var(--color-ink-soft)] mt-2 font-mono tracking-wide">{sub}</div>
+      <div className="font-serif text-4xl leading-none tracking-tight text-(--color-ink)">{big}</div>
+      <div className="text-xs text-(--color-ink-soft) mt-2 font-mono tracking-wide">{sub}</div>
     </div>
   );
 };
@@ -159,8 +158,7 @@ export default function DashboardPage() {
   const supabase = useMemo(() => createClient(), []);
   
   const [userName, setUserName] = useState<string>('');
-  const [greeting, setGreeting] = useState('');
-  const [timeOfDay, setTimeOfDay] = useState<'morning' | 'afternoon' | 'evening'>(() => {
+  const [timeOfDay] = useState<'morning' | 'afternoon' | 'evening'>(() => {
     if (typeof window === 'undefined') return 'morning';
     const hours = new Date().getHours();
     if (hours < 12) return 'morning';
@@ -183,6 +181,14 @@ export default function DashboardPage() {
 
   const [selectedEventModal, setSelectedEventModal] = useState<CalendarEvent | null>(null);
   const [selectedTaskModal, setSelectedTaskModal] = useState<any | null>(null);
+
+  const [momentumStats, setMomentumStats] = useState<MomentumStats>({
+    focusTimeMinutes: 0,
+    tasksCrushed: 0,
+    tasksPlanned: 0,
+    upcomingDeadlines: 0,
+    consistencyPercent: 0,
+  });
 
   const { updateEvent, deleteEvent } = useCalendarEvents();
 
@@ -254,7 +260,6 @@ export default function DashboardPage() {
           
         if (profile?.name) {
           setUserName(profile.name);
-          setGreeting(getRandomGreeting(profile.name));
         }
 
         setConnections({
@@ -407,7 +412,7 @@ export default function DashboardPage() {
       .catch(err => console.error("Background sync failed", err));
 
     return () => { isMounted = false; };
-  }, [connections.googleConnected, supabase]);
+  }, [connections.googleConnected, connections.googleLastSyncedAt, connections.googleSyncFrequency, supabase]);
 
   const parsedSchedule = useMemo(() => {
     if (!schedule) return null;
@@ -441,13 +446,6 @@ export default function DashboardPage() {
     return parsedSchedule.filter(b => b.startTime > now).slice(0, 3);
   }, [parsedSchedule]);
 
-  const [momentumStats, setMomentumStats] = useState<MomentumStats>({
-    focusTimeMinutes: 0,
-    tasksCrushed: 0,
-    tasksPlanned: 0,
-    upcomingDeadlines: 0,
-    consistencyPercent: 0,
-  });
 
   const upcomingAgenda = useMemo(() => {
     const items: Array<{ id: string, type: 'task' | 'event', title: string, description?: string, date: Date, actionText: string, raw: any }> = [];
@@ -494,62 +492,62 @@ export default function DashboardPage() {
     return (
       <div className="animate-pulse fade-in duration-500 pb-12">
         {/* Header Skeleton */}
-        <div className="flex flex-wrap items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+        <div className="flex flex-wrap items-end justify-between gap-6 pb-7 border-b border-line mb-8">
           <div>
-            <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-4"></div>
-            <div className="w-64 h-12 md:w-96 md:h-14 bg-[var(--color-line-strong)] rounded-xl mb-4"></div>
-            <div className="w-48 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-32 h-3 bg-line-strong rounded-full mb-4"></div>
+            <div className="w-64 h-12 md:w-96 md:h-14 bg-line-strong rounded-xl mb-4"></div>
+            <div className="w-48 h-4 bg-line-strong rounded-full"></div>
           </div>
           <div className="flex gap-2.5 flex-wrap justify-end">
-            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
-            <div className="w-24 h-9 bg-[var(--color-line-strong)] rounded-full"></div>
+            <div className="w-24 h-9 bg-line-strong rounded-full"></div>
+            <div className="w-24 h-9 bg-line-strong rounded-full"></div>
           </div>
         </div>
 
         {/* Hero Card Skeleton */}
-        <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-[280px]">
+        <div className="bg-(--color-paper) border border-line rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-70">
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-9 h-9 rounded-full bg-[var(--color-line-strong)]"></div>
+              <div className="w-9 h-9 rounded-full bg-line-strong"></div>
               <div>
-                <div className="w-20 h-2 bg-[var(--color-line-strong)] rounded-full mb-2"></div>
-                <div className="w-32 h-4 bg-[var(--color-line-strong)] rounded-full"></div>
+                <div className="w-20 h-2 bg-line-strong rounded-full mb-2"></div>
+                <div className="w-32 h-4 bg-line-strong rounded-full"></div>
               </div>
             </div>
-            <div className="w-full h-10 md:h-12 bg-[var(--color-line-strong)] rounded-xl mb-3 max-w-sm"></div>
-            <div className="w-3/4 h-10 md:h-12 bg-[var(--color-line-strong)] rounded-xl mb-5 max-w-xs"></div>
-            <div className="w-full h-4 bg-[var(--color-line-strong)] rounded-full mb-2 max-w-md"></div>
-            <div className="w-5/6 h-4 bg-[var(--color-line-strong)] rounded-full mb-8 max-w-sm"></div>
+            <div className="w-full h-10 md:h-12 bg-line-strong rounded-xl mb-3 max-w-sm"></div>
+            <div className="w-3/4 h-10 md:h-12 bg-line-strong rounded-xl mb-5 max-w-xs"></div>
+            <div className="w-full h-4 bg-line-strong rounded-full mb-2 max-w-md"></div>
+            <div className="w-5/6 h-4 bg-line-strong rounded-full mb-8 max-w-sm"></div>
             
             <div className="flex gap-3 mt-auto pt-7">
-              <div className="w-40 h-11 bg-[var(--color-line-strong)] rounded-full"></div>
-              <div className="w-32 h-11 bg-[var(--color-line-strong)] rounded-full"></div>
+              <div className="w-40 h-11 bg-line-strong rounded-full"></div>
+              <div className="w-32 h-11 bg-line-strong rounded-full"></div>
             </div>
           </div>
           <div className="flex flex-col gap-3.5">
-            <div className="bg-[var(--color-cream)] rounded-2xl p-5 h-36"></div>
-            <div className="bg-[var(--color-cream)] rounded-2xl p-5 h-24"></div>
+            <div className="bg-cream rounded-2xl p-5 h-36"></div>
+            <div className="bg-cream rounded-2xl p-5 h-24"></div>
           </div>
         </div>
 
         {/* Stats Row Skeleton */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-[var(--color-paper)] rounded-[22px] p-5 border border-[var(--color-line)] h-32 flex flex-col justify-between">
+            <div key={i} className="bg-(--color-paper) rounded-[22px] p-5 border border-line h-32 flex flex-col justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-line-strong)]"></div>
-                <div className="w-16 h-2 bg-[var(--color-line-strong)] rounded-full"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-line-strong"></div>
+                <div className="w-16 h-2 bg-line-strong rounded-full"></div>
               </div>
-              <div className="w-12 h-8 bg-[var(--color-line-strong)] rounded-lg"></div>
-              <div className="w-24 h-3 bg-[var(--color-line-strong)] rounded-full"></div>
+              <div className="w-12 h-8 bg-line-strong rounded-lg"></div>
+              <div className="w-24 h-3 bg-line-strong rounded-full"></div>
             </div>
           ))}
         </div>
 
         {/* Detail Row Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
-          <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] h-64"></div>
-          <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] h-64"></div>
+          <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line h-64"></div>
+          <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line h-64"></div>
         </div>
       </div>
     );
@@ -560,15 +558,15 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-wrap items-end justify-between gap-6 pb-7 border-b border-[var(--color-line)] mb-8">
+      <div className="flex flex-wrap items-end justify-between gap-6 pb-7 border-b border-line mb-8">
         <div>
-          <div className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-ink-soft)] uppercase mb-3">
+          <div className="font-mono text-[11px] tracking-[0.18em] text-(--color-ink-soft) uppercase mb-3">
             {dateStr}
           </div>
-          <h1 className="font-serif text-5xl md:text-6xl tracking-tight text-[var(--color-ink)] m-0 leading-none">
-            {greetingPrefix}, <em className="text-[var(--color-honey-deep)] not-italic">{userName.split(' ')[0] || 'Planevo'}.</em>
+          <h1 className="font-serif text-5xl md:text-6xl tracking-tight text-(--color-ink) m-0 leading-none">
+            {greetingPrefix}, <em className="text-(--color-honey-deep) not-italic">{userName.split(' ')[0] || 'Planevo'}.</em>
           </h1>
-          <p className="font-sans text-[15px] text-[var(--color-ink-soft)] mt-3 mb-0">
+          <p className="font-sans text-[15px] text-(--color-ink-soft) mt-3 mb-0">
             {parsedSchedule && parsedSchedule.length > 0
               ? `${parsedSchedule.length} block${parsedSchedule.length > 1 ? 's' : ''} on your plate. Bruno has your back.`
               : "Let's organize your day."}
@@ -581,23 +579,23 @@ export default function DashboardPage() {
       </div>
 
       {/* HERO CARD */}
-      <div className="bg-[var(--color-ink)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-[280px]">
+      <div className="bg-(--color-ink) border border-line text-(--color-paper) rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-70">
         <div className="flex flex-col">
           <div className="flex items-center gap-2.5 mb-5">
             <BrunoMark size={36} mood={nextAction ? "happy" : "normal"} />
             <div>
               <div className="font-mono text-[11px] tracking-[0.16em] text-[rgba(251,246,234,0.5)]">BRUNO · JUST NOW</div>
-              <div className="font-serif text-[22px] text-[var(--color-paper)] mt-1 italic">
+              <div className="font-serif text-[22px] text-(--color-paper) mt-1 italic">
                 {nextAction ? "Tonight is for the light stuff." : "Let's plan this out."}
               </div>
             </div>
           </div>
           
-          <h2 className="font-serif text-4xl md:text-5xl leading-[1.05] tracking-tight font-normal my-0 mb-4 text-[var(--color-paper)]">
+          <h2 className="font-serif text-4xl md:text-5xl leading-[1.05] tracking-tight font-normal my-0 mb-4 text-(--color-paper)">
             {nextAction ? (
-              <>Your <em className="text-[var(--color-honey)] italic font-serif">next move</em><br/>is ready.</>
+              <>Your <em className="text-(--color-honey) italic font-serif">next move</em><br/>is ready.</>
             ) : (
-              <>Your <em className="text-[var(--color-honey)] italic font-serif">schedule</em><br/>is empty.</>
+              <>Your <em className="text-(--color-honey) italic font-serif">schedule</em><br/>is empty.</>
             )}
           </h2>
           
@@ -610,16 +608,16 @@ export default function DashboardPage() {
           <div className="flex gap-3 mt-auto pt-7">
             {nextAction ? (
               <>
-                <button onClick={() => router.push(`/dashboard/deep-work?taskId=${nextAction.id}`)} className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
+                <button onClick={() => router.push(`/dashboard/deep-work?taskId=${nextAction.id}`)} className="bg-(--color-honey) text-(--color-ink) border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-(--color-honey-soft) hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-ink) focus-visible:ring-(--color-honey)">
                   Dive in <span>&rarr;</span>
                 </button>
-                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-paper)]">
+                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-transparent text-(--color-paper) border border-[rgba(251,246,234,0.2)] px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-ink) focus-visible:ring-(--color-paper)">
                   See full plan
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-ink)] focus-visible:ring-[var(--color-honey)]">
+                <button onClick={() => router.push('/dashboard/daily-plan')} className="bg-(--color-honey) text-(--color-ink) border-none px-5 py-2.5 rounded-full text-sm font-medium hover:bg-(--color-honey-soft) hover:scale-105 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-ink) focus-visible:ring-(--color-honey)">
                   Generate Plan <span>&rarr;</span>
                 </button>
               </>
@@ -639,7 +637,7 @@ export default function DashboardPage() {
                     <span className="font-mono text-[11px] text-[#A3B899] bg-[rgba(163,184,153,0.15)] px-2 py-0.5 rounded whitespace-nowrap">
                       {format(block.startTime, 'h:mm a')}
                     </span>
-                    <span className="text-[14px] font-medium flex-1 truncate text-[var(--color-paper)] leading-tight">{block.title}</span>
+                    <span className="text-[14px] font-medium flex-1 truncate text-(--color-paper) leading-tight">{block.title}</span>
                     <span className="font-mono text-[10px] text-[rgba(251,246,234,0.5)] mt-0.5">{Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}m</span>
                   </div>
                 ))}
@@ -659,13 +657,13 @@ export default function DashboardPage() {
 
       {/* DETAIL ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
-        <div className="bg-[var(--color-paper)] rounded-[22px] p-6 border border-[var(--color-line)] shadow-sm min-w-0">
+        <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line shadow-sm min-w-0">
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-[0.16em] mb-1.5">THIS WEEK</div>
-              <div className="font-serif text-[22px] text-[var(--color-ink)]">What&apos;s <em>coming up.</em></div>
+              <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] mb-1.5">THIS WEEK</div>
+              <div className="font-serif text-[22px] text-(--color-ink)">What&apos;s <em>coming up.</em></div>
             </div>
-            <button onClick={() => router.push('/dashboard/calendar')} className="font-mono text-[11px] tracking-wide text-[var(--color-honey-deep)] hover:text-[var(--color-honey)] cursor-pointer bg-transparent border-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] rounded">
+            <button onClick={() => router.push('/dashboard/calendar')} className="font-mono text-[11px] tracking-wide text-(--color-honey-deep) hover:text-(--color-honey) cursor-pointer bg-transparent border-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) rounded">
               See all &rarr;
             </button>
           </div>
@@ -685,36 +683,36 @@ export default function DashboardPage() {
               />
             ))}
             {upcomingAgenda.length === 0 && (
-              <div className="py-8 text-center font-serif text-lg text-[var(--color-ink-soft)] italic">
+              <div className="py-8 text-center font-serif text-lg text-(--color-ink-soft) italic">
                 You&apos;re all caught up for the week.
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-[var(--color-bruno-deep)] border border-[var(--color-line)] text-[var(--color-paper)] rounded-[22px] p-6 flex flex-col shadow-sm">
-          <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--color-honey)] mb-3.5">BRUNO NOTICED</div>
+        <div className="bg-bruno-deep border border-line text-(--color-paper) rounded-[22px] p-6 flex flex-col shadow-sm">
+          <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-honey) mb-3.5">BRUNO NOTICED</div>
           
           <div className="flex-1">
             {insightLoading ? (
               <div className="flex gap-2 items-center text-[rgba(251,246,234,0.65)]">
-                <div className="w-4 h-4 border-2 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-(--color-honey) border-t-transparent rounded-full animate-spin" />
                 <span className="text-sm font-serif italic">Bruno is thinking...</span>
               </div>
             ) : insight ? (
               <div className="space-y-4">
                 {insight.split(/(?<=[.!?])\s+(?=[A-Z])/).map((sentence, idx) => (
-                  <p key={idx} className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
+                  <p key={idx} className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
                     {sentence}
                   </p>
                 ))}
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
-                  You have <em className="text-[var(--color-honey)] not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks.
+                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
+                  You have <em className="text-(--color-honey) not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks.
                 </p>
-                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-[var(--color-paper)] m-0">
+                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
                   Let&apos;s gently get to work. 🐻
                 </p>
                 <p className="text-[14px] text-[rgba(251,246,234,0.7)] mt-3.5 leading-relaxed">
@@ -727,13 +725,13 @@ export default function DashboardPage() {
           <div className="mt-6 flex flex-col gap-2">
             <button 
               onClick={() => router.push('/dashboard/daily-plan')}
-              className="bg-[var(--color-honey)] text-[var(--color-ink)] border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[var(--color-honey-soft)] hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-honey)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
+              className="bg-(--color-honey) text-(--color-ink) border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-(--color-honey-soft) hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) focus-visible:ring-offset-bruno-deep"
             >
               Let&apos;s prep your day
             </button>
             <button 
               onClick={() => router.push('/dashboard/chat')}
-              className="bg-transparent text-[var(--color-paper)] border border-[rgba(251,246,234,0.2)] px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-paper)] focus-visible:ring-offset-[var(--color-bruno-deep)]"
+              className="bg-transparent text-(--color-paper) border border-[rgba(251,246,234,0.2)] px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-paper) focus-visible:ring-offset-bruno-deep"
             >
               Open chat with Bruno
             </button>
@@ -760,20 +758,20 @@ export default function DashboardPage() {
       />
 
       <Dialog open={!!selectedTaskModal} onOpenChange={(open) => !open && setSelectedTaskModal(null)}>
-        <DialogContent className="p-0 overflow-hidden sm:max-w-[420px] bg-[var(--color-paper)] border-[var(--color-line)] shadow-2xl rounded-[24px]">
+        <DialogContent className="p-0 overflow-hidden sm:max-w-105 bg-(--color-paper) border-line shadow-2xl rounded-3xl">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-[var(--color-rose)]">●</span>
-                <span className="font-mono text-[11px] text-[var(--color-ink-soft)] tracking-wide">OPEN TASK</span>
+                <span className="text-(--color-rose)">●</span>
+                <span className="font-mono text-[11px] text-(--color-ink-soft) tracking-wide">OPEN TASK</span>
               </div>
-              <button onClick={() => setSelectedTaskModal(null)} className="p-1.5 rounded-full hover:bg-[var(--color-cream-2)] text-[var(--color-ink-soft)] transition-colors">
+              <button onClick={() => setSelectedTaskModal(null)} aria-label="Close task modal" title="Close task modal" className="p-1.5 rounded-full hover:bg-(--color-cream-2) text-(--color-ink-soft) transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-2">{selectedTaskModal?.title}</h2>
+            <h2 className="text-2xl font-bold text-(--color-ink) mb-2">{selectedTaskModal?.title}</h2>
             {selectedTaskModal?.due_date && (
-              <div className="text-[13px] text-[var(--color-ink-soft)] mb-6 flex items-center gap-1.5">
+              <div className="text-[13px] text-(--color-ink-soft) mb-6 flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
                 Due {format(new Date(selectedTaskModal.due_date), 'MMM d, yyyy h:mm a')}
               </div>
@@ -784,7 +782,7 @@ export default function DashboardPage() {
                   setSelectedTaskModal(null);
                   router.push(`/dashboard/deep-work?taskId=${selectedTaskModal?.id}`);
                 }}
-                className="flex-1 bg-[var(--color-ink)] text-[var(--color-paper)] py-2.5 rounded-full text-sm font-bold tracking-wide hover:opacity-90 transition-opacity"
+                className="flex-1 bg-(--color-ink) text-(--color-paper) py-2.5 rounded-full text-sm font-bold tracking-wide hover:opacity-90 transition-opacity"
               >
                 Focus on Task
               </button>

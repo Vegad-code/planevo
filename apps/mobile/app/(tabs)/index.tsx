@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { writeWidgetData } from '@/lib/widgetData';
+import { calculateMomentumStats, MomentumStats } from '@/lib/stats';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -62,6 +64,7 @@ interface ConnectionStatus {
 }
 
 export default function DailyPlanScreen() {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { isOffline } = useNetworkState();
@@ -73,6 +76,13 @@ export default function DailyPlanScreen() {
     canvasConnected: false,
     canvasDueCount: 0,
     googleConnected: false,
+  });
+  const [momentumStats, setMomentumStats] = useState<MomentumStats>({
+    focusTimeMinutes: 0,
+    tasksCrushed: 0,
+    tasksPlanned: 0,
+    upcomingDeadlines: 0,
+    consistencyPercent: 0,
   });
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -108,11 +118,13 @@ export default function DailyPlanScreen() {
       if (profile?.canvas_token) {
         const sevenDaysOut = new Date(Date.now() + 7 * 86400000).toISOString();
         const { count } = await supabase
-          .from('canvas_assignments')
+          .from('source_items')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
-          .gte('due_at', new Date().toISOString())
-          .lte('due_at', sevenDaysOut);
+          .eq('provider', 'canvas')
+          .eq('item_type', 'assignment')
+          .gte('due_date', new Date().toISOString())
+          .lte('due_date', sevenDaysOut);
         canvasDueCount = count ?? 0;
       }
 
@@ -128,7 +140,35 @@ export default function DailyPlanScreen() {
         .is('deleted_at', null)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      setTasks((taskRows as unknown as MiniTask[]) ?? []);
+      const currentTasks = (taskRows as unknown as MiniTask[]) ?? [];
+      setTasks(currentTasks);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const threeDaysFromNow = new Date();
+      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+      
+      const upcomingDeadlineCount = currentTasks.filter(t => 
+        !t.completed && t.due_date && 
+        t.due_date >= todayStr && 
+        t.due_date <= threeDaysFromNow.toISOString().split('T')[0]
+      ).length;
+
+      const tasksPlannedToday = currentTasks.filter(t => 
+        t.due_date && t.due_date.startsWith(todayStr)
+      ).length;
+
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const { data: metricsData } = await supabase
+        .from('daily_user_metrics')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', sevenDaysAgo.toISOString().split('T')[0]);
+
+      const metrics = metricsData || [];
+      const mStats = calculateMomentumStats(metrics, upcomingDeadlineCount, tasksPlannedToday);
+      setMomentumStats(mStats);
 
       const { data: blocksData } = await supabase
         .from('calendar_events')
@@ -239,16 +279,6 @@ export default function DailyPlanScreen() {
     return null;
   }, [parsedSchedule]);
 
-  const stats = useMemo(() => {
-    const dueToday = tasks.filter(
-      (t) => !t.completed && t.due_date && isToday(new Date(t.due_date))
-    ).length;
-    const completedToday = tasks.filter(
-      (t) => t.completed && t.completed_at && isToday(new Date(t.completed_at))
-    ).length;
-    const open = tasks.filter((t) => !t.completed).length;
-    return { dueToday, completedToday, open };
-  }, [tasks]);
 
   const completeTask = async (taskId: string) => {
     // Dopamine hit!
@@ -269,6 +299,10 @@ export default function DailyPlanScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error('Your session has expired. Please log out and log back in.');
+      }
       
       let apiUrl = process.env.EXPO_PUBLIC_API_URL;
       if (!apiUrl) {
@@ -490,6 +524,14 @@ export default function DailyPlanScreen() {
                     <Text style={styles.actionBtnText}>Mark Done</Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: Colors.ink }]}
+                  onPress={() => router.push('/deep-work')}
+                  testID="start-deep-work-btn"
+                >
+                  <Clock size={14} color="#fff" strokeWidth={2.5} />
+                  <Text style={styles.actionBtnText}>Deep Work</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -538,10 +580,11 @@ export default function DailyPlanScreen() {
         )}
 
         {/* Stats Row */}
-        <View style={styles.statsRow} testID="dashboard-stats">
-          <StatCard icon={<Target size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Due today" value={stats.dueToday} colors={colors} testID="stat-due-today" />
-          <StatCard icon={<CheckCircle2 size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Done today" value={stats.completedToday} colors={colors} testID="stat-done-today" />
-          <StatCard icon={<Clock size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Open" value={stats.open} colors={colors} testID="stat-open-tasks" />
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }} testID="dashboard-stats">
+          <StatCard icon={<Clock size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Focus Min" value={momentumStats.focusTimeMinutes} colors={colors} testID="stat-focus" />
+          <StatCard icon={<CheckCircle2 size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Crushed" value={momentumStats.tasksCrushed} colors={colors} testID="stat-crushed" />
+          <StatCard icon={<Target size={16} color={Colors.error} strokeWidth={2.5} />} label="Deadlines" value={momentumStats.upcomingDeadlines} colors={colors} testID="stat-deadlines" />
+          <StatCard icon={<Zap size={16} color={Colors.brand[500]} strokeWidth={2.5} />} label="Consistency" value={`${momentumStats.consistencyPercent}%` as any} colors={colors} testID="stat-consistency" />
         </View>
 
         {/* Tasks Expander */}

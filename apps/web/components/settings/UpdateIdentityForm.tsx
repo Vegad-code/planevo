@@ -6,6 +6,7 @@ import { SettingsSection } from './ui/SettingsSection';
 import { SettingsRow } from './ui/SettingsRow';
 import { SectionBottomActions } from './ui/SectionBottomActions';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function UpdateIdentityForm({ initialData }: { initialData: Record<string, any> }) {
   const [name, setName] = useState(initialData?.name || '');
   const [preferredName, setPreferredName] = useState(
@@ -43,7 +44,7 @@ export function UpdateIdentityForm({ initialData }: { initialData: Record<string
       title="Personal Info" 
       description="Your personal information and how Bruno addresses you."
       onSubmit={handleSubmit}
-      defaultOpen={true}
+      defaultOpen={false}
     >
       <div className="space-y-0">
         <SettingsRow 
@@ -100,7 +101,7 @@ export function UpdateIdentityForm({ initialData }: { initialData: Record<string
         <button 
           type="submit" 
           disabled={saving || (!name.trim())}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-settings-bg rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Update Identity'}
         </button>

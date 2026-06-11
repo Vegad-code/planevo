@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       throw fetchError;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const preferences = userData.scheduling_preferences as Record<string, any> || {};
     preferences.google_selected_calendars = selectedCalendarIds;
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Save Calendars Error:', error);
     return NextResponse.json({ 

@@ -35,6 +35,7 @@ export function useTaskActions(onRefresh: () => void) {
         return { error: 'Please log in again.' };
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from('tasks').insert({
         user_id: user.id,
         title: input.title.trim(),
@@ -76,6 +77,7 @@ export function useTaskActions(onRefresh: () => void) {
       : { completed: true, completed_at: new Date().toISOString(), status: 'done' };
 
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('tasks')
       .update(updates)
@@ -101,6 +103,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Soft delete a task
   const deleteTask = useCallback(async (taskId: string, taskTitle: string = 'Task') => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('tasks')
       .update({ deleted_at: new Date().toISOString() })
@@ -112,6 +115,7 @@ export function useTaskActions(onRefresh: () => void) {
       action: {
         label: 'Undo',
         onClick: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (supabase as any)
             .from('tasks')
             .update({ deleted_at: null })
@@ -124,6 +128,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Restore a soft-deleted task
   const restoreTask = useCallback(async (taskId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('tasks')
       .update({ deleted_at: null })
@@ -133,12 +138,14 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Permanently delete a task
   const permanentlyDeleteTask = useCallback(async (taskId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('tasks').delete().eq('id', taskId);
     onRefresh();
   }, [supabase, onRefresh]);
 
   // Reschedule a task to a new due date
   const rescheduleTask = useCallback(async (taskId: string, newDueDate: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('tasks')
       .update({ due_date: newDueDate })
@@ -146,8 +153,10 @@ export function useTaskActions(onRefresh: () => void) {
 
     // Increment rescheduled_count via raw SQL approach — use RPC or just re-fetch
     // For now, simple update approach:
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any).from('tasks').select('rescheduled_count').eq('id', taskId).single();
     if (data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from('tasks')
         .update({ rescheduled_count: (data.rescheduled_count || 0) + 1 })
@@ -159,6 +168,7 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Move to waiting (just remove due date to de-prioritize)
   const moveToWaiting = useCallback(async (taskId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('tasks')
       .update({ due_date: null, priority: 'low' })
@@ -195,6 +205,7 @@ export function useTaskActions(onRefresh: () => void) {
         if (profileError || !user) return { error: 'Auth/profile error' };
 
         // 1) Fetch tasks that are about to be cleared so we can undo
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: tasksToDelete } = await (supabase as any)
           .from('tasks')
           .select('id')
@@ -206,9 +217,11 @@ export function useTaskActions(onRefresh: () => void) {
           return { error: null };
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const taskIds = tasksToDelete.map((t: any) => t.id);
 
         // 2) Soft delete them
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from('tasks')
           .update({ deleted_at: new Date().toISOString() })
@@ -224,6 +237,7 @@ export function useTaskActions(onRefresh: () => void) {
           action: {
             label: 'Undo',
             onClick: async () => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               await (supabase as any)
                 .from('tasks')
                 .update({ deleted_at: null })

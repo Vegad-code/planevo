@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { X, Check, CaretRight } from '@phosphor-icons/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { fetchLinearTeams, saveLinearPreferences } from '@/lib/integrations/linear';
 
@@ -25,13 +26,7 @@ export function LinearConfigModal({ isOpen, onClose, onComplete }: LinearConfigM
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadTeams();
-    }
-  }, [isOpen]);
-
-  const loadTeams = async () => {
+  const loadTeams = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -42,12 +37,29 @@ export function LinearConfigModal({ isOpen, onClose, onComplete }: LinearConfigM
       const { teams, selectedTeams } = await fetchLinearTeams(user.id);
       setTeams(teams);
       setSelectedTeamIds(new Set(selectedTeams));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.message || 'Failed to load Linear teams');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (isOpen) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          loadTeams();
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, loadTeams]);
 
   const toggleTeam = (teamId: string) => {
     setSelectedTeamIds(prev => {
@@ -70,6 +82,7 @@ export function LinearConfigModal({ isOpen, onClose, onComplete }: LinearConfigM
 
       await saveLinearPreferences(user.id, Array.from(selectedTeamIds));
       onComplete();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.message || 'Failed to save preferences');
     } finally {

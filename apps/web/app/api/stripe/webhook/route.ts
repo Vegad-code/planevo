@@ -4,14 +4,60 @@ import Stripe from 'stripe';
 import { stripe, subscriptionStatusToPlanType } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { posthogServer } from '@/lib/posthog-server';
-import { sendSubscriptionReceiptEmail, sendPaymentFailedEmail } from '@/lib/email';
-import { canSendNotification } from '@/lib/notifications/preferences';
+import { buildEmailIdempotencyKey, sendSubscriptionReceiptEmail, sendPaymentFailedEmail } from '@/lib/email';
+import { canSendNotification, type NotificationPreferences } from '@/lib/notifications/preferences';
 import { sendExpoPushNotification } from '@/lib/notifications/expo';
+import {
+  hasNotificationDelivery,
+  recordNotificationDelivery,
+} from '@/lib/notifications/delivery';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 
+type BillingNotificationUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  expo_push_token: string | null;
+  notification_preferences: Partial<NotificationPreferences> | null;
+};
+
+type InvoiceLineWithLegacyPrice = Stripe.InvoiceLineItem & {
+  price?: { nickname?: string | null } | null;
+};
+
 // Disable body parsing — Stripe needs the raw body for signature verification
 export const runtime = 'nodejs';
+
+function getSubscriptionTimestamp(subscription: Stripe.Subscription, key: 'current_period_start' | 'current_period_end') {
+  return (subscription as Stripe.Subscription & Partial<Record<typeof key, number>>)[key];
+}
+
+async function hasProcessedStripeEvent(eventId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabaseAdmin as any)
+    .from('stripe_webhook_events')
+    .select('id')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+async function markStripeEventProcessed(event: Stripe.Event) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabaseAdmin as any)
+    .from('stripe_webhook_events')
+    .insert({ id: event.id, event_type: event.type });
+
+  if (error && error.code !== '23505') {
+    throw error;
+  }
+}
 
 async function syncSubscriptionToDatabase(subscription: Stripe.Subscription) {
   const userId = subscription.metadata?.supabase_user_id;
@@ -30,7 +76,7 @@ async function syncSubscriptionToDatabase(subscription: Stripe.Subscription) {
 
     if (!user) {
       console.error('[Stripe Webhook] No user found for customer:', customerId);
-      return;
+      throw new Error(`No user found for Stripe customer ${customerId}`);
     }
 
     await updateUser(user.id, subscription, customerId);
@@ -47,22 +93,29 @@ async function updateUser(
 ) {
   const priceId = subscription.items.data[0]?.price?.id;
   const planType = subscriptionStatusToPlanType(subscription.status, priceId);
+  const currentPeriodEnd = getSubscriptionTimestamp(subscription, 'current_period_end');
 
   const { error } = await supabaseAdmin
     .from('users')
     .update({
       stripe_customer_id: customerId,
       stripe_subscription_id: subscription.id,
+      stripe_price_id: priceId ?? null,
+      stripe_current_period_end: currentPeriodEnd
+        ? new Date(currentPeriodEnd * 1000).toISOString()
+        : null,
       subscription_status: subscription.status,
       plan_type: planType,
       trial_end: subscription.trial_end
         ? new Date(subscription.trial_end * 1000).toISOString()
         : null,
+      onboarding_complete: true,
     })
     .eq('id', userId);
 
   if (error) {
     console.error('[Stripe Webhook] DB update failed:', error);
+    throw error;
   } else {
     console.log(`[Stripe Webhook] User ${userId} → plan_type=${planType}, status=${subscription.status}`);
 
@@ -101,19 +154,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Idempotency check: insert event into stripe_webhook_events
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insertError } = await (supabaseAdmin as any)
-      .from('stripe_webhook_events')
-      .insert({ id: event.id, event_type: event.type });
-
-    if (insertError) {
-      if (insertError.code === '23505') { // Unique violation
-        console.log(`[Stripe Webhook] Event ${event.id} already processed. Skipping.`);
-        return NextResponse.json({ received: true });
-      }
-      console.error('[Stripe Webhook] Error logging event for idempotency:', insertError);
-      // We proceed even if logging fails, but it could also be a 500 error.
+    if (await hasProcessedStripeEvent(event.id)) {
+      console.log(`[Stripe Webhook] Event ${event.id} already processed. Skipping.`);
+      return NextResponse.json({ received: true });
     }
 
     switch (event.type) {
@@ -145,18 +188,22 @@ export async function POST(req: NextRequest) {
           ? subscription.customer
           : subscription.customer.id;
 
-        // Find user by customer ID and reset to free
+        // Find user by customer ID and reset to free. Keep stripe_customer_id
+        // and trial_end for billing history and trial eligibility checks.
         const { error } = await supabaseAdmin
           .from('users')
           .update({
-            plan_type: 'canceled',
+            plan_type: 'free',
             subscription_status: 'canceled',
             stripe_subscription_id: null,
+            stripe_price_id: null,
+            stripe_current_period_end: null,
           })
           .eq('stripe_customer_id', customerId);
 
         if (error) {
           console.error('[Stripe Webhook] Cancellation DB update failed:', error);
+          throw error;
         }
         break;
       }
@@ -174,30 +221,59 @@ export async function POST(req: NextRequest) {
             .eq('stripe_customer_id', customerId)
             .single();
 
+          const billingUser = user as BillingNotificationUser | null;
+          const dedupeKey = invoice.id || event.id;
+
           if (
-            user?.email &&
-            canSendNotification((user as any).notification_preferences, 'email', 'billing')
+            billingUser?.email &&
+            canSendNotification(billingUser.notification_preferences, 'email', 'billing') &&
+            !(await hasNotificationDelivery(supabaseAdmin, billingUser.id, 'billing_receipt', 'email', dedupeKey))
           ) {
             const amount = (invoice.amount_paid / 100).toFixed(2);
-            const planName = (invoice.lines?.data[0] as any)?.price?.nickname || 'Planevo Premium';
+            const planName = (invoice.lines?.data[0] as InvoiceLineWithLegacyPrice | undefined)?.price?.nickname || 'Planevo Premium';
 
-            await sendSubscriptionReceiptEmail(user.email, user.name || 'Pilot', amount, planName).catch(err => {
+            await sendSubscriptionReceiptEmail(billingUser.email, billingUser.name || 'Pilot', amount, planName, {
+              idempotencyKey: buildEmailIdempotencyKey('billing_receipt', 'email', billingUser.id, dedupeKey),
+            }).then((providerMessageId) => recordNotificationDelivery(
+              supabaseAdmin,
+              billingUser.id,
+              'billing_receipt',
+              'email',
+              dedupeKey,
+              {
+                provider: 'resend',
+                provider_message_id: providerMessageId ?? null,
+                stripe_invoice_id: invoice.id ?? null,
+                amount,
+                plan_name: planName,
+              }
+            )).catch(err => {
               console.error('[Stripe Webhook] Failed to send receipt email:', err);
             });
           }
 
           if (
-            user?.expo_push_token &&
-            canSendNotification((user as any).notification_preferences, 'push', 'billing')
+            billingUser?.expo_push_token &&
+            canSendNotification(billingUser.notification_preferences, 'push', 'billing') &&
+            !(await hasNotificationDelivery(supabaseAdmin, billingUser.id, 'billing_receipt', 'push', dedupeKey))
           ) {
             const pushResult = await sendExpoPushNotification({
-              to: user.expo_push_token,
+              to: billingUser.expo_push_token,
               title: 'Payment received',
               body: 'Your Planevo subscription payment was received. Thank you.',
               data: { screen: 'settings', section: 'membership' },
             });
             if (!pushResult.ok && pushResult.deviceNotRegistered) {
-              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', user.id);
+              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', billingUser.id);
+            } else if (pushResult.ok) {
+              await recordNotificationDelivery(
+                supabaseAdmin,
+                billingUser.id,
+                'billing_receipt',
+                'push',
+                dedupeKey,
+                { provider: 'expo', ticket_id: pushResult.ticketId ?? null, stripe_invoice_id: invoice.id ?? null }
+              );
             }
           }
         }
@@ -211,41 +287,67 @@ export async function POST(req: NextRequest) {
           : invoice.customer?.id;
 
         if (customerId) {
-          console.log(`[Stripe Webhook] Payment failed for customer ${customerId}. Downgrading to free/canceled.`);
-          // Downgrade user immediately upon payment failure to restrict access
+          console.log(`[Stripe Webhook] Payment failed for customer ${customerId}. Marking subscription past_due.`);
           const { data: user, error } = await supabaseAdmin
             .from('users')
             .update({
-              plan_type: 'canceled',
-              subscription_status: 'past_due' // Mark as past_due
+              subscription_status: 'past_due'
             })
             .eq('stripe_customer_id', customerId)
             .select('id, email, name, expo_push_token, notification_preferences ( master_toggle, channels, types, quiet_hours )')
             .single();
 
+          const billingUser = user as BillingNotificationUser | null;
+          const dedupeKey = invoice.id || event.id;
+
           if (error) {
             console.error('[Stripe Webhook] Payment failed DB update failed:', error);
+            throw error;
           } else if (
-            user?.email &&
-            canSendNotification((user as any).notification_preferences, 'email', 'billing')
+            billingUser?.email &&
+            canSendNotification(billingUser.notification_preferences, 'email', 'billing') &&
+            !(await hasNotificationDelivery(supabaseAdmin, billingUser.id, 'billing_payment_failed', 'email', dedupeKey))
           ) {
-            await sendPaymentFailedEmail(user.email, user.name || 'Pilot').catch(err => {
+            await sendPaymentFailedEmail(billingUser.email, billingUser.name || 'Pilot', {
+              idempotencyKey: buildEmailIdempotencyKey('billing_payment_failed', 'email', billingUser.id, dedupeKey),
+            }).then((providerMessageId) => recordNotificationDelivery(
+              supabaseAdmin,
+              billingUser.id,
+              'billing_payment_failed',
+              'email',
+              dedupeKey,
+              {
+                provider: 'resend',
+                provider_message_id: providerMessageId ?? null,
+                stripe_invoice_id: invoice.id ?? null,
+              }
+            )).catch(err => {
               console.error('[Stripe Webhook] Failed to send payment failed email:', err);
             });
           }
 
           if (
-            user?.expo_push_token &&
-            canSendNotification((user as any).notification_preferences, 'push', 'billing')
+            billingUser?.expo_push_token &&
+            canSendNotification(billingUser.notification_preferences, 'push', 'billing') &&
+            !(await hasNotificationDelivery(supabaseAdmin, billingUser.id, 'billing_payment_failed', 'push', dedupeKey))
           ) {
             const pushResult = await sendExpoPushNotification({
-              to: user.expo_push_token,
+              to: billingUser.expo_push_token,
               title: 'Payment needs attention',
               body: 'We could not process your Planevo subscription payment. Open settings to review it.',
               data: { screen: 'settings', section: 'membership' },
             });
             if (!pushResult.ok && pushResult.deviceNotRegistered) {
-              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', user.id);
+              await supabaseAdmin.from('users').update({ expo_push_token: null }).eq('id', billingUser.id);
+            } else if (pushResult.ok) {
+              await recordNotificationDelivery(
+                supabaseAdmin,
+                billingUser.id,
+                'billing_payment_failed',
+                'push',
+                dedupeKey,
+                { provider: 'expo', ticket_id: pushResult.ticketId ?? null, stripe_invoice_id: invoice.id ?? null }
+              );
             }
           }
         }
@@ -256,6 +358,8 @@ export async function POST(req: NextRequest) {
         // Unhandled event type — log but don't fail
         console.log(`[Stripe Webhook] Unhandled event: ${event.type}`);
     }
+
+    await markStripeEventProcessed(event);
   } catch (err) {
     console.error('[Stripe Webhook] Event processing error:', err);
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });

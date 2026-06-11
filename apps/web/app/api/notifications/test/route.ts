@@ -4,6 +4,8 @@ import {
   canSendNotification,
   type NotificationPreferences,
 } from '@/lib/notifications/preferences';
+import { recordNotificationDelivery, getRecentTestNotificationCount } from '@/lib/notifications/delivery';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function POST() {
   try {
@@ -27,6 +29,15 @@ export async function POST() {
     const preferences = userData.notification_preferences as unknown as NotificationPreferences | null;
     if (!canSendNotification(preferences, 'push', 'system')) {
       return NextResponse.json({ error: 'Push notifications are disabled in your notification settings.' }, { status: 400 });
+    }
+
+    // Rate Limit: Max 3 test push notifications per week (168 hours)
+    const recentCount = await getRecentTestNotificationCount(supabase, user.id, 'push', 168);
+    if (recentCount >= 3) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. You can only send 3 test push notifications per week to prevent abuse.' },
+        { status: 429 }
+      );
     }
 
     if (!userData.expo_push_token) {
@@ -67,6 +78,16 @@ export async function POST() {
        }
        return NextResponse.json({ error: `Expo Error: ${result.data.message}` }, { status: 400 });
     }
+
+    const dedupeKey = `test-${Date.now()}`;
+    await recordNotificationDelivery(
+      supabaseAdmin,
+      user.id,
+      'test_push',
+      'push',
+      dedupeKey,
+      { provider: 'expo', ticket_id: result.data?.id ?? null }
+    );
 
     return NextResponse.json({ success: true, message: 'Test notification sent successfully' });
   } catch (err: unknown) {

@@ -1,14 +1,13 @@
 {
   "expo": {
     "name": "Planevo",
-    "owner": "planevo",
+    "owner": "vegad_tv",
     "slug": "planevo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "planevo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -17,9 +16,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.planevo.mobile",
-      "entitlements": {
-        "com.apple.security.application-groups": ["group.com.planevo.mobile"]
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -29,13 +25,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#f8f9f5"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.planevo.mobile",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.planevo.mobile"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -48,25 +42,16 @@
           "color": "#d4a574"
         }
       ],
-      [
-        "@bacons/apple-targets",
-        {}
-      ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "planevo",
-          "project": "planevo-mobile"
-        }
-      ]
+      "expo-font",
+      "./plugins/fix-jcenter"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fc8fa403-d220-496f-94ae-8228633d8a34"
+        "projectId": "e7031fc6-98d4-425a-bba7-a0c43b9e2056"
       }
     }
   }

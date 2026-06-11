@@ -26,11 +26,11 @@ const BrunoMark = ({ size = 28, mood = 'normal' }) => (
     <circle cx="34" cy="14" r="3.2" fill="var(--color-belly)" />
     <circle cx="24" cy="26" r="16" fill="var(--color-bruno)" />
     <ellipse cx="24" cy="30" rx="9" ry="7" fill="var(--color-belly)" />
-    <circle cx="19" cy="23" r="1.7" fill="var(--color-ink)" />
-    <circle cx="29" cy="23" r="1.7" fill="var(--color-ink)" />
-    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-ink)" />
+    <circle cx="19" cy="23" r="1.7" fill="var(--color-bruno-ink)" />
+    <circle cx="29" cy="23" r="1.7" fill="var(--color-bruno-ink)" />
+    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-bruno-ink)" />
     {mood === 'happy' && (
-      <path d="M 21 32 Q 24 34 27 32" stroke="var(--color-ink)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <path d="M 21 32 Q 24 34 27 32" stroke="var(--color-bruno-ink)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
     )}
   </svg>
 );
@@ -130,7 +130,7 @@ export default function Sidebar() {
       <aside
         className={`
           fixed top-0 left-0 h-full z-50
-          flex flex-col bg-[var(--color-ink)] border-r border-[rgba(251,246,234,0.08)] text-[var(--color-paper)]
+          flex flex-col bg-[var(--color-sidebar-bg)] border-r border-[rgba(251,246,234,0.08)] text-[var(--color-sidebar-text)]
           transition-all duration-300 ease-in-out font-sans
           ${sidebarCollapsed ? 'w-[68px] px-2 py-5' : 'w-[240px] px-5 py-5'}
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -199,7 +199,7 @@ export default function Sidebar() {
             <div className="flex items-center gap-2.5 mb-3">
               <BrunoMark size={28} />
               <div>
-                <div className="font-serif text-[18px] leading-none text-[var(--color-paper)]">Bruno</div>
+                <div className="font-serif text-[18px] leading-none text-[var(--color-sidebar-text)]">Bruno</div>
                 <div className="text-[11px] text-[rgba(251,246,234,0.6)] mt-1 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_0_3px_rgba(34,197,94,0.2)]" />
                   ready when you are

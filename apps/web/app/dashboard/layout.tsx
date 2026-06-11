@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useUIStore } from '@/lib/store/ui-store';
-import { normalizePlanType } from '@/lib/auth/plan-types';
 import QuickCaptureModal from '@/components/tasks/QuickCaptureModal';
 
 export default function DashboardLayout({
@@ -17,50 +16,56 @@ export default function DashboardLayout({
   const { sidebarCollapsed } = useUIStore();
   const pathname = usePathname();
   const isCalendar = pathname === '/dashboard/calendar';
-  const [mounted, setMounted] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    requestAnimationFrame(() => setMounted(true));
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        window.location.href = '/login';
+        return;
+      }
       ensureUserProfile(supabase).then(({ profile }) => {
-        if (profile && user) {
+        if (profile) {
           if (!profile.onboarding_complete) {
-            window.location.href = '/onboarding';
-          } else {
-            const planType = normalizePlanType(profile.plan_type);
-            const isAdminEmail = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
-            const isActive = ['trialing', 'premium', 'student'].includes(planType) || (planType === 'admin' && isAdminEmail) || isAdminEmail;
-            if (!isActive) {
+            if (window.location.search.includes('checkout=success')) {
+              window.location.href = '/onboarding?checkout=success';
+            } else {
               window.location.href = '/onboarding';
             }
+          } else {
+            setIsChecking(false);
           }
+        } else {
+          setIsChecking(false);
         }
-      }).catch(console.error);
+      }).catch((err) => {
+        console.error(err);
+        setIsChecking(false);
+      });
     });
   }, []);
 
-
-  if (!mounted) {
+  if (isChecking) {
     return (
-      <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[var(--color-honey)] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-cream text-(--color-ink) flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-(--color-honey) border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors duration-300">
+    <div className="min-h-screen bg-cream text-(--color-ink) transition-colors duration-300">
       <Sidebar />
 
       {/* Main content area - offset by sidebar width */}
       <main
         className={`
           transition-all duration-300 ease-in-out min-h-screen
-          ${sidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[240px]'}
+          ${sidebarCollapsed ? 'lg:ml-17' : 'lg:ml-60'}
         `}
       >
-        <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-[1400px]' : (sidebarCollapsed ? 'max-w-[1600px]' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>
+        <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-350' : (sidebarCollapsed ? 'max-w-400' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>
           {children}
         </div>
       </main>

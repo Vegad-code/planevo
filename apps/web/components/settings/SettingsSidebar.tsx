@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { settingsRegistry } from '@/lib/settings/registry';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function SettingsSidebar({ profile, badges }: { profile: Record<string, any> | null, badges?: Record<string, string> }) {
   const pathname = usePathname();
 

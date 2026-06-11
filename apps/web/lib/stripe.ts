@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Stripe from 'stripe';
+import { readRequiredEnv } from './env';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
-}
+const STRIPE_SECRET_KEY = readRequiredEnv(process.env, 'STRIPE_SECRET_KEY');
 
 /**
  * Stripe SDK singleton — server-side only.
  * Never import this file from client components.
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+export const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: '2026-04-22.dahlia' as any,
   typescript: true,
 });
@@ -18,9 +17,9 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // Price IDs — set these in .env.local after creating products in Stripe Dashboard
 // ---------------------------------------------------------------------------
 export const PRICE_IDS = {
-  MONTHLY: process.env.STRIPE_PRICE_MONTHLY!,
-  ANNUAL: process.env.STRIPE_PRICE_ANNUAL!,
-  STUDENT: process.env.STRIPE_PRICE_STUDENT!,
+  MONTHLY: readRequiredEnv(process.env, 'STRIPE_PRICE_MONTHLY'),
+  ANNUAL: readRequiredEnv(process.env, 'STRIPE_PRICE_ANNUAL'),
+  STUDENT: readRequiredEnv(process.env, 'STRIPE_PRICE_STUDENT'),
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -38,15 +37,13 @@ export function subscriptionStatusToPlanType(
     case 'active':
     case 'past_due':
     case 'incomplete':
-      // Could differentiate student vs premium by priceId here
       if (priceId === PRICE_IDS.STUDENT) return 'student';
       return 'premium';
     case 'canceled':
     case 'incomplete_expired':
     case 'unpaid':
-      return 'canceled';
+      return 'free';
     default:
       return 'free';
   }
 }
-

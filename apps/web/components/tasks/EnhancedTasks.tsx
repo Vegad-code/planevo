@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Broom } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { Task, BestTimeOfDay, EnergyLevel, TaskPriority } from '@/types/tasks';
 import { useTaskGroups } from '@/hooks/useTaskGroups';
 import { useTaskAI } from '@/hooks/useTaskAI';
@@ -46,6 +47,7 @@ export default function EnhancedTasks() {
   const router = useRouter();
   const setActiveTask = useFocusStore((state) => state.setActiveTask);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { aiResponse, aiLoading, aiError, fetchAIPriorities, invalidateCache } = useTaskAI();
 
   const fetchTasks = useCallback(async () => {
@@ -126,11 +128,16 @@ export default function EnhancedTasks() {
   }, [tasks, fetchAIPriorities]);
 
   // Dynamic source-based tasks partitioning
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const canvasTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'canvas' || t.external_url?.includes('canvas') || t.external_url?.includes('instructure')), [tasks]);
   const calendarTasks = useMemo(() => tasks.filter(t => t.external_url?.includes('calendar') || t.external_url?.includes('google.com/calendar')), [tasks]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const notionTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'notion'), [tasks]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const linearTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'linear'), [tasks]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const slackTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'slack'), [tasks]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const personalTasks = useMemo(() => tasks.filter(t => !(t as any).provider && !t.external_url?.includes('canvas') && !t.external_url?.includes('instructure') && !t.external_url?.includes('calendar') && !t.external_url?.includes('google.com/calendar')), [tasks]);
 
   const counts = useMemo(() => ({
@@ -250,7 +257,7 @@ export default function EnhancedTasks() {
             <div className="w-48 h-4 bg-[var(--color-line)] rounded-full"></div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-32 h-12 bg-white border border-[var(--color-line)] rounded-[18px]"></div>
+            <div className="w-32 h-12 bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[18px]"></div>
             <div className="w-28 h-10 bg-[var(--color-line)] rounded-full"></div>
           </div>
         </div>
@@ -261,7 +268,7 @@ export default function EnhancedTasks() {
         <div className="space-y-4 pt-2">
           <div className="w-32 h-5 bg-[var(--color-line)] rounded-md mb-2"></div>
           {[1, 2, 3, 4].map(i => (
-             <div key={i} className="bg-white border border-[var(--color-line)] rounded-[20px] p-4 flex gap-4 h-24">
+             <div key={i} className="bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[20px] p-4 flex gap-4 h-24">
                <div className="w-6 h-6 rounded-full border border-[var(--color-line)] mt-1"></div>
                <div className="flex-1 space-y-3">
                  <div className="w-3/4 h-5 bg-[var(--color-line)] rounded-md"></div>
@@ -292,7 +299,7 @@ export default function EnhancedTasks() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-4 px-4.5 py-2.5 bg-white border border-[var(--color-line)] rounded-[18px] shadow-sm">
+            <div className="flex items-center gap-4 px-4.5 py-2.5 bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[18px] shadow-sm">
               <div className="flex flex-col">
                 <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--color-ink-faint)] leading-none mb-1">Consistency</span>
                 <span className="text-[14px] font-bold text-[var(--color-ink)]">{stats.consistencyScore}%</span>
@@ -305,7 +312,7 @@ export default function EnhancedTasks() {
             </div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-white rounded-full text-sm font-medium transition-colors cursor-pointer shadow-md"
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-[var(--color-paper)] rounded-full text-sm font-medium transition-colors cursor-pointer shadow-md"
             >
               <Plus size={16} weight="bold" />
               Add task
@@ -327,15 +334,15 @@ export default function EnhancedTasks() {
                   className={`
                     flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium capitalize transition-all cursor-pointer whitespace-nowrap
                     ${isActive
-                      ? 'bg-[var(--color-ink)] text-white shadow-md'
-                      : 'bg-white border border-[var(--color-line)] text-[var(--color-ink-soft)] hover:bg-[var(--color-cream)] hover:text-[var(--color-ink)]'
+                      ? 'bg-[var(--color-ink)] text-[var(--color-paper)] shadow-md'
+                      : 'bg-[var(--color-settings-card)] border border-[var(--color-line)] text-[var(--color-ink-soft)] hover:bg-[var(--color-cream)] hover:text-[var(--color-ink)]'
                     }
                   `}
                 >
                   {tab}
                   <span className={`
                     text-[10px] font-mono px-1.5 py-0.5 rounded-[4px]
-                    ${isActive ? 'bg-white/20 text-white' : 'bg-[var(--color-paper)] text-[var(--color-ink-faint)]'}
+                    ${isActive ? 'bg-[var(--color-paper)] text-[var(--color-ink)]' : 'bg-[var(--color-paper)] text-[var(--color-ink-faint)]'}
                   `}>
                     {count}
                   </span>
@@ -369,7 +376,7 @@ export default function EnhancedTasks() {
       <div className="flex-1 min-w-0 space-y-6">
         {/* Bruno Banner */}
         {tasks.length > 0 && !aiLoading && (
-          <div className="bg-white border border-[var(--color-line)] rounded-[20px] p-4 flex items-center justify-between gap-4 shadow-sm mb-2">
+          <div className="bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[20px] p-4 flex items-center justify-between gap-4 shadow-sm mb-2">
             <div className="flex items-center gap-4.5">
               <div className="w-10 h-10 rounded-full bg-[var(--color-paper)] border border-[var(--color-line)] flex items-center justify-center shrink-0">
                 <BrunoAvatar mood="happy" size="sm" />
@@ -406,7 +413,7 @@ export default function EnhancedTasks() {
 
         {/* Task List */}
         {filteredTasks.length === 0 ? (
-          <div className="bg-white border border-[var(--color-line)] rounded-[22px] p-12 flex flex-col items-center justify-center text-center shadow-sm">
+          <div className="bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-12 flex flex-col items-center justify-center text-center shadow-sm">
             <BrunoAvatar mood="happy" size="lg" />
             <h2 className="mt-4 text-lg font-medium text-[var(--color-ink)] font-serif italic">
               {activeTab !== 'all' ? `All caught up on ${activeTab}!` : 'No tasks yet'}
@@ -442,7 +449,7 @@ export default function EnhancedTasks() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white border border-[var(--color-line)] rounded-[22px] p-6 z-10 shadow-2xl"
+              className="relative w-full max-w-md bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-6 z-10 shadow-2xl"
             >
               <h2 className="text-lg font-serif italic font-semibold text-[var(--color-honey-deep)] mb-2">
                 How Bruno sorts your workspace.
@@ -453,7 +460,7 @@ export default function EnhancedTasks() {
               </div>
               <button
                 onClick={() => setShowWhyModal(false)}
-                className="mt-6 w-full py-2.5 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-white text-xs font-semibold uppercase tracking-wider rounded-[14px] transition-colors cursor-pointer"
+                className="mt-6 w-full py-2.5 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-[var(--color-paper)] text-xs font-semibold uppercase tracking-wider rounded-[14px] transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -474,7 +481,7 @@ export default function EnhancedTasks() {
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-32 px-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-            className="relative w-full max-w-2xl bg-white border border-[var(--color-line)] rounded-[22px] p-4 z-10 shadow-2xl">
+            className="relative w-full max-w-2xl bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-4 z-10 shadow-2xl">
             <form onSubmit={handleAddTask} className="flex flex-col">
               <input
                 type="text"
@@ -502,17 +509,17 @@ export default function EnhancedTasks() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-[10px] font-mono tracking-widest text-[var(--color-ink-faint)] uppercase mb-1.5">Priority</label>
-                        <select value={overridePriority || ''} onChange={e => setOverridePriority(e.target.value as TaskPriority || null)} className="w-full px-2 py-1.5 bg-white border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]">
+                        <select value={overridePriority || ''} onChange={e => setOverridePriority(e.target.value as TaskPriority || null)} className="w-full px-2 py-1.5 bg-[var(--color-settings-bg)] border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]">
                           <option value="">Auto/Parse</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-[10px] font-mono tracking-widest text-[var(--color-ink-faint)] uppercase mb-1.5">Est. Time (min)</label>
-                        <input type="number" value={overrideTime || ''} onChange={e => setOverrideTime(parseInt(e.target.value) || null)} placeholder="Auto/Parse" className="w-full px-2 py-1.5 bg-white border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]" />
+                        <input type="number" value={overrideTime || ''} onChange={e => setOverrideTime(parseInt(e.target.value) || null)} placeholder="Auto/Parse" className="w-full px-2 py-1.5 bg-[var(--color-settings-bg)] border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]" />
                       </div>
                       <div className="col-span-2">
                         <label className="block text-[10px] font-mono tracking-widest text-[var(--color-ink-faint)] uppercase mb-1.5">Explicit Due Date</label>
-                        <input type="date" value={overrideDueDate || ''} onChange={e => setOverrideDueDate(e.target.value || null)} className="w-full px-2 py-1.5 bg-white border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]" />
+                        <input type="date" value={overrideDueDate || ''} onChange={e => setOverrideDueDate(e.target.value || null)} className="w-full px-2 py-1.5 bg-[var(--color-settings-bg)] border border-[var(--color-line)] rounded text-[var(--color-ink)] text-xs focus:outline-none focus:border-[var(--color-ink-soft)]" />
                       </div>
                     </div>
                   </motion.div>
@@ -524,7 +531,7 @@ export default function EnhancedTasks() {
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-xs font-medium text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving || !taskInput.trim()} className="px-6 py-2 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-white rounded-full text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer">
+                <button type="submit" disabled={saving || !taskInput.trim()} className="px-6 py-2 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-[var(--color-paper)] rounded-full text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer">
                   {saving ? 'Adding...' : 'Add Task'}
                 </button>
               </div>

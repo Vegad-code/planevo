@@ -30,6 +30,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
     <motion.div
       ref={ref}
       draggable
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onDragStart={(e: any) => {
         // We set the drag data to the task JSON so the drop target knows what task it is
         e.dataTransfer.setData('application/json', JSON.stringify(task));
@@ -38,6 +39,7 @@ function BacklogItem({ task, onSchedule, index }: { task: Task; onSchedule: (t: 
         // Optional: create a drag image or just rely on default element dragging
         e.currentTarget.style.opacity = '0.5';
       }}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onDragEnd={(e: any) => {
         e.currentTarget.style.opacity = '1';
       }}

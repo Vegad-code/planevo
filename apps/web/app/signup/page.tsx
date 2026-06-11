@@ -21,8 +21,7 @@ export default function SignupForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams?.get('redirect');
   const referralCode = searchParams?.get('ref');
-  const isOnboarding = searchParams?.get('onboarding') === 'true';
-  const nextPath = redirect ? `/${redirect}` : (isOnboarding ? '/onboarding' : '/dashboard');
+  const nextPath = redirect ? `/${redirect}` : '/onboarding';
 
   const supabase = createClient();
 
@@ -61,6 +60,9 @@ export default function SignupForm() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}${referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''}`,
+        queryParams: {
+          prompt: 'select_account',
+        },
       },
     });
 
@@ -93,7 +95,7 @@ export default function SignupForm() {
               </div>
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-[var(--color-ink)] mb-2">Create an account</h1>
-            <p className="text-[var(--color-ink-soft)]">Welcome! Let's get you set up.</p>
+            <p className="text-[var(--color-ink-soft)]">Welcome! Let&apos;s get you set up.</p>
           </div>
           
           {success ? (

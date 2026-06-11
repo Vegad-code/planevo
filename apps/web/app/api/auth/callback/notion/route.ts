@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const next = searchParams.get('next') ?? '/dashboard/settings/integrations';
 
   const popupHtml = (error: string | null) => `
@@ -124,6 +125,7 @@ export async function GET(request: Request) {
     }
 
     return new NextResponse(popupHtml(null), { headers: { 'Content-Type': 'text/html' } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Notion OAuth exception:', err);
     return new NextResponse(popupHtml('server_error'), { headers: { 'Content-Type': 'text/html' } });

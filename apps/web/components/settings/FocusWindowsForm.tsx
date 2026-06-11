@@ -64,6 +64,7 @@ export function FocusWindowsForm({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateWindow = (type: 'preferred' | 'avoided', index: number, field: keyof FocusWindow, value: any) => {
     if (type === 'preferred') {
       const nw = [...preferred];
@@ -143,7 +144,7 @@ export function FocusWindowsForm({
       title="Focus Windows" 
       description="Explicitly define times you want to protect for deep work, or times Bruno should never schedule."
       onSubmit={handleSubmit}
-      defaultOpen={false}
+      defaultOpen={true}
     >
       <div className="border-b border-settings-border">
         <h3 className="px-4 pt-4 text-sm font-bold text-settings-text">Preferred Focus Times</h3>
@@ -161,7 +162,7 @@ export function FocusWindowsForm({
         <button 
           type="submit" 
           disabled={saving}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Save Windows'}
         </button>

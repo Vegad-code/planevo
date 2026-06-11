@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendWeeklyReviewEmail, type WeeklyReviewData } from '@/lib/email';
+import { buildEmailIdempotencyKey, sendWeeklyReviewEmail, type WeeklyReviewData } from '@/lib/email';
 import {
   canSendNotification,
   getLocalDateKey,
+  type NotificationPreferences,
   normalizeNotificationPreferences,
 } from '@/lib/notifications/preferences';
 import {
   hasNotificationDelivery,
   recordNotificationDelivery,
 } from '@/lib/notifications/delivery';
+
+type WeeklyReviewUser = {
+  notification_preferences: Partial<NotificationPreferences> | null;
+};
 
 /**
  * GET /api/cron/weekly-review
@@ -63,7 +68,7 @@ export async function GET(request: NextRequest) {
       await Promise.allSettled(
         batch.map(async (user) => {
           try {
-            const preferences = (user as any).notification_preferences;
+            const preferences = (user as unknown as WeeklyReviewUser).notification_preferences;
             if (!canSendNotification(preferences, 'email', 'weekly_review')) {
               return;
             }
@@ -145,13 +150,16 @@ Respond ONLY with JSON.`;
             const review: WeeklyReviewData = JSON.parse(aiData.choices[0].message.content);
 
             // Send the email
-            await sendWeeklyReviewEmail(user.email, user.name || 'Pilot', review);
+            const providerMessageId = await sendWeeklyReviewEmail(user.email, user.name || 'Pilot', review, {
+              idempotencyKey: buildEmailIdempotencyKey('weekly_review', 'email', user.id, dedupeKey),
+            });
             await recordNotificationDelivery(
               supabase,
               user.id,
               'weekly_review',
               'email',
-              dedupeKey
+              dedupeKey,
+              { provider: 'resend', provider_message_id: providerMessageId ?? null }
             );
             sent++;
           } catch (err) {

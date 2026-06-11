@@ -9,14 +9,16 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useAuth } from '@/providers/AuthProvider';
+import { FontAwesome } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const { colors, isDark } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -51,6 +53,18 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        Alert.alert('Google Sign-In Error', error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const timeOfDay = new Date().getHours();
   const greeting = timeOfDay < 12 ? 'Good morning' : timeOfDay < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -61,9 +75,11 @@ export default function LoginScreen() {
     >
       <View style={styles.inner}>
         <View style={styles.header}>
-          <View style={[styles.logoBadge, { backgroundColor: Colors.brand[500] }]}>
-            <Text style={styles.logoText}>PP</Text>
-          </View>
+          <Image 
+            source={require('../assets/images/logo.png')} 
+            style={styles.logoImage} 
+            resizeMode="contain" 
+          />
           <Text style={[styles.brandName, { color: colors.text }]}>
             Planevo
           </Text>
@@ -140,6 +156,24 @@ export default function LoginScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={[styles.divider, { backgroundColor: colors.inputBorder }]} />
+            <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
+            <View style={[styles.divider, { backgroundColor: colors.inputBorder }]} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.googleButton, { backgroundColor: isDark ? '#333' : '#fff', borderColor: colors.inputBorder }]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <FontAwesome name="google" size={18} color={isDark ? '#fff' : '#000'} />
+            <Text style={[styles.googleButtonText, { color: isDark ? '#fff' : '#000' }]}>
+              Continue with Google
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
@@ -172,19 +206,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 64,
+    height: 64,
     marginBottom: 16,
-  },
-  logoText: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -1,
   },
   brandName: {
     fontSize: 28,
@@ -238,5 +263,32 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

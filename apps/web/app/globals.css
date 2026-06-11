@@ -11,6 +11,7 @@
   --color-bruno: #8B5A2B;
   --color-bruno-deep: #6B4423;
   --color-bruno-light: #C99A5F;
+  --color-bruno-ink: #1A140D;
   --color-belly: #E8C896;
   --color-honey: #D08741;
   --color-honey-deep: #B96E2A;
@@ -62,6 +63,11 @@
   --color-settings-text: #2A2118;
   --color-settings-text-muted: #8A7B66;
   --color-settings-brand: var(--color-honey);
+  
+  /* Sidebar Tokens (Light Mode defaults) */
+  --color-sidebar-bg: var(--color-ink);
+  --color-sidebar-text: var(--color-paper);
+
 
   /* Entrance animation (was referenced in 20+ components but never defined) */
   --animate-fade-in: fade-in 0.5s ease both;
@@ -80,23 +86,26 @@
    (dashboard, settings, calendar) re-themes coherently.
    ============================================================ */
 html.dark {
-  --color-cream: #241c14;
-  --color-cream-2: #2e251a;
-  --color-paper: #1a1410;
-  --color-ink: #f7efe1;
-  --color-ink-2: #ece0cf;
-  --color-ink-soft: #cbb89e;
-  --color-ink-faint: #9b8a70;
-  --color-line: rgba(245, 236, 221, 0.10);
-  --color-line-strong: rgba(245, 236, 221, 0.20);
-  --color-belly: #4a3a24;
+  color-scheme: dark;
+  --color-cream: #121214;
+  --color-cream-2: #18181b;
+  --color-paper: #09090b;
+  --color-ink: #fafafa;
+  --color-ink-2: #e4e4e7;
+  --color-ink-soft: #a1a1aa;
+  --color-ink-faint: #71717a;
+  --color-line: rgba(250, 250, 250, 0.10);
+  --color-line-strong: rgba(250, 250, 250, 0.20);
 
-  --color-settings-bg: #16110c;
-  --color-settings-card: #221b14;
-  --color-settings-card-hover: #2b2219;
-  --color-settings-border: #352a1d;
-  --color-settings-text: #f7efe1;
-  --color-settings-text-muted: #b8a48a;
+  --color-settings-bg: #09090b;
+  --color-settings-card: #121214;
+  --color-settings-card-hover: #18181b;
+  --color-settings-border: #27272a;
+  --color-settings-text: #fafafa;
+  --color-settings-text-muted: #a1a1aa;
+  
+  --color-sidebar-bg: #121214;
+  --color-sidebar-text: #fafafa;
 }
 
 html.sepia {
@@ -118,13 +127,37 @@ html.sepia {
   --color-settings-text-muted: #7a6a4d;
 }
 
+html[data-public="true"].dark,
+html[data-public="true"].sepia {
+  color-scheme: light;
+  --color-cream: #F2E8D2;
+  --color-cream-2: #E8DCC0;
+  --color-paper: #FBF6EA;
+  --color-ink: #1A140D;
+  --color-ink-2: #2A2118;
+  --color-ink-soft: #4A3F32;
+  --color-ink-faint: #8A7B66;
+  --color-line: rgba(26, 20, 13, 0.10);
+  --color-line-strong: rgba(26, 20, 13, 0.18);
+
+  --color-settings-bg: #FBF6EA;
+  --color-settings-card: #FFFFFF;
+  --color-settings-card-hover: #F5EFE1;
+  --color-settings-border: #E6DCCE;
+  --color-settings-text: #2A2118;
+  --color-settings-text-muted: #8A7B66;
+  
+  --color-sidebar-bg: var(--color-ink);
+  --color-sidebar-text: var(--color-paper);
+}
+
 /* ============================================================
    ACCENT COLOR SCHEMES  (applied via data-accent on <html>)
    Remaps only the interactive "honey" accent + focus + brand,
    so Bruno's fur (--color-bruno) stays on-brand in every accent.
    Each accent is tuned to sit harmoniously on cream/sepia/espresso.
    ============================================================ */
-[data-accent="honey"] {
+html[data-accent="honey"] {
   --color-honey: #D08741;
   --color-honey-deep: #B96E2A;
   --color-honey-soft: #F5DCB8;
@@ -132,7 +165,7 @@ html.sepia {
   --color-focus-soft: #F5DCB8;
   --color-settings-brand: #D08741;
 }
-[data-accent="terracotta"] {
+html[data-accent="terracotta"] {
   --color-honey: #C9663B;
   --color-honey-deep: #A84E28;
   --color-honey-soft: #F3D7C5;
@@ -140,7 +173,7 @@ html.sepia {
   --color-focus-soft: #F3D7C5;
   --color-settings-brand: #C9663B;
 }
-[data-accent="amber"] {
+html[data-accent="amber"] {
   --color-honey: #DDA02C;
   --color-honey-deep: #BC8216;
   --color-honey-soft: #F7E6BE;
@@ -148,7 +181,7 @@ html.sepia {
   --color-focus-soft: #F7E6BE;
   --color-settings-brand: #DDA02C;
 }
-[data-accent="sage"] {
+html[data-accent="sage"] {
   --color-honey: #6F9266;
   --color-honey-deep: #557049;
   --color-honey-soft: #DCE7D5;
@@ -156,7 +189,7 @@ html.sepia {
   --color-focus-soft: #DCE7D5;
   --color-settings-brand: #6F9266;
 }
-[data-accent="ocean"] {
+html[data-accent="ocean"] {
   --color-honey: #3E8194;
   --color-honey-deep: #2C6072;
   --color-honey-soft: #CDE3E8;
@@ -164,7 +197,7 @@ html.sepia {
   --color-focus-soft: #CDE3E8;
   --color-settings-brand: #3E8194;
 }
-[data-accent="plum"] {
+html[data-accent="plum"] {
   --color-honey: #9A5F84;
   --color-honey-deep: #784765;
   --color-honey-soft: #ECDCE7;
@@ -172,7 +205,7 @@ html.sepia {
   --color-focus-soft: #ECDCE7;
   --color-settings-brand: #9A5F84;
 }
-[data-accent="rosewood"] {
+html[data-accent="rosewood"] {
   --color-honey: #C2675C;
   --color-honey-deep: #9E4D44;
   --color-honey-soft: #F4D8D2;
@@ -190,7 +223,7 @@ html.sepia {
 }
 
 html {
-  font-size: calc(100% * var(--font-scale));
+  font-size: calc(100% * var(--font-scale)) !important;
 }
 
 html.reduce-motion *,
@@ -368,4 +401,10 @@ body {
     animation: none !important;
     transform: none !important;
   }
+}
+
+/* Force native dropdown options to follow theme */
+select option {
+  background-color: var(--color-settings-bg);
+  color: var(--color-settings-text);
 }

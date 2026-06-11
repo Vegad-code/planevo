@@ -6,6 +6,7 @@ import { SettingsSection } from './ui/SettingsSection';
 import { SettingsRow } from './ui/SettingsRow';
 import { SectionBottomActions } from './ui/SectionBottomActions';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function BreakPreferencesForm({ initialData }: { initialData: Record<string, any> }) {
   const [frequency, setFrequency] = useState<'minimal' | 'balanced' | 'frequent'>(initialData?.frequency || 'balanced');
   const [preferredMinutes, setPreferredMinutes] = useState<number>(initialData?.preferred_minutes || 15);
@@ -38,12 +39,13 @@ export function BreakPreferencesForm({ initialData }: { initialData: Record<stri
       title="Break Preferences" 
       description="Control how often and how long you rest between focus blocks."
       onSubmit={handleSubmit}
-      defaultOpen={false}
+      defaultOpen={true}
     >
       <div className="space-y-0">
         <SettingsRow title="Break Frequency" description="How frequently Bruno should schedule breaks during deep work sessions.">
           <select
             value={frequency}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e) => setFrequency(e.target.value as any)}
             className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-settings-text transition-colors text-settings-text appearance-none"
           >
@@ -73,7 +75,7 @@ export function BreakPreferencesForm({ initialData }: { initialData: Record<stri
         <button 
           type="submit" 
           disabled={saving}
-          className="px-6 py-2.5 bg-[var(--color-ink)] text-[var(--color-paper)] dark:bg-[var(--color-sage)] dark:text-[var(--color-paper)] rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:bg-[var(--color-ink-soft)] dark:hover:bg-[#5A7A58] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-2.5 bg-settings-brand text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {saving ? 'Saving...' : 'Save Breaks'}
         </button>

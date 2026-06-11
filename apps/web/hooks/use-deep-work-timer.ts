@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-export function useDeepWorkTimer(initialMinutes: number, onComplete?: () => void) {
+export function useDeepWorkTimer(initialMinutes: number, onComplete?: (totalElapsedFocusTime: number) => void) {
   const [secondsLeft, setSecondsLeft] = useState(initialMinutes * 60);
   const [isActive, setIsActive] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
@@ -16,6 +16,7 @@ export function useDeepWorkTimer(initialMinutes: number, onComplete?: () => void
   }, [initialMinutes, isActive]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let intervalId: any;
 
     if (isActive) {
@@ -36,7 +37,7 @@ export function useDeepWorkTimer(initialMinutes: number, onComplete?: () => void
           setIsFinished(true);
           clearInterval(intervalId);
           if (onComplete) {
-            onComplete();
+            onComplete(initialMinutes * 60);
           }
         } else {
           setSecondsLeft(remaining);

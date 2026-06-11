@@ -44,7 +44,7 @@ export const PlanevoMagicLinkEmail = ({
         <Body className="bg-cream font-sans text-dark py-10">
           <Container className="bg-white mx-auto p-10 rounded-2xl border border-[#e8e4de] max-w-[500px] text-center shadow-sm">
             <Section className="mb-4 text-center">
-              <Img src="https://planevo.app/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
+              <Img src="https://planevo.co/logo.png" alt="Planevo" width="48" height="48" className="mx-auto inline-block" />
             </Section>
 
             <Heading className="text-2xl font-bold mb-4 text-dark">
@@ -65,7 +65,7 @@ export const PlanevoMagicLinkEmail = ({
             </Section>
 
             <Text className="text-[#aaa] text-xs mt-8 leading-relaxed">
-              This link expires soon. If you didn't request this, you can safely ignore this email.<br />
+              This link expires soon. If you didn&apos;t request this, you can safely ignore this email.<br />
               The Planevo Team
             </Text>
           </Container>

@@ -7,6 +7,7 @@ import { List, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} style={{ flex: 'none' }}>
     <circle cx="14" cy="14" r="7" fill="var(--color-bruno-deep)" />
@@ -15,11 +16,11 @@ const BrunoMark = ({ size = 28, mood = 'normal' }) => (
     <circle cx="34" cy="14" r="3.2" fill="var(--color-belly)" />
     <circle cx="24" cy="26" r="16" fill="var(--color-bruno)" />
     <ellipse cx="24" cy="30" rx="9" ry="7" fill="var(--color-belly)" />
-    <circle cx="19" cy="23" r="1.7" fill="var(--color-ink)" />
-    <circle cx="29" cy="23" r="1.7" fill="var(--color-ink)" />
-    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-ink)" />
+    <circle cx="19" cy="23" r="1.7" fill="var(--color-bruno-ink)" />
+    <circle cx="29" cy="23" r="1.7" fill="var(--color-bruno-ink)" />
+    <ellipse cx="24" cy="28" rx="1.8" ry="1.3" fill="var(--color-bruno-ink)" />
     {mood === 'happy' && (
-      <path d="M 21 32 Q 24 34 27 32" stroke="var(--color-ink)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <path d="M 21 32 Q 24 34 27 32" stroke="var(--color-bruno-ink)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
     )}
   </svg>
 );
@@ -96,8 +97,8 @@ export default function LandingHeader() {
             className="bg-[var(--color-ink)] text-[var(--color-cream)] text-[14px] font-semibold py-5.5 px-6 border-none shadow-none hover:bg-[var(--color-ink-2)] transition-all rounded-full font-sans gap-1"
             asChild
           >
-            <Link href="/signup">
-              Start free <span className="text-base font-normal">→</span>
+            <Link href="/onboarding">
+              Start free <span className="text-base font-normal">-&gt;</span>
             </Link>
           </Button>
         </div>
@@ -145,7 +146,7 @@ export default function LandingHeader() {
                 className="w-full font-mono font-bold uppercase tracking-widest py-6 border-none shadow-none bg-[var(--color-ink)] text-[var(--color-cream)] rounded-full hover:bg-[var(--color-ink-2)]"
                 asChild
               >
-                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/onboarding" onClick={() => setMobileMenuOpen(false)}>
                   Get Started Free
                 </Link>
               </Button>

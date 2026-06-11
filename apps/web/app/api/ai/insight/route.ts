@@ -33,7 +33,7 @@ Generate ONE short, encouraging, and highly specific insight based on their task
 Do not greet them. Do not use emojis except maybe a bear 🐻. Keep it under 20 words.
 Example: "You have 3 high priority tasks due today. Let's knock out 'Math Homework' first."
 
-Tasks: ${JSON.stringify(worldState.tasks.slice(0, 5).map((t: any) => t.title))}
+Tasks: ${JSON.stringify(worldState.tasks.slice(0, 5).map((t: {title: string}) => t.title))}
 Events: ${worldState.calendarEvents.length} upcoming events.
 `;
 
@@ -66,6 +66,7 @@ Events: ${worldState.calendarEvents.length} upcoming events.
     const insight = rawData.choices[0].message.content.trim();
 
     return NextResponse.json({ insight });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('[AI Insight Error]', err);
     Sentry.captureException(err);

@@ -17,6 +17,7 @@ export async function POST() {
       message: 'Sync completed successfully.',
       count
     });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Slack sync error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

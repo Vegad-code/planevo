@@ -1,65 +1,76 @@
+# ----------------------------------------------------------------------
+# THE GREATEST GITIGNORE - ROOT LEVEL
+# ----------------------------------------------------------------------
+
 # Dependencies
-node_modules
-.pnpm-store
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
 
-# Next.js
-.next/
-out/
-
-# Turbo
-.turbo
-
-# Build outputs
-dist/
-build/
-
-# Environment variables
+# Environment Variables & Secrets (NEVER COMMIT THESE)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 *.env
+*.env.*
+!*.env.example
 
-# IDEs
+# IDE, Editor, and Tooling
 .vscode/
 .idea/
+.DS_Store
 *.swp
 *.swo
-
-# OS
-.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+.gemini/
+mcp_config.json
+mcp-servers/
+.agents/
 
-# Logs
+# Logs and Scratch Files
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+scratch/
+scratch_*
+*.scratch.*
 
-# Testing
+# Build and Temp folders
+dist/
+build/
+.next/
+out/
 coverage/
 .nyc_output/
-
-# Temporary files
-*.log
-tmp/
-temp/
+.vercel
 *.tsbuildinfo
 
-# App Specific
-canvas_debug.json
-*.txt
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
+# Linter and Formatting Output
+lint_output*.txt
+lint_output*.json
+current_lint.json
+tsc_output.txt
+tsc_clean_check.txt
+final_lint_output.txt
+
+# Keys and Certificates
 *.pem
 *.key
-.credentials
-mcp_config.json
-mcp.json
-gcp-service-account.json
-.claude.json
-.claude.json.backup
+*.cert
+*.crt
+*.p12
+*.pfx
+.agent/
+.agents/

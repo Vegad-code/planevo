@@ -34,7 +34,7 @@ export function SettingsToggleRow({
         action={
           <div 
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-settings-brand focus-visible:ring-offset-2 ${
-              checked ? 'bg-[var(--color-sage)]' : 'bg-settings-border'
+              checked ? 'bg-settings-brand' : 'bg-settings-border'
             } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             role="switch"
             aria-checked={checked}

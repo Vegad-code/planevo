@@ -46,6 +46,7 @@ describe('taskHelpers', () => {
         scheduled_start: null
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const scheduleTask = (task: any, time: string) => {
         return { ...task, scheduled_start: time }; // Completion state remains unchanged
       };

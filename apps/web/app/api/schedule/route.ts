@@ -17,6 +17,7 @@ export async function POST() {
     if (!rateLimitResult.allowed) {
       return NextResponse.json({
         error: rateLimitResult.error === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         message: (rateLimitResult as any).message || 'You have reached your daily AI limit.'
       }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
     }

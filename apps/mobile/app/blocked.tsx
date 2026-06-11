@@ -33,7 +33,7 @@ export default function BlockedScreen() {
           <TouchableOpacity
             style={[styles.button, { backgroundColor: Colors.brand[600] }]}
             onPress={() => {
-              Linking.openURL(process.env.EXPO_PUBLIC_WEB_URL ?? 'https://planevo.app');
+              Linking.openURL(process.env.EXPO_PUBLIC_WEB_URL ?? 'https://planevo.co');
             }}
           >
             <ExternalLink size={18} color="#fff" strokeWidth={2.5} />

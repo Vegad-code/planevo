@@ -13,6 +13,7 @@ export async function GET() {
   try {
     const databases = await fetchNotionDatabases(user.id);
     return NextResponse.json({ success: true, databases });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Fetch Notion databases error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
