@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useUIStore } from '@/lib/store/ui-store';
 import QuickCaptureModal from '@/components/tasks/QuickCaptureModal';
+import { PlanevoLoader } from '@/components/branding/PlanevoLoader';
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const isCalendar = pathname === '/dashboard/calendar';
   const [isChecking, setIsChecking] = useState(true);
+  const [loaderMode, setLoaderMode] = useState<'loading' | 'complete'>('loading');
+  const [showLoader, setShowLoader] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
@@ -46,10 +49,16 @@ export default function DashboardLayout({
     });
   }, []);
 
-  if (isChecking) {
+  useEffect(() => {
+    if (!isChecking) {
+      setLoaderMode('complete');
+    }
+  }, [isChecking]);
+
+  if (showLoader) {
     return (
-      <div className="min-h-screen bg-cream text-(--color-ink) flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-(--color-honey) border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#111113] flex items-center justify-center">
+        <PlanevoLoader mode={loaderMode} onAnimationFinished={() => setShowLoader(false)} />
       </div>
     );
   }

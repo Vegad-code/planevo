@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -13,6 +13,7 @@ import { AppThemeProvider, useTheme } from '@/providers/ThemeProvider';
 import { Colors } from '@/constants/Colors';
 import { syncPushNotificationState } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
+import { PlanevoMobileLoader } from '@/components/branding/PlanevoMobileLoader';
 import { initObservability, identifyUser, resetUser, sentryWrap } from '@/lib/observability';
 import { normalizePlanType } from '@/lib/plan-types';
 import { initRevenueCat, loginToRevenueCat, isPro, logoutOfRevenueCat } from '@/lib/revenuecat';
@@ -38,6 +39,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const notificationResponseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
   const isVerifying = useRef(false);
 
+  const [loaderMode, setLoaderMode] = useState<'loading' | 'complete'>('loading');
+  const [targetRoute, setTargetRoute] = useState<string | null>(null);
+  const [showLoader, setShowLoader] = useState(true);
+
   useEffect(() => {
     if (!user) {
       isVerifying.current = false;
@@ -53,8 +58,70 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const isBlockedRoute = (segments[0] as string) === 'blocked';
     const isOnboardingRoute = (segments[0] as string) === 'onboarding';
 
+    // If we've already done the initial load animation, just route immediately
+    if (!showLoader) {
+      if (!session && !inAuthGroup) {
+        router.replace('/login');
+        return;
+      }
+
+      if (session && user) {
+        if (isVerifying.current) return;
+        isVerifying.current = true;
+
+        const verifyProfile = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('users')
+              .select('onboarding_complete, plan_type')
+              .eq('id', user.id)
+              .single();
+
+            if (error || !data) {
+              if (!isOnboardingRoute && !isBlockedRoute) router.replace('/onboarding' as any);
+              return;
+            }
+
+            const normalizedPlan = normalizePlanType(data.plan_type);
+            const customerInfo = await loginToRevenueCat(user.id, user.email ?? undefined);
+            const isRcPro = isPro(customerInfo);
+            
+            const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(normalizedPlan) || isRcPro;
+            const isReady = data.onboarding_complete && isPlanActive;
+
+            if (isReady) {
+              identifyUser(user.id, user.email ?? undefined, normalizedPlan);
+              if (inAuthGroup || isBlockedRoute || isOnboardingRoute) {
+                router.replace('/(tabs)');
+              }
+            } else if (!isOnboardingRoute && !isBlockedRoute) {
+              router.replace('/onboarding' as any);
+            }
+          } catch (err) {
+            if (!isOnboardingRoute && !isBlockedRoute) router.replace('/onboarding' as any);
+          } finally {
+            isVerifying.current = false;
+          }
+        };
+
+        verifyProfile();
+      }
+      return;
+    }
+
+    // INITIAL LOADER FLOW
+    const finishAuth = (route: string | null) => {
+      setTargetRoute(route);
+      setLoaderMode('complete');
+    };
+
     if (!session && !inAuthGroup) {
-      router.replace('/login');
+      finishAuth('/login');
+      return;
+    }
+    
+    if (!session && inAuthGroup) {
+      finishAuth(null);
       return;
     }
 
@@ -71,37 +138,35 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             .single();
 
           if (error || !data) {
-            if (!isOnboardingRoute && !isBlockedRoute) {
-              router.replace('/onboarding' as any);
-            }
+            if (!isOnboardingRoute && !isBlockedRoute) finishAuth('/onboarding');
+            else finishAuth(null);
             return;
           }
 
           const normalizedPlan = normalizePlanType(data.plan_type);
-          
-          // Log in to RevenueCat to sync the user ID and fetch their subscription status
-          const customerInfo = await loginToRevenueCat(
-            user.id,
-            user.email ?? undefined
-          );
+          const customerInfo = await loginToRevenueCat(user.id, user.email ?? undefined);
           const isRcPro = isPro(customerInfo);
           
-          const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(
-            normalizedPlan
-          ) || isRcPro;
+          const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(normalizedPlan) || isRcPro;
           const isReady = data.onboarding_complete && isPlanActive;
 
           if (isReady) {
             identifyUser(user.id, user.email ?? undefined, normalizedPlan);
             if (inAuthGroup || isBlockedRoute || isOnboardingRoute) {
-              router.replace('/(tabs)');
+              finishAuth('/(tabs)');
+            } else {
+              finishAuth(null);
             }
           } else if (!isOnboardingRoute && !isBlockedRoute) {
-            router.replace('/onboarding' as any);
+            finishAuth('/onboarding');
+          } else {
+            finishAuth(null);
           }
         } catch (err) {
           if (!isOnboardingRoute && !isBlockedRoute) {
-            router.replace('/onboarding' as any);
+            finishAuth('/onboarding');
+          } else {
+            finishAuth(null);
           }
         } finally {
           isVerifying.current = false;
@@ -110,7 +175,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
       verifyProfile();
     }
-  }, [session, loading, segments, user]);
+  }, [session, loading, segments, user, showLoader]);
 
   // Register for push notifications once authenticated
   useEffect(() => {
@@ -137,6 +202,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       }
     };
   }, [user]);
+
+  const handleAnimationFinished = () => {
+    setShowLoader(false);
+    if (targetRoute) {
+      router.replace(targetRoute as any);
+    }
+  };
+
+  if (showLoader) {
+    return <PlanevoMobileLoader mode={loaderMode} onAnimationFinished={handleAnimationFinished} />;
+  }
 
   return <>{children}</>;
 }

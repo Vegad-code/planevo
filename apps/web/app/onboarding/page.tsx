@@ -18,6 +18,7 @@ import { MagicLoadingStep } from "@/components/onboarding/MagicLoadingStep";
 import { PlanRevealStep } from "@/components/onboarding/PlanRevealStep";
 import { Bruno } from "@/components/onboarding/Bruno";
 import { BrunoBubble } from "@/components/onboarding/BrunoBubble";
+import { PlanevoLoader } from "@/components/branding/PlanevoLoader";
 
 const steps = ["welcome", "calendar", "building", "reveal"] as const;
 type Step = (typeof steps)[number];
@@ -36,6 +37,8 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const [loaderMode, setLoaderMode] = useState<'loading' | 'complete'>('loading');
+  const [showLoader, setShowLoader] = useState(true);
 
   // Form State
   const [userName, setUserName] = useState("");
@@ -261,12 +264,18 @@ export default function OnboardingPage() {
     }
   }
 
-  if (!mounted || isPolling) {
+  useEffect(() => {
+    if (mounted && !isPolling) {
+      setLoaderMode('complete');
+    }
+  }, [mounted, isPolling]);
+
+  if (showLoader) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--color-cream)]">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[var(--color-honey)] border-t-transparent" />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#111113]">
+        <PlanevoLoader mode={loaderMode} onAnimationFinished={() => setShowLoader(false)} />
         {isPolling && (
-          <p className="font-serif text-2xl text-[var(--color-ink)] animate-pulse">
+          <p className="font-serif text-2xl text-paper animate-pulse absolute mt-40">
             Confirming your subscription...
           </p>
         )}

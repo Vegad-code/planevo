@@ -1,0 +1,101 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spinGroup {
+  transform-origin: 510px 510px; /* Center of viewBox 260 260 500 500 is 260+250=510, 260+250=510 */
+  animation: planevoSpin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.checkPath {
+  transition: opacity 0.3s ease;
+}
+
+.maskPath {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+}
+
+/* When complete mode is activated */
+.modeComplete .spinGroup {
+  animation: none;
+  /* Ensure it stops where it makes sense, or just fades */
+}
+
+.modeComplete .maskPath {
+  /* 350ms: snappy confident draw like a quick pen stroke.
+     ease-out = fast start, decelerates at end — most satisfying for checkmarks */
+  animation: planevoDraw 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modeComplete .logoSvg {
+  /* 250ms spring pop after checkmark draws — gives the satisfying 'done!' feel */
+  animation: planevoPop 250ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes planevoSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes planevoDraw {
+  0% {
+    stroke-dashoffset: 600;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes planevoPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion fallbacks */
+@media (prefers-reduced-motion: reduce) {
+  .spinGroup {
+    animation: planevoFade 1.5s ease-in-out infinite alternate;
+  }
+  
+  .modeComplete .logoSvg {
+    animation: none;
+  }
+  
+  .modeComplete .maskPath {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .modeComplete .checkPath {
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .modeComplete.showCheckFallback .checkPath {
+    opacity: 1;
+  }
+}
+
+@keyframes planevoFade {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
