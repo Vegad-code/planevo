@@ -7,6 +7,8 @@ import BrunoAvatar from './BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
 import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus, Stop } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
 
@@ -55,8 +57,8 @@ const MemoizedMessage = memo(({ m, isLoading, editingMessageId, setInput, setEdi
             }
             ${editingMessageId === m.id ? 'opacity-50' : ''}
           `}>
-            <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-accent-600">
-              <ReactMarkdown>
+            <div className="bruno-markdown max-w-none text-xs [&_h2]:text-sm [&_h3]:text-xs [&_strong]:text-accent-600">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                 {textPart}
               </ReactMarkdown>
             </div>

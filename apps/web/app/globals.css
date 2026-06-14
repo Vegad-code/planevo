@@ -408,3 +408,189 @@ select option {
   background-color: var(--color-settings-bg);
   color: var(--color-settings-text);
 }
+
+/* ============================================================
+   BRUNO CHAT — Markdown Rendering Styles
+   Replaces broken `prose` classes (no @tailwindcss/typography).
+   Provides ChatGPT-quality spacing, hierarchy, and readability.
+   ============================================================ */
+.bruno-markdown {
+  line-height: 1.75;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* --- Headings --- */
+.bruno-markdown h1 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+  color: var(--color-settings-text);
+  font-family: var(--font-sans);
+}
+.bruno-markdown h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.625rem;
+  line-height: 1.35;
+  color: var(--color-settings-text);
+  font-family: var(--font-sans);
+}
+.bruno-markdown h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  color: var(--color-settings-text);
+  font-family: var(--font-sans);
+}
+/* Remove top-margin on the very first heading so it doesn't float */
+.bruno-markdown > h1:first-child,
+.bruno-markdown > h2:first-child,
+.bruno-markdown > h3:first-child {
+  margin-top: 0;
+}
+
+/* --- Paragraphs --- */
+.bruno-markdown p {
+  margin-top: 0.625rem;
+  margin-bottom: 0.625rem;
+}
+.bruno-markdown > p:first-child {
+  margin-top: 0;
+}
+.bruno-markdown > p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- Lists --- */
+.bruno-markdown ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.bruno-markdown ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.bruno-markdown li {
+  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
+  padding-left: 0.25rem;
+}
+.bruno-markdown li > p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+/* Nested lists */
+.bruno-markdown ul ul,
+.bruno-markdown ol ul,
+.bruno-markdown ul ol,
+.bruno-markdown ol ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* --- Bold & Emphasis --- */
+.bruno-markdown strong {
+  font-weight: 700;
+  color: var(--color-settings-text);
+}
+.bruno-markdown em {
+  font-style: italic;
+}
+
+/* --- Horizontal Rule --- */
+.bruno-markdown hr {
+  border: none;
+  border-top: 1px solid var(--color-settings-border);
+  margin: 1.25rem 0;
+}
+
+/* --- Tables --- */
+.bruno-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+.bruno-markdown th {
+  background: var(--color-settings-card-hover);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-settings-border);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+.bruno-markdown td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-settings-border);
+  vertical-align: top;
+}
+.bruno-markdown tr:nth-child(even) td {
+  background: var(--color-settings-card-hover);
+  opacity: 0.6;
+}
+
+/* --- Blockquotes --- */
+.bruno-markdown blockquote {
+  border-left: 3px solid var(--color-settings-brand);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: var(--color-settings-text-muted);
+  font-style: italic;
+}
+
+/* --- Code --- */
+.bruno-markdown code {
+  background: var(--color-settings-card-hover);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+.bruno-markdown pre {
+  background: var(--color-settings-card-hover);
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+  border: 1px solid var(--color-settings-border);
+}
+.bruno-markdown pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* --- Links --- */
+.bruno-markdown a {
+  color: var(--color-settings-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bruno-markdown a:hover {
+  opacity: 0.8;
+}
+
+/* --- Task Lists (GFM) --- */
+.bruno-markdown input[type="checkbox"] {
+  margin-right: 0.5rem;
+  accent-color: var(--color-settings-brand);
+}
+.bruno-markdown ul:has(> li > input[type="checkbox"]) {
+  list-style-type: none;
+  padding-left: 0.25rem;
+}

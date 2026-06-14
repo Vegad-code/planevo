@@ -16,6 +16,9 @@
   "devDependencies": {
   },
   "overrides": {
-    "@xmldom/xmldom": "^0.8.13"
+    "@xmldom/xmldom": "^0.8.13",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-test-renderer": "19.2.0"
   }
 }

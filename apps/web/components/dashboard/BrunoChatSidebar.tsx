@@ -2,15 +2,25 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PaperPlaneTilt, ArrowsOutSimple, CaretLeft, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning } from '@phosphor-icons/react';
+import { PaperPlaneTilt, ArrowsOutSimple, CaretLeft, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning, X, CaretDown } from '@phosphor-icons/react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 import BrunoAvatar from '../bruno/BrunoAvatar';
 import PlanDraftCard from '../bruno/PlanDraftCard';
 import type { PlanDraftItemData } from '../bruno/PlanDraftCard';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { useBruno } from '@/components/bruno/BrunoProvider';
+import { BrunoContextBanner } from '@/components/bruno/BrunoContextBanner';
+import { BrunoSuggestedActions } from '@/components/bruno/BrunoSuggestedActions';
+import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
+
+import type { BrunoActionProposal } from '@/lib/bruno/tools/types';
+import { BrunoActionProposalCard, type ExecutionStatus } from '../bruno/BrunoActionProposalCard';
+import { BrunoProposalGroup } from '../bruno/BrunoProposalGroup';
 
 const LOADING_PHRASES = [
   "Thinking...",
@@ -24,22 +34,137 @@ const LOADING_PHRASES = [
 
 interface BrunoChatSidebarProps {
   onFinish?: () => void;
-  isProcessing: boolean;
+  isProcessing?: boolean;
   initialMessage?: string;
   assignmentId?: string;
 }
 
-export default function BrunoChatSidebar({ 
+export default function BrunoChatSidebar({
+ 
   onFinish, 
-  isProcessing: isExternalProcessing, 
+  isProcessing: isExternalProcessing = false,
   initialMessage, 
   assignmentId 
 }: BrunoChatSidebarProps) {
+  const [executingActions, setExecutingActions] = useState<Record<string, boolean>>({});
+  const [actionStatuses, setActionStatuses] = useState<Record<string, ExecutionStatus>>({});
+  const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
+  const [fallbackProposalsByMessageId, setFallbackProposalsByMessageId] = useState<Record<string, BrunoActionProposal[]>>({});
+  const lastUserMessageRef = useRef<string>("");
+
+  function stableHash(str: string) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash.toString(16);
+  }
+
+  function extractProposalsFromMessage(message: any): BrunoActionProposal[] {
+    const parts = message.parts || [];
+    const tools = parts.filter((p: any) => 
+      p.type === 'tool-propose_action' || 
+      (p.type === 'tool-invocation' && p.toolInvocation?.toolName === 'propose_action')
+    );
+    
+    return tools.map((part: any) => {
+      const args = part.input ?? part.args ?? part.toolInvocation?.args ?? part.toolInvocation?.input ?? {};
+      const id = args.id ?? part.toolCallId ?? part.toolInvocation?.toolCallId ?? `proposal-${stableHash(JSON.stringify(args))}`;
+      
+      return {
+        id,
+        type: args.type,
+        title: args.title,
+        description: args.description,
+        status: "pending_confirmation",
+        riskLevel: args.riskLevel ?? "low",
+        requiresConfirmation: args.requiresConfirmation ?? true,
+        payload: args.payload ?? {},
+        createdAt: args.createdAt ?? new Date().toISOString(),
+      };
+    });
+  }
+
+  function isTaskBreakdownIntent(text: string) {
+    return /\b(break down|breakdown|smaller tasks|task list|turn .* into tasks|split .* into tasks|make .* realistic|realistic for tonight)\b/i.test(text);
+  }
+
+  const handleConfirmProposal = async (proposal: BrunoActionProposal) => {
+    // Need to use functional update to avoid stale state in loop
+    let alreadyProcessing = false;
+    setExecutingActions(prev => {
+      if (prev[proposal.id]) alreadyProcessing = true;
+      return { ...prev, [proposal.id]: true };
+    });
+    
+    // We also can't read actionStatuses directly synchronously, but it's okay because we lock executingActions.
+    if (alreadyProcessing) return;
+
+    setActionStatuses((prev) => ({ ...prev, [proposal.id]: "executing" }));
+
+    try {
+      const response = await fetch("/api/bruno/actions/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: proposal.id,
+          type: proposal.type,
+          title: proposal.title,
+          description: proposal.description,
+          payload: proposal.payload,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Could not execute action");
+      }
+
+      setActionStatuses((prev) => ({ ...prev, [proposal.id]: "success" }));
+      setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
+    } catch (error: any) {
+      console.error("[Bruno] Failed to execute proposal", error);
+      setActionStatuses((prev) => ({ ...prev, [proposal.id]: "error" }));
+      setActionErrors((prev) => ({
+        ...prev,
+        [proposal.id]: error.message ?? "Couldn't create task. Try again.",
+      }));
+    } finally {
+      setExecutingActions((prev) => ({ ...prev, [proposal.id]: false }));
+    }
+  };
+
+  const handleCancelProposal = (proposal: BrunoActionProposal) => {
+    setActionStatuses((prev) => ({ ...prev, [proposal.id]: "cancelled" }));
+  };
+
+  const handleConfirmAll = async (proposals: BrunoActionProposal[]) => {
+    for (const proposal of proposals) {
+      await handleConfirmProposal(proposal);
+    }
+  };
+  const { currentContext, closeBruno } = useBruno();
   const supabase = createClient();
   const [isExpanded, setIsExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const isBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 20;
+    setIsAtBottom(isBottom);
+  }, []);
+
+  useEffect(() => {
+    // Focus input on mount
+    inputRef.current?.focus();
+  }, []);
   
   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
   const [conversations, setConversations] = useState<any[]>([]);
@@ -115,7 +240,6 @@ export default function BrunoChatSidebar({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
       
       if (currentConversationId && message.role === 'assistant' && textPart) {
@@ -130,6 +254,33 @@ export default function BrunoChatSidebar({
           await supabase.from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
         }
       }
+      
+      if (message.role === 'assistant') {
+        const lastUserText = lastUserMessageRef.current;
+        if (isTaskBreakdownIntent(lastUserText)) {
+          const nativeProposals = extractProposalsFromMessage(message);
+          if (nativeProposals.length === 0) {
+            const textContent = textPart || '';
+            const response = await fetch("/api/bruno/fallback/breakdown", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userPrompt: lastUserText,
+                assistantText: textContent,
+                pageContext: currentContext, // Assuming currentContext is accessible here
+              }),
+            });
+            const result = await response.json();
+            if (response.ok && result.success) {
+              setFallbackProposalsByMessageId((prev) => ({
+                ...prev,
+                [message.id]: result.proposals,
+              }));
+            }
+          }
+        }
+      }
+      
       if (onFinish) onFinish();
     }
   });
@@ -203,10 +354,15 @@ export default function BrunoChatSidebar({
   );
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!scrollRef.current) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    const isUserMessage = lastMessage?.role === 'user';
+    
+    if (isAtBottom || isUserMessage || showHistory) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isExpanded, showHistory]);
+  }, [messages, isExpanded, showHistory, isAtBottom]);
 
   // Update messages when initialMessage changes (context switch)
   useEffect(() => {
@@ -219,16 +375,23 @@ export default function BrunoChatSidebar({
     }
   }, [initialMessage, assignmentId, setMessages, currentConversationId]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isProcessing) return;
+  const submitPrompt = async (prompt: string, event?: React.FormEvent) => {
+    event?.preventDefault();
+    const trimmedPrompt = prompt.trim();
 
-    if (mentionState.active && suggestions.length > 0) {
+    if (!trimmedPrompt || isProcessing) return;
+
+    if (
+      prompt === input &&
+      mentionState.active &&
+      suggestions.length > 0
+    ) {
       // Don't submit if we're actively picking a mention
       return;
     }
 
-    const userMessage = input.trim();
+    const userMessage = trimmedPrompt;
+    lastUserMessageRef.current = userMessage;
     setInput('');
     setMentionState({ active: false, text: '' });
     setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
@@ -297,8 +460,12 @@ export default function BrunoChatSidebar({
     }
 
     sendMessage({ text: userMessage }, {
-      body: { diagnostics: true, conversationId: convId }
+      body: createBrunoChatRequestBody(convId, currentContext)
     });
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    void submitPrompt(input, event);
   };
 
   return (
@@ -319,19 +486,19 @@ export default function BrunoChatSidebar({
         )}
       </AnimatePresence>
 
-      <div className={isExpanded ? "fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 pointer-events-none" : "relative w-full"}>
-        <div className={`flex flex-col bg-[var(--color-settings-bg)] overflow-hidden border border-[var(--color-settings-border)] pointer-events-auto transition-all duration-300 ease-out origin-center ${
-          isExpanded ? "w-full max-w-[95vw] lg:max-w-6xl h-[90vh] rounded-[32px] shadow-2xl" : "w-full h-[600px] rounded-[22px] shadow-lg"
+      <div className={isExpanded ? "fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 pointer-events-none" : "relative w-full h-full"}>
+        <div className={`flex flex-col bg-[var(--color-settings-bg)] overflow-hidden pointer-events-auto transition-all duration-300 ease-out origin-center ${
+          isExpanded ? "w-full max-w-[95vw] lg:max-w-6xl h-[90vh] rounded-[32px] shadow-2xl border border-[var(--color-settings-border)]" : "w-full h-full rounded-none border-0 bg-transparent"
         }`}>
           
           {/* Header */}
-          <div className={`bg-[var(--color-settings-card)] flex items-center justify-between border-b border-[var(--color-settings-border)] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
+          <div className="bg-[var(--color-settings-card)] flex items-center justify-between border-b border-[var(--color-settings-border)] px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
               <BrunoAvatar mood={isProcessing ? 'thinking' : 'happy'} size={isExpanded ? "md" : "sm"} />
               <div>
-                <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-lg" : "text-base"}`}>Bruno</h3>
+                <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-base md:text-lg" : "text-base"}`}>Bruno</h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-base" : "text-sm"}`}>
+                  <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-sm md:text-base" : "text-sm"}`}>
                     {isProcessing ? 'Thinking by the fire...' : 'Your academic guide'}
                   </span>
                 </div>
@@ -339,7 +506,7 @@ export default function BrunoChatSidebar({
             </div>
 
             {isExpanded ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <button 
                   onClick={() => setShowHistory(!showHistory)} 
                   className={`p-2.5 rounded-xl transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
@@ -355,7 +522,7 @@ export default function BrunoChatSidebar({
                 </button>
               </div>
             ) : (
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
                 <button 
                   onClick={() => setShowHistory(!showHistory)} 
                   className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
@@ -370,9 +537,19 @@ export default function BrunoChatSidebar({
                 >
                   <ArrowsOutSimple weight="bold" className="w-5 h-5" />
                 </button>
+                <button 
+                  type="button"
+                  onClick={closeBruno} 
+                  className="p-2 text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors rounded-lg hover:bg-[var(--color-settings-card-hover)]" 
+                  title="Close Bruno"
+                >
+                  <X weight="bold" className="w-5 h-5" />
+                </button>
               </div>
             )}
           </div>
+
+          <BrunoContextBanner />
 
           {/* Context Limit Warning */}
           {messages.length > 20 && (
@@ -434,7 +611,7 @@ export default function BrunoChatSidebar({
                       onClick={() => setShowHistory(false)}
                       className="w-full py-2.5 text-center text-sm font-medium text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors"
                     >
-                      Close
+                    Close
                     </button>
                   </div>
                 </motion.div>
@@ -444,244 +621,305 @@ export default function BrunoChatSidebar({
             {/* Messages Area */}
             <div 
               ref={scrollRef}
-              className={`flex-1 overflow-y-auto space-y-6 scrollbar-hide bg-[var(--color-settings-bg)] relative transition-all ${isExpanded ? "p-8 md:p-12" : "p-4"}`}
+              onScroll={handleScroll}
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide bg-[var(--color-settings-bg)] relative px-4 py-4 md:px-6 md:py-5"
             >
               {/* Subtle campfire glow at the bottom */}
               <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[var(--color-settings-brand)]/5 to-transparent pointer-events-none" />
               
-              <AnimatePresence initial={false}>
-                {messages.map((message, i) => {
-                  const textPart = message.parts?.find(p => p.type === 'text')?.text || '';
-                  const toolParts = message.parts?.filter(p => p.type === 'tool-invocation') || [];
-                  const isEditing = editingMessageId === message.id;
+              <div className="mx-auto flex w-full max-w-[44rem] flex-col gap-5 relative z-10">
+                <AnimatePresence initial={false}>
+                  {messages.map((message, i) => {
+                    const textPart = message.parts?.find(p => p.type === 'text')?.text || '';
+                    const toolParts = message.parts?.filter(p => p.type === 'tool-invocation') || [];
+                    const isEditing = editingMessageId === message.id;
 
-                  // Check if any tool invocation is a propose_plan_draft
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const planDraftInvocation = toolParts.find((t: any) =>
-                    t.toolInvocation?.toolName === 'propose_plan_draft'
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ) as any;
+                    // Check if any tool invocation is a propose_plan_draft
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const planDraftInvocation = toolParts.find((t: any) =>
+                      t.toolInvocation?.toolName === 'propose_plan_draft'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ) as any;
 
-                  const planDraftArgs = planDraftInvocation?.toolInvocation?.args;
-                  const isPlanDraft = !!planDraftArgs?.plan_title;
-                  
-                  return (
+                    const planDraftArgs = planDraftInvocation?.toolInvocation?.args;
+                    const isPlanDraft = !!planDraftArgs?.plan_title;
+                    
+                    const nativeProposals = extractProposalsFromMessage(message);
+                    const fallbackProposals = fallbackProposalsByMessageId[message.id] ?? [];
+                    const proposals = nativeProposals.length > 0 ? nativeProposals : fallbackProposals;
+                    const hasProposals = proposals.length > 0;
+                    const displayText = hasProposals && textPart.length < 50
+                      ? "I've drafted a plan based on your request. Confirm the tasks you want me to add."
+                      : textPart;
+                    
+                    return (
+                      <motion.div
+                        key={message.id || i}
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                        className={`flex relative z-10 gap-2 items-end ${message.role === 'user' ? 'justify-end group' : 'justify-start'}`}
+                      >
+                        {/* If this is a plan draft, render the interactive card */}
+                        {isPlanDraft ? (
+                          <div className="w-full max-w-[44rem] flex flex-col gap-3">
+                            <PlanDraftCard
+                              planTitle={planDraftArgs.plan_title}
+                              planObjective={planDraftArgs.plan_objective}
+                              items={planDraftArgs.items as PlanDraftItemData[] || []}
+                              isCommitting={isCommittingPlan}
+                              hasGoogleCalendar={false}
+                              onApprove={(options) => {
+                                setIsCommittingPlan(true);
+                                const commitType = (options.createTasks && options.blockCalendar) ? 'both' 
+                                  : options.createTasks ? 'tasks_only' 
+                                  : 'calendar_only';
+                                
+                                const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.`;
+                                
+                                sendMessage({ text: approvalMessage }, {
+                                  body: createBrunoChatRequestBody(
+                                    currentConversationId,
+                                    currentContext
+                                  )
+                                });
+                                setTimeout(() => setIsCommittingPlan(false), 10000);
+                              }}
+                              onRequestEdit={(feedback) => {
+                                setInput(feedback);
+                              }}
+                            />
+                            {(textPart || hasProposals) && (
+                              <div className="w-full">
+                                {textPart && (
+                                  <div className="w-full rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 md:px-5 text-[15px] leading-7 text-[var(--color-settings-text)]">
+                                    <div className="bruno-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{textPart}</ReactMarkdown></div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          message.role === 'user' ? (
+                            <div className="relative ml-auto">
+                              {!isProcessing && !isEditing && (
+                                <button 
+                                   onClick={() => {
+                                       setInput(textPart);
+                                       setEditingMessageId(message.id);
+                                   }}
+                                   className="absolute top-1/2 -translate-y-1/2 right-[100%] mr-2 p-1.5 rounded-full text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)] transition-all opacity-0 group-hover:opacity-100"
+                                   title="Edit message"
+                                >
+                                   <PencilSimple size={14} />
+                                </button>
+                              )}
+                              <div className={`max-w-[min(80%,36rem)] rounded-2xl bg-[var(--color-settings-brand)]/20 px-4 py-2.5 text-[15px] leading-6 text-[var(--color-settings-text)] ${isEditing ? 'opacity-50' : ''}`}>
+                                <p>{textPart}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mr-auto max-w-[min(90%,44rem)] rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
+                              <div className="w-full">
+                                <div className="bruno-markdown max-w-none text-[15px] text-[var(--color-settings-text)]">
+                                  {toolParts.length > 0 && !planDraftInvocation && !hasProposals && (
+                                    <div className="text-xs text-amber-500/80 mb-2 font-mono uppercase tracking-wider">
+                                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                      {toolParts.map((t: any) => t.toolInvocation?.toolName).join(', ')}...
+                                    </div>
+                                  )}
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{displayText}</ReactMarkdown>
+                                </div>
+                                {hasProposals && (
+                                  <div className="mt-3">
+                                    <BrunoProposalGroup
+                                      proposals={proposals}
+                                      actionStatuses={actionStatuses}
+                                      actionErrors={actionErrors}
+                                      onConfirm={handleConfirmProposal}
+                                      onCancel={handleCancelProposal}
+                                      onConfirmAll={handleConfirmAll}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                  {isWaitingForFirstToken && (
                     <motion.div
-                      key={message.id || i}
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      className={`flex relative z-10 gap-2 items-end ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                      className="flex relative z-10 justify-start"
                     >
-                      {message.role === 'user' && !isProcessing && !isEditing && (
-                        <button 
-                           onClick={() => {
-                              setInput(textPart);
-                              setEditingMessageId(message.id);
-                           }}
-                           className="text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors p-1"
-                           title="Edit message"
-                        >
-                           <PencilSimple size={16} />
-                        </button>
-                      )}
-
-                      {/* If this is a plan draft, render the interactive card */}
-                      {isPlanDraft ? (
-                        <div className="max-w-[95%]">
-                          <PlanDraftCard
-                            planTitle={planDraftArgs.plan_title}
-                            planObjective={planDraftArgs.plan_objective}
-                            items={planDraftArgs.items as PlanDraftItemData[] || []}
-                            isCommitting={isCommittingPlan}
-                            hasGoogleCalendar={false}
-                            onApprove={(options) => {
-                              setIsCommittingPlan(true);
-                              const commitType = (options.createTasks && options.blockCalendar) ? 'both' 
-                                : options.createTasks ? 'tasks_only' 
-                                : 'calendar_only';
-                              
-                              const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.`;
-                              
-                              sendMessage({ text: approvalMessage }, {
-                                body: { diagnostics: true, conversationId: currentConversationId }
-                              });
-                              setTimeout(() => setIsCommittingPlan(false), 10000);
-                            }}
-                            onRequestEdit={(feedback) => {
-                              setInput(feedback);
-                            }}
-                          />
-                          {textPart && (
-                            <div className={`mt-2 bg-[var(--color-settings-card)] text-[var(--color-settings-text)] border border-[var(--color-settings-border)] rounded-[16px] rounded-tl-none px-4 py-3 prose prose-sm max-w-none leading-relaxed ${isExpanded ? "text-[15px]" : "text-[13.5px]"}`}>
-                              <ReactMarkdown>{textPart}</ReactMarkdown>
-                            </div>
-                          )}
+                      <div className="mr-auto max-w-[min(90%,44rem)] rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce" />
+                          </div>
+                          <span className="font-sans font-medium text-[var(--color-settings-text-muted)] ml-1 text-sm">( {loadingPhrase} )</span>
                         </div>
-                      ) : (
-                        <div className={`max-w-[85%] rounded-[16px] px-4 py-3 ${
-                          message.role === 'user' 
-                            ? 'bg-[var(--color-settings-brand)] text-white rounded-tr-none font-medium' 
-                            : 'bg-[var(--color-settings-card)] text-[var(--color-settings-text)] border border-[var(--color-settings-border)] rounded-tl-none'
-                        } ${isEditing ? 'opacity-50' : ''}`}>
-                          {message.role === 'user' ? (
-                            <p className={isExpanded ? "text-[15px]" : "text-[13.5px]"}>{textPart}</p>
-                          ) : (
-                            <div className={`prose prose-sm max-w-none leading-relaxed ${isExpanded ? "text-[15px]" : "text-[13.5px]"}`}>
-                              {toolParts.length > 0 && !planDraftInvocation && (
-                                <div className="text-xs text-amber-500/80 mb-2 font-mono uppercase tracking-wider">
-                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                  {toolParts.map((t: any) => t.toolInvocation?.toolName).join(', ')}...
-                                </div>
-                              )}
-                              <ReactMarkdown>{textPart}</ReactMarkdown>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
-                {isWaitingForFirstToken && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    className="flex relative z-10 justify-start"
-                  >
-                    <div className="bg-[var(--color-settings-card)] px-4 py-3 rounded-[16px] rounded-tl-none border border-[var(--color-settings-border)] shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                          <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce" />
-                        </div>
-                        <span className={`font-sans font-medium text-[var(--color-settings-text-muted)] ml-1 ${isExpanded ? "text-[14px]" : "text-[12.5px]"}`}>( {loadingPhrase} )</span>
                       </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Floating Scroll to Bottom Button */}
+              <button
+                aria-label="Scroll to bottom"
+                className={`absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center justify-center rounded-full border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/90 w-8 h-8 shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur-lg transition-all duration-300 ${
+                  isAtBottom
+                    ? "pointer-events-none scale-90 opacity-0 translate-y-2"
+                    : "pointer-events-auto scale-100 opacity-100 translate-y-0"
+                }`}
+                onClick={() => {
+                  if (scrollRef.current) {
+                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                  }
+                }}
+              >
+                <CaretDown weight="bold" className="w-4 h-4 text-[var(--color-settings-text-muted)]" />
+              </button>
             </div>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className={`bg-[var(--color-settings-card)] border-t border-[var(--color-settings-border)] transition-all ${isExpanded ? "p-6" : "p-4"}`}>
-            
-            {/* Mentions Dropdown */}
-            <AnimatePresence>
-              {mentionState.active && suggestions.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-full left-4 right-4 mb-2 bg-[var(--color-settings-card)] border border-[var(--color-settings-border)] rounded-xl shadow-2xl overflow-hidden z-[110]"
-                >
-                  {suggestions.map((s, idx) => (
-                    <button
-                      type="button"
-                      key={`${s.type}-${s.id}`}
-                      onMouseEnter={() => setSuggestionSelectedIndex(idx)}
-                      onClick={() => {
-                        const words = input.split(' ');
-                        words.pop();
-                        const mentionLabel = `"${s.title}"`;
-                        setInput(words.length > 0 ? `${words.join(' ')} ${mentionLabel} ` : `${mentionLabel} `);
-                        setMentionState({ active: false, text: '' });
-                        setSuggestions([]);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${idx === suggestionSelectedIndex ? 'bg-[var(--color-settings-card-hover)]' : 'hover:bg-[var(--color-settings-card-hover)]'}`}
-                    >
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[13px] font-bold text-[var(--color-settings-text)] truncate">{s.title}</span>
-                        <span className="text-[11px] text-[var(--color-settings-text-muted)]">{s.subtitle}</span>
-                      </div>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="relative">
-              <textarea
-                value={input}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setInput(val);
-                  const lastWord = val.split(' ').pop();
-                  if (lastWord?.startsWith('@') || lastWord?.startsWith('/')) {
-                    setMentionState({ active: true, text: lastWord.slice(1).toLowerCase() });
-                  } else {
-                    setMentionState({ active: false, text: '' });
-                  }
+          <form 
+            onSubmit={handleSubmit} 
+            className="bg-[var(--color-settings-card)]/85 backdrop-blur-xl border-t border-[var(--color-settings-border)] px-4 py-3 md:px-6 md:py-4 relative z-20"
+          >
+            <div className="mx-auto w-full max-w-[44rem] relative">
+              <BrunoSuggestedActions
+                onSelectAction={(prompt) => {
+                  void submitPrompt(prompt);
                 }}
-                disabled={isExternalProcessing}
-                placeholder={editingMessageId ? "Edit your message..." : (isProcessing ? "Bruno is working..." : "Ask Bruno anything...")}
-                onKeyDown={(e) => {
-                  if (mentionState.active && suggestions.length > 0) {
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setSuggestionSelectedIndex((prev) => (prev + 1) % suggestions.length);
-                      return;
-                    }
-                    if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setSuggestionSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
-                      return;
-                    }
-                    if (e.key === 'Enter' || e.key === 'Tab') {
-                      e.preventDefault();
-                      const s = suggestions[suggestionSelectedIndex];
-                      if (s) {
-                        const words = input.split(' ');
-                        words.pop();
-                        const mentionLabel = `"${s.title}"`;
-                        setInput(words.length > 0 ? `${words.join(' ')} ${mentionLabel} ` : `${mentionLabel} `);
-                        setMentionState({ active: false, text: '' });
-                        setSuggestions([]);
-                      }
-                      return;
-                    }
-                    if (e.key === 'Escape') {
-                      setMentionState({ active: false, text: '' });
-                      return;
-                    }
-                  }
-
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-                rows={Math.min(5, input.split('\n').length || 1)}
-                className={`w-full bg-[var(--color-settings-bg)] border border-[var(--color-settings-border)] rounded-xl text-[var(--color-settings-text)] placeholder:text-[var(--color-settings-text-muted)] focus:outline-none focus:border-[var(--color-settings-brand)] transition-all resize-none ${
-                  isExpanded ? "py-4 pl-5 pr-14 text-[16px] min-h-[64px]" : "py-3 pl-4 pr-12 text-[14px] min-h-[52px]"
-                } max-h-[250px] leading-relaxed`}
               />
-              {isChatGenerating ? (
-                <button
-                  type="button"
-                  onClick={() => stop()}
-                  className={`absolute rounded-lg transition-all cursor-pointer bg-red-500/80 hover:bg-red-500 text-white ${
-                    isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
-                  }`}
-                  title="Stop generation"
-                >
-                  <Stop weight="fill" className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isProcessing}
-                  className={`absolute bg-[var(--color-settings-brand)] hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] cursor-pointer ${
-                    isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
-                  }`}
-                  title="Send message"
-                >
-                  <PaperPlaneTilt className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
-                </button>
-              )}
+              
+              {/* Mentions Dropdown */}
+              <AnimatePresence>
+                {mentionState.active && suggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute bottom-full left-0 right-0 mb-2 bg-[var(--color-settings-card)] border border-[var(--color-settings-border)] rounded-xl shadow-2xl overflow-hidden z-[110]"
+                  >
+                    {suggestions.map((s, idx) => (
+                      <button
+                        type="button"
+                        key={`${s.type}-${s.id}`}
+                        onMouseEnter={() => setSuggestionSelectedIndex(idx)}
+                        onClick={() => {
+                          const words = input.split(' ');
+                          words.pop();
+                          const mentionLabel = `"${s.title}"`;
+                          setInput(words.length > 0 ? `${words.join(' ')} ${mentionLabel} ` : `${mentionLabel} `);
+                          setMentionState({ active: false, text: '' });
+                          setSuggestions([]);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${idx === suggestionSelectedIndex ? 'bg-[var(--color-settings-card-hover)]' : 'hover:bg-[var(--color-settings-card-hover)]'}`}
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[13px] font-bold text-[var(--color-settings-text)] truncate">{s.title}</span>
+                          <span className="text-[11px] text-[var(--color-settings-text-muted)]">{s.subtitle}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="relative">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setInput(val);
+                    const lastWord = val.split(' ').pop();
+                    if (lastWord?.startsWith('@') || lastWord?.startsWith('/')) {
+                      setMentionState({ active: true, text: lastWord.slice(1).toLowerCase() });
+                    } else {
+                      setMentionState({ active: false, text: '' });
+                    }
+                  }}
+                  disabled={isExternalProcessing}
+                  placeholder={editingMessageId ? "Edit your message..." : (isProcessing ? "Bruno is working..." : "Ask Bruno anything...")}
+                  onKeyDown={(e) => {
+                    if (mentionState.active && suggestions.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSuggestionSelectedIndex((prev) => (prev + 1) % suggestions.length);
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSuggestionSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                        return;
+                      }
+                      if (e.key === 'Enter' || e.key === 'Tab') {
+                        e.preventDefault();
+                        const s = suggestions[suggestionSelectedIndex];
+                        if (s) {
+                          const words = input.split(' ');
+                          words.pop();
+                          const mentionLabel = `"${s.title}"`;
+                          setInput(words.length > 0 ? `${words.join(' ')} ${mentionLabel} ` : `${mentionLabel} `);
+                          setMentionState({ active: false, text: '' });
+                          setSuggestions([]);
+                        }
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        setMentionState({ active: false, text: '' });
+                        return;
+                      }
+                    }
+
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void submitPrompt(input);
+                    }
+                  }}
+                  rows={Math.min(5, input.split('\n').length || 1)}
+                  className={`w-full bg-[var(--color-settings-bg)] border border-[var(--color-settings-border)] rounded-xl text-[var(--color-settings-text)] placeholder:text-[var(--color-settings-text-muted)] focus:outline-none focus:border-[var(--color-settings-brand)] transition-[border-color,box-shadow] focus:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.05)] resize-none ${
+                    isExpanded ? "py-4 pl-5 pr-14 text-[16px] min-h-[64px]" : "py-3 pl-4 pr-12 text-[14px] min-h-[52px]"
+                  } max-h-[250px] leading-relaxed`}
+                />
+                {isChatGenerating ? (
+                  <button
+                    type="button"
+                    onClick={() => stop()}
+                    className={`absolute rounded-lg transition-all cursor-pointer bg-red-500/80 hover:bg-red-500 text-white ${
+                      isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
+                    }`}
+                    title="Stop generation"
+                  >
+                    <Stop weight="fill" className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || isProcessing}
+                    className={`absolute bg-[var(--color-settings-brand)] hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] cursor-pointer ${
+                      isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
+                    }`}
+                    title="Send message"
+                  >
+                    <PaperPlaneTilt className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
+                  </button>
+                )}
+              </div>
+              <p className={`mt-2 font-mono tracking-widest uppercase text-[var(--color-settings-text-muted)] text-center ${isExpanded ? "text-xs" : "text-[10px]"}`}>
+                Shift + Enter for new line
+              </p>
             </div>
-            <p className={`mt-2 font-mono tracking-widest uppercase text-[var(--color-settings-text-muted)] text-center ${isExpanded ? "text-xs" : "text-[10px]"}`}>
-              Shift + Enter for new line
-            </p>
           </form>
         </div>
       </div>

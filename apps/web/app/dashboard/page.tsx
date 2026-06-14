@@ -12,6 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import type { CalendarEvent } from '@/types/calendar';
 import { X, Clock } from '@phosphor-icons/react';
+import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: string }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} className="flex-none">
@@ -154,6 +155,12 @@ const Stat = ({ label, big, sub, tone }: { label: string, big: string | number, 
 };
 
 export default function DashboardPage() {
+  useRegisterBrunoContext({
+    source: 'dashboard',
+    page: '/dashboard',
+    label: 'Dashboard',
+  });
+
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   

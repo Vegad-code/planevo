@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useCalendarPreferences } from '@/hooks/useCalendarPreferences';
@@ -14,7 +14,7 @@ import type { CalendarEvent } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import QuickAddSidebar from '@/components/calendar/dialogs/QuickAddSidebar';
 import { format, startOfWeek, addDays } from 'date-fns';
-import BrunoChatSidebar from '@/components/dashboard/BrunoChatSidebar';
+import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
 
 interface QuickAddData {
   title: string;
@@ -50,14 +50,39 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [chatProcessing, setChatProcessing] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'backlog' | 'chat'>('chat');
   const [backlogCount, setBacklogCount] = useState<number>(0);
   const supabase = createClient();
 
   const loading = prefsLoading;
+  const contextLabel = useMemo(() => {
+    if (activeView === 'week') {
+      return `Calendar - Week of ${format(
+        startOfWeek(selectedDate, { weekStartsOn: 1 }),
+        'MMM d'
+      )}`;
+    }
+
+    if (activeView === 'month') {
+      return `Calendar - ${format(selectedDate, 'MMMM yyyy')}`;
+    }
+
+    return `Calendar - ${format(selectedDate, 'MMM d')}`;
+  }, [activeView, selectedDate]);
+  const brunoPayload = useMemo(
+    () => ({
+      activeView,
+      selectedDate: selectedDate.toISOString(),
+    }),
+    [activeView, selectedDate]
+  );
+
+  useRegisterBrunoContext({
+    source: 'calendar',
+    page: '/dashboard/calendar',
+    label: contextLabel,
+    payload: brunoPayload,
+  });
 
   useEffect(() => {
     async function checkGoogleConnection() {
@@ -441,60 +466,28 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Sidebar (Task Backlog & Bruno Chat) */}
+      {/* Sidebar (Task Backlog) */}
       <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4 h-full lg:h-[80vh]">
-        {/* Tab Switcher Pills */}
-        <div className="flex bg-[var(--color-paper)] p-1 rounded-xl border border-[var(--color-line)] shadow-sm relative shrink-0">
-          {(['backlog', 'chat'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveSidebarTab(tab)}
-              className={`
-                flex-1 px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 z-10 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--color-ink)]
-                ${activeSidebarTab === tab
-                  ? 'text-[var(--color-cream)] bg-[var(--color-ink)] shadow-sm'
-                  : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
-                }
-              `}
-            >
-              <span className="relative z-10 flex items-center justify-center gap-1.5">
-                {tab === 'backlog' ? 'Task Backlog' : 'Bruno Chat'}
-                {tab === 'backlog' && backlogCount > 0 && (
-                  <span className={`
-                    px-1.5 py-0.5 text-[9px] font-sans font-bold rounded-full transition-colors duration-200
-                    ${activeSidebarTab === 'backlog'
-                      ? 'bg-[var(--color-paper)] text-[var(--color-ink)]'
-                      : 'bg-[var(--color-ink)] text-[var(--color-paper)]'
-                    }
-                  `}>
-                    {backlogCount}
-                  </span>
-                )}
-              </span>
-            </button>
-          ))}
+        <div className="flex items-center justify-center gap-2 bg-[var(--color-ink)] px-3 py-2.5 rounded-xl border border-[var(--color-line)] shadow-sm text-[var(--color-cream)] shrink-0">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider">
+            Task Backlog
+          </span>
+          {backlogCount > 0 && (
+            <span className="px-1.5 py-0.5 text-[9px] font-sans font-bold rounded-full bg-[var(--color-paper)] text-[var(--color-ink)]">
+              {backlogCount}
+            </span>
+          )}
         </div>
 
-        {/* Tab Content */}
         <div className="flex-1 min-h-0">
-          {activeSidebarTab === 'backlog' ? (
-            <TaskBacklog 
-              onScheduleAll={handleAutoSchedule}
-              onScheduleOne={(task) => {
-                toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
-              }}
-              isProcessing={isProcessing}
-              scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
-            />
-          ) : (
-            <div className="h-[600px] flex flex-col mb-4">
-              <BrunoChatSidebar 
-                onFinish={loadEvents}
-                isProcessing={chatProcessing}
-                initialMessage="Hey! I'm Bruno, your elite academic advisor and schedule heavy-lifter. Tell me what we need to get done this week."
-              />
-            </div>
-          )}
+          <TaskBacklog
+            onScheduleAll={handleAutoSchedule}
+            onScheduleOne={(task) => {
+              toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
+            }}
+            isProcessing={isProcessing}
+            scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
+          />
         </div>
       </div>
 

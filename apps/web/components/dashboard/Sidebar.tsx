@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useUIStore } from '@/lib/store/ui-store';
 import { useState, useEffect } from 'react';
 import { normalizePlanType } from '@/lib/auth/plan-types';
+import { useBruno } from '@/components/bruno/BrunoProvider';
 
 import { 
   Layout, 
@@ -63,6 +64,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { currentContext, openBruno } = useBruno();
   const { sidebarCollapsed, toggleSidebar, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -206,12 +208,22 @@ export default function Sidebar() {
                 </div>
               </div>
             </div>
-            <Link 
-              href="/dashboard/chat"
+            <button
+              type="button"
+              onClick={() => {
+                openBruno(
+                  currentContext ?? {
+                    source: 'sidebar',
+                    page: pathname,
+                    label: 'Current page',
+                  }
+                );
+                setMobileMenuOpen(false);
+              }}
               className="w-full bg-[var(--color-paper)] text-[var(--color-ink)] border-none py-2 px-3 rounded-lg text-[13px] font-medium cursor-pointer flex items-center justify-between font-sans hover:bg-[var(--color-cream-2)]"
             >
-              Ask Bruno <span className="text-[var(--color-ink-soft)] font-sans">⌘K</span>
-            </Link>
+              Ask Bruno <span className="text-[var(--color-ink-soft)] font-sans">⌘L</span>
+            </button>
           </div>
         )}
 

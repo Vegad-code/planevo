@@ -8,6 +8,8 @@ import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 import { useUIStore } from '@/lib/store/ui-store';
 import QuickCaptureModal from '@/components/tasks/QuickCaptureModal';
 import { PlanevoLoader } from '@/components/branding/PlanevoLoader';
+import { BrunoProvider } from '@/components/bruno/BrunoProvider';
+import { BrunoShell } from '@/components/bruno/BrunoShell';
 
 export default function DashboardLayout({
   children,
@@ -18,8 +20,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const isCalendar = pathname === '/dashboard/calendar';
   const [isChecking, setIsChecking] = useState(true);
-  const [loaderMode, setLoaderMode] = useState<'loading' | 'complete'>('loading');
   const [showLoader, setShowLoader] = useState(true);
+  const loaderMode = isChecking ? 'loading' : 'complete';
 
   useEffect(() => {
     const supabase = createClient();
@@ -49,12 +51,6 @@ export default function DashboardLayout({
     });
   }, []);
 
-  useEffect(() => {
-    if (!isChecking) {
-      setLoaderMode('complete');
-    }
-  }, [isChecking]);
-
   if (showLoader) {
     return (
       <div className="min-h-screen bg-[#111113] flex items-center justify-center">
@@ -64,22 +60,25 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-cream text-(--color-ink) transition-colors duration-300">
-      <Sidebar />
+    <BrunoProvider>
+      <div className="min-h-screen bg-cream text-(--color-ink) transition-colors duration-300">
+        <Sidebar />
 
-      {/* Main content area - offset by sidebar width */}
-      <main
-        className={`
-          transition-all duration-300 ease-in-out min-h-screen
-          ${sidebarCollapsed ? 'lg:ml-17' : 'lg:ml-60'}
-        `}
-      >
-        <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-350' : (sidebarCollapsed ? 'max-w-400' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>
-          {children}
-        </div>
-      </main>
+        {/* Main content area - offset by sidebar width */}
+        <main
+          className={`
+            transition-all duration-300 ease-in-out min-h-screen
+            ${sidebarCollapsed ? 'lg:ml-17' : 'lg:ml-60'}
+          `}
+        >
+          <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-350' : (sidebarCollapsed ? 'max-w-400' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>
+            {children}
+          </div>
+        </main>
 
-      <QuickCaptureModal />
-    </div>
+        <QuickCaptureModal />
+        <BrunoShell />
+      </div>
+    </BrunoProvider>
   );
 }

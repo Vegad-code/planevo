@@ -33,11 +33,10 @@ import AssignmentDetailOverlay from '@/components/dashboard/AssignmentDetailOver
 import { useUIStore } from '@/lib/store/ui-store';
 import type { UserAiMemory } from '@/lib/ai/memory';
 import { posthog } from '@/lib/posthog';
-
-interface BrunoMessage {
-  role: 'user' | 'bruno';
-  content: string;
-}
+import {
+  useBruno,
+  useRegisterBrunoContext,
+} from '@/components/bruno/BrunoProvider';
 
 
 const DEFAULT_PREFERENCES: SchedulingPreferences = {
@@ -72,6 +71,13 @@ interface GoogleCalendarEvent {
 }
 
 export default function DailyPlanPage() {
+  useRegisterBrunoContext({
+    source: 'daily-plan',
+    page: '/dashboard/daily-plan',
+    label: 'Daily Plan',
+  });
+
+  const { openBruno } = useBruno();
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -91,7 +97,6 @@ export default function DailyPlanPage() {
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [showBruno, setShowBruno] = useState(false);
   const [activeTab, setActiveTab] = useState<'focus' | 'energy'>('focus');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'school' | 'work'>('all');
   const [autoLaunched, setAutoLaunched] = useState(false);
@@ -100,9 +105,6 @@ export default function DailyPlanPage() {
   // Assignment Context State
   const [selectedAssignment, setSelectedAssignment] = useState<CanvasAssignment | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [brunoContextId, setBrunoContextId] = useState<string | undefined>(undefined);
-  const [brunoInitialMsg, setBrunoInitialMsg] = useState<string | undefined>(undefined);
-
   const loadData = useCallback(async () => {
     setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
@@ -295,7 +297,7 @@ export default function DailyPlanPage() {
             { role: 'system', content: `You are a scheduling assistant. The user has this current schedule: ${JSON.stringify(schedule)}. Their preferences: ${JSON.stringify(profile?.scheduling_preferences || DEFAULT_PREFERENCES)}. Respond with schedule adjustments in JSON when asked to reschedule.` },
             { role: 'user', content: message }
           ],
-          assignmentId: assignmentId || brunoContextId,
+          assignmentId,
           diagnostics: true
         }),
       });
@@ -344,78 +346,22 @@ export default function DailyPlanPage() {
     } finally {
       setProcessing(false);
     }
-  }, [schedule, profile, brunoContextId]);
-
-  const handleBrunoChat = useCallback(async (message: string, history: { role: string, content: string }[], assignmentId?: string) => {
-    setProcessing(true);
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: history.map(m => ({
-            role: m.role === 'bruno' ? 'assistant' : m.role,
-            content: m.content
-          })),
-          assignmentId: assignmentId || brunoContextId,
-          diagnostics: true
-        }),
-      });
-
-      if (!response.ok) {
-        try {
-          const errorData = await response.json();
-          if (errorData.message || errorData.error) {
-            throw new Error(errorData.message || errorData.error);
-          }
-        } catch (e) {
-          // Fallback
-        }
-        throw new Error('Bruno is overthinking...');
-      }
-
-      // The API now returns a Vercel AI SDK data stream, not JSON.
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      const decoder = new TextDecoder();
-      let fullText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split('\n')) {
-          if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'text') {
-                fullText += data.text;
-              }
-            } catch {
-              // Skip malformed lines
-            }
-          }
-        }
-      }
-
-      return fullText || null;
-    } catch (error) {
-      console.error('Bruno chat error:', error);
-      toast.error("Bruno is offline for a quick nap.");
-      return null;
-    } finally {
-      setProcessing(false);
-    }
-  }, [brunoContextId]);
+  }, [schedule, profile]);
 
   const handleAskBruno = useCallback((assignment: CanvasAssignment) => {
-    setBrunoContextId(String(assignment.id));
-    setBrunoInitialMsg(`I'm looking at "${assignment.name}". How can I help you get started?`);
-    setShowBruno(true);
+    openBruno({
+      source: 'daily-plan',
+      page: '/dashboard/daily-plan',
+      label: `Daily Plan - ${assignment.name}`,
+      payload: {
+        assignmentId: String(assignment.id),
+        assignmentTitle: assignment.name,
+        dueAt: assignment.due_at ?? null,
+      },
+    });
     setIsDetailOpen(false);
     toast.info("Bruno is reading the assignment details...");
-  }, []);
+  }, [openBruno]);
 
   const handleScheduleAssignment = useCallback(async (assignment: CanvasAssignment) => {
     setIsDetailOpen(false);
@@ -779,7 +725,12 @@ export default function DailyPlanPage() {
                       onUpdate={setSchedule}
                       onFeedback={handleScheduleFeedback}
                       onDeconstruct={async (id) => {
-                        setShowBruno(true);
+                        openBruno({
+                          source: 'daily-plan',
+                          page: '/dashboard/daily-plan',
+                          label: 'Daily Plan - Task breakdown',
+                          payload: { taskId: id },
+                        });
                         await handleCommand(`Break down the task with ID ${id} into small steps.`);
                       }}
                     />
