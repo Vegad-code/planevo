@@ -5,16 +5,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap text-sm font-bold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-900 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-paper) focus-visible:ring-(--color-honey) disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-surface-900 text-surface-100 border-2 border-surface-900 hover:bg-surface-800 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        destructive: "bg-error text-surface-100 border-2 border-surface-900 hover:bg-error/90 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        outline: "border-2 border-surface-900 bg-surface-100 text-surface-900 hover:bg-surface-200 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        secondary: "bg-brand-300 text-surface-900 border-2 border-surface-900 hover:bg-brand-400 shadow-[4px_4px_0_0_var(--shadow-color)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]",
-        ghost: "hover:bg-surface-200 text-surface-900",
-        link: "text-surface-900 underline-offset-4 hover:underline",
+        default:
+          "bg-(--color-ink) text-(--color-paper) hover:bg-(--color-ink-2)",
+        destructive:
+          "bg-(--color-rose) text-(--color-paper) hover:opacity-90",
+        outline:
+          "border border-line-strong bg-transparent text-(--color-ink) hover:bg-(--color-cream-2)",
+        secondary:
+          "bg-(--color-cream-2) text-(--color-ink) hover:bg-(--color-cream)",
+        accent:
+          "bg-(--color-honey) text-(--color-ink) hover:bg-(--color-honey-deep) hover:text-(--color-paper)",
+        ghost:
+          "text-(--color-ink) hover:bg-(--color-cream-2)",
+        link:
+          "text-(--color-honey-deep) underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-6 py-2",
@@ -45,7 +53,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         suppressHydrationWarning
         {...props}
-
       />
     )
   },

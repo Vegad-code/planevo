@@ -1,29 +1,33 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream: #F2E8D2;
-  --color-cream-2: #E8DCC0;
-  --color-paper: #FBF6EA;
-  --color-ink: #1A140D;
-  --color-ink-2: #2A2118;
-  --color-ink-soft: #4A3F32;
-  --color-ink-faint: #8A7B66;
+  /* ── Premium warm-neutral base (evolved from the original honey/cream) ──
+     Surfaces are a clean warm off-white, text is a warm charcoal/near-black,
+     and the accent is a restrained muted amber. Token NAMES are preserved so
+     every existing reference keeps working across the app. */
+  --color-cream: #F4F1EB;        /* app background — soft warm gray */
+  --color-cream-2: #E8E3DA;      /* subtle fills / hover */
+  --color-paper: #FCFAF6;        /* elevated card surface — warm off-white */
+  --color-ink: #1B1A17;          /* near-black warm charcoal */
+  --color-ink-2: #2C2A25;
+  --color-ink-soft: #696459;     /* muted gray body text */
+  --color-ink-faint: #9A9488;
   --color-bruno: #8B5A2B;
   --color-bruno-deep: #6B4423;
   --color-bruno-light: #C99A5F;
   --color-bruno-ink: #1A140D;
   --color-belly: #E8C896;
-  --color-honey: #D08741;
-  --color-honey-deep: #B96E2A;
-  --color-honey-soft: #F5DCB8;
-  --color-sage: #6B8B69;
-  --color-sage-soft: #D8E2D6;
-  --color-rose: #C56B5E;
-  --color-rose-soft: #F5D5D0;
-  --color-blue: #5B8DCF;
-  --color-blue-soft: #D5E3F2;
-  --color-line: rgba(26, 20, 13, 0.10);
-  --color-line-strong: rgba(26, 20, 13, 0.18);
+  --color-honey: #C2862E;        /* muted amber accent */
+  --color-honey-deep: #A56C1F;
+  --color-honey-soft: #F0E3C8;
+  --color-sage: #5F8463;
+  --color-sage-soft: #D7E2D5;
+  --color-rose: #BD6457;
+  --color-rose-soft: #F2D4CE;
+  --color-blue: #4F82C4;
+  --color-blue-soft: #D3E1F0;
+  --color-line: rgba(27, 26, 23, 0.09);
+  --color-line-strong: rgba(27, 26, 23, 0.15);
 
   /* Calendar category source colors */
   --color-manual: var(--color-ink-soft);
@@ -56,12 +60,12 @@
   /* Settings / surface Semantic Tokens — LIGHT (Honey) defaults.
      These now follow the active theme (see html.dark / html.sepia below) so the
      whole authenticated app stays consistent and readable across modes. */
-  --color-settings-bg: #FBF6EA;
-  --color-settings-card: #FFFFFF;
-  --color-settings-card-hover: #F5EFE1;
-  --color-settings-border: #E6DCCE;
-  --color-settings-text: #2A2118;
-  --color-settings-text-muted: #8A7B66;
+  --color-settings-bg: #F4F1EB;
+  --color-settings-card: #FCFAF6;
+  --color-settings-card-hover: #F0ECE3;
+  --color-settings-border: #E5E0D6;
+  --color-settings-text: #2C2A25;
+  --color-settings-text-muted: #837D72;
   --color-settings-brand: var(--color-honey);
   
   /* Sidebar Tokens (Light Mode defaults) */
@@ -158,12 +162,12 @@ html[data-public="true"].sepia {
    Each accent is tuned to sit harmoniously on cream/sepia/espresso.
    ============================================================ */
 html[data-accent="honey"] {
-  --color-honey: #D08741;
-  --color-honey-deep: #B96E2A;
-  --color-honey-soft: #F5DCB8;
-  --color-focus: #B96E2A;
-  --color-focus-soft: #F5DCB8;
-  --color-settings-brand: #D08741;
+  --color-honey: #C2862E;
+  --color-honey-deep: #A56C1F;
+  --color-honey-soft: #F0E3C8;
+  --color-focus: #A56C1F;
+  --color-focus-soft: #F0E3C8;
+  --color-settings-brand: #C2862E;
 }
 html[data-accent="terracotta"] {
   --color-honey: #C9663B;

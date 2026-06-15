@@ -31,6 +31,17 @@ const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: strin
   </svg>
 );
 
+// Small, subtle assistant avatar — Bruno present as a quiet planning assistant,
+// not a prominent cartoon mascot.
+const BrunoChip = ({ size = 32, tone = 'light' }: { size?: number, tone?: 'light' | 'dark' }) => (
+  <span
+    className={`inline-flex items-center justify-center rounded-full flex-none ${tone === 'dark' ? 'bg-[rgba(251,246,234,0.08)] ring-1 ring-[rgba(251,246,234,0.12)]' : 'bg-(--color-cream-2) ring-1 ring-line'}`}
+    style={{ width: size, height: size }}
+  >
+    <BrunoMark size={Math.round(size * 0.62)} mood="happy" />
+  </span>
+);
+
 const SourcePill = ({ kind, label, count, status = 'synced' }: { kind: 'canvas' | 'cal' | 'task' | 'project', label: string, count?: string, status?: string }) => {
   const colorMap = {
     canvas: { dot: 'bg-(--color-rose)' },
@@ -84,13 +95,15 @@ const NextActionCard = ({ nextAction }: { nextAction: any }) => {
   return (
     <div className="bg-(--color-paper) text-(--color-ink) rounded-2xl p-5 shadow-sm border border-line-strong">
       <div className="flex justify-between items-center mb-3">
-        <span className="font-mono text-[11px] text-(--color-ink-soft) tracking-widest">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
-        <span className="font-mono text-[10px] text-(--color-sage) tracking-widest">● FOCUS</span>
+        <span className="font-mono text-[10px] text-(--color-ink-soft) tracking-[0.16em] uppercase">{nextAction.status} · {format(nextAction.startTime, 'h:mm a')}</span>
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-(--color-sage) tracking-[0.12em] uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-(--color-sage)" /> Focus
+        </span>
       </div>
-      <div className="font-serif text-xl tracking-tight mb-2 leading-tight">{nextAction.title}</div>
-      <div className="text-xs text-(--color-ink-soft) font-mono tracking-wide mb-3 flex items-center gap-2">
-        <span className="text-(--color-rose)">●</span> 
-        {totalDurationMin} min
+      <div className="font-sans font-semibold text-lg tracking-tight mb-2 leading-snug">{nextAction.title}</div>
+      <div className="text-xs text-(--color-ink-soft) font-mono tracking-wide mb-3 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-(--color-honey)" />
+        {totalDurationMin} min block
       </div>
       <div className="h-1.5 bg-(--color-cream-2) rounded-full overflow-hidden mb-2.5">
         <div 
@@ -99,8 +112,8 @@ const NextActionCard = ({ nextAction }: { nextAction: any }) => {
         />
       </div>
       <div className="flex justify-between">
-        <span className="font-mono text-[10px] text-(--color-ink-soft) tracking-[0.06em]">{elapsedMin} MIN IN</span>
-        <span className="font-mono text-[10px] text-(--color-honey-deep) tracking-[0.06em]">BRUNO: YOU GOT THIS</span>
+        <span className="font-mono text-[10px] text-(--color-ink-soft) tracking-[0.08em] uppercase">{elapsedMin} min in</span>
+        <span className="font-mono text-[10px] text-(--color-ink-faint) tracking-[0.08em] uppercase">Scheduled by Bruno</span>
       </div>
     </div>
   );
@@ -143,13 +156,13 @@ const Stat = ({ label, big, sub, tone }: { label: string, big: string | number, 
   };
   const dotColor = tones[tone] || tones.ink;
   return (
-    <div className="bg-(--color-paper) rounded-[22px] p-5 border border-line shadow-sm">
+    <div className="bg-(--color-paper) rounded-2xl p-5 border border-line shadow-sm hover:border-line-strong transition-colors">
       <div className="flex items-center gap-2 mb-3">
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-        <span className="font-mono text-[11px] tracking-[0.16em] text-(--color-ink-soft) uppercase">{label}</span>
+        <span className="font-mono text-[10px] tracking-[0.16em] text-(--color-ink-soft) uppercase">{label}</span>
       </div>
-      <div className="font-serif text-4xl leading-none tracking-tight text-(--color-ink)">{big}</div>
-      <div className="text-xs text-(--color-ink-soft) mt-2 font-mono tracking-wide">{sub}</div>
+      <div className="font-sans font-semibold text-[28px] leading-none tracking-tight text-(--color-ink) tabular-nums">{big}</div>
+      <div className="text-xs text-(--color-ink-soft) mt-2 leading-relaxed">{sub}</div>
     </div>
   );
 };
@@ -570,13 +583,13 @@ export default function DashboardPage() {
           <div className="font-mono text-[11px] tracking-[0.18em] text-(--color-ink-soft) uppercase mb-3">
             {dateStr}
           </div>
-          <h1 className="font-serif text-5xl md:text-6xl tracking-tight text-(--color-ink) m-0 leading-none">
-            {greetingPrefix}, <em className="text-(--color-honey-deep) not-italic">{userName.split(' ')[0] || 'Planevo'}.</em>
+          <h1 className="font-sans font-semibold text-3xl md:text-4xl tracking-tight text-(--color-ink) m-0 leading-tight">
+            {greetingPrefix}, {userName.split(' ')[0] || 'there'}
           </h1>
-          <p className="font-sans text-[15px] text-(--color-ink-soft) mt-3 mb-0">
+          <p className="font-sans text-[15px] text-(--color-ink-soft) mt-2 mb-0 leading-relaxed">
             {parsedSchedule && parsedSchedule.length > 0
-              ? `${parsedSchedule.length} block${parsedSchedule.length > 1 ? 's' : ''} on your plate. Bruno has your back.`
-              : "Let's organize your day."}
+              ? `${parsedSchedule.length} block${parsedSchedule.length > 1 ? 's' : ''} scheduled today. Here's where things stand.`
+              : "Nothing scheduled yet. Let's map out your day."}
           </p>
         </div>
         <div className="flex gap-2.5 flex-wrap justify-end">
@@ -588,28 +601,27 @@ export default function DashboardPage() {
       {/* HERO CARD */}
       <div className="bg-(--color-ink) border border-line text-(--color-paper) rounded-[22px] p-6 md:p-9 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-9 mb-6 min-h-70">
         <div className="flex flex-col">
-          <div className="flex items-center gap-2.5 mb-5">
-            <BrunoMark size={36} mood={nextAction ? "happy" : "normal"} />
-            <div>
-              <div className="font-mono text-[11px] tracking-[0.16em] text-[rgba(251,246,234,0.5)]">BRUNO · JUST NOW</div>
-              <div className="font-serif text-[22px] text-(--color-paper) mt-1 italic">
-                {nextAction ? "Tonight is for the light stuff." : "Let's plan this out."}
-              </div>
-            </div>
+          <div className="flex items-center gap-2.5 mb-6">
+            <BrunoChip size={28} tone="dark" />
+            <span className="font-mono text-[10px] tracking-[0.16em] text-[rgba(251,246,234,0.55)] uppercase">Bruno</span>
+            <span className="w-1 h-1 rounded-full bg-[rgba(251,246,234,0.25)]" />
+            <span className="font-mono text-[10px] tracking-[0.16em] text-[rgba(251,246,234,0.4)] uppercase">
+              {nextAction ? 'Plan ready' : 'No plan yet'}
+            </span>
           </div>
           
-          <h2 className="font-serif text-4xl md:text-5xl leading-[1.05] tracking-tight font-normal my-0 mb-4 text-(--color-paper)">
+          <h2 className="font-sans font-semibold text-3xl md:text-[2.5rem] leading-tight tracking-tight my-0 mb-4 text-(--color-paper) text-balance">
             {nextAction ? (
-              <>Your <em className="text-(--color-honey) italic font-serif">next move</em><br/>is ready.</>
+              <>Your <span className="text-(--color-honey)">next move</span> is ready.</>
             ) : (
-              <>Your <em className="text-(--color-honey) italic font-serif">schedule</em><br/>is empty.</>
+              <>Your <span className="text-(--color-honey)">schedule</span> is open.</>
             )}
           </h2>
           
           <p className="text-[15px] text-[rgba(251,246,234,0.7)] leading-relaxed m-0 max-w-md">
             {nextAction 
-              ? `Your next block starts at ${format(nextAction.startTime, 'h:mm a')}. Bruno arranged your schedule based on your energy and priorities.`
-              : "Generate a daily plan based on your tasks, or connect your calendar to sync your schedule."}
+              ? `Your next block starts at ${format(nextAction.startTime, 'h:mm a')}. Bruno arranged today around your priorities and energy.`
+              : "Generate a daily plan from your tasks, or connect your calendar to sync your schedule."}
           </p>
           
           <div className="flex gap-3 mt-auto pt-7">
@@ -667,8 +679,8 @@ export default function DashboardPage() {
         <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line shadow-sm min-w-0">
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] mb-1.5">THIS WEEK</div>
-              <div className="font-serif text-[22px] text-(--color-ink)">What&apos;s <em>coming up.</em></div>
+              <div className="font-mono text-[10px] text-(--color-ink-soft) tracking-[0.16em] uppercase mb-1.5">This week</div>
+              <div className="font-sans font-semibold text-lg tracking-tight text-(--color-ink)">What&apos;s coming up</div>
             </div>
             <button onClick={() => router.push('/dashboard/calendar')} className="font-mono text-[11px] tracking-wide text-(--color-honey-deep) hover:text-(--color-honey) cursor-pointer bg-transparent border-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) rounded">
               See all &rarr;
@@ -690,39 +702,39 @@ export default function DashboardPage() {
               />
             ))}
             {upcomingAgenda.length === 0 && (
-              <div className="py-8 text-center font-serif text-lg text-(--color-ink-soft) italic">
+              <div className="py-10 text-center text-sm text-(--color-ink-soft)">
                 You&apos;re all caught up for the week.
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-bruno-deep border border-line text-(--color-paper) rounded-[22px] p-6 flex flex-col shadow-sm">
-          <div className="font-mono text-[11px] tracking-[0.16em] text-(--color-honey) mb-3.5">BRUNO NOTICED</div>
+        <div className="bg-(--color-paper) border border-line rounded-[22px] p-6 flex flex-col shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <BrunoChip size={26} tone="light" />
+            <div className="font-mono text-[10px] tracking-[0.16em] text-(--color-ink-soft) uppercase">Bruno noticed</div>
+          </div>
           
           <div className="flex-1">
             {insightLoading ? (
-              <div className="flex gap-2 items-center text-[rgba(251,246,234,0.65)]">
+              <div className="flex gap-2 items-center text-(--color-ink-soft)">
                 <div className="w-4 h-4 border-2 border-(--color-honey) border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm font-serif italic">Bruno is thinking...</span>
+                <span className="text-sm">Reviewing your day...</span>
               </div>
             ) : insight ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {insight.split(/(?<=[.!?])\s+(?=[A-Z])/).map((sentence, idx) => (
-                  <p key={idx} className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
+                  <p key={idx} className="font-sans text-[17px] md:text-lg leading-relaxed text-(--color-ink) m-0">
                     {sentence}
                   </p>
                 ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
-                  You have <em className="text-(--color-honey) not-italic">{tasks.filter(t => !t.completed).length}</em> open tasks.
+              <div className="space-y-3">
+                <p className="font-sans text-[17px] md:text-lg leading-relaxed text-(--color-ink) m-0">
+                  You have <span className="font-semibold text-(--color-honey-deep)">{tasks.filter(t => !t.completed).length}</span> open tasks.
                 </p>
-                <p className="font-serif text-[20px] md:text-[22px] leading-[1.3] text-(--color-paper) m-0">
-                  Let&apos;s gently get to work. 🐻
-                </p>
-                <p className="text-[14px] text-[rgba(251,246,234,0.7)] mt-3.5 leading-relaxed">
+                <p className="text-sm text-(--color-ink-soft) leading-relaxed">
                   I&apos;ll prioritize the deep work for you. Take it one step at a time.
                 </p>
               </div>
@@ -732,13 +744,13 @@ export default function DashboardPage() {
           <div className="mt-6 flex flex-col gap-2">
             <button 
               onClick={() => router.push('/dashboard/daily-plan')}
-              className="bg-(--color-honey) text-(--color-ink) border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-(--color-honey-soft) hover:scale-[1.01] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) focus-visible:ring-offset-bruno-deep"
+              className="bg-(--color-ink) text-(--color-paper) border-none px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-(--color-ink-2) transition-colors w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) focus-visible:ring-offset-(--color-paper)"
             >
-              Let&apos;s prep your day
+              Prep your day
             </button>
             <button 
               onClick={() => router.push('/dashboard/chat')}
-              className="bg-transparent text-(--color-paper) border border-[rgba(251,246,234,0.2)] px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-[rgba(251,246,234,0.05)] transition-all w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-paper) focus-visible:ring-offset-bruno-deep"
+              className="bg-transparent text-(--color-ink) border border-line-strong px-5 py-2.5 text-center rounded-full text-sm font-medium hover:bg-(--color-cream-2) transition-colors w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-honey) focus-visible:ring-offset-(--color-paper)"
             >
               Open chat with Bruno
             </button>
