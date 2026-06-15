@@ -1,6 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { NextRequest } from 'next/server';
+import { checkRateLimitForUser } from '@/lib/auth/rateLimit';
+
+const { handleBrunoChatV2Mock, getBrunoRoutingFlagsMock } = vi.hoisted(
+  () => ({
+    handleBrunoChatV2Mock: vi.fn(),
+    getBrunoRoutingFlagsMock: vi.fn(),
+  })
+);
+
+vi.mock('@/lib/bruno/handleChatV2', () => ({
+  handleBrunoChatV2: handleBrunoChatV2Mock,
+}));
+
+vi.mock('@/lib/bruno/runtime', () => ({
+  getBrunoRoutingFlags: getBrunoRoutingFlagsMock,
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -51,7 +67,10 @@ vi.mock('@/lib/auth/get-user', () => ({
 
 vi.mock('@/lib/auth/rateLimit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  checkRateLimitForUser: vi.fn().mockResolvedValue({ allowed: true }),
+  checkRateLimitForUser: vi.fn().mockResolvedValue({
+    allowed: true,
+    usageLogId: 'usage-1',
+  }),
   validateHourlyRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   consumeHourlyRateLimit: vi.fn().mockResolvedValue({ allowed: true })
 }));
@@ -59,6 +78,12 @@ vi.mock('@/lib/auth/rateLimit', () => ({
 describe('Chat API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getBrunoRoutingFlagsMock.mockReturnValue({
+      routingV2Enabled: false,
+    });
+    handleBrunoChatV2Mock.mockResolvedValue(
+      new Response('v2 response', { status: 200 })
+    );
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
@@ -82,7 +107,44 @@ describe('Chat API', () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
+    expect(checkRateLimitForUser).toHaveBeenCalledWith(
+      'test-user',
+      'bruno-chat',
+      'test@example.com',
+      expect.any(String)
+    );
     // In Next.js App Router, the AI SDK returns a streaming response.
     // The specifics of reading it depend on the exact implementation, but 200 is a good baseline.
+  });
+
+  it('hands internal rollout traffic to the V2 handler', async () => {
+    getBrunoRoutingFlagsMock.mockReturnValue({
+      routingV2Enabled: true,
+    });
+
+    const req = new NextRequest('http://localhost:3000/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        conversationId: '11111111-1111-4111-8111-111111111111',
+        messages: [
+          {
+            role: 'user',
+            content: 'Plan my afternoon',
+            parts: [{ type: 'text', text: 'Plan my afternoon' }],
+          },
+        ],
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(handleBrunoChatV2Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: expect.any(String),
+        usageLogId: 'usage-1',
+        conversationId: '11111111-1111-4111-8111-111111111111',
+      })
+    );
   });
 });

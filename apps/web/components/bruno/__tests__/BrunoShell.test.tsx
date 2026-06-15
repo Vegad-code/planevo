@@ -6,9 +6,30 @@ import {
 } from '@/components/bruno/BrunoProvider';
 import { BrunoShell } from '@/components/bruno/BrunoShell';
 
-vi.mock('@/components/dashboard/BrunoChatSidebar', () => ({
-  default: () => <div data-testid="bruno-chat-sidebar">Bruno chat</div>,
-}));
+vi.mock('@/components/dashboard/BrunoChatSidebar', async () => {
+  const { useBruno: useMockBruno } = await import(
+    '@/components/bruno/BrunoProvider'
+  );
+
+  return {
+    default: function MockBrunoChatSidebar() {
+      const { closeBruno } = useMockBruno();
+
+      return (
+        <div data-testid="bruno-chat-sidebar">
+          Bruno chat
+          <button
+            type="button"
+            aria-label="Close Bruno panel"
+            onClick={closeBruno}
+          >
+            Close
+          </button>
+        </div>
+      );
+    },
+  };
+});
 
 function OpenButton() {
   const { openBruno } = useBruno();

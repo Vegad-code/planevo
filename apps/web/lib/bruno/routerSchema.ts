@@ -1,0 +1,69 @@
+import { z } from 'zod';
+
+export const brunoRouteSchema = z.object({
+  mode: z.enum([
+    'app_action',
+    'basic_chat',
+    'task_management',
+    'daily_planning',
+    'schedule_repair',
+    'deadline_rescue',
+    'academic_tutoring',
+    'project_breakdown',
+    'coding_help',
+    'emotional_recovery',
+    'account_or_billing',
+    'unsafe',
+  ]),
+  confidence: z.number().min(0).max(1),
+  needsCalendarContext: z.boolean(),
+  needsTaskContext: z.boolean(),
+  needsCanvasContext: z.boolean(),
+  estimatedOutputSize: z.enum(['short', 'medium', 'long']),
+  upgradeMoment: z.boolean(),
+  rationale: z.string().max(160),
+});
+
+export const BRUNO_ROUTE_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    mode: {
+      type: 'string',
+      enum: [
+        'app_action',
+        'basic_chat',
+        'task_management',
+        'daily_planning',
+        'schedule_repair',
+        'deadline_rescue',
+        'academic_tutoring',
+        'project_breakdown',
+        'coding_help',
+        'emotional_recovery',
+        'account_or_billing',
+        'unsafe',
+      ],
+    },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    needsCalendarContext: { type: 'boolean' },
+    needsTaskContext: { type: 'boolean' },
+    needsCanvasContext: { type: 'boolean' },
+    estimatedOutputSize: {
+      type: 'string',
+      enum: ['short', 'medium', 'long'],
+    },
+    upgradeMoment: { type: 'boolean' },
+    rationale: { type: 'string', maxLength: 160 },
+  },
+  required: [
+    'mode',
+    'confidence',
+    'needsCalendarContext',
+    'needsTaskContext',
+    'needsCanvasContext',
+    'estimatedOutputSize',
+    'upgradeMoment',
+    'rationale',
+  ],
+} as const;

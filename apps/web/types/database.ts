@@ -84,26 +84,171 @@ export type Database = {
       }
       ai_usage_logs: {
         Row: {
+          completed_at: string | null
           created_at: string | null
+          estimated_cost_cents: number | null
           feature: string
           id: string
+          input_tokens: number
+          latency_ms: number | null
+          mode: string | null
+          model: string | null
+          output_tokens: number
+          request_id: string | null
+          route_tier: string | null
+          status: string
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string | null
+          estimated_cost_cents?: number | null
           feature: string
           id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          mode?: string | null
+          model?: string | null
+          output_tokens?: number
+          request_id?: string | null
+          route_tier?: string | null
+          status?: string
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string | null
+          estimated_cost_cents?: number | null
           feature?: string
           id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          mode?: string | null
+          model?: string | null
+          output_tokens?: number
+          request_id?: string | null
+          route_tier?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "ai_usage_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bruno_credit_ledger: {
+        Row: {
+          created_at: string
+          credit_type: string
+          delta: number
+          id: string
+          reason: string | null
+          request_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credit_type: string
+          delta: number
+          id?: string
+          reason?: string | null
+          request_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credit_type?: string
+          delta?: number
+          id?: string
+          reason?: string | null
+          request_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bruno_credit_ledger_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bruno_route_events: {
+        Row: {
+          confidence: number | null
+          conversation_id: string | null
+          created_at: string
+          estimated_cost_cents: number | null
+          estimated_input_tokens: number
+          estimated_output_tokens: number
+          id: string
+          is_pro: boolean
+          latency_ms: number | null
+          message_id: string | null
+          mode: string
+          rationale: string | null
+          request_id: string
+          route_source: string
+          safety_status: string
+          selected_model: string | null
+          selected_tier: string
+          upgrade_card_shown: boolean
+          used_deep_credit: boolean
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          estimated_cost_cents?: number | null
+          estimated_input_tokens?: number
+          estimated_output_tokens?: number
+          id?: string
+          is_pro?: boolean
+          latency_ms?: number | null
+          message_id?: string | null
+          mode: string
+          rationale?: string | null
+          request_id: string
+          route_source: string
+          safety_status?: string
+          selected_model?: string | null
+          selected_tier: string
+          upgrade_card_shown?: boolean
+          used_deep_credit?: boolean
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          estimated_cost_cents?: number | null
+          estimated_input_tokens?: number
+          estimated_output_tokens?: number
+          id?: string
+          is_pro?: boolean
+          latency_ms?: number | null
+          message_id?: string | null
+          mode?: string
+          rationale?: string | null
+          request_id?: string
+          route_source?: string
+          safety_status?: string
+          selected_model?: string | null
+          selected_tier?: string
+          upgrade_card_shown?: boolean
+          used_deep_credit?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bruno_route_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -1309,6 +1454,22 @@ export type Database = {
         Returns: boolean
       }
       get_bruno_chat_context: { Args: { p_feature: string }; Returns: Json }
+      refund_bruno_deep_access: {
+        Args: { p_request_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      reserve_bruno_deep_access: {
+        Args: {
+          p_monthly_limit?: number
+          p_request_id: string
+          p_source: string
+          p_user_id: string
+        }
+        Returns: {
+          credit_type: string | null
+          reserved: boolean
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

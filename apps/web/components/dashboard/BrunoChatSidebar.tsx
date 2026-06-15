@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PaperPlaneTilt, ArrowsOutSimple, CaretLeft, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning, X, CaretDown } from '@phosphor-icons/react';
+import { PaperPlaneTilt, ArrowsOutSimple, CaretLeft, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning, X, CaretDown, Copy } from '@phosphor-icons/react';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, UIMessage } from 'ai';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
@@ -21,6 +21,10 @@ import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
 import type { BrunoActionProposal } from '@/lib/bruno/tools/types';
 import { BrunoActionProposalCard, type ExecutionStatus } from '../bruno/BrunoActionProposalCard';
 import { BrunoProposalGroup } from '../bruno/BrunoProposalGroup';
+import { BrunoEntitlementNotice } from '../bruno/BrunoEntitlementNotice';
+import type { BrunoDataParts } from '@/lib/bruno/types';
+
+type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
 
 const LOADING_PHRASES = [
   "Thinking...",
@@ -226,7 +230,8 @@ export default function BrunoChatSidebar({
     fetchConversations();
   }, [fetchConversations]);
 
-  const { messages, setMessages, sendMessage, status, stop } = useChat({
+  const { messages, setMessages, sendMessage, status, stop } =
+    useChat<BrunoUIMessage>({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
@@ -235,7 +240,7 @@ export default function BrunoChatSidebar({
         id: 'init',
         role: 'assistant', 
         parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
-      } as UIMessage
+      } as BrunoUIMessage
     ],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
@@ -314,7 +319,7 @@ export default function BrunoChatSidebar({
         id: 'init',
         role: 'assistant', 
         parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
-      } as UIMessage
+      } as BrunoUIMessage
     ]);
     setShowHistory(false);
   };
@@ -371,7 +376,7 @@ export default function BrunoChatSidebar({
         id: 'init',
         role: 'assistant', 
         parts: [{ type: 'text', text: initialMessage }] 
-      } as UIMessage]);
+      } as BrunoUIMessage]);
     }
   }, [initialMessage, assignmentId, setMessages, currentConversationId]);
 
@@ -632,6 +637,12 @@ export default function BrunoChatSidebar({
                   {messages.map((message, i) => {
                     const textPart = message.parts?.find(p => p.type === 'text')?.text || '';
                     const toolParts = message.parts?.filter(p => p.type === 'tool-invocation') || [];
+                    const entitlementParts = message.parts?.filter(
+                      (part) =>
+                        part.type === 'data-bruno-upgrade-card' ||
+                        part.type === 'data-bruno-pro-warning' ||
+                        part.type === 'data-bruno-pro-cap'
+                    ) || [];
                     const isEditing = editingMessageId === message.id;
 
                     // Check if any tool invocation is a propose_plan_draft
@@ -658,8 +669,19 @@ export default function BrunoChatSidebar({
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-                        className={`flex relative z-10 gap-2 items-end ${message.role === 'user' ? 'justify-end group' : 'justify-start'}`}
+                        className={`relative z-10 flex gap-2 ${
+                          message.role === 'user'
+                            ? 'items-end justify-end group'
+                            : 'flex-col items-start justify-start'
+                        }`}
                       >
+                        {message.role === 'assistant' &&
+                          entitlementParts.map((part, partIndex) => (
+                            <BrunoEntitlementNotice
+                              key={`${part.type}-${partIndex}`}
+                              notice={part.data}
+                            />
+                          ))}
                         {/* If this is a plan draft, render the interactive card */}
                         {isPlanDraft ? (
                           <div className="w-full max-w-[44rem] flex flex-col gap-3">
@@ -719,8 +741,9 @@ export default function BrunoChatSidebar({
                               </div>
                             </div>
                           ) : (
-                            <div className="mr-auto max-w-[min(90%,44rem)] rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
-                              <div className="w-full">
+                            <div className="mr-auto max-w-[min(90%,44rem)] relative group">
+                              <div className="rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
+                                <div className="w-full">
                                 <div className="bruno-markdown max-w-none text-[15px] text-[var(--color-settings-text)]">
                                   {toolParts.length > 0 && !planDraftInvocation && !hasProposals && (
                                     <div className="text-xs text-amber-500/80 mb-2 font-mono uppercase tracking-wider">
@@ -744,8 +767,21 @@ export default function BrunoChatSidebar({
                                 )}
                               </div>
                             </div>
-                          )
-                        )}
+                            {!isProcessing && displayText && (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(displayText);
+                                  toast.success('Copied to clipboard');
+                                }}
+                                className="absolute top-2 left-[100%] ml-2 p-1.5 rounded-full text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)] transition-all opacity-0 group-hover:opacity-100"
+                                title="Copy message"
+                              >
+                                <Copy size={16} />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      )}
                       </motion.div>
                     );
                   })}

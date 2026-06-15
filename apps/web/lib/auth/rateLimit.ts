@@ -68,12 +68,22 @@ export async function validateHourlyRateLimit(userId: string, feature: string, e
 // Removed consumeHourlyRateLimit as consumption will now happen before streaming via checkRateLimitForUser
 
 /** Rate-limit check for Bearer-token-authenticated mobile requests */
-export async function checkRateLimitForUser(userId: string, feature: string, email?: string | null) {
+export async function checkRateLimitForUser(
+  userId: string,
+  feature: string,
+  email?: string | null,
+  requestId?: string
+) {
   const { plan } = await getUserPlanById(userId, email);
-  return _consumeQuota(userId, feature, plan);
+  return _consumeQuota(userId, feature, plan, requestId);
 }
 
-async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
+async function _consumeQuota(
+  userId: string,
+  feature: string,
+  plan: PlanType,
+  requestId?: string
+) {
   const limit = AI_DAILY_LIMITS[plan] || AI_DAILY_LIMITS.free;
 
   try {
@@ -101,9 +111,16 @@ async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
       };
     }
 
-    const { error: insertError } = await supabaseAdmin
+    const { data: usageRow, error: insertError } = await supabaseAdmin
       .from('ai_usage_logs')
-      .insert({ user_id: userId, feature: feature.slice(0, 100) });
+      .insert({
+        user_id: userId,
+        feature: feature.slice(0, 100),
+        request_id: requestId,
+        status: 'reserved',
+      })
+      .select('id')
+      .single();
 
     if (insertError) {
       console.error('Rate limit insert error:', insertError);
@@ -114,7 +131,12 @@ async function _consumeQuota(userId: string, feature: string, plan: PlanType) {
       };
     }
 
-    return { allowed: true, userId, plan };
+    return {
+      allowed: true,
+      userId,
+      plan,
+      usageLogId: usageRow.id,
+    };
   } catch (err) {
     console.error('Rate limit check failed:', err);
     return {

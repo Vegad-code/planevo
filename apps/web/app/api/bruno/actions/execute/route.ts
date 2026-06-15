@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     status: 'todo',
     completed: false,
     is_ai_suggested: true,
-    ai_confidence_score: 0.9,
+    ai_confidence_score: 90,
     is_recurring: false,
     rescheduled_count: 0,
   }).select().single();

@@ -253,6 +253,65 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   feature TEXT NOT NULL,
+  request_id TEXT,
+  model TEXT,
+  mode TEXT,
+  route_tier TEXT,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated_cost_cents NUMERIC(12, 6),
+  status TEXT NOT NULL DEFAULT 'reserved'
+    CHECK (status IN ('reserved', 'completed', 'failed')),
+  latency_ms INTEGER,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ai_usage_logs_request_id_idx
+  ON public.ai_usage_logs (request_id)
+  WHERE request_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.bruno_route_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  request_id TEXT NOT NULL UNIQUE,
+  message_id TEXT,
+  conversation_id TEXT,
+  mode TEXT NOT NULL,
+  confidence NUMERIC(4, 3),
+  route_source TEXT NOT NULL CHECK (
+    route_source IN ('deterministic', 'obvious_mode', 'llm_router', 'fallback')
+  ),
+  selected_tier TEXT NOT NULL CHECK (
+    selected_tier IN ('none', 'standard', 'medium', 'deep')
+  ),
+  selected_model TEXT,
+  is_pro BOOLEAN NOT NULL DEFAULT false,
+  used_deep_credit BOOLEAN NOT NULL DEFAULT false,
+  upgrade_card_shown BOOLEAN NOT NULL DEFAULT false,
+  safety_status TEXT NOT NULL DEFAULT 'clear',
+  estimated_input_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated_output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated_cost_cents NUMERIC(12, 6),
+  latency_ms INTEGER,
+  rationale TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.bruno_credit_ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  credit_type TEXT NOT NULL CHECK (
+    credit_type IN (
+      'onboarding_deep',
+      'earned_deep',
+      'pro_monthly_deep',
+      'manual_adjustment'
+    )
+  ),
+  delta INTEGER NOT NULL CHECK (delta <> 0),
+  reason TEXT,
+  request_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -360,6 +419,8 @@ ALTER TABLE public.habits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.habit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bruno_route_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bruno_credit_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_ai_memory ENABLE ROW LEVEL SECURITY;
 
 -- USERS: Users can only read and update their own profile
@@ -751,9 +812,20 @@ CREATE POLICY "Users can view own AI logs"
   ON public.ai_usage_logs FOR SELECT
   USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can create own AI logs"
-  ON public.ai_usage_logs FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+-- Bruno routing usage is written by service-role server routes only.
+DROP POLICY IF EXISTS "Users can create own AI logs" ON public.ai_usage_logs;
+
+DROP POLICY IF EXISTS "Users can read own bruno route events"
+  ON public.bruno_route_events;
+CREATE POLICY "Users can read own bruno route events"
+  ON public.bruno_route_events FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can read own bruno credit ledger"
+  ON public.bruno_credit_ledger;
+CREATE POLICY "Users can read own bruno credit ledger"
+  ON public.bruno_credit_ledger FOR SELECT
+  USING (auth.uid() = user_id);
 
 -- USER AI MEMORY: Users can view/create/update own memory
 CREATE POLICY "Users can view own AI memory" ON public.user_ai_memory FOR SELECT USING (auth.uid() = user_id);

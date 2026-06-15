@@ -21,6 +21,10 @@ import { supabase } from '@/lib/supabase';
 import { Send, Bot, UserIcon, History, Plus, Square, Edit2, X, Trash } from 'lucide-react-native';
 import PlanDraftCard, { PlanDraftItemData } from '../../components/bruno/PlanDraftCard';
 import PlanPreviewModal from '../../components/bruno/PlanPreviewModal';
+import BrunoEntitlementNotice, {
+  type MobileBrunoMetadata,
+} from '../../components/bruno/BrunoEntitlementNotice';
+import { useRouter } from 'expo-router';
 
 interface ChatMessage {
   id: string;
@@ -28,9 +32,11 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   toolCalls?: any[];
+  metadata?: MobileBrunoMetadata;
 }
 
 export default function BrunoChatScreen() {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { isOffline } = useNetworkState();
@@ -331,6 +337,7 @@ export default function BrunoChatScreen() {
         content: data.text || "I'm having trouble thinking right now.",
         timestamp: new Date(),
         toolCalls: data.toolCalls || [],
+        metadata: data.metadata,
       };
       setMessages((prev) => [...prev, brunoReply]);
 
@@ -372,6 +379,12 @@ export default function BrunoChatScreen() {
             ]}
             testID={`chat-message-${item.id}`}
           >
+            {!isUser && (
+              <BrunoEntitlementNotice
+                metadata={item.metadata}
+                onUpgrade={() => router.push('/settings')}
+              />
+            )}
             <View style={styles.messageHeader}>
               {isUser ? (
                 <UserIcon size={12} color={isUser ? '#fff' : colors.textMuted} strokeWidth={2.5} />
@@ -552,7 +565,7 @@ export default function BrunoChatScreen() {
             
             // We inject the approved items JSON into the message so the backend AI knows exactly what to commit
             // without needing the full tool-call history from previous messages.
-            const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.\n\nApproved items to commit:\n${JSON.stringify(approvedItems, null, 2)}`;
+            const approvalMessage = `Looks good! Approve the plan and execute as: ${commitType}${options.syncToGoogle ? ' (sync to Google)' : ''}.\n\nApproved items to commit:\n${JSON.stringify(previewPlanData.items, null, 2)}`;
             
             setInputText(approvalMessage);
             setPreviewPlanData(null);

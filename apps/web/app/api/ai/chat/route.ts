@@ -23,6 +23,8 @@ import {
   buildPageContextBlock,
   pageContextSchema,
 } from '@/lib/bruno/page-context';
+import { handleBrunoChatV2 } from '@/lib/bruno/handleChatV2';
+import { getBrunoRoutingFlags } from '@/lib/bruno/runtime';
 
 // Secure message schema to prevent role spoofing and excessive payload sizes
 const messageSchema = z.object({
@@ -32,6 +34,7 @@ const messageSchema = z.object({
 
 const requestSchema = z.object({
   messages: z.array(messageSchema).min(1).max(50),
+  conversationId: z.string().uuid().nullish(),
   assignmentId: z.string().optional(),
   diagnostics: z.boolean().optional(),
   isMobile: z.boolean().optional(),
@@ -117,15 +120,6 @@ export async function POST(request: NextRequest) {
       }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 429 });
     }
 
-    // Enforce daily limit AND atomically consume the quota before streaming
-    const dailyRateLimitResult = await checkRateLimitForUser(authUser.id, 'bruno-chat', authUser.email);
-    if (!dailyRateLimitResult.allowed) {
-      return jsonWithDiagnostics({ 
-        error: dailyRateLimitResult.error, 
-        message: dailyRateLimitResult.message || 'You have reached your daily AI limit.' 
-      }, { status: 429 });
-    }
-
     const user = authUser;
 
     const parsedBody = requestSchema.safeParse(await request.json());
@@ -139,12 +133,41 @@ export async function POST(request: NextRequest) {
     const {
       diagnostics,
       messages,
+      conversationId,
       assignmentId,
       isMobile,
       timeZone,
       localTime,
       pageContext,
     } = parsedBody.data;
+    const requestId = crypto.randomUUID();
+
+    // Consume daily quota only after validating the request body.
+    const dailyRateLimitResult = await checkRateLimitForUser(
+      authUser.id,
+      'bruno-chat',
+      authUser.email,
+      requestId
+    );
+    if (!dailyRateLimitResult.allowed) {
+      return jsonWithDiagnostics({
+        error: dailyRateLimitResult.error,
+        message:
+          dailyRateLimitResult.message ||
+          'You have reached your daily AI limit.',
+      }, { status: 429 });
+    }
+
+    if (!dailyRateLimitResult.usageLogId) {
+      return jsonWithDiagnostics(
+        {
+          error: 'Rate Limit Unavailable',
+          message:
+            'AI usage checks are temporarily unavailable. Please try again shortly.',
+        },
+        { status: 503 }
+      );
+    }
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
@@ -170,6 +193,22 @@ export async function POST(request: NextRequest) {
     Sentry.setTag('feature', 'bruno-chat');
     Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
     Sentry.setTag('auth_method', authMethod || 'unknown');
+
+    if (getBrunoRoutingFlags(process.env, user.id).routingV2Enabled) {
+      return handleBrunoChatV2({
+        user,
+        profile,
+        messages,
+        usageLogId: dailyRateLimitResult.usageLogId,
+        requestId,
+        conversationId: conversationId ?? undefined,
+        assignmentId,
+        isMobile,
+        timeZone,
+        localTime,
+        pageContext,
+      });
+    }
 
     // Fetch active tasks for Bruno to have context of task names and IDs
     const { data: tasks } = await supabaseAdmin
@@ -294,6 +333,7 @@ BRUNO ACTION SAFETY RULES
 7. For assignment/project breakdowns, call propose_action once for each task using type CREATE_TASK.
 8. Do not respond with only a long plain-text task list for breakdown requests.
 9. If proposal cards exist, keep visible text short.
+10. DO NOT use propose_action preemptively when asking the user for their choice or offering options. Wait for their explicit response first.
 
 RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
 1. Use markdown headers (## and ###) to create clear sections. NEVER dump content as a flat wall of text.
@@ -329,6 +369,7 @@ RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
     const tools = {
       propose_action: tool({
         description: `Use this tool whenever Bruno wants to suggest a Planevo app action.
+ONLY use this when the user has explicitly requested an action or made a clear choice. DO NOT use this preemptively when you are still asking the user clarifying questions or offering options.
 This tool is proposal-only. It does not create, update, delete, move, or reschedule anything.
 For assignment/project/task breakdown requests, call this tool once per proposed CREATE_TASK.
 Do not only write the tasks in text.
