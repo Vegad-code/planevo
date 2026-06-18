@@ -55,16 +55,18 @@ export function IntegrationCard({
       <div className="flex gap-2.5 mt-3 pt-3 border-t border-settings-border/50">
         {status === 'connected' || status === 'error' ? (
           <>
-            <button
-              onClick={onManage}
-              className={`py-1.5 text-[10px] font-bold uppercase tracking-wider bg-settings-card border ${status === 'error' ? 'border-[#C56B5E]/30 text-[var(--color-rose)]' : 'border-settings-border text-[var(--color-ink-soft)]'} rounded-lg hover:bg-settings-bg transition-colors ${onDisconnect ? 'px-3' : 'flex-1 w-full'}`}
-            >
-              {status === 'error' ? 'Fix Error' : 'Manage'}
-            </button>
+            {onManage && (
+              <button
+                onClick={onManage}
+                className={`py-1.5 text-[10px] font-bold uppercase tracking-wider bg-settings-card border ${status === 'error' ? 'border-[#C56B5E]/30 text-[var(--color-rose)]' : 'border-settings-border text-[var(--color-ink-soft)]'} rounded-lg hover:bg-settings-bg transition-colors ${onDisconnect ? 'px-3' : 'flex-1 w-full'}`}
+              >
+                {status === 'error' ? 'Fix Error' : 'Manage'}
+              </button>
+            )}
             {onDisconnect && (
               <button
                 onClick={onDisconnect}
-                className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-rose)] hover:bg-[var(--color-rose)]/10 rounded-lg transition-colors"
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-rose)] hover:bg-[var(--color-rose)]/10 rounded-lg transition-colors ${!onManage ? 'flex-1 w-full border border-settings-border bg-settings-bg' : ''}`}
               >
                 Disconnect
               </button>

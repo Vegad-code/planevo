@@ -42,6 +42,9 @@ type PromptInput = {
   taskContext: string;
   calendarContext: string;
   canvasContext: string;
+  integrationContext?: string;
+  connectedProviders?: string[];
+  mcpContext?: string;
 };
 
 function block(label: string, value: string) {
@@ -64,9 +67,17 @@ PLAN: ${input.userPlan}
 ${MODE_PROMPTS[input.mode] ?? ''}
 ${block('PAGE CONTEXT', input.pageContext)}
 ${block('USER MEMORY', input.memoryContext)}
+${block('AVAILABLE INTEGRATIONS & TOOLS', input.mcpContext || '')}
+${block('CONNECTED WORK INTEGRATIONS', input.integrationContext || '')}
 ${block('CURRENT USER TASKS', input.taskContext)}
 ${block('UPCOMING EVENTS', input.calendarContext)}
 ${block('CANVAS CONTEXT', input.canvasContext)}
+
+INTEGRATION RULES:
+- When relevant, proactively reference connected work items (e.g. Linear issues due soon) instead of waiting to be asked.
+- For external writes (creating a Notion page, posting to Slack, updating a Linear issue), use the Composio tools directly — never the propose_action tool.
+- Always confirm with the user before sending a Slack message or making a destructive external change.
+- Never claim an external action succeeded unless a tool returned success. Never claim a Planevo-local change for an external request.
 
 RESPONSE FORMAT:
 - Start with the answer or immediate next action.

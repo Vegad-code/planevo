@@ -3,6 +3,10 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // GCM standard IV length
 
+type DecryptTokenOptions = {
+  allowLegacyPlaintext?: boolean;
+};
+
 export function encryptToken(token: string): string {
   if (!token) return '';
   const keyHex = process.env.ENCRYPTION_KEY;
@@ -26,22 +30,24 @@ export function encryptToken(token: string): string {
   return `${iv.toString('hex')}:${encrypted}:${tag.toString('hex')}`;
 }
 
-export function decryptToken(encryptedString: string): string {
+export function decryptToken(encryptedString: string, options: DecryptTokenOptions = {}): string {
   if (!encryptedString) return '';
   
-  // Fallback for existing plaintext tokens or invalid formats
+  // Explicit compatibility path for legacy plaintext tokens created before
+  // encrypted integration storage was enforced.
   if (!encryptedString.includes(':')) {
-    return encryptedString;
+    if (options.allowLegacyPlaintext) return encryptedString;
+    throw new Error('Token is not encrypted');
   }
 
   const parts = encryptedString.split(':');
   if (parts.length !== 3) {
-    return encryptedString;
+    throw new Error('Invalid encrypted token format');
   }
 
   const [ivHex, encryptedHex, tagHex] = parts;
   if (!ivHex || !encryptedHex || !tagHex) {
-    return encryptedString;
+    throw new Error('Invalid encrypted token format');
   }
 
   try {
@@ -65,8 +71,7 @@ export function decryptToken(encryptedString: string): string {
     
     return decrypted;
   } catch (error) {
-    // If decryption fails, log it and return as is to maintain stability for existing data
-    console.error('Failed to decrypt token, returning original string:', error);
-    return encryptedString;
+    console.error('Failed to decrypt token:', error);
+    throw new Error('Failed to decrypt token');
   }
 }

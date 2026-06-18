@@ -1,41 +1,65 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { encryptToken } from '@/lib/crypto';
+import { upsertIntegrationAccount } from '@/lib/integrations/accounts';
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/dashboard/settings';
+  const errorParam = searchParams.get('error');
+  const targetOrigin = process.env.NEXT_PUBLIC_APP_URL
+    ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
+    : new URL(request.url).origin;
+
+  const popupHtml = (error: string | null) => `
+    <!DOCTYPE html>
+    <html>
+      <head><title>Authentication Complete</title></head>
+      <body>
+        <script>
+          if (window.opener) {
+            window.opener.postMessage(
+              { type: 'oauth_result', provider: 'google', error: ${JSON.stringify(error)} },
+              ${JSON.stringify(targetOrigin)}
+            );
+          }
+          window.close();
+        </script>
+        <p>Authentication complete. You can close this window.</p>
+      </body>
+    </html>
+  `;
+
+  if (errorParam) {
+    console.error('Google Calendar OAuth error:', errorParam);
+    return new NextResponse(popupHtml(errorParam), { headers: { 'Content-Type': 'text/html' } });
+  }
 
   if (code) {
     const supabase = await createClient();
-    
-    // Exchange the code for a session
+
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    
+
     if (!error && data.session) {
       const { provider_refresh_token, user } = data.session;
 
-      // Persist the Google Refresh Token so we can sync offline
       if (provider_refresh_token) {
-        const encryptedToken = encryptToken(provider_refresh_token);
-        await supabase
-          .from('users')
-          .update({
-            google_calendar_refresh_token: encryptedToken,
-            google_calendar_connected: true
-          })
-          .eq('id', user.id);
+        await upsertIntegrationAccount({
+          userId: user.id,
+          provider: 'google_calendar',
+          refreshTokenEncrypted: encryptToken(provider_refresh_token),
+          status: 'connected',
+        });
       }
 
-      // If we only got an access token (no refresh token), we can still mark as connected
-      // but sync will only work while the session is alive.
-      // Usually prompt=consent ensures we get a refresh token.
-      
-      return NextResponse.redirect(`${origin}${next}`);
+      await supabase
+        .from('users')
+        .update({ google_calendar_connected: true })
+        .eq('id', user.id);
+
+      return new NextResponse(popupHtml(null), { headers: { 'Content-Type': 'text/html' } });
     }
   }
 
-  // Something went wrong
-  return NextResponse.redirect(`${origin}/dashboard/settings?error=google_calendar_failed`);
+  return new NextResponse(popupHtml('google_calendar_failed'), { headers: { 'Content-Type': 'text/html' } });
 }

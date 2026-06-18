@@ -15,7 +15,7 @@ export default async function ProfileSettingsPage() {
 
   const { data: userData } = await supabase
     .from('users')
-    .select('name, energy_preference, scheduling_preferences')
+    .select('name, energy_preference, scheduling_preferences, avatar_url')
     .eq('id', user.id)
     .single();
 
@@ -29,6 +29,7 @@ export default async function ProfileSettingsPage() {
     email: user.email,
     provider: user.app_metadata?.provider || 'Email',
     last_sign_in_at: user.last_sign_in_at,
+    avatar_url: userData?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
   };
 
   return (

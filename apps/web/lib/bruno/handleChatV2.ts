@@ -62,7 +62,9 @@ import {
   getBrunoProWarning,
   getBrunoUpgradeCard,
 } from './upgradeCards';
-
+import { getComposioClientOptions } from '@/lib/integrations/composio/config';
+import { Composio } from "@composio/core";
+import { VercelProvider } from "@composio/vercel";
 type ChatMessage = {
   id?: string;
   role: 'user' | 'assistant' | 'tool';
@@ -166,7 +168,7 @@ function createContextLoaders(
 ): BrunoContextLoaders {
   return {
     async loadTasks(userId) {
-      const { data, error } = await supabaseAdmin
+      const { data: tasks, error: tasksError } = await supabaseAdmin
         .from('tasks')
         .select('id, title, status, due_date, priority, estimated_minutes')
         .eq('user_id', userId)
@@ -174,8 +176,19 @@ function createContextLoaders(
         .order('due_date', { ascending: true, nullsFirst: false })
         .limit(100);
 
-      if (error) throw error;
-      return (data ?? []).map((task) => ({
+      if (tasksError) throw tasksError;
+
+      const { data: sourceItems, error: sourceItemsError } = await supabaseAdmin
+        .from('source_items')
+        .select('id, title, provider, due_date')
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .is('imported_task_id', null)
+        .limit(100);
+
+      if (sourceItemsError) throw sourceItemsError;
+
+      const mappedTasks = (tasks ?? []).map((task) => ({
         id: task.id,
         title: task.title,
         status: task.status,
@@ -183,6 +196,17 @@ function createContextLoaders(
         priority: task.priority,
         estimatedMinutes: task.estimated_minutes,
       }));
+
+      const mappedSourceItems = (sourceItems ?? []).map((item) => ({
+        id: item.id,
+        title: `[${item.provider.charAt(0).toUpperCase() + item.provider.slice(1)}] ${item.title}`,
+        status: 'todo',
+        dueDate: item.due_date,
+        priority: 'medium',
+        estimatedMinutes: 60,
+      }));
+
+      return [...mappedTasks, ...mappedSourceItems];
     },
 
     async loadCalendar(userId) {
@@ -252,6 +276,66 @@ function createContextLoaders(
         description: assignment.description,
         htmlUrl: assignment.html_url,
       }));
+    },
+
+    async loadIntegrations(userId) {
+      const providers = ['notion', 'slack', 'linear'] as const;
+
+      const { data: accounts } = await supabaseAdmin
+        .from('integration_accounts')
+        .select('provider, status')
+        .eq('user_id', userId)
+        .in('provider', providers as unknown as string[]);
+
+      const connectedSet = new Set(
+        (accounts ?? [])
+          .filter((a) => a.status === 'connected')
+          .map((a) => a.provider)
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: items } = await (supabaseAdmin as any)
+        .from('source_items')
+        .select('provider, title, status, due_date, url, completed')
+        .eq('user_id', userId)
+        .in('provider', providers as unknown as string[])
+        .is('deleted_at', null)
+        .is('imported_task_id', null)
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(60);
+
+      const weekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const openItems = ((items ?? []) as any[]).filter((i) => !i.completed);
+
+      const pulses = providers.map((provider) => {
+        const providerItems = openItems.filter((i) => i.provider === provider);
+        const dueThisWeek = providerItems.filter((i) => {
+          if (!i.due_date) return false;
+          const due = new Date(i.due_date).getTime();
+          return due >= Date.now() && due <= weekFromNow;
+        }).length;
+        return {
+          provider,
+          connected: connectedSet.has(provider),
+          openCount: providerItems.length,
+          dueThisWeek,
+          label: `${providerItems.length} open`,
+        };
+      });
+
+      const contextItems = openItems
+        .filter((i) => connectedSet.has(i.provider))
+        .slice(0, 30)
+        .map((i) => ({
+          provider: i.provider,
+          title: i.title,
+          status: i.status ?? null,
+          dueDate: i.due_date ?? null,
+          url: i.url ?? null,
+        }));
+
+      return { pulses, items: contextItems };
     },
   };
 }
@@ -461,6 +545,46 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       ? preferences.timezone
       : input.timeZone ?? 'UTC';
 
+  // Determine which Pro work integrations are connected for this user.
+  const proProviders = ['notion', 'slack', 'linear'];
+  let connectedProviders: string[] = [];
+  if (isPro) {
+    const { data: accts } = await supabaseAdmin
+      .from('integration_accounts')
+      .select('provider, status')
+      .eq('user_id', input.user.id)
+      .in('provider', proProviders);
+    connectedProviders = (accts ?? [])
+      .filter((a) => a.status === 'connected')
+      .map((a) => a.provider);
+  }
+
+  // Load Composio Tools — only for Pro users with at least one connected app.
+  let dynamicMcpTools: Record<string, any> = {};
+  let mcpContext = '';
+  if (!isPro) {
+    mcpContext +=
+      'Work integrations (Notion, Slack, Linear) are a Planevo Pro feature. If the user asks to use them, let them know these connect under Settings > Integrations on the Pro plan. Do not claim to perform external actions.\n';
+  } else if (connectedProviders.length === 0) {
+    mcpContext +=
+      'The user is on Pro but has not connected any work tools yet. If they ask about Notion, Slack, or Linear, point them to Settings > Integrations to connect. Do not claim to perform external actions.\n';
+  } else {
+    try {
+      if (process.env.COMPOSIO_API_KEY) {
+        const composio = new Composio({
+          ...getComposioClientOptions(process.env.COMPOSIO_API_KEY),
+          provider: new VercelProvider(),
+        });
+        // Create a tool router session for the specific user
+        const composioSession = await composio.create(input.user.id);
+        dynamicMcpTools = await composioSession.tools();
+        mcpContext += `Connected work tools: ${connectedProviders.join(', ')}. You have access to tools via Composio for these apps. IMPORTANT: When a user asks you to perform an action on an external app (like creating a Notion page or sending a Slack message), you MUST use the Composio tools. DO NOT use the propose_action tool to create a local Planevo task for external app requests. Confirm with the user before sending messages or making destructive external changes.\n`;
+      }
+    } catch (err) {
+      console.warn('Failed to load Composio tools:', err);
+    }
+  }
+
   const systemPrompt = buildBrunoSystemPrompt({
     mode: routeResult.decision.mode,
     userName: input.profile?.name ?? 'User',
@@ -472,12 +596,15 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
     taskContext: context.taskContext,
     calendarContext: context.calendarContext,
     canvasContext: context.canvasContext,
+    integrationContext: context.integrationContext,
+    connectedProviders,
+    mcpContext: mcpContext.trim(),
   });
 
   const tools = {
     propose_action: tool({
       description:
-        'Create a proposal card for a Planevo action. ONLY use this when the user has explicitly requested an action or made a clear choice. DO NOT use this preemptively when you are still asking the user clarifying questions or offering options. This never mutates data directly and must wait for user confirmation.',
+        'Create a proposal card for a Planevo action. ONLY use this when the user has explicitly requested an action inside Planevo (like creating a local task, updating schedule, etc). DO NOT use this for external tools or integrations (Notion, Slack, Linear, etc) - use their respective Composio tools directly instead. This never mutates data directly and must wait for user confirmation.',
       inputSchema: proposeActionParams,
       execute: async (proposal: unknown) => {
         const { error } = await supabaseAdmin.from('bruno_tool_logs').insert({
@@ -496,6 +623,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         };
       },
     }),
+    ...dynamicMcpTools,
   };
 
   const normalizedMessages = normalizeMessages(input.messages);
@@ -616,6 +744,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
     maxOutputTokens: generationPlan.policy.maxOutputTokens,
     ...getModelCallSettings(model, generationPlan.policy.temperature),
   };
+
 
   if (input.isMobile) {
     try {

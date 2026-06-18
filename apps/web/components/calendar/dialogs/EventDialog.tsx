@@ -13,7 +13,8 @@ import {
   X, 
   Check, 
   Palette,
-  ListChecks
+  ListChecks,
+  Notebook
 } from '@phosphor-icons/react';
 import { format, differenceInMinutes } from 'date-fns';
 import type { CalendarEvent } from '@/types/calendar';
@@ -26,6 +27,8 @@ interface EventDialogProps {
   event: CalendarEvent | null;
   onSave: (id: string, updates: Partial<CalendarEvent>) => void;
   onDelete: (id: string) => void;
+  /** When provided, shows a "Save to Notion" action (Pro, Notion connected). */
+  onSaveToNotion?: (event: CalendarEvent) => void;
 }
 
 interface Subtask {
@@ -33,7 +36,7 @@ interface Subtask {
   completed: boolean;
 }
 
-export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDelete }: EventDialogProps) {
+export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDelete, onSaveToNotion }: EventDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isAllDay, setIsAllDay] = useState(false);
@@ -241,12 +244,24 @@ export default function EventDialog({ isOpen, onOpenChange, event, onSave, onDel
             <span className="font-bold uppercase tracking-wider text-[10px] sm:text-xs">Delete</span>
           </Button>
 
-          <Button 
-            onClick={handleSave} 
-            className="bg-muted dark:bg-card hover:bg-muted-foreground/10 text-foreground h-10 sm:h-12 px-6 sm:px-8 rounded-full border border-border transition-all active:scale-95"
-          >
-            <span className="font-bold uppercase tracking-widest text-[10px] sm:text-xs">Save Changes</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {onSaveToNotion && (
+              <Button
+                variant="ghost"
+                onClick={() => onSaveToNotion(event)}
+                className="text-muted-foreground/60 hover:text-foreground hover:bg-muted rounded-full h-10 sm:h-12 px-4 sm:px-5 border border-border"
+              >
+                <Notebook className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5" weight="fill" />
+                <span className="font-bold uppercase tracking-wider text-[10px] sm:text-xs">Save to Notion</span>
+              </Button>
+            )}
+            <Button 
+              onClick={handleSave} 
+              className="bg-muted dark:bg-card hover:bg-muted-foreground/10 text-foreground h-10 sm:h-12 px-6 sm:px-8 rounded-full border border-border transition-all active:scale-95"
+            >
+              <span className="font-bold uppercase tracking-widest text-[10px] sm:text-xs">Save Changes</span>
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -142,6 +142,9 @@ export default function CalendarShell({
         else if (originalEv.source === 'blueprint') backgroundColor = 'var(--color-blueprint)';
         else if (originalEv.source === 'cargo_bay') backgroundColor = 'var(--color-cargo)';
         else if (originalEv.source === 'focus_block') backgroundColor = 'var(--color-focus)';
+        else if (originalEv.source === 'notion') backgroundColor = '#111827';
+        else if (originalEv.source === 'slack') backgroundColor = '#4A154B';
+        else if (originalEv.source === 'linear') backgroundColor = '#5E6AD2';
       }
 
       return {

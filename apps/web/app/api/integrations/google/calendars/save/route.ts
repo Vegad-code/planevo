@@ -1,22 +1,27 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import type { Json } from '@/types/database';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (authError || !user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { supabase, user } = auth;
+
     const { selectedCalendarIds } = await request.json();
-    
+
     if (!Array.isArray(selectedCalendarIds)) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
-    // Fetch existing preferences
     const { data: userData, error: fetchError } = await supabase
       .from('users')
       .select('scheduling_preferences')
@@ -27,14 +32,13 @@ export async function POST(request: Request) {
       throw fetchError;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const preferences = userData.scheduling_preferences as Record<string, any> || {};
+    const preferences =
+      (userData.scheduling_preferences as Record<string, unknown> | null) || {};
     preferences.google_selected_calendars = selectedCalendarIds;
 
-    // Update preferences
     const { error: updateError } = await supabase
       .from('users')
-      .update({ scheduling_preferences: preferences })
+      .update({ scheduling_preferences: preferences as Json })
       .eq('id', user.id);
 
     if (updateError) {
@@ -42,11 +46,14 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error('Save Calendars Error:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Failed to save Google calendars' 
-    }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Save Calendars Error:', err);
+    return NextResponse.json(
+      {
+        error: err.message || 'Failed to save Google calendars',
+      },
+      { status: 500 }
+    );
   }
 }

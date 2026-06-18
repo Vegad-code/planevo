@@ -19,9 +19,14 @@ import { BrunoSuggestedActions } from '@/components/bruno/BrunoSuggestedActions'
 import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
 
 import type { BrunoActionProposal } from '@/lib/bruno/tools/types';
-import { BrunoActionProposalCard, type ExecutionStatus } from '../bruno/BrunoActionProposalCard';
+import { type ExecutionStatus } from '../bruno/BrunoActionProposalCard';
 import { BrunoProposalGroup } from '../bruno/BrunoProposalGroup';
 import { BrunoEntitlementNotice } from '../bruno/BrunoEntitlementNotice';
+import { BrunoIntegrationChips } from '../bruno/BrunoIntegrationChips';
+import {
+  BrunoIntegrationActionCard,
+  type IntegrationActionStatus,
+} from '../bruno/BrunoIntegrationActionCard';
 import type { BrunoDataParts } from '@/lib/bruno/types';
 
 type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
@@ -50,8 +55,8 @@ export default function BrunoChatSidebar({
   initialMessage, 
   assignmentId 
 }: BrunoChatSidebarProps) {
-  const [executingActions, setExecutingActions] = useState<Record<string, boolean>>({});
   const [actionStatuses, setActionStatuses] = useState<Record<string, ExecutionStatus>>({});
+  const [_executingActions, setExecutingActions] = useState<Record<string, boolean>>({});
   const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
   const [fallbackProposalsByMessageId, setFallbackProposalsByMessageId] = useState<Record<string, BrunoActionProposal[]>>({});
   const lastUserMessageRef = useRef<string>("");
@@ -92,6 +97,67 @@ export default function BrunoChatSidebar({
 
   function isTaskBreakdownIntent(text: string) {
     return /\b(break down|breakdown|smaller tasks|task list|turn .* into tasks|split .* into tasks|make .* realistic|realistic for tonight)\b/i.test(text);
+  }
+
+  // Extracts Composio (Notion/Slack/Linear) tool calls from a message so we can
+  // render inline status cards and source attribution, mirroring ChatGPT/Claude.
+  function extractIntegrationToolCalls(message: any): Array<{
+    key: string;
+    toolName: string;
+    status: IntegrationActionStatus;
+    url: string | null;
+    errorText: string | null;
+  }> {
+    const parts = message.parts || [];
+    const isProToolName = (name: string) =>
+      /^(NOTION|SLACK|LINEAR)_/i.test(name);
+
+    const calls: Array<{
+      key: string;
+      toolName: string;
+      status: IntegrationActionStatus;
+      url: string | null;
+      errorText: string | null;
+    }> = [];
+
+    parts.forEach((part: any, index: number) => {
+      let toolName: string | null = null;
+      if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+        const candidate = part.type.slice('tool-'.length);
+        if (isProToolName(candidate)) toolName = candidate;
+      }
+      if (!toolName && part.type === 'tool-invocation') {
+        const candidate = part.toolInvocation?.toolName;
+        if (candidate && isProToolName(candidate)) toolName = candidate;
+      }
+      if (!toolName) return;
+
+      const state = part.state ?? part.toolInvocation?.state;
+      const output = part.output ?? part.result ?? part.toolInvocation?.result;
+      const errorText = part.errorText ?? null;
+
+      let status: IntegrationActionStatus = 'running';
+      if (state === 'output-error' || errorText) status = 'error';
+      else if (state === 'output-available' || output) {
+        status = output && output.successful === false ? 'error' : 'success';
+      }
+
+      const url =
+        output?.data?.url ??
+        output?.url ??
+        output?.data?.permalink ??
+        null;
+
+      calls.push({
+        key: part.toolCallId ?? part.toolInvocation?.toolCallId ?? `${toolName}-${index}`,
+        toolName,
+        status,
+        url: typeof url === 'string' ? url : null,
+        errorText: status === 'error' ? output?.error ?? errorText ?? 'Action failed' : null,
+      });
+    });
+
+    return calls;
   }
 
   const handleConfirmProposal = async (proposal: BrunoActionProposal) => {
@@ -157,6 +223,18 @@ export default function BrunoChatSidebar({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const lastPrefillRef = useRef<string | null>(null);
+
+  // Allow callers (e.g. Daily Plan "Share to work") to open Bruno with a
+  // suggested prompt pre-filled in the composer.
+  useEffect(() => {
+    const prompt = currentContext?.payload?.prompt;
+    if (typeof prompt === 'string' && prompt.length > 0 && lastPrefillRef.current !== prompt) {
+      lastPrefillRef.current = prompt;
+      setInput(prompt);
+      inputRef.current?.focus();
+    }
+  }, [currentContext]);
 
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
@@ -226,7 +304,6 @@ export default function BrunoChatSidebar({
   }, [supabase]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchConversations();
   }, [fetchConversations]);
 
@@ -245,7 +322,7 @@ export default function BrunoChatSidebar({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
-      const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
+      const textPart = message.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text;
       
       if (currentConversationId && message.role === 'assistant' && textPart) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -332,14 +409,19 @@ export default function BrunoChatSidebar({
   const confirmDeleteConversation = async () => {
     if (!chatToDelete) return;
     const { id } = chatToDelete;
-    const { error } = await supabase.from('chat_conversations').delete().eq('id', id);
-    if (!error) {
-      setConversations(prev => prev.filter(c => c.id !== id));
-      if (currentConversationId === id) {
-        startNewConversation();
+    try {
+      const response = await fetch(`/api/ai/conversations/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setConversations(prev => prev.filter(c => c.id !== id));
+        if (currentConversationId === id) {
+          startNewConversation();
+        }
+      } else {
+        console.error('Failed to delete conversation:', await response.text());
+        toast.error('Planevo could not complete that action. Please try again.');
       }
-    } else {
-      console.error("Failed to delete conversation:", error);
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
       toast.error('Planevo could not complete that action. Please try again.');
     }
     setChatToDelete(null);
@@ -502,10 +584,11 @@ export default function BrunoChatSidebar({
               <BrunoAvatar mood={isProcessing ? 'thinking' : 'happy'} size={isExpanded ? "md" : "sm"} />
               <div>
                 <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-base md:text-lg" : "text-base"}`}>Bruno</h3>
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5">
                   <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-sm md:text-base" : "text-sm"}`}>
                     {isProcessing ? 'Thinking by the fire...' : 'Your academic guide'}
                   </span>
+                  <BrunoIntegrationChips />
                 </div>
               </div>
             </div>
@@ -659,6 +742,7 @@ export default function BrunoChatSidebar({
                     const fallbackProposals = fallbackProposalsByMessageId[message.id] ?? [];
                     const proposals = nativeProposals.length > 0 ? nativeProposals : fallbackProposals;
                     const hasProposals = proposals.length > 0;
+                    const integrationCalls = extractIntegrationToolCalls(message);
                     const displayText = hasProposals && textPart.length < 50
                       ? "I've drafted a plan based on your request. Confirm the tasks you want me to add."
                       : textPart;
@@ -751,6 +835,15 @@ export default function BrunoChatSidebar({
                                       {toolParts.map((t: any) => t.toolInvocation?.toolName).join(', ')}...
                                     </div>
                                   )}
+                                  {integrationCalls.map((call) => (
+                                    <BrunoIntegrationActionCard
+                                      key={call.key}
+                                      toolName={call.toolName}
+                                      status={call.status}
+                                      url={call.url}
+                                      errorText={call.errorText}
+                                    />
+                                  ))}
                                   <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{displayText}</ReactMarkdown>
                                 </div>
                                 {hasProposals && (

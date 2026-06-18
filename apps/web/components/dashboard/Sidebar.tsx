@@ -7,6 +7,7 @@ import { useUIStore } from '@/lib/store/ui-store';
 import { useState, useEffect } from 'react';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 import { useBruno } from '@/components/bruno/BrunoProvider';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { 
   Layout, 
@@ -15,8 +16,7 @@ import {
   Gear, 
   SignOut,
   Notebook,
-  CaretDoubleLeft,
-  CaretDoubleRight
+  CaretLeft
 } from '@phosphor-icons/react';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (
@@ -69,6 +69,7 @@ export default function Sidebar() {
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [userName, setUserName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [planType, setPlanType] = useState('free');
   const supabase = createClient();
 
@@ -80,11 +81,12 @@ export default function Sidebar() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: profile } = await (supabase as any)
           .from('users')
-          .select('name, plan_type')
+          .select('name, plan_type, avatar_url')
           .eq('id', user.id)
           .single();
         if (profile) {
           setUserName(profile.name || 'User');
+          setAvatarUrl(profile.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null);
           const normalizedPlan = normalizePlanType(profile.plan_type);
           setPlanType(normalizedPlan);
           setIsPremium(['premium', 'trialing', 'admin', 'student'].includes(normalizedPlan));
@@ -122,50 +124,89 @@ export default function Sidebar() {
         </svg>
       </button>
 
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
-      <aside
+      <motion.aside
+        initial={false}
+        animate={{
+          width: sidebarCollapsed ? 76 : 280,
+          paddingLeft: sidebarCollapsed ? 8 : 24,
+          paddingRight: sidebarCollapsed ? 8 : 24,
+          borderRadius: sidebarCollapsed ? 38 : 32,
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        onClick={sidebarCollapsed ? toggleSidebar : undefined}
         className={`
-          fixed top-0 left-0 h-full z-50
-          flex flex-col bg-[var(--color-sidebar-bg)] border-r border-[rgba(251,246,234,0.08)] text-[var(--color-sidebar-text)]
-          transition-all duration-300 ease-in-out font-sans
-          ${sidebarCollapsed ? 'w-[68px] px-2 py-5' : 'w-[240px] px-5 py-5'}
-          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+          fixed z-50
+          flex flex-col bg-[var(--color-sidebar-bg)] text-[var(--color-sidebar-text)]
+          font-sans shadow-2xl
+          top-4 bottom-4 left-4 lg:top-6 lg:bottom-6 lg:left-6
+          py-8 overflow-hidden transition-transform duration-300
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-[150%]'}
           lg:translate-x-0
+          ${sidebarCollapsed ? 'cursor-pointer hover:bg-[var(--color-ink-2)]' : ''}
         `}
       >
         {/* Brand */}
-        <div className={`flex items-center pb-5 border-b border-[rgba(251,246,234,0.08)] mb-5 ${sidebarCollapsed ? 'flex-col gap-4 py-5' : 'justify-between'}`}>
-          <div className="flex items-center gap-2.5">
-            <PlanevoLogo size={32} gapColor="var(--color-ink)" />
-            {!sidebarCollapsed && (
-              <span className="font-serif text-[24px] tracking-[-0.02em] leading-none">
-                <b className="font-normal">Plan</b><i className="not-italic">evo</i>
-              </span>
-            )}
+        <div className={`flex items-center pb-6 mb-6 border-b border-[rgba(251,246,234,0.08)] w-full transition-all ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between px-1'}`}>
+          <div className="flex items-center">
+            <div className="shrink-0 flex items-center justify-center">
+              <PlanevoLogo size={32} gapColor="var(--color-ink)" />
+            </div>
+            <motion.span 
+              animate={{
+                width: sidebarCollapsed ? 0 : 'auto',
+                opacity: sidebarCollapsed ? 0 : 1,
+                marginLeft: sidebarCollapsed ? 0 : 12,
+              }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="font-serif text-[24px] tracking-[-0.02em] leading-none whitespace-nowrap overflow-hidden block"
+            >
+              <b className="font-normal">Plan</b><i className="italic font-serif text-[var(--color-honey)]">evo</i>
+            </motion.span>
           </div>
-          <button 
-            onClick={toggleSidebar}
-            className="hidden lg:flex text-[rgba(251,246,234,0.4)] hover:text-[var(--color-paper)] transition-colors p-1"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? <CaretDoubleRight size={16} /> : <CaretDoubleLeft size={16} />}
-          </button>
+
+          {!sidebarCollapsed && (
+            <motion.button 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.4 }}
+              whileHover={{ opacity: 1, backgroundColor: 'rgba(251,246,234,0.05)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSidebar();
+              }}
+              className="hidden lg:flex items-center justify-center text-[var(--color-sidebar-text)] transition-all p-1.5 rounded-full border-none bg-transparent cursor-pointer"
+              title="Collapse sidebar"
+            >
+              <CaretLeft size={16} weight="bold" />
+            </motion.button>
+          )}
         </div>
 
-        {!sidebarCollapsed && (
-          <div className="font-mono text-[10px] tracking-[0.16em] text-[rgba(251,246,234,0.4)] mb-2.5 pl-1.5 uppercase">
-            WORKSPACE
-          </div>
-        )}
+        <motion.div 
+          animate={{
+            opacity: sidebarCollapsed ? 0 : 1,
+            height: sidebarCollapsed ? 0 : 'auto',
+            marginBottom: sidebarCollapsed ? 0 : 12,
+          }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className="font-mono text-[10px] tracking-[0.16em] text-[rgba(251,246,234,0.4)] px-3 uppercase whitespace-nowrap overflow-hidden"
+        >
+          WORKSPACE
+        </motion.div>
 
         {/* Nav Items */}
-        <nav className="flex flex-col gap-0.5 mb-7">
+        <nav className="flex flex-col gap-1 mb-8">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
@@ -175,105 +216,158 @@ export default function Sidebar() {
                 prefetch={false}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] transition-colors relative
+                  flex items-center px-3 py-3 rounded-full text-[14px] transition-colors relative overflow-hidden
                   ${isActive 
-                    ? 'bg-[rgba(208,135,65,0.12)] text-[var(--color-honey)] font-medium border-none' 
-                    : 'text-[rgba(251,246,234,0.65)] hover:bg-[var(--color-ink-2)] font-normal border border-transparent'}
-                  ${sidebarCollapsed ? 'justify-center px-0' : ''}
+                    ? 'bg-[rgba(208,135,65,0.15)] text-[var(--color-honey)] font-medium border-none' 
+                    : 'text-[rgba(251,246,234,0.65)] hover:bg-[rgba(251,246,234,0.08)] hover:text-[var(--color-paper)] font-normal border border-transparent'}
+                  ${sidebarCollapsed ? 'justify-center w-12 h-12 mx-auto' : ''}
                 `}
                 title={sidebarCollapsed ? item.label : undefined}
               >
-                <span className={isActive ? 'text-[var(--color-honey)]' : 'text-[rgba(251,246,234,0.65)]'}>
+                <span className={`shrink-0 flex items-center justify-center ${isActive ? 'text-[var(--color-honey)]' : 'text-[rgba(251,246,234,0.65)]'}`}>
                   {item.icon}
                 </span>
-                {!sidebarCollapsed && <span>{item.label}</span>}
-                {!sidebarCollapsed && isActive && (
-                  <span className="absolute right-3 w-1.5 h-1.5 rounded-full bg-[var(--color-honey)]" />
+                
+                <motion.span 
+                  animate={{
+                    width: sidebarCollapsed ? 0 : 'auto',
+                    opacity: sidebarCollapsed ? 0 : 1,
+                    marginLeft: sidebarCollapsed ? 0 : 12,
+                  }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="whitespace-nowrap overflow-hidden block"
+                >
+                  {item.label}
+                </motion.span>
+                
+                {isActive && !sidebarCollapsed && (
+                  <motion.span 
+                    layoutId="activeIndicator"
+                    className="absolute right-3 w-1.5 h-1.5 rounded-full bg-[var(--color-honey)]" 
+                  />
                 )}
               </Link>
             );
           })}
         </nav>
 
-        {/* Bruno Ask Card */}
-        {!sidebarCollapsed && (
-          <div className="bg-[rgba(251,246,234,0.05)] border border-[rgba(251,246,234,0.08)] rounded-[14px] p-3.5">
-            <div className="flex items-center gap-2.5 mb-3">
-              <BrunoMark size={28} />
-              <div>
-                <div className="font-serif text-[18px] leading-none text-[var(--color-sidebar-text)]">Bruno</div>
-                <div className="text-[11px] text-[rgba(251,246,234,0.6)] mt-1 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_0_3px_rgba(34,197,94,0.2)]" />
-                  ready when you are
+        <div className="mt-auto flex flex-col gap-4">
+          {/* Bruno Ask Card */}
+          <motion.div 
+            animate={{
+              height: sidebarCollapsed ? 0 : 'auto',
+              opacity: sidebarCollapsed ? 0 : 1,
+              marginTop: sidebarCollapsed ? 0 : 16,
+            }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="bg-[rgba(251,246,234,0.03)] border border-[rgba(251,246,234,0.06)] rounded-3xl p-4 transition-all hover:bg-[rgba(251,246,234,0.05)]">
+              <div className="flex items-center gap-3 mb-4">
+                <BrunoMark size={28} />
+                <div>
+                  <div className="font-serif text-[18px] leading-none text-[var(--color-sidebar-text)]">Bruno</div>
+                  <div className="text-[11px] text-[rgba(251,246,234,0.6)] mt-1.5 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_0_3px_rgba(34,197,94,0.15)]" />
+                    ready when you are
+                  </div>
                 </div>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                openBruno(
-                  currentContext ?? {
-                    source: 'sidebar',
-                    page: pathname,
-                    label: 'Current page',
-                  }
-                );
-                setMobileMenuOpen(false);
-              }}
-              className="w-full bg-[var(--color-paper)] text-[var(--color-ink)] border-none py-2 px-3 rounded-lg text-[13px] font-medium cursor-pointer flex items-center justify-between font-sans hover:bg-[var(--color-cream-2)]"
-            >
-              Ask Bruno <span className="text-[var(--color-ink-soft)] font-sans">⌘L</span>
-            </button>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className={`mt-auto pt-4 border-t border-[rgba(251,246,234,0.08)] ${sidebarCollapsed ? 'flex flex-col items-center gap-4 pb-4' : 'flex flex-col gap-2'}`}>
-          {!sidebarCollapsed ? (
-            <Link 
-              href="/dashboard/settings" 
-              className="flex items-center gap-2.5 px-1.5 py-2 text-[13px] text-[rgba(251,246,234,0.55)] hover:text-[var(--color-paper)] mb-2"
-            >
-              <Gear size={14} /> Settings
-            </Link>
-          ) : (
-            <Link href="/dashboard/settings" className="text-[rgba(251,246,234,0.55)] hover:text-white">
-              <Gear size={20} />
-            </Link>
-          )}
-
-          {!sidebarCollapsed ? (
-            <div className="flex items-center gap-2.5 px-1 py-1.5">
-              <div className="w-8 h-8 shrink-0 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono">
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-[var(--color-paper)] font-medium truncate">{userName}</div>
-                <div className="text-[11px] text-[rgba(251,246,234,0.4)] font-mono tracking-[0.04em] uppercase truncate">
-                  {isPremium ? planType.replace('_', ' ') : 'Free Plan'}
-                </div>
-              </div>
-              <button 
-                onClick={handleLogout} 
-                className="text-[rgba(251,246,234,0.4)] hover:text-red-400 p-1.5 rounded-md hover:bg-[rgba(251,246,234,0.05)] transition-colors shrink-0"
-                title="Log Out"
+              <button
+                type="button"
+                onClick={() => {
+                  openBruno(
+                    currentContext ?? {
+                      source: 'sidebar',
+                      page: pathname,
+                      label: 'Current page',
+                    }
+                  );
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-[var(--color-paper)] text-[var(--color-ink)] border-none py-2.5 px-4 rounded-xl text-[13px] font-medium cursor-pointer flex items-center justify-between font-sans hover:bg-white transition-colors"
               >
-                <SignOut size={16} />
+                Ask Bruno <span className="text-[var(--color-ink-soft)] font-sans">⌘L</span>
               </button>
             </div>
-          ) : (
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-honey)] text-[var(--color-ink)] text-[12px] font-semibold flex items-center justify-center font-mono cursor-pointer mb-2">
-              {initials}
-            </div>
-          )}
+          </motion.div>
 
-          {sidebarCollapsed && (
-            <button onClick={handleLogout} className="text-[rgba(251,246,234,0.55)] hover:text-red-400 mt-2">
-              <SignOut size={20} />
+          {/* Footer */}
+          <div className="pt-4 border-t border-[rgba(251,246,234,0.08)] flex flex-col gap-1.5">
+            <Link 
+              href="/dashboard/settings" 
+              className={`flex items-center text-[rgba(251,246,234,0.55)] hover:text-[var(--color-paper)] transition-all overflow-hidden whitespace-nowrap
+                ${sidebarCollapsed 
+                  ? 'justify-center w-12 h-12 rounded-full hover:bg-[rgba(251,246,234,0.08)] mx-auto' 
+                  : 'px-3 py-2.5 text-[13px] rounded-xl hover:bg-[rgba(251,246,234,0.05)]'}
+              `}
+              title={sidebarCollapsed ? "Settings" : undefined}
+            >
+              <div className="shrink-0 flex items-center justify-center"><Gear size={sidebarCollapsed ? 20 : 16} /></div>
+              <motion.span 
+                animate={{
+                  width: sidebarCollapsed ? 0 : 'auto',
+                  opacity: sidebarCollapsed ? 0 : 1,
+                  marginLeft: sidebarCollapsed ? 0 : 12,
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden block"
+              >
+                Settings
+              </motion.span>
+            </Link>
+
+            <button 
+              onClick={handleLogout} 
+              className={`flex items-center text-[rgba(251,246,234,0.55)] hover:text-red-400 transition-all overflow-hidden whitespace-nowrap border-none bg-transparent cursor-pointer text-left
+                ${sidebarCollapsed 
+                  ? 'justify-center w-12 h-12 rounded-full hover:bg-red-500/10 mx-auto' 
+                  : 'px-3 py-2.5 text-[13px] rounded-xl hover:bg-red-500/10'}
+              `}
+              title={sidebarCollapsed ? "Log Out" : undefined}
+            >
+              <div className="shrink-0 flex items-center justify-center"><SignOut size={sidebarCollapsed ? 20 : 16} /></div>
+              <motion.span 
+                animate={{
+                  width: sidebarCollapsed ? 0 : 'auto',
+                  opacity: sidebarCollapsed ? 0 : 1,
+                  marginLeft: sidebarCollapsed ? 0 : 12,
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden block"
+              >
+                Log Out
+              </motion.span>
             </button>
-          )}
+
+            <div className={`flex items-center mt-2 ${sidebarCollapsed ? 'justify-center py-2 mx-auto' : 'px-3 py-2.5 bg-[rgba(251,246,234,0.02)] rounded-2xl border border-[rgba(251,246,234,0.04)]'}`}>
+              <div className={`${sidebarCollapsed ? 'w-10 h-10' : 'w-9 h-9'} shrink-0 rounded-full bg-[var(--color-honey)] text-[var(--color-ink)] text-[13px] font-semibold flex items-center justify-center font-mono shadow-sm overflow-hidden`}>
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  initials
+                )}
+              </div>
+              
+              <motion.div 
+                animate={{
+                  width: sidebarCollapsed ? 0 : 'auto',
+                  opacity: sidebarCollapsed ? 0 : 1,
+                  marginLeft: sidebarCollapsed ? 0 : 12,
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="flex-1 min-w-0 overflow-hidden block"
+              >
+                <div className="text-[13px] text-[var(--color-paper)] font-medium truncate">{userName}</div>
+                <div className="text-[11px] text-[rgba(251,246,234,0.4)] font-mono tracking-[0.04em] uppercase truncate mt-0.5">
+                  {isPremium ? planType.replace('_', ' ') : 'Free Plan'}
+                </div>
+              </motion.div>
+            </div>
+          </div>
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }

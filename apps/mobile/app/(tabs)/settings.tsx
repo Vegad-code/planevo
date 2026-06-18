@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { Colors, type AccentId } from '@/constants/Colors';
 import { useGlobalStore } from '@/store/globalStore';
 import { useAuth } from '@/providers/AuthProvider';
-import { supabase } from '@/lib/supabase';
 import {
   addCustomerInfoListener,
   getCustomerInfo,
@@ -189,8 +188,8 @@ export default function SettingsScreen() {
           <SettingsRow
             icon={<GraduationCap size={18} color={Colors.brand[500]} strokeWidth={2.5} />}
             label="Canvas LMS"
-            detail={profile?.canvas_token ? 'Connected' : 'Not connected'}
-            connected={!!profile?.canvas_token}
+            detail={profile?.canvasConnected ? 'Connected' : 'Not connected'}
+            connected={!!profile?.canvasConnected}
             colors={colors}
             testID="settings-canvas"
             onPress={() => router.push('/canvas-connect' as any)}
@@ -199,8 +198,8 @@ export default function SettingsScreen() {
           <SettingsRow
             icon={<CalendarDays size={18} color={Colors.brand[500]} strokeWidth={2.5} />}
             label="Google Calendar"
-            detail={profile?.google_calendar_connected ? 'Synced' : 'Not connected'}
-            connected={!!profile?.google_calendar_connected}
+            detail={profile?.googleConnected ? 'Synced' : 'Not connected'}
+            connected={!!profile?.googleConnected}
             colors={colors}
             testID="settings-calendar"
           />

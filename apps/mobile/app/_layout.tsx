@@ -97,7 +97,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             } else if (!isOnboardingRoute && !isBlockedRoute) {
               router.replace('/onboarding' as any);
             }
-          } catch (err) {
+          } catch {
             if (!isOnboardingRoute && !isBlockedRoute) router.replace('/onboarding' as any);
           } finally {
             isVerifying.current = false;
@@ -162,7 +162,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           } else {
             finishAuth(null);
           }
-        } catch (err) {
+        } catch {
           if (!isOnboardingRoute && !isBlockedRoute) {
             finishAuth('/onboarding');
           } else {
@@ -175,7 +175,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
       verifyProfile();
     }
-  }, [session, loading, segments, user, showLoader]);
+  }, [session, loading, segments, user, showLoader, router]);
 
   // Register for push notifications once authenticated
   useEffect(() => {
@@ -201,7 +201,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         notificationResponseListener.current.remove();
       }
     };
-  }, [user]);
+  }, [user, router]);
 
   const handleAnimationFinished = () => {
     setShowLoader(false);

@@ -8,8 +8,8 @@ interface UserProfile {
   plan_type?: string;
   energy_preference?: 'low' | 'medium' | 'high';
   push_notifications_enabled?: boolean;
-  google_calendar_connected?: boolean;
-  canvas_token?: string;
+  canvasConnected?: boolean;
+  googleConnected?: boolean;
 }
 
 interface NotificationPreferences {
@@ -39,22 +39,51 @@ export const useGlobalStore = create<GlobalState>((set, get) => ({
   fetchProfile: async (userId: string) => {
     set({ loading: true, error: null });
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*, notification_preferences(*)')
-        .eq('id', userId)
-        .single();
+      const [profileResult, integrationsResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('*, notification_preferences(*)')
+          .eq('id', userId)
+          .single(),
+        supabase
+          .from('integration_accounts_public' as 'integration_accounts')
+          .select('provider, status')
+          .eq('user_id', userId),
+      ]);
 
-      if (error) throw error;
+      if (profileResult.error) throw profileResult.error;
+
+      const accounts = integrationsResult.data ?? [];
+      const canvasConnected = accounts.some(
+        (a) => a.provider === 'canvas' && a.status === 'connected'
+      );
+      const googleConnected = accounts.some(
+        (a) => a.provider === 'google_calendar' && a.status === 'connected'
+      );
+
+      const rawPrefs = profileResult.data.notification_preferences;
+      const notificationPrefs = Array.isArray(rawPrefs) ? rawPrefs[0] : rawPrefs;
 
       set({
-        profile: data,
-        notificationPrefs: data.notification_preferences || null,
+        profile: {
+          id: profileResult.data.id,
+          name: profileResult.data.name ?? undefined,
+          email: profileResult.data.email ?? undefined,
+          plan_type: profileResult.data.plan_type ?? undefined,
+          energy_preference: (profileResult.data.energy_preference as UserProfile['energy_preference']) ?? undefined,
+          push_notifications_enabled: profileResult.data.push_notifications_enabled ?? undefined,
+          canvasConnected,
+          googleConnected,
+        },
+        notificationPrefs: (notificationPrefs as unknown as NotificationPreferences | null) || null,
         loading: false,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching global profile:', err);
-      set({ error: err.message, loading: false });
+      set({
+        error: err instanceof Error ? err.message : 'Failed to load profile',
+        loading: false,
+      });
     }
   },
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,21 +17,7 @@ export default function DeepWorkScreen() {
   const [isActive, setIsActive] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isActive && secondsLeft > 0) {
-      interval = setInterval(() => {
-        setSecondsLeft((s) => s - 1);
-        setElapsedSeconds((e) => e + 1);
-      }, 1000);
-    } else if (secondsLeft === 0 && isActive) {
-      setIsActive(false);
-      handleSessionEnd();
-    }
-    return () => clearInterval(interval);
-  }, [isActive, secondsLeft]);
-
-  const saveFocusTime = async (timeToSave: number) => {
+  const saveFocusTime = useCallback(async (timeToSave: number) => {
     if (!user || timeToSave === 0) return;
     try {
       const targetDate = new Date().toISOString().split('T')[0];
@@ -64,16 +50,30 @@ export default function DeepWorkScreen() {
     } catch (err) {
       console.error('Failed to save focus time:', err);
     }
-  };
+  }, [user]);
 
-  const handleSessionEnd = async () => {
+  const handleSessionEnd = useCallback(async () => {
     await saveFocusTime(elapsedSeconds);
     Alert.alert(
       "Session Complete",
       `You focused for ${Math.round(elapsedSeconds / 60)} minutes!`,
       [{ text: "Awesome", onPress: () => router.back() }]
     );
-  };
+  }, [elapsedSeconds, saveFocusTime, router]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isActive && secondsLeft > 0) {
+      interval = setInterval(() => {
+        setSecondsLeft((s) => s - 1);
+        setElapsedSeconds((e) => e + 1);
+      }, 1000);
+    } else if (secondsLeft === 0 && isActive) {
+      setIsActive(false);
+      handleSessionEnd();
+    }
+    return () => clearInterval(interval);
+  }, [isActive, secondsLeft, handleSessionEnd]);
 
   const handleStop = () => {
     setIsActive(false);

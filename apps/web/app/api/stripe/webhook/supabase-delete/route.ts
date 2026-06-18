@@ -3,14 +3,15 @@ import { stripe } from '@/lib/stripe';
 
 export async function POST(req: NextRequest) {
   try {
-    // Optional: secure this endpoint by adding a webhook secret in your Supabase Webhook configuration
-    // e.g. add a header "X-Webhook-Secret" and verify it against process.env.SUPABASE_WEBHOOK_SECRET
     const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const authHeader = req.headers.get('X-Webhook-Secret');
-      if (authHeader !== webhookSecret) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+    if (!webhookSecret) {
+      console.error('[Supabase Webhook] SUPABASE_WEBHOOK_SECRET is not configured');
+      return NextResponse.json({ error: 'Webhook secret is not configured' }, { status: 503 });
+    }
+
+    const authHeader = req.headers.get('X-Webhook-Secret');
+    if (authHeader !== webhookSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const payload = await req.json();

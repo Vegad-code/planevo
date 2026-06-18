@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { checkRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
 import { isAllowedOriginOrCron } from '@/lib/auth/origin-guard';
 import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizePlanType } from '@/lib/auth/plan-types';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 
 
 /**
@@ -25,16 +25,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit to prevent bill abuse
-    const { allowed, error: limitError } = await checkRateLimit('weekly-review');
-    if (!allowed) {
-      return NextResponse.json({ error: limitError }, { status: 403 });
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { supabase, user, authMethod } = auth;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResult =
+      authMethod === 'bearer'
+        ? await checkRateLimitForUser(user.id, 'weekly-review', user.email)
+        : await checkRateLimit('weekly-review');
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json({ error: rateLimitResult.error }, { status: 403 });
     }
 
     // Set Sentry user and tags
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
     Sentry.setTag('route', '/api/ai/weekly-review');
     Sentry.setTag('feature', 'weekly-review');
     Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
-    Sentry.setTag('auth_method', 'cron-or-session');
+    Sentry.setTag('auth_method', authMethod || 'unknown');
 
 
     // 1. Fetch the user's AI memory

@@ -122,7 +122,7 @@ export default async function MembershipSettingsPage() {
     .or('completed.is.null,completed.eq.false');
 
   const { count: integrationsCount } = await supabase
-    .from('integration_accounts')
+    .from('integration_accounts_public' as 'integration_accounts')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id);
 

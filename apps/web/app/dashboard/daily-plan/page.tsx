@@ -37,6 +37,7 @@ import {
   useBruno,
   useRegisterBrunoContext,
 } from '@/components/bruno/BrunoProvider';
+import { useProIntegrations } from '@/hooks/useProIntegrations';
 
 
 const DEFAULT_PREFERENCES: SchedulingPreferences = {
@@ -53,7 +54,6 @@ const DEFAULT_PREFERENCES: SchedulingPreferences = {
 interface Profile {
   id: string;
   canvas_url?: string;
-  canvas_token?: string;
   scheduling_preferences?: SchedulingPreferences;
 }
 
@@ -78,6 +78,7 @@ export default function DailyPlanPage() {
   });
 
   const { openBruno } = useBruno();
+  const { connectedProviders } = useProIntegrations();
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -112,7 +113,11 @@ export default function DailyPlanPage() {
     if (user) {
       const today = format(new Date(), 'yyyy-MM-dd');
 
-      const profilePromise = supabase.from('users').select('*').eq('id', user.id).single();
+      const profilePromise = supabase
+        .from('users')
+        .select('id, canvas_url, scheduling_preferences')
+        .eq('id', user.id)
+        .single();
       const memoryPromise = supabase.from('user_ai_memory').select('*').eq('user_id', user.id).maybeSingle();
       const assignmentsPromise = supabase.from('source_items').select('*').eq('user_id', user.id).in('provider', ['canvas', 'notion', 'slack', 'linear']).is('deleted_at', null);
       const tasksPromise = supabase.from('tasks').select('*').eq('user_id', user.id).eq('completed', false).or(`due_date.eq.${today},due_date.is.null`);
@@ -271,6 +276,14 @@ export default function DailyPlanPage() {
         console.warn("Google Calendar sync skipped or failed", err);
       }
 
+      // Try syncing Composio work tools (Notion/Slack/Linear). Gated server-side
+      // to Pro users — a 403/non-200 is expected for free accounts and ignored.
+      try {
+        await fetch('/api/integrations/composio/sync', { method: 'POST' });
+      } catch (err) {
+        console.warn("Work tools sync skipped or failed", err);
+      }
+
       // Reload UI data
       await loadData();
 
@@ -377,6 +390,23 @@ export default function DailyPlanPage() {
       icon: <Save className="w-4 h-4 text-green-500" />
     });
   }, []);
+
+  const handleSharePlan = useCallback((target: 'slack' | 'notion') => {
+    const summary = (schedule ?? [])
+      .map((b) => `${b.time} — ${b.title}`)
+      .join('\n');
+    const prompt =
+      target === 'slack'
+        ? `Post a short summary of today's plan to Slack:\n${summary}`
+        : `Save today's plan as a Notion page:\n${summary}`;
+    openBruno({
+      source: 'daily-plan',
+      page: '/dashboard/daily-plan',
+      label: `Daily Plan - Share to ${target}`,
+      payload: { prompt },
+    });
+    toast.info(`Bruno is ready to share your plan to ${target}.`);
+  }, [schedule, openBruno]);
 
   const handleScheduleFeedback = useCallback(async (
     block: ScheduleBlock,
@@ -797,6 +827,35 @@ export default function DailyPlanPage() {
                     <SourceRow initial="T" color="bg-honey" name="Tasks & reminders" detail={`${manualTasks.length} items`} />
                   </div>
                 </div>
+
+                {/* Share plan to work tools (Pro) */}
+                {connectedProviders.length > 0 && schedule && schedule.length > 0 && (
+                  <div className="bg-paper border border-line rounded-[22px] p-6 shadow-sm">
+                    <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] uppercase mb-4">
+                      SHARE YOUR PLAN
+                    </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      {connectedProviders.includes('slack') && (
+                        <button
+                          onClick={() => handleSharePlan('slack')}
+                          className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium border border-line-strong text-ink hover:bg-(--color-cream-2) transition-colors cursor-pointer"
+                        >
+                          <SlackLogo weight="fill" className="w-4 h-4 text-[#4A154B]" />
+                          Post to Slack
+                        </button>
+                      )}
+                      {connectedProviders.includes('notion') && (
+                        <button
+                          onClick={() => handleSharePlan('notion')}
+                          className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium border border-line-strong text-ink hover:bg-(--color-cream-2) transition-colors cursor-pointer"
+                        >
+                          <Notebook weight="fill" className="w-4 h-4" />
+                          Save to Notion
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Bruno notices */}
                 <div className="bg-bruno-deep border border-line text-paper rounded-[22px] p-6 shadow-sm flex flex-col relative overflow-hidden">

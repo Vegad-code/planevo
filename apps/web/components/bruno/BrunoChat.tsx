@@ -164,7 +164,6 @@ export default function BrunoChat() {
 
   useEffect(() => {
     if (error?.message?.includes('403') || error?.message?.includes('429')) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowPaywall(true);
     }
   }, [error]);

@@ -24,34 +24,38 @@ vi.mock('@/lib/supabase/server', () => ({
   })
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  supabaseAdmin: {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { name: 'Test User' } })
-          }),
-          single: vi.fn().mockResolvedValue({ data: { name: 'Test User' } }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Test User' } }),
-          is: vi.fn().mockReturnValue({
-            gte: vi.fn().mockReturnValue({
-              lte: vi.fn().mockResolvedValue({ data: [] }),
-              lt: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockResolvedValue({ data: [] })
-                })
-              })
-            }),
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [] })
-            })
-          })
-        })
-      })
-    })
-  }
-}));
+vi.mock('@/lib/supabase/admin', () => {
+  const createMockQueryBuilder = (resolvedValue: any = { data: [] }) => {
+    const builder: any = {
+      select: vi.fn().mockImplementation(() => builder),
+      eq: vi.fn().mockImplementation(() => builder),
+      neq: vi.fn().mockImplementation(() => builder),
+      is: vi.fn().mockImplementation(() => builder),
+      in: vi.fn().mockImplementation(() => builder),
+      order: vi.fn().mockImplementation(() => builder),
+      limit: vi.fn().mockImplementation(() => builder),
+      gte: vi.fn().mockImplementation(() => builder),
+      lte: vi.fn().mockImplementation(() => builder),
+      lt: vi.fn().mockImplementation(() => builder),
+      gt: vi.fn().mockImplementation(() => builder),
+      single: vi.fn().mockImplementation(() => Promise.resolve(resolvedValue)),
+      maybeSingle: vi.fn().mockImplementation(() => Promise.resolve(resolvedValue)),
+      then: vi.fn().mockImplementation((onfulfilled) => Promise.resolve(resolvedValue).then(onfulfilled)),
+    };
+    return builder;
+  };
+
+  return {
+    supabaseAdmin: {
+      from: vi.fn().mockImplementation((table) => {
+        if (table === 'users') {
+          return createMockQueryBuilder({ data: { name: 'Test User' } });
+        }
+        return createMockQueryBuilder({ data: [] });
+      }),
+    },
+  };
+});
 
 vi.mock('@/lib/auth/origin-guard', () => ({
   isAllowedOriginOrBearer: vi.fn().mockReturnValue(true)

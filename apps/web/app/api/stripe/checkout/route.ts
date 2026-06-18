@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PRICE_IDS } from '@/lib/stripe';
-import { createClient } from '@/lib/supabase/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 type CheckoutBody = {
   interval?: 'monthly' | 'annual';
@@ -25,12 +27,16 @@ function sanitizeReturnPath(returnPath: unknown) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(req)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (authError || !user) {
+    const auth = await createAuthenticatedSupabaseClient(req);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     const body = (await req.json().catch(() => ({}))) as CheckoutBody;
     const interval = body.interval === 'annual' ? 'annual' : 'monthly';
@@ -66,7 +72,7 @@ export async function POST(req: NextRequest) {
       customerId = customer.id;
 
       // Save customer ID immediately so it's available for the webhook
-      await supabase
+      await supabaseAdmin
         .from('users')
         .update({ stripe_customer_id: customerId })
         .eq('id', user.id);

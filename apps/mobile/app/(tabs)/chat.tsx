@@ -8,7 +8,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Modal,
   Alert,
 } from 'react-native';
@@ -19,7 +18,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Send, Bot, UserIcon, History, Plus, Square, Edit2, X, Trash } from 'lucide-react-native';
-import PlanDraftCard, { PlanDraftItemData } from '../../components/bruno/PlanDraftCard';
+import PlanDraftCard from '../../components/bruno/PlanDraftCard';
 import PlanPreviewModal from '../../components/bruno/PlanPreviewModal';
 import BrunoEntitlementNotice, {
   type MobileBrunoMetadata,
@@ -176,14 +175,32 @@ export default function BrunoChatScreen() {
   const confirmDeleteConversation = async () => {
     if (!chatToDelete) return;
     const { id } = chatToDelete;
-    const { error } = await supabase.from('chat_conversations').delete().eq('id', id);
-    if (!error) {
-      setConversations(prev => prev.filter(c => c.id !== id));
-      if (currentConversationId === id) {
-        startNewConversation();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        Alert.alert('Error', 'Failed to delete conversation.');
+        setChatToDelete(null);
+        return;
       }
-    } else {
-      Alert.alert("Error", "Failed to delete conversation.");
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/api/ai/conversations/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setConversations(prev => prev.filter(c => c.id !== id));
+        if (currentConversationId === id) {
+          startNewConversation();
+        }
+      } else {
+        Alert.alert('Error', 'Failed to delete conversation.');
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      Alert.alert('Error', 'Failed to delete conversation.');
     }
     setChatToDelete(null);
   };
@@ -360,7 +377,7 @@ export default function BrunoChatScreen() {
       abortControllerRef.current = null;
       setSending(false);
     }
-  }, [inputText, sending, user, messages, currentConversationId, editingMessageId, fetchConversations]);
+  }, [inputText, sending, user, messages, currentConversationId, editingMessageId, fetchConversations, isOffline, mentionState, suggestions]);
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';

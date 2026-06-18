@@ -3,6 +3,9 @@ import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/get-user";
+import { isAllowedOriginOrBearer } from "@/lib/auth/origin-guard";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { checkRateLimitForUser } from "@/lib/auth/rateLimit";
 
 const fallbackRequestSchema = z.object({
   userPrompt: z.string().min(1).max(2000),
@@ -22,10 +25,22 @@ const fallbackResponseSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  if (!isAllowedOriginOrBearer(request)) {
+    return NextResponse.json({ success: false, error: "Invalid request origin" }, { status: 403 });
+  }
+
   const { user, error: authError } = await getAuthenticatedUser(request);
 
   if (!user || authError) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimitResult = await checkRateLimitForUser(user.id, "fallback-breakdown", user.email);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: rateLimitResult.error, message: rateLimitResult.message },
+      { status: rateLimitResult.error === "Unauthorized" ? 401 : 429 }
+    );
   }
 
   const json = await request.json();
@@ -35,9 +50,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid request" }, { status: 400 });
   }
 
-  // @ts-ignore - resolve Deep instantiation error with AI SDK
   const result = await generateObject({
     model: openai("gpt-4o-mini"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     schema: fallbackResponseSchema as any,
     prompt: `
 You are converting a student's request into concrete Planevo task proposals.
@@ -58,8 +73,7 @@ Do not execute anything.
 
   const now = new Date().toISOString();
 
-  // @ts-ignore
-  const proposals = result.object.proposals.map((task: any, index: number) => ({
+  const proposals = (result.object as { proposals: z.infer<typeof taskProposalSchema>[] }).proposals.map((task, index: number) => ({
     id: `fallback-create-task-${Date.now()}-${index}`,
     type: "CREATE_TASK",
     title: task.taskTitle,
@@ -76,6 +90,22 @@ Do not execute anything.
     },
     createdAt: now,
   }));
+
+  await supabaseAdmin.from("bruno_tool_logs").insert(
+    proposals.map((proposal) => ({
+      user_id: user.id,
+      tool_name: "propose_action",
+      arguments: {
+        type: proposal.type,
+        title: proposal.title,
+        description: proposal.description,
+        riskLevel: proposal.riskLevel,
+        requiresConfirmation: proposal.requiresConfirmation,
+        payload: proposal.payload,
+      },
+      result: { success: true, source: "fallback_breakdown" },
+    }))
+  );
 
   return NextResponse.json({ success: true, proposals });
 }

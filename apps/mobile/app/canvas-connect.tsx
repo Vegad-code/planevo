@@ -27,22 +27,40 @@ export default function CanvasConnectScreen() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          canvas_url: url.trim(),
-          canvas_token: token.trim(),
-        })
-        .eq('id', user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
 
-      if (error) throw error;
-      
+      let apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        if (__DEV__) {
+          apiUrl = 'http://localhost:3000';
+        } else {
+          throw new Error('EXPO_PUBLIC_API_URL is required in production builds.');
+        }
+      }
+
+      const response = await fetch(`${apiUrl}/api/integrations/canvas/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ url: url.trim(), token: token.trim() }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save Canvas integration.');
+      }
+
       Alert.alert('Success', 'Canvas integration saved successfully.', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      Alert.alert('Error', err.message || 'Failed to save Canvas integration.');
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save Canvas integration.');
     } finally {
       setSaving(false);
     }

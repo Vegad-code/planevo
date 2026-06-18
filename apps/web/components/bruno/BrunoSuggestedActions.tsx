@@ -1,11 +1,28 @@
 'use client';
 
 import { useBruno } from '@/components/bruno/BrunoProvider';
+import { useProIntegrations } from '@/hooks/useProIntegrations';
+import type { ProIntegrationProvider } from '@/lib/integrations/types';
 
 interface SuggestedAction {
   label: string;
   prompt: string;
 }
+
+const INTEGRATION_ACTIONS: Record<ProIntegrationProvider, SuggestedAction> = {
+  linear: {
+    label: 'Plan my Linear issues',
+    prompt: 'Look at my open Linear issues and help me plan which to tackle first this week.',
+  },
+  notion: {
+    label: 'Summarize my Notion tasks',
+    prompt: 'Summarize my open Notion tasks and fold the urgent ones into my plan.',
+  },
+  slack: {
+    label: 'Catch up on Slack',
+    prompt: 'What Slack items need my attention, and which should become tasks?',
+  },
+};
 
 const ACTIONS: Record<string, SuggestedAction[]> = {
   dashboard: [
@@ -96,8 +113,11 @@ export function BrunoSuggestedActions({
   onSelectAction: (prompt: string) => void;
 }) {
   const { currentContext } = useBruno();
+  const { connectedProviders } = useProIntegrations();
   const source = currentContext?.source ?? 'fallback';
-  const actions = ACTIONS[source] ?? FALLBACK_ACTIONS;
+  const baseActions = ACTIONS[source] ?? FALLBACK_ACTIONS;
+  const integrationActions = connectedProviders.map((p) => INTEGRATION_ACTIONS[p]);
+  const actions = [...integrationActions, ...baseActions];
 
   return (
     <div

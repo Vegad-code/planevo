@@ -26,6 +26,27 @@ export type BrunoCanvasContextRow = {
   htmlUrl: string | null;
 };
 
+export type BrunoIntegrationContextRow = {
+  provider: string;
+  title: string;
+  status: string | null;
+  dueDate: string | null;
+  url: string | null;
+};
+
+export type BrunoIntegrationPulseRow = {
+  provider: string;
+  connected: boolean;
+  openCount: number;
+  dueThisWeek: number;
+  label: string;
+};
+
+export type BrunoIntegrationContext = {
+  pulses: BrunoIntegrationPulseRow[];
+  items: BrunoIntegrationContextRow[];
+};
+
 export type BrunoContextLoaders = {
   loadTasks: (userId: string) => Promise<BrunoTaskContextRow[]>;
   loadCalendar: (userId: string) => Promise<BrunoCalendarContextRow[]>;
@@ -33,6 +54,7 @@ export type BrunoContextLoaders = {
     userId: string,
     assignmentId?: string
   ) => Promise<BrunoCanvasContextRow[]>;
+  loadIntegrations?: (userId: string) => Promise<BrunoIntegrationContext>;
 };
 
 export async function buildBrunoContext(
@@ -43,7 +65,8 @@ export async function buildBrunoContext(
   },
   loaders: BrunoContextLoaders
 ) {
-  const [tasks, events, assignments] = await Promise.all([
+  const emptyIntegrations: BrunoIntegrationContext = { pulses: [], items: [] };
+  const [tasks, events, assignments, integrations] = await Promise.all([
     input.policy.includeTasks
       ? loaders.loadTasks(input.userId)
       : Promise.resolve([]),
@@ -53,6 +76,9 @@ export async function buildBrunoContext(
     input.policy.includeCanvas
       ? loaders.loadCanvas(input.userId, input.assignmentId)
       : Promise.resolve([]),
+    input.policy.includeTasks && loaders.loadIntegrations
+      ? loaders.loadIntegrations(input.userId)
+      : Promise.resolve(emptyIntegrations),
   ]);
 
   return {
@@ -93,5 +119,34 @@ export async function buildBrunoContext(
             .join(' | ')
       )
       .join('\n'),
+    integrationContext: buildIntegrationContext(integrations),
   };
+}
+
+function buildIntegrationContext(integrations: BrunoIntegrationContext): string {
+  const connected = integrations.pulses.filter((p) => p.connected);
+  if (connected.length === 0) return '';
+
+  const summary = connected
+    .map(
+      (p) =>
+        `- ${p.provider}: ${p.openCount} open${
+          p.dueThisWeek > 0 ? `, ${p.dueThisWeek} due this week` : ''
+        }`
+    )
+    .join('\n');
+
+  const items = integrations.items
+    .slice(0, 30)
+    .map(
+      (item) =>
+        `- [${item.provider}] "${item.title}"${
+          item.status ? ` (Status: ${item.status})` : ''
+        }${item.dueDate ? ` (Due: ${item.dueDate})` : ''}${
+          item.url ? ` (URL: ${item.url})` : ''
+        }`
+    )
+    .join('\n');
+
+  return `Connected work tools:\n${summary}${items ? `\n\nWork items:\n${items}` : ''}`;
 }

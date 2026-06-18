@@ -13,6 +13,7 @@ jest.mock('react-native-shared-group-preferences', () => {
 
 describe('writeWidgetData in Expo Go', () => {
   it('does not load the custom native widget module', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { writeWidgetData } = require('../widgetData');
 
     await expect(writeWidgetData(null)).resolves.toBeUndefined();

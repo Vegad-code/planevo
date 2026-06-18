@@ -7,7 +7,10 @@ export type CalendarSource =
   | 'schedule' 
   | 'cargo_bay' 
   | 'focus_block' 
-  | 'rollover';
+  | 'rollover'
+  | 'notion'
+  | 'slack'
+  | 'linear';
 
 export type EnergyLevel = 'low' | 'medium' | 'high';
 

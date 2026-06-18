@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import CalendarKit from '@howljs/calendar-kit';
 import { useTheme } from '@/hooks/useTheme';
-import Colors from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';
 
 export interface MobileCalendarEvent {
   id: string;
@@ -28,7 +28,7 @@ export default function MobileCalendar({
   onEventPress,
   onLongPressEmpty,
 }: MobileCalendarProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   // Map to calendar-kit format
   const mappedEvents = useMemo(() => {

@@ -20,7 +20,7 @@ import { useNetworkState } from '@/hooks/useNetworkState';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { format, isToday } from 'date-fns';
+import { format } from 'date-fns';
 import {
   Zap,
   Target,
@@ -105,17 +105,30 @@ export default function DailyPlanScreen() {
   const fetchAll = useCallback(async () => {
     if (!user) return;
     try {
-      const { data: profile } = await (supabase as any)
-        .from('users')
-        .select('name, canvas_token, google_calendar_connected, energy_preference')
-        .eq('id', user.id)
-        .single();
+      const [{ data: profile }, { data: integrationAccounts }] = await Promise.all([
+        (supabase as any)
+          .from('users')
+          .select('name, energy_preference')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('integration_accounts_public' as 'integration_accounts')
+          .select('provider, status')
+          .eq('user_id', user.id),
+      ]);
 
       if (profile?.name) setUserName(profile.name);
       if (profile?.energy_preference) setEnergyLevel(profile.energy_preference as any);
 
+      const canvasConnected = integrationAccounts?.some(
+        (a: { provider: string; status: string }) => a.provider === 'canvas' && a.status === 'connected'
+      );
+      const googleConnected = integrationAccounts?.some(
+        (a: { provider: string; status: string }) => a.provider === 'google_calendar' && a.status === 'connected'
+      );
+
       let canvasDueCount = 0;
-      if (profile?.canvas_token) {
+      if (canvasConnected) {
         const sevenDaysOut = new Date(Date.now() + 7 * 86400000).toISOString();
         const { count } = await supabase
           .from('source_items')
@@ -129,9 +142,9 @@ export default function DailyPlanScreen() {
       }
 
       setConnections({
-        canvasConnected: !!profile?.canvas_token,
+        canvasConnected: !!canvasConnected,
         canvasDueCount,
-        googleConnected: !!profile?.google_calendar_connected,
+        googleConnected: !!googleConnected,
       });
 
       const { data: taskRows } = await supabase
@@ -525,7 +538,7 @@ export default function DailyPlanScreen() {
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: Colors.ink }]}
+                  style={[styles.actionBtn, { backgroundColor: Colors.surface[900] }]}
                   onPress={() => router.push('/deep-work')}
                   testID="start-deep-work-btn"
                 >

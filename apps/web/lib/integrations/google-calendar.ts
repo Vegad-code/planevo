@@ -1,7 +1,9 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptToken } from '@/lib/crypto';
+import { getIntegrationAccount } from '@/lib/integrations/accounts';
 
 /**
  * Check whether the user's Google Calendar integration has write scope.
@@ -10,8 +12,7 @@ import { decryptToken } from '@/lib/crypto';
  * all write operations must be silently skipped.
  */
 export async function hasGoogleWriteScope(userId: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { data: account } = await supabase
+  const { data: account } = await supabaseAdmin
     .from('integration_accounts')
     .select('scopes')
     .eq('user_id', userId)
@@ -51,41 +52,13 @@ export async function refreshGoogleToken(refreshToken: string) {
 export async function syncGoogleCalendar(userId: string, force = false) {
   const supabase = await createClient();
 
-  // 1. Get the account and refresh token
-  const { data: account } = await supabase
-    .from('integration_accounts')
-    .select('id, refresh_token_encrypted, metadata')
-    .eq('user_id', userId)
-    .eq('provider', 'google_calendar')
-    .maybeSingle();
+  const account = await getIntegrationAccount(userId, 'google_calendar');
+  const encryptedToken = account?.refresh_token_encrypted;
+  const accountId = account?.id;
 
-  let encryptedToken = account?.refresh_token_encrypted;
-  let accountId = account?.id;
-  
-  if (!encryptedToken) {
-    // Fallback to legacy
-    const { data: user } = await supabase
-      .from('users')
-      .select('google_calendar_refresh_token, scheduling_preferences, google_calendar_id')
-      .eq('id', userId)
-      .single();
-      
-    if (!user?.google_calendar_refresh_token) {
-      throw new Error('User not connected to Google Calendar');
-    }
-    encryptedToken = user.google_calendar_refresh_token;
-    
-    // Backfill account
-    const { data: newAcc } = await supabase.from('integration_accounts').insert({
-      user_id: userId,
-      provider: 'google_calendar',
-      refresh_token_encrypted: encryptedToken,
-      status: 'connected'
-    }).select('id').single();
-    if (newAcc) accountId = newAcc.id;
+  if (!encryptedToken || !accountId) {
+    throw new Error('User not connected to Google Calendar');
   }
-
-  if (!encryptedToken || !accountId) throw new Error('Account unresolvable');
 
   // Create sync run
   const { data: syncRun } = await supabase.from('integration_sync_runs').insert({
@@ -99,7 +72,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
 
   try {
     // 2. Get a fresh access token
-    const decryptedToken = decryptToken(encryptedToken);
+    const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
     const accessToken = await refreshGoogleToken(decryptedToken);
 
     // 3. Determine which calendars to sync
@@ -195,7 +168,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     const events = Array.from(uniqueEventsMap.values());
 
     if (events.length === 0) {
-      await supabase.from('integration_accounts').update({ last_synced_at: new Date().toISOString() }).eq('id', accountId);
+      await supabaseAdmin.from('integration_accounts').update({ last_synced_at: new Date().toISOString() }).eq('id', accountId).eq('user_id', userId);
       if (syncRunId) await supabase.from('integration_sync_runs').update({ status: 'success', finished_at: new Date().toISOString() }).eq('id', syncRunId);
       return 0;
     }
@@ -322,7 +295,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
 
     // Record successful sync
     const now = new Date().toISOString();
-    await supabase.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId);
+    await supabaseAdmin.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId).eq('user_id', userId);
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
         status: 'success', 
@@ -343,7 +316,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
         error_message: err.message
       }).eq('id', syncRunId);
     }
-    await supabase.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId);
+    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId).eq('user_id', userId);
     throw err;
   }
 }
@@ -364,18 +337,16 @@ export async function disconnectGoogleCalendarAction(deleteData: boolean = false
   // We only revoke credentials below — no soft-delete, no hiding.
 
   // Update integration_accounts
-  await supabase.from('integration_accounts')
+  await supabaseAdmin.from('integration_accounts')
     .update({ status: 'disconnected', refresh_token_encrypted: null })
     .eq('user_id', userId)
     .eq('provider', 'google_calendar');
 
-  // Clear legacy state
   await supabase.from('users')
-    .update({ 
+    .update({
       google_calendar_connected: false,
-      google_calendar_refresh_token: null,
       google_calendar_id: null,
-      google_calendar_last_synced_at: null
+      google_calendar_last_synced_at: null,
     })
     .eq('id', userId);
 
@@ -385,22 +356,14 @@ export async function disconnectGoogleCalendarAction(deleteData: boolean = false
 export async function fetchGoogleCalendars(userId: string) {
   const supabase = await createClient();
 
-  const { data: account } = await supabase
-    .from('integration_accounts')
-    .select('id, refresh_token_encrypted')
-    .eq('user_id', userId)
-    .eq('provider', 'google_calendar')
-    .maybeSingle();
+  const account = await getIntegrationAccount(userId, 'google_calendar');
+  const encryptedToken = account?.refresh_token_encrypted;
 
-  let encryptedToken = account?.refresh_token_encrypted;
-  
   if (!encryptedToken) {
-    const { data: user } = await supabase.from('users').select('google_calendar_refresh_token').eq('id', userId).single();
-    if (!user?.google_calendar_refresh_token) throw new Error('User not connected to Google Calendar');
-    encryptedToken = user.google_calendar_refresh_token;
+    throw new Error('User not connected to Google Calendar');
   }
 
-  const decryptedToken = decryptToken(encryptedToken);
+  const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
   const accessToken = await refreshGoogleToken(decryptedToken);
 
   const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
@@ -450,21 +413,11 @@ export async function pushEventToGoogle(userId: string, eventData: any) {
   }
 
   const supabase = await createClient();
-  const { data: account } = await supabase
-    .from('integration_accounts')
-    .select('id, refresh_token_encrypted')
-    .eq('user_id', userId)
-    .eq('provider', 'google_calendar')
-    .maybeSingle();
+  const account = await getIntegrationAccount(userId, 'google_calendar');
+  const encryptedToken = account?.refresh_token_encrypted;
+  if (!encryptedToken) return;
 
-  let encryptedToken = account?.refresh_token_encrypted;
-  if (!encryptedToken) {
-    const { data: user } = await supabase.from('users').select('google_calendar_refresh_token').eq('id', userId).single();
-    if (!user?.google_calendar_refresh_token) return; // Silently fail if not connected
-    encryptedToken = user.google_calendar_refresh_token;
-  }
-
-  const decryptedToken = decryptToken(encryptedToken);
+  const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
   const accessToken = await refreshGoogleToken(decryptedToken);
 
   const googleEventId = eventData.metadata?.google_event_id || (eventData.source === 'google_calendar' ? eventData.external_id : null);
@@ -526,21 +479,11 @@ export async function deleteEventFromGoogle(userId: string, externalId: string, 
   }
 
   const supabase = await createClient();
-  const { data: account } = await supabase
-    .from('integration_accounts')
-    .select('id, refresh_token_encrypted')
-    .eq('user_id', userId)
-    .eq('provider', 'google_calendar')
-    .maybeSingle();
+  const account = await getIntegrationAccount(userId, 'google_calendar');
+  const encryptedToken = account?.refresh_token_encrypted;
+  if (!encryptedToken) return;
 
-  let encryptedToken = account?.refresh_token_encrypted;
-  if (!encryptedToken) {
-    const { data: user } = await supabase.from('users').select('google_calendar_refresh_token').eq('id', userId).single();
-    if (!user?.google_calendar_refresh_token) return;
-    encryptedToken = user.google_calendar_refresh_token;
-  }
-
-  const decryptedToken = decryptToken(encryptedToken);
+  const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
   const accessToken = await refreshGoogleToken(decryptedToken);
 
   let calId = calendarId;

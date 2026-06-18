@@ -1,20 +1,25 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import {
   canSendNotification,
   type NotificationPreferences,
 } from '@/lib/notifications/preferences';
 import { recordNotificationDelivery, getRecentTestNotificationCount } from '@/lib/notifications/delivery';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (userError || !user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     const { data: userData, error: dbError } = await supabase
       .from('users')
@@ -31,7 +36,6 @@ export async function POST() {
       return NextResponse.json({ error: 'Push notifications are disabled in your notification settings.' }, { status: 400 });
     }
 
-    // Rate Limit: Max 3 test push notifications per week (168 hours)
     const recentCount = await getRecentTestNotificationCount(supabase, user.id, 'push', 168);
     if (recentCount >= 3) {
       return NextResponse.json(
@@ -69,14 +73,12 @@ export async function POST() {
 
     const result = await response.json();
 
-    // Check if there's a specific error from Expo (e.g., DeviceNotRegistered)
     if (result.data?.status === 'error') {
-       if (result.data.details?.error === 'DeviceNotRegistered') {
-         // Clean up stale token
-         await supabase.from('users').update({ expo_push_token: null }).eq('id', user.id);
-         return NextResponse.json({ error: 'Device token is no longer valid. Please re-enable notifications on your mobile device.' }, { status: 400 });
-       }
-       return NextResponse.json({ error: `Expo Error: ${result.data.message}` }, { status: 400 });
+      if (result.data.details?.error === 'DeviceNotRegistered') {
+        await supabase.from('users').update({ expo_push_token: null }).eq('id', user.id);
+        return NextResponse.json({ error: 'Device token is no longer valid. Please re-enable notifications on your mobile device.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: `Expo Error: ${result.data.message}` }, { status: 400 });
     }
 
     const dedupeKey = `test-${Date.now()}`;
@@ -92,9 +94,6 @@ export async function POST() {
     return NextResponse.json({ success: true, message: 'Test notification sent successfully' });
   } catch (err: unknown) {
     console.error('[notifications/test] Unhandled error:', err);
-    return NextResponse.json({
-      error: 'Internal Server Error',
-      details: err instanceof Error ? err.message : 'Unknown error',
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

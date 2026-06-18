@@ -1,6 +1,4 @@
-import React from 'react';
-import { render, screen, act, waitFor } from '@testing-library/react-native';
-import DailyPlanScreen from '../app/(tabs)/index';
+import { render, waitFor } from '@testing-library/react-native';
 
 // Mock dependencies
 jest.mock('@/hooks/useTheme', () => ({
@@ -69,6 +67,8 @@ jest.mock('@/lib/widgetData', () => ({
 describe('DailyPlanScreen Smoke Test', () => {
   // TODO: Fix Invalid hook call caused by React 19 and jest-expo incompatibility
   it.skip('renders correctly', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const DailyPlanScreen = require('../app/(tabs)/index').default;
     const utils = render(<DailyPlanScreen />);
 
     await waitFor(() => {

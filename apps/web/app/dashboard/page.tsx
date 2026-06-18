@@ -13,6 +13,7 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import type { CalendarEvent } from '@/types/calendar';
 import { X, Clock } from '@phosphor-icons/react';
 import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
+import { IntegrationPulseCards } from '@/components/dashboard/IntegrationPulseCards';
 
 const BrunoMark = ({ size = 28, mood = 'normal' }: { size?: number, mood?: string }) => (
   <svg viewBox="0 0 48 48" width={size} height={size} className="flex-none">
@@ -124,7 +125,8 @@ const UpcomingAgendaItem = ({ item, onView }: { item: any, onView: (item: any) =
           </div>
         )}
         <div className="font-mono text-[10px] text-(--color-ink-soft) mt-1.5 truncate tracking-wide uppercase">
-          <span className={item.type === 'task' ? 'text-(--color-rose)' : 'text-(--color-blue)'}>●</span> {item.type === 'task' ? 'Open task' : 'Calendar event'}
+          <span className={item.type === 'task' ? 'text-(--color-rose)' : item.type === 'work' ? 'text-(--color-sage)' : 'text-(--color-blue)'}>●</span>{' '}
+          {item.type === 'task' ? 'Open task' : item.type === 'work' ? `${item.provider ?? 'Work'} item` : 'Calendar event'}
         </div>
       </div>
       <button onClick={() => onView(item)} className="bg-transparent text-(--color-ink) border border-line-strong px-4 py-1.5 rounded-full text-xs hover:bg-(--color-cream-2) transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-ink) shrink-0 font-medium">
@@ -173,6 +175,7 @@ export default function DashboardPage() {
     return 'evening';
   });
   const [tasks, setTasks] = useState<any[]>([]);
+  const [workItems, setWorkItems] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [thisWeekEvents, setThisWeekEvents] = useState<any[]>([]);
   const [insight, setInsight] = useState<string>('');
@@ -208,9 +211,14 @@ export default function DashboardPage() {
         
         const profilePromise = (supabase as any)
           .from('users')
-          .select('name, canvas_token, google_calendar_connected, google_calendar_last_synced_at, scheduling_preferences')
+          .select('name, google_calendar_last_synced_at, scheduling_preferences')
           .eq('id', user.id)
           .single();
+
+        const integrationsPromise = supabase
+          .from('integration_accounts_public' as 'integration_accounts')
+          .select('provider, status, last_synced_at')
+          .eq('user_id', user.id);
 
         const tasksPromise = supabase
           .from('tasks')
@@ -256,29 +264,44 @@ export default function DashboardPage() {
           .order('start_time', { ascending: true })
           .limit(10);
 
-        const [{ data: profile }, { data: taskRows }, { data: blocks }, { count: canvasDueCount }, { data: metricsRows }, { data: thisWeekEventsData }] = await Promise.all([
+        const workItemsPromise = (supabase as any)
+          .from('source_items')
+          .select('id, provider, title, description, due_date, url, completed')
+          .eq('user_id', user.id)
+          .in('provider', ['notion', 'slack', 'linear'])
+          .is('deleted_at', null)
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(20);
+
+        const [{ data: profile }, { data: integrationAccounts }, { data: taskRows }, { data: blocks }, { count: canvasDueCount }, { data: metricsRows }, { data: thisWeekEventsData }, { data: workItemRows }] = await Promise.all([
           profilePromise,
+          integrationsPromise,
           tasksPromise,
           blocksPromise,
           canvasDuePromise,
           metricsPromise,
-          thisWeekEventsPromise
+          thisWeekEventsPromise,
+          workItemsPromise
         ]);
           
         if (profile?.name) {
           setUserName(profile.name);
         }
 
+        const canvasAccount = integrationAccounts?.find((a: { provider: string }) => a.provider === 'canvas');
+        const googleAccount = integrationAccounts?.find((a: { provider: string }) => a.provider === 'google_calendar');
+
         setConnections({
-          canvasConnected: !!profile?.canvas_token,
+          canvasConnected: canvasAccount?.status === 'connected',
           canvasDueCount: canvasDueCount ?? 0,
-          googleConnected: !!profile?.google_calendar_connected,
-          googleLastSyncedAt: profile?.google_calendar_last_synced_at || null,
+          googleConnected: googleAccount?.status === 'connected',
+          googleLastSyncedAt: googleAccount?.last_synced_at || profile?.google_calendar_last_synced_at || null,
           googleSyncFrequency: profile?.scheduling_preferences?.google_sync_frequency || 'hourly',
         });
 
         setTasks(taskRows || []);
         setThisWeekEvents(thisWeekEventsData || []);
+        setWorkItems((workItemRows || []).filter((w: any) => !w.completed));
 
         // Calculate momentum stats from the parallel-fetched metrics
         const threeDaysFromNow = new Date();
@@ -455,7 +478,7 @@ export default function DashboardPage() {
 
 
   const upcomingAgenda = useMemo(() => {
-    const items: Array<{ id: string, type: 'task' | 'event', title: string, description?: string, date: Date, actionText: string, raw: any }> = [];
+    const items: Array<{ id: string, type: 'task' | 'event' | 'work', provider?: string, title: string, description?: string, date: Date, actionText: string, raw: any }> = [];
     
     // Add upcoming events
     if (thisWeekEvents) {
@@ -488,12 +511,28 @@ export default function DashboardPage() {
       });
     }
 
+    // Add work items synced from Notion/Slack/Linear
+    if (workItems) {
+      workItems.forEach(w => {
+        items.push({
+          id: w.id,
+          type: 'work',
+          provider: w.provider,
+          title: w.title || 'Untitled',
+          description: w.description || '',
+          date: w.due_date ? new Date(w.due_date) : new Date(8640000000000000),
+          actionText: w.url ? 'Open' : 'View',
+          raw: w
+        });
+      });
+    }
+
     // Sort by date
     items.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // Return top 4
     return items.slice(0, 4);
-  }, [thisWeekEvents, tasks]);
+  }, [thisWeekEvents, tasks, workItems]);
 
   if (loading) {
     return (
@@ -582,6 +621,7 @@ export default function DashboardPage() {
         <div className="flex gap-2.5 flex-wrap justify-end">
           <SourcePill kind="canvas" label="Canvas" count={`${connections.canvasDueCount} due`} status={connections.canvasConnected ? 'synced' : ''} />
           <SourcePill kind="cal" label="Calendar" count="Synced" status={connections.googleConnected ? 'synced' : ''} />
+          <IntegrationPulseCards />
         </div>
       </div>
 
@@ -683,6 +723,9 @@ export default function DashboardPage() {
                 onView={(i) => {
                   if (i.type === 'event') {
                     setSelectedEventModal(i.raw as CalendarEvent);
+                  } else if (i.type === 'work') {
+                    if (i.raw?.url) window.open(i.raw.url, '_blank', 'noopener,noreferrer');
+                    else setSelectedTaskModal(i.raw);
                   } else {
                     setSelectedTaskModal(i.raw);
                   }

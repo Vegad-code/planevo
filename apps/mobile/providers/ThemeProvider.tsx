@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useColorScheme as useDeviceColorScheme } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { Colors, ACCENTS, ACCENT_LIST, type AccentId } from '@/constants/Colors';
+import { supabase } from '@/lib/supabase';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -20,8 +21,6 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-
-import { supabase } from '@/lib/supabase';
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const deviceScheme = useDeviceColorScheme() ?? 'light';

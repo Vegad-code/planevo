@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createClient } from '@/lib/supabase/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
 type PortalProfile = {
   stripe_customer_id: string | null;
@@ -8,12 +9,16 @@ type PortalProfile = {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(req)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (authError || !user) {
+    const auth = await createAuthenticatedSupabaseClient(req);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     // Look up the user's Stripe customer ID
     const { data } = await supabase

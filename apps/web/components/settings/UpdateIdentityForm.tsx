@@ -48,6 +48,27 @@ export function UpdateIdentityForm({ initialData }: { initialData: Record<string
     >
       <div className="space-y-0">
         <SettingsRow 
+          title="Profile Picture" 
+          description="Your profile picture from Google."
+        >
+          <div className="w-12 h-12 bg-settings-brand rounded-xl flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0">
+            {initialData?.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={initialData.avatar_url} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              (() => {
+                const displayName = initialData?.preferred_name || initialData?.name || 'User';
+                const parts = displayName.split(' ').filter(Boolean);
+                if (parts.length > 1) {
+                  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                }
+                return displayName.substring(0, 2).toUpperCase();
+              })()
+            )}
+          </div>
+        </SettingsRow>
+
+        <SettingsRow 
           title="Email Address" 
           description="Your email is linked to your authentication provider."
         >

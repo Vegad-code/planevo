@@ -13,15 +13,20 @@ export default function SettingsSidebar({ profile, badges }: { profile: Record<s
     <aside className="w-full md:w-60 flex-shrink-0 flex flex-col gap-5">
       {/* Profile Card */}
       <div className="bg-settings-card rounded-2xl p-4 border border-settings-border flex items-center gap-3 shadow-sm">
-        <div className="w-11 h-11 bg-settings-brand rounded-xl flex items-center justify-center text-white font-black text-sm">
-          {(() => {
-            const displayName = profile?.preferred_name || profile?.name || 'User';
-            const parts = displayName.split(' ').filter(Boolean);
-            if (parts.length > 1) {
-              return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-            }
-            return displayName.substring(0, 2).toUpperCase();
-          })()}
+        <div className="w-11 h-11 bg-settings-brand rounded-xl flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0">
+          {profile?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt={profile?.preferred_name || profile?.name || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            (() => {
+              const displayName = profile?.preferred_name || profile?.name || 'User';
+              const parts = displayName.split(' ').filter(Boolean);
+              if (parts.length > 1) {
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+              }
+              return displayName.substring(0, 2).toUpperCase();
+            })()
+          )}
         </div>
         <div className="min-w-0">
           <h3 className="font-black text-settings-text leading-tight text-sm truncate">

@@ -21,6 +21,7 @@ export async function writeWidgetData(action: NextActionData | null): Promise<vo
 
   try {
     const SharedGroupPreferences =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('react-native-shared-group-preferences').default;
 
     if (!action) {

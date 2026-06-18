@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getActionDefinition } from "@/lib/bruno/tools/registry";
 import { getAuthenticatedUser } from "@/lib/auth/get-user";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { isAllowedOriginOrBearer } from "@/lib/auth/origin-guard";
 
 const executeActionSchema = z.object({
   proposalId: z.string().min(1),
@@ -20,6 +21,10 @@ const executeActionSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  if (!isAllowedOriginOrBearer(request)) {
+    return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+
   const { user, error: authError } = await getAuthenticatedUser(request);
 
   if (!user || authError) {
@@ -41,6 +46,28 @@ export async function POST(request: NextRequest) {
   if (!actionDef?.executable) {
     return NextResponse.json(
       { success: false, error: "Action is not executable" },
+      { status: 403 }
+    );
+  }
+
+  const proposalWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: matchingProposal } = await supabaseAdmin
+    .from("bruno_tool_logs")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("tool_name", "propose_action")
+    .contains("arguments", {
+      type: parsed.data.type,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      payload: parsed.data.payload,
+    })
+    .gte("created_at", proposalWindowStart)
+    .maybeSingle();
+
+  if (!matchingProposal) {
+    return NextResponse.json(
+      { success: false, error: "Proposal could not be verified. Please ask Bruno to regenerate it." },
       { status: 403 }
     );
   }

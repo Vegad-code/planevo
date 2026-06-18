@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { BRUNO_SYSTEM_PROMPT } from '@/lib/bruno';
-import { checkRateLimit } from '@/lib/auth/rateLimit';
+import { checkRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
 type ScheduleTask = {
   id: string;
@@ -10,26 +11,37 @@ type ScheduleTask = {
   estimated_minutes: number | null;
 };
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const rateLimitResult = await checkRateLimit('schedule');
-
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json({
-        error: rateLimitResult.error === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        message: (rateLimitResult as any).message || 'You have reached your daily AI limit.'
-      }, { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 });
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch active tasks for the user
+    const { supabase, user, authMethod } = auth;
+
+    const rateLimitResult =
+      authMethod === 'bearer'
+        ? await checkRateLimitForUser(user.id, 'schedule', user.email)
+        : await checkRateLimit('schedule');
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: rateLimitResult.error === 'Unauthorized' ? 'Unauthorized' : 'Forbidden',
+          message:
+            'message' in rateLimitResult && rateLimitResult.message
+              ? rateLimitResult.message
+              : 'You have reached your daily AI limit.',
+        },
+        { status: rateLimitResult.error === 'Unauthorized' ? 401 : 403 }
+      );
+    }
+
     const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
       .select('id, title, priority, estimated_minutes')
@@ -48,9 +60,10 @@ export async function POST() {
       return NextResponse.json({ error: 'OpenAI API key is missing' }, { status: 500 });
     }
 
-    // Create the prompt for OpenAI
-    const taskList = tasks.map((t: { title: string; priority: string }) => `- ${t.title} (Priority: ${t.priority})`).join('\n');
-    
+    const taskList = tasks
+      .map((t) => `- ${t.title} (Priority: ${t.priority})`)
+      .join('\n');
+
     const userPrompt = `Please create a daily schedule based on these tasks:\n${taskList}\n
 Format the response as a JSON object with a single key "schedule" containing an array of objects. Each object should represent a scheduled block with the following keys:
 - "time": string (e.g. "09:00 AM - 10:30 AM")
@@ -64,17 +77,17 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openAiKey}`
+        Authorization: `Bearer ${openAiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: BRUNO_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
-        response_format: { type: 'json_object' }
-      })
+        response_format: { type: 'json_object' },
+      }),
     });
 
     if (!response.ok) {
@@ -85,20 +98,16 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
 
     const aiData = await response.json();
     const content = aiData.choices[0].message.content;
-    
+
     try {
-      // The prompt asks for a JSON array, but we forced json_object. So we wrap the prompt to ask for {"schedule": [...]}.
-      // Wait, let's fix the prompt to ensure it returns an object with a 'schedule' key.
       const parsed = JSON.parse(content);
-      // Depending on how GPT returned it, it might be an array or an object containing an array.
       let scheduleArray = [];
       if (Array.isArray(parsed)) {
         scheduleArray = parsed;
       } else if (parsed.schedule && Array.isArray(parsed.schedule)) {
         scheduleArray = parsed.schedule;
       } else {
-        // Fallback: extract the first array found in the object
-        const firstArrayKey = Object.keys(parsed).find(key => Array.isArray(parsed[key]));
+        const firstArrayKey = Object.keys(parsed).find((key) => Array.isArray(parsed[key]));
         if (firstArrayKey) {
           scheduleArray = parsed[firstArrayKey];
         }
@@ -108,7 +117,6 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
       console.error('Failed to parse AI output', content);
       return NextResponse.json({ error: 'Failed to parse generated schedule' }, { status: 500 });
     }
-
   } catch (error) {
     console.error('Schedule generation error:', error);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });

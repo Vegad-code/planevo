@@ -53,7 +53,7 @@ export function GoogleCalendarManageModal({ isOpen, onClose, profile, onProfileU
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: account } = await supabase
-      .from('integration_accounts')
+      .from('integration_accounts_public' as 'integration_accounts')
       .select('last_synced_at, last_error, status')
       .eq('user_id', user.id)
       .eq('provider', 'google_calendar')

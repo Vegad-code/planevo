@@ -14,10 +14,14 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (user) {
     const { data } = await supabase
       .from('users')
-      .select('name, plan_type, subscription_status, trial_end')
+      .select('name, plan_type, subscription_status, trial_end, avatar_url')
       .eq('id', user.id)
       .single();
-    profile = { ...data, email: user.email };
+    profile = { 
+      ...data, 
+      email: user.email, 
+      avatar_url: data?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null 
+    };
 
     if (data) {
       const plan = normalizePlanType(data.plan_type);

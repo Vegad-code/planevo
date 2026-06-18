@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   Dimensions,
   Platform,
   ActivityIndicator,
@@ -18,17 +17,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle2, Circle, Clock, MoreHorizontal, Calendar, ArrowRight, Plus, Trash } from 'lucide-react-native';
+import { CheckCircle2, Circle, Clock, Calendar, Plus, Trash } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  useAnimatedScrollHandler,
-  runOnJS
-} from 'react-native-reanimated';
 import { Swipeable } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import BottomSheet, { BottomSheetTextInput, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { parseTaskInput } from '@/lib/taskParser';
 import { buildFallbackGroups, Task } from '@/lib/taskGrouping';
@@ -67,7 +59,7 @@ export default function TasksScreen() {
     const currentIndex = levels.indexOf(editPriority);
     setEditPriority(levels[(currentIndex + 1) % levels.length]);
   };
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     if (!user) return;
     try {
       const { data: tasksData } = await supabase
@@ -114,7 +106,7 @@ export default function TasksScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchTasks();
@@ -135,7 +127,7 @@ export default function TasksScreen() {
       supabase.removeChannel(channelTasks);
       supabase.removeChannel(channelSources);
     };
-  }, [user]);
+  }, [user, fetchTasks]);
 
   const handleCreateTask = async (title: string, explicitDate: string, explicitDuration: string, explicitPriority: string) => {
     if (!title.trim() || !user) return;

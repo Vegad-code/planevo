@@ -88,9 +88,43 @@ export async function getBrunoMasterContext(
     is_assignment: true
   })).filter(t => !scheduledTaskIds.has(t.id));
 
+  // 4b. Fetch External Integrations (source_items)
+  const { data: sourceItems } = await (supabase as any)
+    .from('source_items')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('completed', false)
+    .is('deleted_at', null)
+    .is('imported_task_id', null);
+
+  const prefs = user.scheduling_preferences as Record<string, any> | null;
+  const defaultDuration = prefs?.default_task_duration || 60;
+
+  // Providers can report completed=false while their status says "Done"; treat
+  // those as finished so Bruno never schedules already-closed work.
+  const DONE_SOURCE_STATUSES = new Set([
+    'done', 'completed', 'complete', 'closed', 'cancelled', 'canceled', 'archived',
+  ]);
+  const openSourceItems = (sourceItems || []).filter(
+    (item: any) => !DONE_SOURCE_STATUSES.has(String(item.status ?? '').toLowerCase())
+  );
+
+  const mappedSourceItems = openSourceItems.map((item: any) => ({
+    id: item.id,
+    title: `[${item.provider.charAt(0).toUpperCase() + item.provider.slice(1)}] ${item.title}`,
+    estimated_minutes: defaultDuration,
+    priority: item.priority || 'medium',
+    external_url: item.url || undefined,
+    energy_level_required: 'medium' as const,
+    due_at: item.due_date,
+    is_external_source: true,
+    provider: item.provider
+  })).filter((t: any) => !scheduledTaskIds.has(t.id));
+
   const allTasks = [
     ...unscheduledTasks,
-    ...mappedCanvasTasks
+    ...mappedCanvasTasks,
+    ...mappedSourceItems
   ];
 
   // 5. Build Final Events List

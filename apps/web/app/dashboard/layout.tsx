@@ -68,7 +68,7 @@ export default function DashboardLayout({
         <main
           className={`
             transition-all duration-300 ease-in-out min-h-screen
-            ${sidebarCollapsed ? 'lg:ml-17' : 'lg:ml-60'}
+            ${sidebarCollapsed ? 'lg:ml-[110px]' : 'lg:ml-[320px]'}
           `}
         >
           <div className={`p-6 lg:p-8 w-full ${isCalendar ? 'max-w-350' : (sidebarCollapsed ? 'max-w-400' : 'max-w-5xl')} mx-auto transition-all duration-300 ease-in-out`}>

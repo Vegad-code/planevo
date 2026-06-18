@@ -34,6 +34,7 @@ describe('buildBrunoContext', () => {
       taskContext: '',
       calendarContext: '',
       canvasContext: '',
+      integrationContext: '',
     });
     expect(loaders.loadTasks).not.toHaveBeenCalled();
     expect(loaders.loadCalendar).not.toHaveBeenCalled();

@@ -1,6 +1,4 @@
-import React from 'react';
-import { render, screen, act, waitFor } from '@testing-library/react-native';
-import BrunoChatScreen from '../app/(tabs)/chat';
+import { render, waitFor } from '@testing-library/react-native';
 
 jest.mock('@/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -37,6 +35,8 @@ jest.mock('@/lib/supabase', () => {
 describe('BrunoChatScreen Smoke Test', () => {
   // TODO: Fix Invalid hook call caused by React 19 and jest-expo incompatibility
   it.skip('renders chat input correctly', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const BrunoChatScreen = require('../app/(tabs)/chat').default;
     const utils = render(<BrunoChatScreen />);
 
     await waitFor(() => {

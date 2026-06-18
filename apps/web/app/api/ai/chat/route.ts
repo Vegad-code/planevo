@@ -10,15 +10,13 @@ import {
   createAiLatencyTimer,
   shouldReportLatencyDiagnostic,
 } from '@/lib/diagnostics/aiLatency';
-import { getUserAIMemory, buildMemoryContext, recordPlanFeedbackInMemory } from '@/lib/ai/memory';
-import type { PlanDraftItem } from '@/lib/ai/memory';
+import { getUserAIMemory, buildMemoryContext } from '@/lib/ai/memory';
 import { z } from 'zod';
 import * as Sentry from '@sentry/nextjs';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 import { posthogServer } from '@/lib/posthog-server';
 import { streamText, generateText, tool, stepCountIs, jsonSchema, convertToModelMessages } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { pushEventToGoogle, hasGoogleWriteScope } from '@/lib/integrations/google-calendar';
 import {
   buildPageContextBlock,
   pageContextSchema,
@@ -181,7 +179,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       supabaseAdmin
         .from('users')
-        .select('name, plan_type, canvas_token, google_calendar_refresh_token, energy_preference, scheduling_preferences')
+        .select('name, plan_type, energy_preference, scheduling_preferences')
         .eq('id', user.id)
         .single()
     ]);
@@ -218,11 +216,30 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(100);
+
+    const { data: sourceItems } = await supabaseAdmin
+      .from('source_items')
+      .select('id, title, provider, due_date, url, imported_task_id')
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .is('imported_task_id', null)
+      .limit(100);
+
+    const mappedSourceItems = (sourceItems || []).map(item => ({
+      id: item.id,
+      title: `[${item.provider.charAt(0).toUpperCase() + item.provider.slice(1)}] ${item.title}`,
+      status: 'todo',
+      due_date: item.due_date,
+      priority: 'medium',
+      estimated_minutes: 60,
+    }));
+
+    const allTasks = [...(tasks || []), ...mappedSourceItems];
     latencyTimer.mark('assignments');
 
-    const taskListContext = tasks && tasks.length > 0
+    const taskListContext = allTasks && allTasks.length > 0
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? (tasks as any[]).map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
+      ? (allTasks as any[]).map(t => `- [${t.status}] "${t.title}" (ID: ${t.id}, Due: ${t.due_date || 'No due date'}, Priority: ${t.priority}, Duration: ${t.estimated_minutes}m)`).join('\n')
       : 'No active tasks found.';
 
     // Fetch calendar events for the next 7 days for context
@@ -279,13 +296,6 @@ URL: ${a.html_url || 'N/A'}
 
     // Determine if user is on a premium plan
     const userPlanType = normalizePlanType(profile?.plan_type);
-    const isPremium = userPlanType !== 'free' && userPlanType !== 'canceled';
-
-    // Check if user has Google Calendar connected WITH write scope
-    const hasGoogleCalendar = !!profile?.google_calendar_refresh_token;
-    const hasGoogleWrite = hasGoogleCalendar ? await hasGoogleWriteScope(user.id) : false;
-
-    
 
     const userTimeZone = timeZone || 'UTC';
     const userLocalTime = localTime || new Date().toLocaleString();
@@ -375,7 +385,7 @@ For assignment/project/task breakdown requests, call this tool once per proposed
 Do not only write the tasks in text.
 If you mention "confirm" or "create these tasks", corresponding CREATE_TASK proposal cards must exist.`,
         inputSchema: proposeActionParams,
-        execute: async (validArgs: any) => {
+        execute: async (validArgs: unknown) => {
           console.log("[API] propose_action tool called with args:", validArgs);
           await logToolExecution('propose_action', validArgs, { success: true });
           return {

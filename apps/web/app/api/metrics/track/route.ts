@@ -1,25 +1,29 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
 /**
  * POST /api/metrics/track
- * 
+ *
  * Tracks user accomplishments in the daily_user_metrics table.
- * Uses a single-query upsert for maximum speed.
- * 
+ *
  * Body:
  *   - type: 'focus_time' | 'task_completed' | 'task_planned'
  *   - value: number (seconds for focus_time, count for others)
  *   - date?: string (ISO date, defaults to today)
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (!user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     const body = await request.json();
     const { type, value, date } = body;
@@ -35,7 +39,6 @@ export async function POST(request: Request) {
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Single-query upsert: insert a row with the value, or add to existing
     const columnMap: Record<string, string> = {
       focus_time: 'focus_time_seconds',
       task_completed: 'tasks_completed',
@@ -43,14 +46,13 @@ export async function POST(request: Request) {
     };
     const column = columnMap[type];
 
-    // Use Supabase upsert with onConflict to do a single round-trip
     const insertRow: Record<string, unknown> = {
       user_id: user.id,
       date: targetDate,
       focus_time_seconds: 0,
       tasks_completed: 0,
       tasks_planned: 0,
-      [column]: Math.max(0, value), // clamp to 0 for new inserts
+      [column]: Math.max(0, value),
     };
 
     const { data: existing } = await supabase
@@ -62,11 +64,11 @@ export async function POST(request: Request) {
 
     if (existing) {
       const newValue = Math.max(0, (existing[column as keyof typeof existing] as number) + value);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updatePayload = { [column]: newValue, updated_at: new Date().toISOString() } as any;
+      const updatePayload = { [column]: newValue, updated_at: new Date().toISOString() };
       const { error } = await supabase
         .from('daily_user_metrics')
-        .update(updatePayload)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(updatePayload as any)
         .eq('id', existing.id);
 
       if (error) {
@@ -94,18 +96,17 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/metrics/track
- * 
+ *
  * Fetches the user's metrics for the last 7 days.
- * Only selects the columns we need to minimize payload size.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

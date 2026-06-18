@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Broom } from '@phosphor-icons/react';
+import { Plus, Broom, ArrowsClockwise } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
+import { useProIntegrations } from '@/hooks/useProIntegrations';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { Task, BestTimeOfDay, EnergyLevel, TaskPriority } from '@/types/tasks';
 import { useTaskGroups } from '@/hooks/useTaskGroups';
@@ -25,7 +26,10 @@ export default function EnhancedTasks() {
   const [showWhyModal, setShowWhyModal] = useState(false);
 
   // Tabs for source-based filtering
-  const [activeTab, setActiveTab] = useState<'all' | 'canvas' | 'calendar' | 'notion' | 'linear' | 'slack' | 'personal'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'canvas' | 'calendar' | 'work' | 'personal'>('all');
+
+  const { connectedProviders, syncing, syncAll } = useProIntegrations();
+  const hasWorkIntegrations = connectedProviders.length > 0;
 
   // Reschedule modal
   const [rescheduleTaskId, setRescheduleTaskId] = useState<string | null>(null);
@@ -131,12 +135,9 @@ export default function EnhancedTasks() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const canvasTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'canvas' || t.external_url?.includes('canvas') || t.external_url?.includes('instructure')), [tasks]);
   const calendarTasks = useMemo(() => tasks.filter(t => t.external_url?.includes('calendar') || t.external_url?.includes('google.com/calendar')), [tasks]);
+  const workProviders = ['notion', 'slack', 'linear'];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const notionTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'notion'), [tasks]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const linearTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'linear'), [tasks]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const slackTasks = useMemo(() => tasks.filter(t => (t as any).provider === 'slack'), [tasks]);
+  const workTasks = useMemo(() => tasks.filter(t => workProviders.includes((t as any).provider)), [tasks]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const personalTasks = useMemo(() => tasks.filter(t => !(t as any).provider && !t.external_url?.includes('canvas') && !t.external_url?.includes('instructure') && !t.external_url?.includes('calendar') && !t.external_url?.includes('google.com/calendar')), [tasks]);
 
@@ -144,26 +145,27 @@ export default function EnhancedTasks() {
     all: tasks.length,
     canvas: canvasTasks.length,
     calendar: calendarTasks.length,
-    notion: notionTasks.length,
-    linear: linearTasks.length,
-    slack: slackTasks.length,
+    work: workTasks.length,
     personal: personalTasks.length,
-  }), [tasks, canvasTasks, calendarTasks, notionTasks, linearTasks, slackTasks, personalTasks]);
+  }), [tasks, canvasTasks, calendarTasks, workTasks, personalTasks]);
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
     if (activeTab === 'canvas') result = canvasTasks;
     else if (activeTab === 'calendar') result = calendarTasks;
-    else if (activeTab === 'notion') result = notionTasks;
-    else if (activeTab === 'linear') result = linearTasks;
-    else if (activeTab === 'slack') result = slackTasks;
+    else if (activeTab === 'work') result = workTasks;
     else if (activeTab === 'personal') result = personalTasks;
 
     if (hideCompleted) {
       result = result.filter(t => !t.completed);
     }
     return result;
-  }, [activeTab, tasks, canvasTasks, calendarTasks, notionTasks, linearTasks, slackTasks, personalTasks, hideCompleted]);
+  }, [activeTab, tasks, canvasTasks, calendarTasks, workTasks, personalTasks, hideCompleted]);
+
+  const handleSyncWork = useCallback(async () => {
+    await syncAll();
+    handleRefresh();
+  }, [syncAll, handleRefresh]);
 
   // Groups for the list view based on filtered tasks
   const groups = useTaskGroups(filteredTasks, aiResponse);
@@ -310,6 +312,17 @@ export default function EnhancedTasks() {
                 <span className="text-[14px] font-bold text-[var(--color-honey-deep)]">{stats.currentStreak}d</span>
               </div>
             </div>
+            {hasWorkIntegrations && (
+              <button
+                onClick={handleSyncWork}
+                disabled={syncing}
+                title="Sync Notion, Slack, and Linear"
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-[var(--color-settings-card)] border border-[var(--color-line)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-cream)] rounded-full text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <ArrowsClockwise size={15} weight="bold" className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Syncing...' : 'Sync work'}
+              </button>
+            )}
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 px-5 py-2.5 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-[var(--color-paper)] rounded-full text-sm font-medium transition-colors cursor-pointer shadow-md"
@@ -324,7 +337,7 @@ export default function EnhancedTasks() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
           {/* Sources Filter */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto hide-scrollbar">
-            {(['all', 'canvas', 'calendar', 'notion', 'linear', 'slack', 'personal'] as const).map((tab) => {
+            {(['all', 'canvas', 'calendar', ...(hasWorkIntegrations ? ['work' as const] : []), 'personal'] as const).map((tab) => {
               const isActive = activeTab === tab;
               const count = counts[tab];
               return (

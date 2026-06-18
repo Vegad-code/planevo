@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { checkRateLimitForUser } from '@/lib/auth/rateLimit';
 
 const requestSchema = z.object({
   message: z.string().min(1).max(2000),
@@ -12,9 +14,21 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (!isAllowedOriginOrBearer(req)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
     const { user, error: authError } = await getAuthenticatedUser(req);
     if (authError || !user) {
       return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateLimitResult = await checkRateLimitForUser(user.id, 'generate-title', user.email);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: rateLimitResult.error, message: rateLimitResult.message },
+        { status: rateLimitResult.error === 'Unauthorized' ? 401 : 429 }
+      );
     }
 
     const body = await req.json();

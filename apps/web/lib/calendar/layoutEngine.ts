@@ -187,6 +187,9 @@ export function getSourceColor(source: CalendarEvent['source']): string {
     cargo_bay: 'var(--color-cargo)',
     focus_block: 'var(--color-focus)',
     rollover: 'var(--color-rollover)',
+    notion: '#111827',
+    slack: '#4A154B',
+    linear: '#5E6AD2',
   };
   return map[source] || 'var(--color-manual)';
 }
@@ -204,6 +207,9 @@ export function getSourceLabel(source: CalendarEvent['source']): string {
     cargo_bay: 'Cargo Bay',
     focus_block: 'Focus',
     rollover: 'Rolled Over',
+    notion: 'Notion',
+    slack: 'Slack',
+    linear: 'Linear',
   };
   return map[source] || source;
 }

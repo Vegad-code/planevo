@@ -1,14 +1,24 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+
+const calendarEventDataSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  start_time: z.string().datetime(),
+  end_time: z.string().datetime(),
+  source: z.string().trim().min(1).max(100).optional().default('n8n'),
+}).refine((event) => new Date(event.end_time).getTime() > new Date(event.start_time).getTime(), {
+  message: 'end_time must be after start_time',
+  path: ['end_time'],
+});
 
 const eventSchema = z.object({
   token: z.string().uuid(),
-  type: z.enum(['calendar_event', 'github_pr', 'jira_task']),
-  data: z.any()
+  type: z.literal('calendar_event'),
+  data: calendarEventDataSchema,
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const result = eventSchema.safeParse(body);
@@ -17,11 +27,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
     }
 
-    const { token, type, data } = result.data;
-    const supabase = await createClient();
+    const { token, data } = result.data;
 
-    // Verify token and find user
-    const { data: userProfile, error: userError } = await supabase
+    const { data: userProfile, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('n8n_webhook_token', token)
@@ -31,23 +39,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized: Invalid Signal Token' }, { status: 401 });
     }
 
-    if (type === 'calendar_event') {
-      const { title, start_time, end_time, source = 'google_calendar' } = data;
-      
-      const { error: insertError } = await supabase
-        .from('calendar_events')
-        .insert({
-          user_id: userProfile.id,
-          title,
-          start_time,
-          end_time,
-          source
-        });
+    const { error: insertError } = await supabaseAdmin
+      .from('calendar_events')
+      .insert({
+        user_id: userProfile.id,
+        title: data.title,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        source: data.source,
+      });
 
-      if (insertError) throw insertError;
-    }
-
-    // Future: Handle github_pr, jira_task
+    if (insertError) throw insertError;
 
     return NextResponse.json({ success: true, message: 'Signal received and logged.' });
   } catch (error: unknown) {

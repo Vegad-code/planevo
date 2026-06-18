@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, type ComponentType } from 'react';
 
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useCalendarPreferences } from '@/hooks/useCalendarPreferences';
@@ -14,7 +14,16 @@ import type { CalendarEvent } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import QuickAddSidebar from '@/components/calendar/dialogs/QuickAddSidebar';
 import { format, startOfWeek, addDays } from 'date-fns';
-import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
+import { useRegisterBrunoContext, useBruno } from '@/components/bruno/BrunoProvider';
+import { useProIntegrations } from '@/hooks/useProIntegrations';
+import { SlackIcon, NotionIcon, LinearIcon } from '@/components/icons/BrandIcons';
+import type { ProIntegrationProvider } from '@/lib/integrations/types';
+
+const LAYER_ICONS: Record<ProIntegrationProvider, ComponentType<{ className?: string }>> = {
+  notion: NotionIcon,
+  slack: SlackIcon,
+  linear: LinearIcon,
+};
 
 interface QuickAddData {
   title: string;
@@ -52,7 +61,11 @@ export default function CalendarPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [backlogCount, setBacklogCount] = useState<number>(0);
+  const [workItems, setWorkItems] = useState<any[]>([]);
+  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
   const supabase = createClient();
+  const { openBruno } = useBruno();
+  const { connectedProviders } = useProIntegrations();
 
   const loading = prefsLoading;
   const contextLabel = useMemo(() => {
@@ -121,6 +134,76 @@ export default function CalendarPage() {
     loadBacklogCount();
   }, [supabase, events]);
 
+  // Load work items (Notion/Linear/Slack) with due dates to overlay read-only.
+  useEffect(() => {
+    async function loadWorkItems() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await (supabase as any)
+        .from('source_items')
+        .select('id, provider, title, description, due_date, url, completed')
+        .eq('user_id', user.id)
+        .in('provider', ['notion', 'linear', 'slack'])
+        .not('due_date', 'is', null)
+        .is('deleted_at', null)
+        .limit(200);
+      if (data) setWorkItems(data.filter((w: any) => !w.completed));
+    }
+    loadWorkItems();
+  }, [supabase]);
+
+  // Convert work items into read-only overlay calendar events.
+  const overlayEvents = useMemo<CalendarEvent[]>(() => {
+    return workItems
+      .filter((w) => !hiddenLayers.has(w.provider))
+      .map((w) => {
+        const start = new Date(w.due_date);
+        const end = new Date(start.getTime() + 30 * 60 * 1000);
+        return {
+          id: `work_${w.id}`,
+          user_id: '',
+          title: w.title || 'Untitled',
+          description: w.description || '',
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          is_all_day: false,
+          source: w.provider as CalendarEvent['source'],
+          external_id: w.url || undefined,
+          is_completed: false,
+          is_deleted: false,
+          created_at: start.toISOString(),
+          updated_at: start.toISOString(),
+          metadata: { readOnly: true, url: w.url || null },
+        } as CalendarEvent;
+      });
+  }, [workItems, hiddenLayers]);
+
+  const mergedEvents = useMemo(
+    () => [...events, ...overlayEvents],
+    [events, overlayEvents]
+  );
+
+  const toggleLayer = (provider: string) => {
+    setHiddenLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(provider)) next.delete(provider);
+      else next.add(provider);
+      return next;
+    });
+  };
+
+  const handleSaveToNotion = useCallback((event: CalendarEvent) => {
+    openBruno({
+      source: 'calendar',
+      page: '/dashboard/calendar',
+      label: `Calendar - Save to Notion`,
+      payload: {
+        prompt: `Create a Notion page with notes for my calendar event "${event.title}" (${format(new Date(event.start_time), 'PPp')}).${event.description ? ` Context: ${event.description}` : ''}`,
+      },
+    });
+    toast.info('Bruno is ready to save this to Notion.');
+  }, [openBruno]);
+
   const navigateDate = (direction: 'prev' | 'next') => {
     const delta = direction === 'next' ? 1 : -1;
     switch (activeView) {
@@ -172,6 +255,12 @@ export default function CalendarPage() {
   };
 
   const handleEventClick = (event: CalendarEvent) => {
+    // Read-only work overlays open their source in a new tab instead of editing.
+    if (event.metadata?.readOnly) {
+      const url = event.metadata?.url || event.external_id;
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
     setSelectedEvent(event);
   };
 
@@ -378,6 +467,29 @@ export default function CalendarPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {connectedProviders.length > 0 && (
+              <div className="flex items-center gap-1.5 mr-1">
+                {connectedProviders.map((provider) => {
+                  const Icon = LAYER_ICONS[provider];
+                  const active = !hiddenLayers.has(provider);
+                  return (
+                    <button
+                      key={provider}
+                      onClick={() => toggleLayer(provider)}
+                      title={`${active ? 'Hide' : 'Show'} ${provider} items`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-[var(--color-ink)] text-[var(--color-cream)] border-[var(--color-ink)]'
+                          : 'bg-[var(--color-paper)] text-[var(--color-ink-muted)] border-[var(--color-line)]'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {provider}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {googleConnected && (
               <Button 
                 variant="ghost" 
@@ -449,7 +561,7 @@ export default function CalendarPage() {
         {/* Calendar Shell Grid */}
         <div className="flex-1 min-h-[600px] relative">
           <CalendarShell
-            events={events}
+            events={mergedEvents}
             preferences={preferences}
             selectedDate={selectedDate}
             activeView={activeView}
@@ -500,6 +612,7 @@ export default function CalendarPage() {
           await deleteEvent(id);
           setSelectedEvent(null);
         }}
+        onSaveToNotion={connectedProviders.includes('notion') ? handleSaveToNotion : undefined}
       />
       <QuickAddSidebar 
         isOpen={isQuickAddOpen}

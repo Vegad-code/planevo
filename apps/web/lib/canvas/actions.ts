@@ -5,6 +5,7 @@ import { CanvasAssignment } from './api';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { encryptToken, decryptToken } from '@/lib/crypto';
+import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
 
 /**
  * Server-side proxy for Canvas API calls to avoid CORS issues.
@@ -20,7 +21,7 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
         return false;
       }
     } else {
-      cleanToken = decryptToken(token).trim();
+      cleanToken = decryptToken(token, { allowLegacyPlaintext: true }).trim();
     }
     
     const cleanUrl = url.trim().replace(/\/$/, '');
@@ -39,7 +40,7 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
 
 export async function fetchCanvasUpcomingAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const decryptedToken = decryptToken(token);
+    const decryptedToken = decryptToken(token, { allowLegacyPlaintext: true });
     const cleanUrl = url.trim().replace(/\/$/, '');
     const cleanToken = decryptedToken.trim();
     
@@ -222,7 +223,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
 
 export async function fetchCanvasTodoAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const decryptedToken = decryptToken(token);
+    const decryptedToken = decryptToken(token, { allowLegacyPlaintext: true });
     const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self/todo`, {
       headers: {
@@ -261,40 +262,13 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
 
     const encryptedToken = (token && !token.startsWith('••••')) ? encryptToken(token) : undefined;
 
-    // Check if account exists
-    const { data: existing } = await supabase
-      .from('integration_accounts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('provider', 'canvas')
-      .maybeSingle();
-
-    if (existing) {
-      const updateData: any = {
-        metadata: { canvas_url: url },
-        status: 'connected'
-      };
-      if (encryptedToken !== undefined) updateData.access_token_encrypted = encryptedToken;
-      if (token === '') updateData.access_token_encrypted = null;
-      
-      const { error } = await (supabase.from('integration_accounts') as any).update(updateData).eq('id', existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await (supabase.from('integration_accounts') as any).insert({
-        user_id: user.id,
-        provider: 'canvas',
-        access_token_encrypted: encryptedToken || null,
-        metadata: { canvas_url: url },
-        status: 'connected'
-      });
-      if (error) throw error;
-    }
-
-    // Also update legacy for safety
-    const legacyUpdate: any = { canvas_url: url };
-    if (encryptedToken !== undefined) legacyUpdate.canvas_token = encryptedToken;
-    if (token === '') legacyUpdate.canvas_token = null;
-    await supabase.from('users').update(legacyUpdate).eq('id', user.id);
+    await upsertIntegrationAccount({
+      userId: user.id,
+      provider: 'canvas',
+      accessTokenEncrypted: token === '' ? null : encryptedToken ?? undefined,
+      metadata: { canvas_url: url },
+      status: token === '' ? 'disconnected' : 'connected',
+    });
 
     return { success: true };
   } catch (err: any) {
@@ -419,8 +393,13 @@ export async function saveOnboardingDataAction(data: {
     };
 
     if (data.canvasUrl && encryptedToken) {
-      updates.canvas_url = data.canvasUrl;
-      updates.canvas_token = encryptedToken;
+      await upsertIntegrationAccount({
+        userId: user.id,
+        provider: 'canvas',
+        accessTokenEncrypted: encryptedToken,
+        metadata: { canvas_url: data.canvasUrl },
+        status: 'connected',
+      });
     }
 
     const { error } = await supabase
@@ -431,11 +410,6 @@ export async function saveOnboardingDataAction(data: {
     if (error) {
       console.error('Failed to save onboarding data:', error);
       return { success: false, error: error.message };
-    }
-
-    // Also save canvas to integration_accounts
-    if (data.canvasUrl && data.canvasToken) {
-      await saveCanvasCredentialsAction(data.canvasUrl, data.canvasToken);
     }
 
     return { success: true };
@@ -482,48 +456,14 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
       return { success: false, error: 'Unauthorized' };
     }
 
-    // Try integration_accounts first
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { data: account, error: accountError } = await supabase
-      .from('integration_accounts')
-      .select('metadata, access_token_encrypted')
-      .eq('user_id', user.id)
-      .eq('provider', 'canvas')
-      .maybeSingle();
+    const account = await getIntegrationAccount(user.id, 'canvas');
 
-    let encryptedToken = '';
-    let canvasUrl = '';
+    const encryptedToken = account?.access_token_encrypted ?? '';
+    const canvasUrl = (account?.metadata as { canvas_url?: string } | null)?.canvas_url ?? '';
 
-    if (account && account.access_token_encrypted) {
-      encryptedToken = account.access_token_encrypted;
-      canvasUrl = (account.metadata as any)?.canvas_url || '';
-    } else {
-      // Fallback to legacy
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { data: legacyData, error: legacyError } = await supabase
-        .from('users')
-        .select('canvas_url, canvas_token')
-        .eq('id', user.id)
-        .single();
-      
-      if (legacyData?.canvas_token) {
-        encryptedToken = legacyData.canvas_token;
-        canvasUrl = legacyData.canvas_url || '';
-        
-        // Backfill silently
-        if (canvasUrl && encryptedToken) {
-          await (supabase.from('integration_accounts') as any).insert({
-            user_id: user.id,
-            provider: 'canvas',
-            access_token_encrypted: encryptedToken,
-            metadata: { canvas_url: canvasUrl },
-            status: 'connected'
-          });
-        }
-      }
-    }
-
-    const decryptedToken = encryptedToken ? decryptToken(encryptedToken) : '';
+    const decryptedToken = encryptedToken
+      ? decryptToken(encryptedToken, { allowLegacyPlaintext: true })
+      : '';
     let displayToken = decryptedToken;
     
     if (!returnUnmasked && decryptedToken) {
@@ -561,27 +501,13 @@ export async function disconnectCanvasAction(deleteData: boolean = false): Promi
     // We only revoke credentials below — no soft-delete, no hiding.
 
     // Update integration_accounts
-    await (supabase.from('integration_accounts') as any)
+    await (supabaseAdmin.from('integration_accounts') as any)
       .update({
         status: 'disconnected',
         access_token_encrypted: null
       })
       .eq('user_id', user.id)
       .eq('provider', 'canvas');
-
-    // Update legacy users
-    const { error } = await supabase
-      .from('users')
-      .update({
-        canvas_url: null,
-        canvas_token: null
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('Failed to disconnect Canvas:', error);
-      return { success: false, error: error.message };
-    }
 
     return { success: true };
   } catch (err: any) {
@@ -601,38 +527,14 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
   }
   const userId = user.id;
 
-  // 1. Get the account
-  const { data: account } = await supabase
-    .from('integration_accounts')
-    .select('id, access_token_encrypted, metadata')
-    .eq('user_id', userId)
-    .eq('provider', 'canvas')
-    .maybeSingle();
+  const account = await getIntegrationAccount(userId, 'canvas');
+  const encryptedToken = account?.access_token_encrypted;
+  const canvasUrl = (account?.metadata as { canvas_url?: string } | null)?.canvas_url;
+  const accountId = account?.id;
 
-  let encryptedToken = account?.access_token_encrypted;
-  let canvasUrl = (account?.metadata as any)?.canvas_url;
-  let accountId = account?.id;
-  
-  if (!encryptedToken || !canvasUrl) {
-    const { data: user } = await supabase.from('users').select('canvas_token, canvas_url').eq('id', userId).single();
-    if (!user?.canvas_token || !user?.canvas_url) {
-      throw new Error('User not connected to Canvas');
-    }
-    encryptedToken = user.canvas_token;
-    canvasUrl = user.canvas_url;
-
-    // Backfill
-    const { data: newAcc } = await supabase.from('integration_accounts').insert({
-      user_id: userId,
-      provider: 'canvas',
-      access_token_encrypted: encryptedToken,
-      metadata: { canvas_url: canvasUrl },
-      status: 'connected'
-    }).select('id').single();
-    if (newAcc) accountId = newAcc.id;
+  if (!encryptedToken || !canvasUrl || !accountId) {
+    throw new Error('User not connected to Canvas');
   }
-
-  if (!encryptedToken || !canvasUrl || !accountId) throw new Error('Account unresolvable');
 
   const { data: syncRun } = await supabase.from('integration_sync_runs').insert({
     user_id: userId,
@@ -725,7 +627,7 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
     }
 
     const now = new Date().toISOString();
-    await supabase.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId);
+    await supabaseAdmin.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId).eq('user_id', userId);
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
         status: 'success', 
@@ -745,7 +647,7 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
         error_message: err.message
       }).eq('id', syncRunId);
     }
-    await supabase.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId);
+    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId).eq('user_id', userId);
     throw err;
   }
 }

@@ -14,7 +14,9 @@ import Animated, {
   useAnimatedProps,
 } from 'react-native-reanimated';
 
-const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedG = Animated.createAnimatedComponent(G) as React.ComponentType<
+  React.ComponentProps<typeof G> & { style?: unknown }
+>;
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedSvg = Animated.createAnimatedComponent(Svg);
 

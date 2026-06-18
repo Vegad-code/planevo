@@ -11,10 +11,6 @@ import {
   Keyboard
 } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
   ZoomIn,
   ZoomOut,
   FadeIn,

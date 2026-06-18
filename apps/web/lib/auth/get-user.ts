@@ -1,12 +1,34 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+}
 
 interface AuthResult {
-  user: { id: string; email?: string } | null;
+  user: AuthUser | null;
   error: string | null;
   authMethod: 'cookie' | 'bearer' | null;
 }
+
+export interface AuthenticatedClientResult {
+  supabase: SupabaseClient<Database>;
+  user: AuthUser;
+  authMethod: 'cookie' | 'bearer';
+  error: null;
+}
+
+type AuthenticatedClientError = {
+  supabase: null;
+  user: null;
+  authMethod: null;
+  error: string;
+};
+
+export type AuthenticatedClientResponse = AuthenticatedClientResult | AuthenticatedClientError;
 
 /**
  * Unified authentication helper for API routes.
@@ -69,4 +91,39 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthRe
   } catch {
     return { user: null, error: 'Session verification failed', authMethod: null };
   }
+}
+
+/**
+ * Returns a Supabase client scoped to the authenticated user.
+ * Cookie sessions use the SSR client; mobile Bearer tokens use a one-off client.
+ */
+export async function createAuthenticatedSupabaseClient(
+  request: NextRequest
+): Promise<AuthenticatedClientResponse> {
+  const { user, error, authMethod } = await getAuthenticatedUser(request);
+
+  if (error || !user || !authMethod) {
+    return {
+      supabase: null,
+      user: null,
+      authMethod: null,
+      error: error || 'Unauthorized',
+    };
+  }
+
+  if (authMethod === 'bearer') {
+    const token = request.headers.get('authorization')!.slice(7);
+    const supabase = createSupabaseClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      }
+    );
+    return { supabase, user, authMethod, error: null };
+  }
+
+  const supabase = await createClient();
+  return { supabase, user, authMethod, error: null };
 }

@@ -77,11 +77,25 @@ export function useTaskActions(onRefresh: () => void) {
       : { completed: true, completed_at: new Date().toISOString(), status: 'done' };
 
 
+    // Try to update standard tasks first
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    const { data: updatedTask } = await (supabase as any)
       .from('tasks')
       .update(updates)
-      .eq('id', taskId);
+      .eq('id', taskId)
+      .select('id')
+      .maybeSingle();
+
+    if (!updatedTask) {
+      // It might be a source_item (like Notion)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('source_items')
+        .update(updates)
+        .eq('external_id', taskId)
+        .select('id, provider')
+        .maybeSingle();
+    }
 
     // Refresh UI immediately — don't wait for metrics tracking
     onRefresh();
@@ -145,11 +159,25 @@ export function useTaskActions(onRefresh: () => void) {
 
   // Reschedule a task to a new due date
   const rescheduleTask = useCallback(async (taskId: string, newDueDate: string) => {
+    // Try to update standard tasks first
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    const { data: updatedTask } = await (supabase as any)
       .from('tasks')
       .update({ due_date: newDueDate })
-      .eq('id', taskId);
+      .eq('id', taskId)
+      .select('id')
+      .maybeSingle();
+
+    if (!updatedTask) {
+      // It might be a source_item (like Notion)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('source_items')
+        .update({ due_date: newDueDate })
+        .eq('external_id', taskId)
+        .select('id, provider')
+        .maybeSingle();
+    }
 
     // Increment rescheduled_count via raw SQL approach — use RPC or just re-fetch
     // For now, simple update approach:

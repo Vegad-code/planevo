@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { CalendarDays, MessageCircle, Settings, CheckSquare } from 'lucide-react-native';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();

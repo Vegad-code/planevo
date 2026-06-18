@@ -1,32 +1,27 @@
-import { createClient } from '@/lib/supabase/server';
 import { fetchCanvasUpcoming } from '@/lib/canvas';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
+import { getIntegrationAccount } from '@/lib/integrations/accounts';
 import { decryptToken } from '@/lib/crypto';
+import { createClient } from '@/lib/supabase/server';
 
 export async function syncCanvasEvents(userId: string) {
-  const supabase = await createClient();
+  const account = await getIntegrationAccount(userId, 'canvas');
+  const canvasUrl = (account?.metadata as { canvas_url?: string } | null)?.canvas_url;
+  const encryptedToken = account?.access_token_encrypted;
 
-  // 1. Get user canvas credentials
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('canvas_token, canvas_url')
-    .eq('id', userId)
-    .single();
-
-  if (userError || !user?.canvas_token || !user?.canvas_url) {
+  if (!encryptedToken || !canvasUrl) {
     throw new Error('User not connected to Canvas');
   }
 
-  // 2. Fetch assignments
-  const decryptedToken = decryptToken(user.canvas_token);
-  const assignments = await fetchCanvasUpcoming(user.canvas_url, decryptedToken);
+  const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
+  const assignments = await fetchCanvasUpcoming(canvasUrl, decryptedToken);
   if (!assignments || assignments.length === 0) return 0;
 
-  // 3. Transform to calendar_events format
-  // We'll treat assignments as 1-hour events ending at their due date.
+  const supabase = await createClient();
+
   const events = assignments.map((item) => {
     const end = new Date(item.due_at);
-    const start = new Date(end.getTime() - 60 * 60 * 1000); // 1 hour before due
+    const start = new Date(end.getTime() - 60 * 60 * 1000);
 
     return {
       user_id: userId,
@@ -43,7 +38,6 @@ export async function syncCanvasEvents(userId: string) {
     };
   });
 
-  // 4. Clean future canvas events and re-insert
   const now = new Date().toISOString();
   await supabase
     .from('calendar_events')
@@ -55,10 +49,7 @@ export async function syncCanvasEvents(userId: string) {
   const futureEvents = events.filter((e) => new Date(e.start_time) >= new Date(now));
 
   if (futureEvents.length > 0) {
-    const { error: insertError } = await supabase
-      .from('calendar_events')
-      .insert(futureEvents);
-
+    const { error: insertError } = await supabase.from('calendar_events').insert(futureEvents);
     if (insertError) throw insertError;
   }
 
@@ -68,8 +59,7 @@ export async function syncCanvasEvents(userId: string) {
 export async function processBrunoRollover(userId: string) {
   const supabase = await createClient();
   const now = new Date();
-  
-  // Find past uncompleted events
+
   const { data: pastEvents, error } = await supabase
     .from('calendar_events')
     .select('*')
@@ -81,15 +71,11 @@ export async function processBrunoRollover(userId: string) {
 
   if (error || !pastEvents || pastEvents.length === 0) return 0;
 
-  // We move them to today, starting from current time
-
-
-  // Let's just update the existing events
   let updatedCount = 0;
   for (const event of pastEvents) {
     const start = new Date(now.getTime() + updatedCount * 60 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
-    
+
     const { error: updateError } = await supabase
       .from('calendar_events')
       .update({

@@ -6,6 +6,7 @@ import {
   recordNotificationDelivery,
 } from '@/lib/notifications/delivery';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { isAllowedOrigin } from '@/lib/auth/origin-guard';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,6 +18,10 @@ function getAppOrigin(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 

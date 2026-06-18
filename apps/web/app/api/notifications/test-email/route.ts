@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { buildEmailIdempotencyKey, sendTestNotificationEmail } from '@/lib/email';
 import {
@@ -7,16 +7,21 @@ import {
 } from '@/lib/notifications/preferences';
 import { recordNotificationDelivery, getRecentTestNotificationCount } from '@/lib/notifications/delivery';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
 
-    if (userError || !user) {
+    const auth = await createAuthenticatedSupabaseClient(request);
+    if (auth.error || !auth.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { supabase, user } = auth;
 
     const { data: userData, error: dbError } = await supabase
       .from('users')
@@ -33,7 +38,6 @@ export async function POST() {
       return NextResponse.json({ error: 'Email notifications are disabled in your notification settings.' }, { status: 400 });
     }
 
-    // Rate Limit: Max 3 test emails per week (168 hours)
     const recentCount = await getRecentTestNotificationCount(supabase, user.id, 'email', 168);
     if (recentCount >= 3) {
       return NextResponse.json(

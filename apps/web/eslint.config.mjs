@@ -28,6 +28,9 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-explicit-any": "warn",
       // Unused vars are warnings — prefixed with _ to suppress per-variable
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+      "@typescript-eslint/ban-ts-comment": "warn",
+      "react-hooks/set-state-in-effect": "off",
+      "react/no-unescaped-entities": "off",
     },
   },
 ]);

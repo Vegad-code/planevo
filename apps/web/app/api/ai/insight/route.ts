@@ -4,12 +4,26 @@ import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizePlanType } from '@/lib/auth/plan-types';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { checkRateLimitForUser } from '@/lib/auth/rateLimit';
 
 export async function GET(request: NextRequest) {
   try {
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
     const { user, error, authMethod } = await getAuthenticatedUser(request);
     if (error || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateLimitResult = await checkRateLimitForUser(user.id, 'dashboard-insight', user.email);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { insight: "You've reached your AI limit for now. Try again later." },
+        { status: 429 }
+      );
     }
 
     // Set Sentry user and tags
