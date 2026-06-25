@@ -16,6 +16,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@planevo/notes-core": "*",
     "@ai-sdk/react": "^3.0.193",
     "@bacons/apple-targets": "^4.0.7",
     "@expo/vector-icons": "^15.0.3",
@@ -24,6 +25,7 @@
     "@react-navigation/native": "^7.1.8",
     "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.105.4",
+    "ai": "^6.0.208",
     "date-fns": "^4.1.0",
     "expo": "~55.0.0",
     "expo-application": "~55.0.15",

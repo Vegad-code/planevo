@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Sun, Moon, BookOpen, Desktop, Check, TextAa, Sparkle, ArrowCounterClockwise } from '@phosphor-icons/react';
 import ColorSchemeToggle from '@/components/ui/ColorSchemeToggle';
-import { useAppearance, FONT_SIZES, ACCENTS } from '@/components/providers/AppearanceProvider';
+import { useAppearance, FONT_SIZES, ACCENTS, SIDEBAR_STYLES } from '@/components/providers/AppearanceProvider';
 import { SettingsSection } from '@/components/settings/ui/SettingsSection';
 import { SettingsToggleRow } from '@/components/settings/ui/SettingsToggleRow';
 
@@ -23,7 +23,7 @@ const fontSizeClasses: Record<string, string> = {
 
 export default function AppearanceSettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { fontSize, setFontSize, reduceMotion, setReduceMotion, accent, resetAppearance } = useAppearance();
+  const { fontSize, setFontSize, reduceMotion, setReduceMotion, accent, sidebarStyle, setSidebarStyle, resetAppearance } = useAppearance();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     (async () => {
@@ -91,6 +91,68 @@ export default function AppearanceSettingsPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-settings-text-muted mt-1">{mode.desc}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </SettingsSection>
+
+      {/* Navigation style */}
+      <SettingsSection title="Navigation" description="Choose how the dashboard sidebar is laid out.">
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-3" data-testid="sidebar-style-grid">
+            {SIDEBAR_STYLES.map((style) => {
+              const isActive = sidebarStyle === style.id;
+              return (
+                <button
+                  key={style.id}
+                  onClick={() => setSidebarStyle(style.id)}
+                  data-testid={`sidebar-style-${style.id}`}
+                  {...({ 'aria-pressed': isActive })}
+                  className={`group text-left rounded-2xl border p-4 transition-all duration-200 ${
+                    isActive
+                      ? 'border-settings-brand bg-settings-card shadow-md ring-1 ring-settings-brand'
+                      : 'border-settings-border bg-settings-card hover:border-settings-brand/50 hover:-translate-y-0.5'
+                  }`}
+                >
+                  <div className="mb-3 h-16 rounded-xl border border-black/5 bg-settings-bg p-2 flex items-end">
+                    {style.id === 'classic' ? (
+                      <div className="flex h-full w-full">
+                        <div className="w-5 h-full rounded-sm bg-[var(--color-ink)]/80" />
+                        <div className="flex-1 p-1.5 flex flex-col gap-1">
+                          <div className="h-1.5 w-8 rounded bg-settings-border" />
+                          <div className="h-1.5 w-10 rounded bg-settings-border" />
+                          <div className="h-1.5 w-7 rounded bg-settings-brand/60" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full items-center">
+                        <div className="ml-1 h-[90%] w-8 rounded-2xl bg-[var(--color-ink)]/80 shadow-sm flex flex-col items-center gap-1 py-2">
+                          <div className="h-1 w-1 rounded-full bg-settings-brand" />
+                          <div className="h-1 w-1 rounded-full bg-white/30" />
+                          <div className="h-1 w-1 rounded-full bg-white/30" />
+                        </div>
+                        <div className="flex-1 p-1.5 flex flex-col gap-1">
+                          <div className="h-1.5 w-8 rounded bg-settings-border" />
+                          <div className="h-1.5 w-10 rounded bg-settings-border" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-settings-text">{style.name}</span>
+                    {isActive && (
+                      <span className="w-5 h-5 rounded-full bg-settings-brand flex items-center justify-center">
+                        <Check size={12} weight="bold" className="text-white" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-settings-text-muted mt-1">
+                    {style.id === 'classic'
+                      ? 'Full-height panel with rectangular nav links.'
+                      : 'Inset floating capsule with pill-shaped links.'}
+                  </p>
                 </button>
               );
             })}

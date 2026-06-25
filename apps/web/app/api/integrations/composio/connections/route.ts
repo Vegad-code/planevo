@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { getComposioClient, dedupeComposioConnections } from '@/lib/integrations/composio/client';
 import { reconcileProAccounts } from '@/lib/integrations/summary';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
 export async function GET(request: NextRequest) {
   try {
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
     const { user, error } = await getAuthenticatedUser(request);
     if (error || !user) {
       return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 });

@@ -45,7 +45,7 @@ const serviceRoleKey = requireEnv(env, 'SUPABASE_SERVICE_ROLE_KEY');
 const resendApiKey = requireEnv(env, 'RESEND_API_KEY');
 const from = useResendTestSender
   ? 'Planevo <onboarding@resend.dev>'
-  : env.WEEKLY_REVIEW_FROM || 'Bruno <bruno@planevo.co>';
+  : env.EMAIL_FROM || env.WEEKLY_REVIEW_FROM || 'Planevo <notifications@planevo.co>';
 const appUrl = env.NEXT_PUBLIC_APP_URL || 'https://planevo.co';
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {

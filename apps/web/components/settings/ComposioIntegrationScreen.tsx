@@ -36,6 +36,7 @@ export default function ComposioIntegrationScreen() {
   const [oauthError, setOauthError] = useState<string | null>(null);
   const popupPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const notionPickerAutoOpenedRef = useRef(false);
+  const oauthHandledRef = useRef(false);
 
   const maybeAutoOpenNotionPicker = (integrationAccounts: typeof accounts) => {
     if (notionPickerAutoOpenedRef.current) return;
@@ -92,8 +93,27 @@ export default function ComposioIntegrationScreen() {
   };
 
   const runPostConnectActions = async (
-    provider: 'notion' | 'slack' | 'linear'
+    provider: 'notion' | 'slack' | 'linear' | 'google'
   ) => {
+    if (provider === 'google') {
+      await refreshIntegrations();
+      try {
+        const syncRes = await fetch('/api/integrations/google/sync?force=true', { method: 'POST' });
+        const syncData = await syncRes.json().catch(() => ({}));
+        if (syncRes.ok && syncData.success) {
+          const now = new Date().toISOString();
+          setProfile((p: typeof profile) => (
+            p ? { ...p, google_calendar_connected: true, google_calendar_last_synced_at: now } : p
+          ));
+          setIsGoogleModalOpen(true);
+        }
+        await refreshIntegrations();
+      } catch (err) {
+        console.error('Post-connect Google sync failed', err);
+      }
+      return;
+    }
+
     if (provider === 'notion') {
       await refreshIntegrations({ promptNotionPicker: true });
       return;
@@ -135,6 +155,7 @@ export default function ComposioIntegrationScreen() {
         if (error) {
           return;
         }
+        oauthHandledRef.current = true;
         void runPostConnectActions(provider);
       }
     };
@@ -157,6 +178,7 @@ export default function ComposioIntegrationScreen() {
     
     setOauthError(null);
     setConnectingProvider(providerName);
+    oauthHandledRef.current = false;
     
     if (popupPollIntervalRef.current) clearInterval(popupPollIntervalRef.current);
     popupPollIntervalRef.current = setInterval(() => {
@@ -166,7 +188,12 @@ export default function ComposioIntegrationScreen() {
           popupPollIntervalRef.current = null;
         }
         setConnectingProvider(null);
-        fetchIntegrationsData(); // Refresh after popup closes
+        if (!oauthHandledRef.current) {
+          oauthHandledRef.current = true;
+          void runPostConnectActions(providerName);
+        } else {
+          void fetchIntegrationsData();
+        }
       }
     }, 500);
 
@@ -238,7 +265,8 @@ export default function ComposioIntegrationScreen() {
   const googleAccount = accounts.find(a => a.provider === 'google_calendar');
 
   const isCanvasConnected = canvasAccount ? canvasAccount.status === 'connected' : false;
-  const isGoogleConnected = googleAccount ? googleAccount.status === 'connected' : false;
+  const isGoogleConnected =
+    googleAccount?.status === 'connected' || profile?.google_calendar_connected === true;
   
   // Composio check
   const getComposioConnection = (appName: string) => {
@@ -471,13 +499,7 @@ export default function ComposioIntegrationScreen() {
             ? accounts.find((a) => a.provider === composioManageProvider)?.last_synced_at
             : null
         }
-        lastError={
-          composioManageProvider
-            ? accounts.find((a) => a.provider === composioManageProvider)?.last_error
-            : null
-        }
-        connectionLabel="Connected via Composio"
-        onSynced={fetchIntegrationsData}
+        onSaved={fetchIntegrationsData}
       />
 
       <NotionDatabasePicker

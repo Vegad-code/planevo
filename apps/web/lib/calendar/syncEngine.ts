@@ -13,7 +13,7 @@ export async function syncCanvasEvents(userId: string) {
     throw new Error('User not connected to Canvas');
   }
 
-  const decryptedToken = decryptToken(encryptedToken, { allowLegacyPlaintext: true });
+  const decryptedToken = decryptToken(encryptedToken);
   const assignments = await fetchCanvasUpcoming(canvasUrl, decryptedToken);
   if (!assignments || assignments.length === 0) return 0;
 

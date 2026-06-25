@@ -1,11 +1,22 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
+
+export type NotificationPermissionState = 'granted' | 'denied' | 'undetermined';
 
 function getDeviceTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function normalizePrefsRow(
+  prefs: Record<string, unknown> | Record<string, unknown>[] | null | undefined
+) {
+  if (Array.isArray(prefs)) {
+    return (prefs[0] as Record<string, unknown> | undefined) ?? null;
+  }
+  return prefs ?? null;
 }
 
 /**
@@ -21,11 +32,25 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export async function getNotificationPermissionState(): Promise<NotificationPermissionState> {
+  const permission = await Notifications.getPermissionsAsync();
+  const granted = (permission as { granted?: boolean; status?: string }).granted === true
+    || (permission as { granted?: boolean; status?: string }).status === 'granted';
+
+  if (granted) return 'granted';
+
+  const status = (permission as { status?: string }).status;
+  if (status === 'denied') return 'denied';
+  return 'undetermined';
+}
+
+export async function openNotificationSettings() {
+  await Linking.openSettings();
+}
+
 /**
  * Requests push notification permissions and registers the
  * Expo push token with Supabase for server-side notifications.
- *
- * Returns the Expo push token string, or null if permission denied.
  */
 export async function registerForPushNotifications(
   userId: string,
@@ -33,13 +58,11 @@ export async function registerForPushNotifications(
 ): Promise<string | null> {
   const persistPreference = options.persistPreference !== false;
 
-  // Only real devices can receive push notifications
   if (!Device.isDevice) {
     console.warn('[notifications] Push notifications require a physical device.');
     return null;
   }
 
-  // Check / request permissions
   const existingPerm = await Notifications.getPermissionsAsync();
   let isGranted = (existingPerm as { granted?: boolean; status?: string }).granted === true
     || (existingPerm as { granted?: boolean; status?: string }).status === 'granted';
@@ -55,14 +78,12 @@ export async function registerForPushNotifications(
     return null;
   }
 
-  // Get the Expo push token
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
   const tokenResponse = await Notifications.getExpoPushTokenAsync({
     projectId: projectId || undefined,
   });
   const token = tokenResponse.data;
 
-  // Save token to users table
   const { error: userError } = await (supabase as any)
     .from('users')
     .update({
@@ -76,17 +97,32 @@ export async function registerForPushNotifications(
   }
 
   if (persistPreference) {
-    // Ensure notification_preferences is initialized or updated
     const { data: existingPref } = await (supabase as any)
       .from('notification_preferences')
       .select('channels, types, quiet_hours')
       .eq('user_id', userId)
       .single();
 
+    const defaultTypes = {
+      daily_plan: true,
+      deadline_rescue: true,
+      upcoming_reminders: true,
+      canvas_assignments: false,
+      calendar_events: true,
+      work_slack: false,
+      work_linear: false,
+      work_notion: false,
+      weekly_review: true,
+      account: true,
+      billing: true,
+      system: true,
+    };
+
     if (existingPref) {
       await (supabase as any)
         .from('notification_preferences')
         .update({
+          master_toggle: true,
           channels: { ...(existingPref.channels || {}), push: true },
           quiet_hours: {
             ...(existingPref.quiet_hours || {}),
@@ -96,12 +132,7 @@ export async function registerForPushNotifications(
               : getDeviceTimezone(),
           },
           types: {
-            daily_plan: true,
-            deadline_rescue: true,
-            weekly_review: true,
-            account: true,
-            billing: true,
-            system: true,
+            ...defaultTypes,
             ...(existingPref.types || {}),
           },
         })
@@ -119,19 +150,11 @@ export async function registerForPushNotifications(
             end: '08:00',
             timezone: getDeviceTimezone(),
           },
-          types: {
-            daily_plan: true,
-            deadline_rescue: true,
-            weekly_review: true,
-            account: true,
-            billing: true,
-            system: true,
-          },
+          types: defaultTypes,
         });
     }
   }
 
-  // Android requires a notification channel
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Planevo',
@@ -157,7 +180,7 @@ export async function disablePushNotifications(userId: string) {
 
   const { data: existingPref } = await (supabase as any)
     .from('notification_preferences')
-    .select('channels')
+    .select('channels, master_toggle')
     .eq('user_id', userId)
     .single();
 
@@ -172,8 +195,6 @@ export async function disablePushNotifications(userId: string) {
 }
 
 export async function syncPushNotificationState(userId: string) {
-  // Server-side notifications are authoritative; remove legacy local reminders
-  // so users do not receive duplicate morning nudges.
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   const { data } = await (supabase as any)
@@ -182,45 +203,17 @@ export async function syncPushNotificationState(userId: string) {
     .eq('id', userId)
     .single();
 
-  const prefs = data?.notification_preferences;
+  const prefs = normalizePrefsRow(data?.notification_preferences);
   const legacyEnabled = data?.push_notifications_enabled !== false;
   const preferencesAllowPush = prefs
-    ? prefs.master_toggle !== false && prefs.channels?.push !== false
+    ? prefs.master_toggle !== false && (prefs.channels as { push?: boolean } | undefined)?.push !== false
     : legacyEnabled;
 
   if (!legacyEnabled || !preferencesAllowPush) {
     return null;
   }
 
-  const token = await registerForPushNotifications(userId, {
+  return registerForPushNotifications(userId, {
     persistPreference: !prefs,
-  });
-
-  return token;
-}
-
-/**
- * Schedule a daily local notification as a morning planning nudge.
- * This runs on-device and doesn't need the server.
- *
- * @param hour - hour to fire (0-23), default 9
- * @param minute - minute to fire (0-59), default 0
- */
-export async function scheduleMorningReminder(hour = 9, minute = 0) {
-  // Cancel any existing morning reminders
-  await Notifications.cancelAllScheduledNotificationsAsync();
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Good morning!',
-      body: "Let's check what's on your plate today. Tap to see your plan.",
-      data: { screen: 'index' },
-      sound: 'default',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute,
-    },
   });
 }

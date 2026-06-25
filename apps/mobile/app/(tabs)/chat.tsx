@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import '@/lib/streaming-polyfills';
+import { useChat } from '@ai-sdk/react';
+import { createBrunoChatTransport } from '@/lib/bruno/chat-transport';
+import { deriveBrunoProgressState } from '@/lib/bruno/brunoProgressState';
+import type { BrunoUIMessage } from '@/lib/bruno/types';
+import { BrunoActivityPanel } from '@/components/bruno/BrunoActivityPanel';
 import {
   View,
   Text,
@@ -18,38 +24,164 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Send, Bot, UserIcon, History, Plus, Square, Edit2, X, Trash } from 'lucide-react-native';
-import PlanDraftCard from '../../components/bruno/PlanDraftCard';
+import PlanDraftCard, { type PlanDraftItemData } from '../../components/bruno/PlanDraftCard';
 import PlanPreviewModal from '../../components/bruno/PlanPreviewModal';
 import BrunoEntitlementNotice, {
   type MobileBrunoMetadata,
 } from '../../components/bruno/BrunoEntitlementNotice';
-import { useRouter } from 'expo-router';
+import { BrunoChatLimitModal } from '@/components/bruno/BrunoChatLimitModal';
+import { presentPlanevoProPaywall } from '@/lib/revenuecat';
+import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
+import {
+  isRateLimitActive,
+  parseBrunoRateLimitError,
+} from '@/lib/bruno/rate-limit-client';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'bruno';
   content: string;
   timestamp: Date;
-  toolCalls?: any[];
+  toolCalls?: Array<{ toolName: string; args?: Record<string, unknown> }>;
   metadata?: MobileBrunoMetadata;
+}
+
+const WELCOME_TEXT =
+  "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.";
+
+const WELCOME_UI_MESSAGE: BrunoUIMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  parts: [{ type: 'text', text: WELCOME_TEXT }],
+};
+
+function messageText(message: BrunoUIMessage): string {
+  return (
+    message.parts
+      ?.filter((part) => part.type === 'text')
+      .map((part) => ('text' in part ? part.text : ''))
+      .join('') ?? ''
+  );
+}
+
+function extractToolCallsFromMessage(message: BrunoUIMessage) {
+  const parts = message.parts ?? [];
+  return parts
+    .filter((part) => part.type.startsWith('tool-') || part.type === 'tool-invocation')
+    .map((part) => {
+      if (part.type === 'tool-invocation' && 'toolInvocation' in part) {
+        const invocation = part.toolInvocation as {
+          toolName?: string;
+          args?: Record<string, unknown>;
+        };
+        return {
+          toolName: invocation.toolName ?? 'tool',
+          args: invocation.args ?? {},
+        };
+      }
+      if (part.type.startsWith('tool-')) {
+        const toolName = part.type.slice('tool-'.length);
+        const input =
+          'input' in part && part.input && typeof part.input === 'object'
+            ? (part.input as Record<string, unknown>)
+            : {};
+        return { toolName, args: input };
+      }
+      return { toolName: 'tool', args: {} as Record<string, unknown> };
+    });
 }
 
 export default function BrunoChatScreen() {
   const router = useRouter();
+  const { prompt: promptParam } = useLocalSearchParams<{ prompt?: string }>();
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { isOffline } = useNetworkState();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const [sending, setSending] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState<BrunoRateLimitPayload | null>(null);
+  const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const currentConversationIdRef = useRef<string | null>(null);
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  const {
+    messages: uiMessages,
+    setMessages: setUiMessages,
+    sendMessage: sendChatMessage,
+    status,
+    stop,
+    error: chatError,
+    clearError,
+  } = useChat<BrunoUIMessage>({
+    transport: createBrunoChatTransport(),
+    messages: [WELCOME_UI_MESSAGE],
+    onError: (error) => {
+      const parsed = parseBrunoRateLimitError(error);
+      if (parsed) {
+        setRateLimitInfo(parsed);
+        setIsPaywallDismissed(false);
+      }
+    },
+    onFinish: async ({ message }) => {
+      const textPart = messageText(message);
+      const activeUser = userRef.current;
+      if (
+        currentConversationIdRef.current &&
+        message.role === 'assistant' &&
+        textPart &&
+        activeUser
+      ) {
+        await supabase.from('bruno_messages').insert({
+          conversation_id: currentConversationIdRef.current,
+          user_id: activeUser.id,
+          content: textPart,
+          message_type: 'assistant',
+        });
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (chatError) {
+      const parsed = parseBrunoRateLimitError(chatError);
+      if (parsed) {
+        setRateLimitInfo(parsed);
+        setIsPaywallDismissed(false);
+      }
+    }
+  }, [chatError]);
+
+  const isRateLimited = isRateLimitActive(rateLimitInfo);
+
+  const sending = status === 'streaming' || status === 'submitted';
+  const [isProgressExpanded, setIsProgressExpanded] = useState(true);
+
+  const displayMessages: ChatMessage[] = useMemo(
+    () =>
+      uiMessages
+        .filter((message) => message.role === 'user' || message.role === 'assistant')
+        .map((message) => ({
+          id: message.id,
+          role: message.role === 'user' ? 'user' : 'bruno',
+          content: messageText(message),
+          timestamp: new Date(),
+          toolCalls: extractToolCallsFromMessage(message),
+        })),
+    [uiMessages]
+  );
+
+  const progressState = useMemo(
+    () => deriveBrunoProgressState({ messages: uiMessages, chatStatus: status }),
+    [uiMessages, status]
+  );
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<{id: string, title: string} | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false);
 
   const [mentionState, setMentionState] = useState<{ active: boolean, text: string }>({ active: false, text: '' });
@@ -57,6 +189,12 @@ export default function BrunoChatScreen() {
 
   const [previewPlanData, setPreviewPlanData] = useState<any>(null);
   const [isCommittingPlan, setIsCommittingPlan] = useState(false);
+
+  useEffect(() => {
+    if (typeof promptParam === 'string' && promptParam.trim()) {
+      setInputText(promptParam);
+    }
+  }, [promptParam]);
 
   useEffect(() => {
     async function fetchMentions() {
@@ -100,6 +238,10 @@ export default function BrunoChatScreen() {
   }, [fetchConversations]);
 
   useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  useEffect(() => {
     if (!user || initialMessagesLoaded) return;
     
     if (currentConversationId) {
@@ -111,20 +253,15 @@ export default function BrunoChatScreen() {
         .limit(100)
         .then(({ data }) => {
           if (data && data.length > 0) {
-            const loaded: ChatMessage[] = data.map((m: any) => ({
-              id: m.id,
-              role: m.message_type === 'user' ? 'user' : 'bruno',
-              content: m.content,
-              timestamp: new Date(m.created_at),
-            }));
-            setMessages(loaded);
+            setUiMessages(
+              data.map((m: { id: string; content: string; message_type: string }) => ({
+                id: m.id,
+                role: m.message_type === 'user' ? ('user' as const) : ('assistant' as const),
+                parts: [{ type: 'text' as const, text: m.content }],
+              }))
+            );
           } else {
-             setMessages([{
-                id: 'welcome',
-                role: 'bruno',
-                content: "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.",
-                timestamp: new Date(),
-              }]);
+            setUiMessages([WELCOME_UI_MESSAGE]);
           }
           setInitialMessagesLoaded(true);
         });
@@ -138,12 +275,7 @@ export default function BrunoChatScreen() {
            if (data && data.length > 0) {
              setCurrentConversationId(data[0].id);
            } else {
-             setMessages([{
-                id: 'welcome',
-                role: 'bruno',
-                content: "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.",
-                timestamp: new Date(),
-              }]);
+             setUiMessages([WELCOME_UI_MESSAGE]);
              setInitialMessagesLoaded(true);
            }
         });
@@ -152,14 +284,11 @@ export default function BrunoChatScreen() {
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([{
-      id: 'welcome',
-      role: 'bruno',
-      content: "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.",
-      timestamp: new Date(),
-    }]);
+    currentConversationIdRef.current = null;
+    setUiMessages([WELCOME_UI_MESSAGE]);
     setShowHistory(false);
     setInitialMessagesLoaded(true);
+    setIsProgressExpanded(true);
   };
 
   const loadConversation = async (id: string) => {
@@ -206,11 +335,7 @@ export default function BrunoChatScreen() {
   };
 
   const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    setSending(false);
+    stop();
   };
 
   const sendMessage = useCallback(async () => {
@@ -218,7 +343,7 @@ export default function BrunoChatScreen() {
       Alert.alert('Offline', 'Cannot send messages while offline.');
       return;
     }
-    if (!inputText.trim() || sending) return;
+    if (!inputText.trim() || sending || isRateLimited) return;
 
     if (mentionState.active && suggestions.length > 0) {
       // User is actively picking a mention, so don't submit chat
@@ -228,156 +353,99 @@ export default function BrunoChatScreen() {
     const userMessageContent = inputText.trim();
     setInputText('');
     setMentionState({ active: false, text: '' });
-    setSending(true);
+    setIsProgressExpanded(true);
 
     let convId = currentConversationId;
     if (!convId && user) {
       const { data: newConv } = await supabase
         .from('chat_conversations')
-        .insert({ user_id: user.id, title: inputText.slice(0, 30) + '...' })
+        .insert({ user_id: user.id, title: userMessageContent.slice(0, 30) + '...' })
         .select()
         .single();
       if (newConv) {
         convId = newConv.id;
         setCurrentConversationId(convId);
+        currentConversationIdRef.current = convId;
         fetchConversations();
-        
-        // Background AI Title Generation
+
         supabase.auth.getSession().then(({ data: { session } }) => {
           const token = session?.access_token;
           if (token) {
             fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'}/api/ai/generate-title`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ message: inputText.trim(), conversationId: convId })
+              body: JSON.stringify({ message: userMessageContent, conversationId: convId }),
             })
-            .then(res => res.json())
-            .then(data => {
-              if (data.title) fetchConversations();
-            })
-            .catch(err => console.log('Failed to generate title', err));
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.title) fetchConversations();
+              })
+              .catch((err) => console.log('Failed to generate title', err));
           }
         });
       }
     }
 
-    let currentMessages = messages;
     if (editingMessageId && convId) {
-      const editIndex = messages.findIndex(m => m.id === editingMessageId);
+      const editIndex = uiMessages.findIndex((m) => m.id === editingMessageId);
       if (editIndex !== -1) {
-        const editedMsg = messages[editIndex];
-        const timestampStr = editedMsg.timestamp.toISOString();
-           
-        await supabase.from('bruno_messages').delete()
+        await supabase
+          .from('bruno_messages')
+          .delete()
           .eq('conversation_id', convId)
-          .gte('created_at', timestampStr);
-          
-        currentMessages = messages.slice(0, editIndex);
+          .gte('created_at', new Date().toISOString());
+        setUiMessages(uiMessages.slice(0, editIndex));
       }
       setEditingMessageId(null);
     }
-
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: userMessageContent,
-      timestamp: new Date(),
-    };
-    currentMessages = [...currentMessages, userMsg];
-    setMessages(currentMessages);
 
     try {
       if (user && convId) {
         await supabase.from('bruno_messages').insert({
           conversation_id: convId,
           user_id: user.id,
-          content: userMsg.content,
+          content: userMessageContent,
           message_type: 'user',
         });
-        await supabase.from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', convId);
+        await supabase
+          .from('chat_conversations')
+          .update({ last_active: new Date().toISOString() })
+          .eq('id', convId);
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      if (!token) {
-        throw new Error('Your session has expired. Please log out and log back in.');
-      }
-
-      const apiMessages = currentMessages.map(m => ({
-        role: m.role === 'bruno' ? 'assistant' : 'user',
-        content: m.content
-      }));
-
-      let apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) {
-        if (__DEV__) {
-          apiUrl = 'http://localhost:3000';
-        } else {
-          throw new Error('EXPO_PUBLIC_API_URL is required in production builds.');
+      sendChatMessage(
+        { text: userMessageContent },
+        {
+          body: {
+            conversationId: convId,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            localTime: new Date().toLocaleString(),
+          },
         }
-      }
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      const response = await fetch(`${apiUrl}/api/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ 
-          messages: apiMessages, 
-          conversationId: convId, 
-          isMobile: true,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          localTime: new Date().toLocaleString()
-        }),
-        signal: abortController.signal
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Chat error:', response.status, errorText);
-        throw new Error(`API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      const brunoReply: ChatMessage = {
-        id: `bruno-${Date.now()}`,
-        role: 'bruno',
-        content: data.text || "I'm having trouble thinking right now.",
-        timestamp: new Date(),
-        toolCalls: data.toolCalls || [],
-        metadata: data.metadata,
-      };
-      setMessages((prev) => [...prev, brunoReply]);
-
-      if (user && convId) {
-        await supabase.from('bruno_messages').insert({
-          conversation_id: convId,
-          user_id: user.id,
-          content: brunoReply.content,
-          message_type: 'assistant',
-        });
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('Fetch aborted');
-      } else {
-        console.error('Chat error:', err);
-        Alert.alert('Bruno Error', err.message || 'Failed to connect to Bruno.');
-      }
-    } finally {
-      abortControllerRef.current = null;
-      setSending(false);
+      );
+    } catch (err: unknown) {
+      console.error('Chat error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to connect to Bruno.';
+      Alert.alert('Bruno Error', message);
     }
-  }, [inputText, sending, user, messages, currentConversationId, editingMessageId, fetchConversations, isOffline, mentionState, suggestions]);
+  }, [
+    inputText,
+    sending,
+    user,
+    uiMessages,
+    currentConversationId,
+    editingMessageId,
+    fetchConversations,
+    isOffline,
+    mentionState,
+    suggestions,
+    sendChatMessage,
+    setUiMessages,
+    isRateLimited,
+  ]);
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
@@ -421,12 +489,21 @@ export default function BrunoChatScreen() {
               <View style={{ marginTop: 12, gap: 8 }}>
                 {item.toolCalls.map((tc, idx) => {
                   if (tc.toolName === 'propose_plan_draft' && tc.args) {
+                    const planTitle =
+                      typeof tc.args.plan_title === 'string' ? tc.args.plan_title : 'Plan draft';
+                    const planObjective =
+                      typeof tc.args.plan_objective === 'string'
+                        ? tc.args.plan_objective
+                        : '';
+                    const items = Array.isArray(tc.args.items)
+                      ? (tc.args.items as PlanDraftItemData[])
+                      : [];
                      return (
                        <PlanDraftCard 
                          key={idx}
-                         planTitle={tc.args.plan_title}
-                         planObjective={tc.args.plan_objective}
-                         items={tc.args.items}
+                         planTitle={planTitle}
+                         planObjective={planObjective}
+                         items={items}
                          isCommitting={isCommittingPlan}
                          onReviewPress={() => {
                            setPreviewPlanData(tc.args);
@@ -434,15 +511,18 @@ export default function BrunoChatScreen() {
                        />
                      );
                   }
+                  const args = tc.args ?? {};
+                  const taskTitle = typeof args.title === 'string' ? args.title : '';
+                  const subtasks = Array.isArray(args.subtasks) ? args.subtasks : [];
                   // Render generic tool call chip
                   return (
                     <View key={idx} style={[styles.toolCallChip, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)' }]}>
                       <Bot size={12} color={colors.textMuted} />
                       <Text style={[styles.toolCallText, { color: colors.textMuted }]}>
-                        {tc.toolName === 'create_task' ? `Created Task: ${tc.args.title}` :
+                        {tc.toolName === 'create_task' ? `Created Task: ${taskTitle}` :
                          tc.toolName === 'reschedule_task' ? `Rescheduled Task` :
-                         tc.toolName === 'break_down_task' ? `Broken down into ${tc.args.subtasks?.length || 0} subtasks` :
-                         tc.toolName === 'create_calendar_block' ? `Created Calendar Block: ${tc.args.title}` :
+                         tc.toolName === 'break_down_task' ? `Broken down into ${subtasks.length} subtasks` :
+                         tc.toolName === 'create_calendar_block' ? `Created Calendar Block: ${taskTitle}` :
                          `Ran ${tc.toolName}`}
                       </Text>
                     </View>
@@ -469,7 +549,12 @@ export default function BrunoChatScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+      edges={['top']}
+      accessibilityRole="none"
+      accessibilityLabel="Bruno chat"
+    >
       <View style={styles.headerBar}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={[styles.brunoBadge, { backgroundColor: Colors.brand[500] }]}>
@@ -477,7 +562,11 @@ export default function BrunoChatScreen() {
           </View>
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Bruno</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>YOUR PLANNING CO-PILOT</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
+              {progressState.isBrunoWorking && progressState.progressSummary
+                ? progressState.progressSummary.toUpperCase()
+                : 'YOUR PLANNING CO-PILOT'}
+            </Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => setShowHistory(true)} style={{ marginLeft: 'auto', padding: 8 }}>
@@ -497,7 +586,7 @@ export default function BrunoChatScreen() {
             <Plus size={16} color="#fff" />
             <Text style={styles.newChatText}>New Chat</Text>
           </TouchableOpacity>
-                  {messages.length === 1 && (
+                  {displayMessages.length === 1 && (
           <View style={styles.quickActionsContainer}>
             {['Plan my day', 'Break down my project', 'Reschedule my week'].map((action, idx) => (
               <TouchableOpacity key={idx} style={[styles.quickActionBtn, { borderColor: colors.separator }]} onPress={() => setInputText(action)}>
@@ -602,14 +691,14 @@ export default function BrunoChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {messages.length > 20 && (
+        {displayMessages.length > 20 && (
           <View style={[styles.warningBanner, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
             <Text style={{ color: '#f59e0b', fontSize: 12, textAlign: 'center', fontWeight: '500' }}>
               This conversation is getting long. Start a new chat for better memory.
             </Text>
           </View>
         )}
-                {messages.length === 1 && (
+                {displayMessages.length === 1 && (
           <View style={styles.quickActionsContainer}>
             {['Plan my day', 'Break down my project', 'Reschedule my week'].map((action, idx) => (
               <TouchableOpacity key={idx} style={[styles.quickActionBtn, { borderColor: colors.separator }]} onPress={() => setInputText(action)}>
@@ -620,12 +709,32 @@ export default function BrunoChatScreen() {
         )}
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={displayMessages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListFooterComponent={
+            progressState.isBrunoWorking ? (
+              <BrunoActivityPanel
+                steps={progressState.progressSteps}
+                summary={progressState.progressSummary}
+                isExpanded={isProgressExpanded}
+                isWorking={progressState.isBrunoWorking}
+                onToggle={() => setIsProgressExpanded((expanded) => !expanded)}
+                colors={{
+                  text: colors.text,
+                  textMuted: colors.textMuted,
+                  card: isDark ? Colors.surface[800] : '#fff',
+                  border: colors.separator,
+                  brand: Colors.brand[500],
+                  sage: Colors.success,
+                  rose: Colors.error,
+                }}
+              />
+            ) : null
+          }
         />
 
         {mentionState.active && suggestions.length > 0 && (
@@ -653,9 +762,16 @@ export default function BrunoChatScreen() {
         <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: colors.separator }]}>
           <TextInput
             style={[styles.textInput, { color: colors.text, backgroundColor: isDark ? Colors.surface[700] : Colors.surface[100] }]}
-            placeholder={editingMessageId ? "Edit your message..." : "Ask Bruno anything..."}
+            placeholder={
+              editingMessageId
+                ? 'Edit your message...'
+                : isRateLimited
+                  ? 'Your free Bruno limit is reached for now…'
+                  : 'Ask Bruno anything...'
+            }
             placeholderTextColor={colors.textMuted}
             value={inputText}
+            editable={!isRateLimited}
             onChangeText={(val) => {
               setInputText(val);
               const lastWord = val.split(' ').pop();
@@ -679,9 +795,9 @@ export default function BrunoChatScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: inputText.trim() ? Colors.brand[600] : colors.separator }]}
+              style={[styles.sendButton, { backgroundColor: inputText.trim() && !isRateLimited ? Colors.brand[600] : colors.separator }]}
               onPress={sendMessage}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || isRateLimited}
               testID="chat-send-button"
             >
               <Send size={18} color="#fff" strokeWidth={2.5} />
@@ -689,6 +805,23 @@ export default function BrunoChatScreen() {
           )}
         </View>
       </KeyboardAvoidingView>
+
+      {rateLimitInfo && isRateLimited ? (
+        <BrunoChatLimitModal
+          visible={!isPaywallDismissed}
+          rateLimit={rateLimitInfo}
+          isDark={isDark}
+          onDismiss={() => {
+            setIsPaywallDismissed(true);
+            clearError();
+          }}
+          onExpired={() => {
+            setRateLimitInfo(null);
+            setIsPaywallDismissed(false);
+          }}
+          onUpgrade={presentPlanevoProPaywall}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

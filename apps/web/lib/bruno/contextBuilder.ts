@@ -1,4 +1,5 @@
-import type { BrunoModelPolicy } from './types';
+import type { BrunoModelPolicy, BrunoDataAccess } from './types';
+import { DEFAULT_BRUNO_DATA_ACCESS } from './types';
 
 export type BrunoTaskContextRow = {
   id: string;
@@ -62,21 +63,23 @@ export async function buildBrunoContext(
     userId: string;
     policy: BrunoModelPolicy;
     assignmentId?: string;
+    dataAccess?: BrunoDataAccess;
   },
   loaders: BrunoContextLoaders
 ) {
+  const access = input.dataAccess ?? DEFAULT_BRUNO_DATA_ACCESS;
   const emptyIntegrations: BrunoIntegrationContext = { pulses: [], items: [] };
   const [tasks, events, assignments, integrations] = await Promise.all([
-    input.policy.includeTasks
+    input.policy.includeTasks && access.tasks
       ? loaders.loadTasks(input.userId)
       : Promise.resolve([]),
-    input.policy.includeCalendar
+    input.policy.includeCalendar && access.calendar
       ? loaders.loadCalendar(input.userId)
       : Promise.resolve([]),
-    input.policy.includeCanvas
+    input.policy.includeCanvas && access.canvas
       ? loaders.loadCanvas(input.userId, input.assignmentId)
       : Promise.resolve([]),
-    input.policy.includeTasks && loaders.loadIntegrations
+    input.policy.includeTasks && loaders.loadIntegrations && access.integrations
       ? loaders.loadIntegrations(input.userId)
       : Promise.resolve(emptyIntegrations),
   ]);

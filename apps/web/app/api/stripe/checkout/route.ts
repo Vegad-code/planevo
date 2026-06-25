@@ -3,12 +3,7 @@ import { stripe, PRICE_IDS } from '@/lib/stripe';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-
-type CheckoutBody = {
-  interval?: 'monthly' | 'annual';
-  source?: string;
-  returnPath?: string;
-};
+import { parseJsonBody, stripeCheckoutBodySchema } from '@/lib/api/schemas';
 
 type BillingProfile = {
   email: string | null;
@@ -38,9 +33,13 @@ export async function POST(req: NextRequest) {
 
     const { supabase, user } = auth;
 
-    const body = (await req.json().catch(() => ({}))) as CheckoutBody;
-    const interval = body.interval === 'annual' ? 'annual' : 'monthly';
-    const returnPath = sanitizeReturnPath(body.returnPath);
+    const body = await req.json().catch(() => ({}));
+    const parsed = parseJsonBody(stripeCheckoutBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const interval = parsed.data.interval === 'annual' ? 'annual' : 'monthly';
+    const returnPath = sanitizeReturnPath(parsed.data.returnPath);
     let priceId = interval === 'annual' ? PRICE_IDS.ANNUAL : PRICE_IDS.MONTHLY;
 
     if (interval === 'monthly' && user.email?.toLowerCase().endsWith('.edu')) {

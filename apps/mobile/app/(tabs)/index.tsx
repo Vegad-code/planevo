@@ -372,7 +372,12 @@ export default function DailyPlanScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+      edges={['top']}
+      accessibilityRole="none"
+      accessibilityLabel="Today plan"
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}

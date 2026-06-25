@@ -1,20 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/weekly-review",
-      "schedule": "0 16 * * 0"
+      "path": "/api/cron/daily-notifications",
+      "schedule": "0 14 * * *"
     },
     {
-      "path": "/api/cron/deadline-rescue",
-      "schedule": "0 * * * *"
+      "path": "/api/cron/daily-notifications",
+      "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/notifications/push",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/welcome-series",
-      "schedule": "0 17 * * *"
+      "path": "/api/cron/data-retention",
+      "schedule": "0 3 * * 0"
     }
   ]
 }

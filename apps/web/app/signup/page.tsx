@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeClosed, CaretLeft } from "@phosphor-icons/react";
@@ -10,7 +10,19 @@ import { PlanevoLogo } from "@/components/PlanevoLogo";
 import { useSearchParams } from "next/navigation";
 import { posthog } from "@/lib/posthog";
 
-export default function SignupForm() {
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--color-paper)]" aria-busy="true" />
+      }
+    >
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,17 +43,19 @@ export default function SignupForm() {
     setError(null);
     posthog.capture('signup_started', { method: 'email' });
 
-    const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: name,
-          referral_code: referralCode || undefined,
-        },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}${referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''}`,
-      },
+    const response = await fetch('/api/auth/sign-up', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        name,
+        referralCode: referralCode || undefined,
+        nextPath,
+      }),
     });
+    const payload = await response.json().catch(() => ({}));
+    const authError = response.ok ? null : { message: payload.error || 'Sign up failed.' };
 
     if (authError) {
       setError(authError.message);

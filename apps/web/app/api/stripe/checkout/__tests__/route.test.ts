@@ -49,6 +49,10 @@ vi.mock('@/lib/supabase/server', () => ({
 function makeAuthedRequest(body: unknown) {
   return new NextRequest('http://localhost:3000/api/stripe/checkout', {
     method: 'POST',
+    headers: {
+      origin: 'https://planevo.co',
+      'content-type': 'application/json',
+    },
     body: JSON.stringify(body),
   });
 }

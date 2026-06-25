@@ -31,7 +31,7 @@ export const brunoActionRegistry: Record<BrunoActionType, BrunoToolDefinition> =
     description: "Create a new time block in the plan/calendar.",
     riskLevel: "medium",
     requiresConfirmation: true,
-    executable: false,
+    executable: true,
   },
   UPDATE_DAILY_PLAN: {
     type: "UPDATE_DAILY_PLAN",

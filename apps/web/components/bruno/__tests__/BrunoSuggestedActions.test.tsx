@@ -6,6 +6,18 @@ import {
 } from '@/components/bruno/BrunoProvider';
 import { BrunoSuggestedActions } from '@/components/bruno/BrunoSuggestedActions';
 
+vi.mock('@/hooks/useProIntegrations', () => ({
+  useProIntegrations: () => ({
+    connectedProviders: [],
+    loading: false,
+    isPro: false,
+    pulses: [],
+    syncing: false,
+    syncAll: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 function TasksActions({
   onSelectAction,
 }: {

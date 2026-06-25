@@ -166,7 +166,12 @@ export default function CalendarScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+      accessibilityRole="none"
+      accessibilityLabel="Calendar view"
+    >
       <View style={[styles.header, { borderBottomColor: colors.separator }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Calendar</Text>
         <View style={styles.headerActions}>

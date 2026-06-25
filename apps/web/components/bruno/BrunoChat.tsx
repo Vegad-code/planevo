@@ -2,15 +2,23 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import Link from 'next/link';
 import BrunoAvatar from './BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
 import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus, Stop } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
+import { brunoMarkdownComponents } from '@/components/bruno/brunoMarkdownComponents';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
+import { BrunoChatLimitPaywall } from '@/components/bruno/BrunoChatLimitPaywall';
+import { BrunoNoteActions } from '@/components/bruno/BrunoNoteActions';
+import { useSubscription } from '@/hooks/use-subscription';
+import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
+import {
+  isRateLimitActive,
+  parseBrunoRateLimitError,
+} from '@/lib/bruno/rate-limit-client';
 
 const MemoizedMessage = memo(({ m, isLoading, editingMessageId, setInput, setEditingMessageId }: any) => {
   const textPart = (m.parts?.find((p: any) => p.type === 'text'))?.text;
@@ -58,7 +66,7 @@ const MemoizedMessage = memo(({ m, isLoading, editingMessageId, setInput, setEdi
             ${editingMessageId === m.id ? 'opacity-50' : ''}
           `}>
             <div className="bruno-markdown max-w-none text-xs [&_h2]:text-sm [&_h3]:text-xs [&_strong]:text-accent-600">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>
                 {textPart}
               </ReactMarkdown>
             </div>
@@ -109,7 +117,9 @@ export default function BrunoChat() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState<BrunoRateLimitPayload | null>(null);
+  const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
+  const { isFree } = useSubscription();
   const [mounted, setMounted] = useState(false);
   const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -125,13 +135,26 @@ export default function BrunoChat() {
   const [input, setInput] = useState('');
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
 
-  const { messages, setMessages, sendMessage, status, error, stop } = useChat({
+  const handleRateLimitError = useCallback(
+    (error: unknown) => {
+      if (!isFree) return;
+      const parsed = parseBrunoRateLimitError(error);
+      if (parsed) {
+        setRateLimitInfo(parsed);
+        setIsPaywallDismissed(false);
+      }
+    },
+    [isFree]
+  );
+
+  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
     messages: [
       { id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as UIMessage
     ],
+    onError: handleRateLimitError,
     onFinish: async (event) => {
       const message = (event as any).message || event;
       const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
@@ -163,10 +186,12 @@ export default function BrunoChat() {
   );
 
   useEffect(() => {
-    if (error?.message?.includes('403') || error?.message?.includes('429')) {
-      setShowPaywall(true);
+    if (error) {
+      handleRateLimitError(error);
     }
-  }, [error]);
+  }, [error, handleRateLimitError]);
+
+  const isRateLimited = isFree && isRateLimitActive(rateLimitInfo);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -435,16 +460,34 @@ export default function BrunoChat() {
         className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#121212] custom-scrollbar"
         onScroll={handleScroll}
       >
-        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => (
-          <MemoizedMessage 
-            key={i} 
-            m={m} 
-            isLoading={isLoading} 
-            editingMessageId={editingMessageId} 
-            setInput={setInput} 
-            setEditingMessageId={setEditingMessageId} 
-          />
-        ))}
+        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => {
+          const textPart = m.parts?.find((p: { type: string }) => p.type === 'text') as { text?: string } | undefined;
+          const truncatedPart = m.parts?.find((p: { type: string }) => p.type === 'data-bruno-truncated') as { data?: { assistantText?: string; canContinue?: boolean } } | undefined;
+          return (
+            <div key={i}>
+              <MemoizedMessage
+                m={m}
+                isLoading={isLoading}
+                editingMessageId={editingMessageId}
+                setInput={setInput}
+                setEditingMessageId={setEditingMessageId}
+              />
+              {m.role === 'assistant' && textPart?.text && (
+                <BrunoNoteActions
+                  content={truncatedPart?.data?.assistantText || textPart.text}
+                  conversationId={currentConversationId}
+                  truncated={truncatedPart?.data ? { type: 'bruno_truncated', message: '', assistantText: truncatedPart.data.assistantText ?? textPart.text, canContinue: truncatedPart.data.canContinue ?? false } : null}
+                  onContinue={() => {
+                    sendMessage(
+                      { text: 'continue' },
+                      { body: { conversationId: currentConversationId } }
+                    );
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
         {isWaitingForFirstToken && (
           <div className="flex justify-start animate-in fade-in duration-200">
             <div className="bg-white p-3 rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]">
@@ -461,32 +504,20 @@ export default function BrunoChat() {
         )}
         <div ref={messagesEndRef} />
 
-        {/* Big Fat Paywall Overlay */}
-        {showPaywall && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-surface-900/90 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white border-4 border-surface-900 p-6 shadow-[8px_8px_0px_0px_var(--accent-500)] text-center">
-              <div className="text-4xl mb-4 animate-bounce">💎</div>
-              <h4 className="text-sm font-black uppercase tracking-widest text-surface-900 mb-2">Daily Quota Reached</h4>
-              <p className="text-[10px] font-bold text-surface-500 uppercase leading-relaxed mb-6">
-                Your daily AI usage is at capacity. Upgrade to Premium for unlimited requests and full priority.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Link 
-                  href="/pricing"
-                  className="bg-brand-600 text-white py-3 px-4 text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-[4px_4px_0px_0px_var(--surface-900)] active:translate-x-0.5 active:translate-y-0.5"
-                >
-                  Upgrade to Premium
-                </Link>
-                <button 
-                  onClick={() => setShowPaywall(false)}
-                  className="text-[10px] font-black uppercase tracking-widest text-surface-400 hover:text-surface-900 transition-colors"
-                >
-                  Maybe later
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {rateLimitInfo && isRateLimited ? (
+          <BrunoChatLimitPaywall
+            rateLimit={rateLimitInfo}
+            isDismissed={isPaywallDismissed}
+            onDismiss={() => {
+              setIsPaywallDismissed(true);
+              clearError();
+            }}
+            onExpired={() => {
+              setRateLimitInfo(null);
+              setIsPaywallDismissed(false);
+            }}
+          />
+        ) : null}
       </div>
 
       {/* Input */}

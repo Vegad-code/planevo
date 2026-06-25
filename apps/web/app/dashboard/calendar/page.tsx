@@ -1,48 +1,29 @@
 'use client';
-import { useState, useCallback, useEffect, useMemo, type ComponentType } from 'react';
+
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useCalendarPreferences } from '@/hooks/useCalendarPreferences';
-import CalendarShell from '@/components/calendar/CalendarShell';
+import CalendarShell, { type CalendarShellHandle } from '@/components/calendar/CalendarShell';
 import TaskBacklog from '@/components/dashboard/TaskBacklog';
-import EventDialog from '@/components/calendar/dialogs/EventDialog';
-import { Button } from '@/components/ui/button';
-import { ArrowsCounterClockwise, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import CalendarComposer from '@/components/calendar/dialogs/CalendarComposer';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import type { CalendarEvent } from '@/types/calendar';
+import type { CalendarEvent, ComposerState, CalendarComposerDraft, ComposerAnchor, CalendarView } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
-import QuickAddSidebar from '@/components/calendar/dialogs/QuickAddSidebar';
-import { format, startOfWeek, addDays } from 'date-fns';
+import { format, startOfWeek, addDays, addMinutes, setHours, setMinutes, startOfDay } from 'date-fns';
 import { useRegisterBrunoContext, useBruno } from '@/components/bruno/BrunoProvider';
 import { useProIntegrations } from '@/hooks/useProIntegrations';
-import { SlackIcon, NotionIcon, LinearIcon } from '@/components/icons/BrandIcons';
-import type { ProIntegrationProvider } from '@/lib/integrations/types';
-
-const LAYER_ICONS: Record<ProIntegrationProvider, ComponentType<{ className?: string }>> = {
-  notion: NotionIcon,
-  slack: SlackIcon,
-  linear: LinearIcon,
-};
-
-interface QuickAddData {
-  title: string;
-  start_time: string;
-  end_time: string;
-  description: string;
-  is_all_day: boolean;
-  is_completed: boolean;
-  source: string;
-  metadata: {
-    subtasks: Array<{ title: string; completed: boolean }>;
-  };
-}
+import CalendarShortcutHelp from '@/components/calendar/CalendarShortcutHelp';
+import { useCalendarKeyboardShortcuts } from '@/hooks/useCalendarKeyboardShortcuts';
+import { resolveTaskIdForSchedule } from '@/lib/calendar/scheduleTask';
+import { findNextFreeSlot } from '@/lib/calendar/findNextFreeSlot';
+import { WEEK_STARTS_ON } from '@/components/calendar/CalendarToolbar';
+import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
 
 export default function CalendarPage() {
   const {
     events,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    loading: eventsLoading,
     completeEvent,
     createEvent,
     rescheduleEvent,
@@ -55,33 +36,67 @@ export default function CalendarPage() {
   const { preferences, loading: prefsLoading } = useCalendarPreferences();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [activeView, setActiveView] = useState<'day' | 'week' | 'month' | 'list'>('week');
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [activeView, setActiveView] = useState<CalendarView>('week');
+  const [viewInitialized, setViewInitialized] = useState(false);
+  const [composer, setComposer] = useState<ComposerState>({ mode: 'closed' });
   const [isProcessing, setIsProcessing] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleLastSyncedAt, setGoogleLastSyncedAt] = useState<string | null>(null);
   const [backlogCount, setBacklogCount] = useState<number>(0);
-  const [workItems, setWorkItems] = useState<any[]>([]);
+  const [workItems, setWorkItems] = useState<
+    Array<{
+      id: string;
+      provider: string;
+      title: string;
+      description: string | null;
+      due_date: string;
+      url: string | null;
+      completed: boolean;
+    }>
+  >([]);
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [backlogOpen, setBacklogOpen] = useState(true);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [backlogRefreshKey, setBacklogRefreshKey] = useState(0);
+
+  const shellRef = useRef<CalendarShellHandle>(null);
   const supabase = createClient();
   const { openBruno } = useBruno();
   const { connectedProviders } = useProIntegrations();
 
   const loading = prefsLoading;
+
+  useEffect(() => {
+    if (!prefsLoading && !viewInitialized) {
+      setActiveView(preferences.default_view);
+      setViewInitialized(true);
+    }
+  }, [prefsLoading, preferences.default_view, viewInitialized]);
+
+  useEffect(() => {
+    if (!loading && (activeView === 'day' || activeView === 'week')) {
+      shellRef.current?.scrollToNow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll once after initial load
+  }, [loading]);
+
   const contextLabel = useMemo(() => {
     if (activeView === 'week') {
       return `Calendar - Week of ${format(
-        startOfWeek(selectedDate, { weekStartsOn: 1 }),
+        startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON }),
         'MMM d'
       )}`;
     }
-
     if (activeView === 'month') {
       return `Calendar - ${format(selectedDate, 'MMMM yyyy')}`;
     }
-
+    if (activeView === 'year') {
+      return `Calendar - ${format(selectedDate, 'yyyy')}`;
+    }
     return `Calendar - ${format(selectedDate, 'MMM d')}`;
   }, [activeView, selectedDate]);
+
   const brunoPayload = useMemo(
     () => ({
       activeView,
@@ -99,15 +114,30 @@ export default function CalendarPage() {
 
   useEffect(() => {
     async function checkGoogleConnection() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      const { data } = await supabase
-        .from('users')
-        .select('google_calendar_connected')
-        .eq('id', session.user.id)
-        .single();
-      if (data?.google_calendar_connected) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: accounts } = await supabase
+        .from('integration_accounts_public' as 'integration_accounts')
+        .select('provider, status, last_synced_at')
+        .eq('user_id', user.id);
+
+      const googleAccount = accounts?.find((a) => a.provider === 'google_calendar');
+      if (googleAccount?.status === 'connected') {
         setGoogleConnected(true);
+        setGoogleLastSyncedAt(googleAccount.last_synced_at || null);
+      }
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('google_calendar_last_synced_at')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.google_calendar_last_synced_at) {
+        setGoogleLastSyncedAt(profile.google_calendar_last_synced_at);
       }
     }
     checkGoogleConnection();
@@ -115,7 +145,9 @@ export default function CalendarPage() {
 
   useEffect(() => {
     async function loadBacklogCount() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data } = await supabase
@@ -126,19 +158,27 @@ export default function CalendarPage() {
         .is('deleted_at', null);
 
       if (data) {
-        const scheduledIds = events.map(e => e.linked_task_id).filter(Boolean) as string[];
-        const unscheduledTasks = data.filter(t => !scheduledIds.includes(t.id));
+        const scheduledIds = events.map((e) => e.linked_task_id).filter(Boolean) as string[];
+        const unscheduledTasks = data.filter((t) => !scheduledIds.includes(t.id));
         setBacklogCount(unscheduledTasks.length);
       }
     }
     loadBacklogCount();
-  }, [supabase, events]);
+  }, [supabase, events, backlogRefreshKey]);
 
-  // Load work items (Notion/Linear/Slack) with due dates to overlay read-only.
+  useEffect(() => {
+    if (backlogCount > 0 && window.innerWidth >= 1024) {
+      setBacklogOpen(true);
+    }
+  }, [backlogCount]);
+
   useEffect(() => {
     async function loadWorkItems() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from('source_items')
         .select('id, provider, title, description, due_date, url, completed')
@@ -147,12 +187,11 @@ export default function CalendarPage() {
         .not('due_date', 'is', null)
         .is('deleted_at', null)
         .limit(200);
-      if (data) setWorkItems(data.filter((w: any) => !w.completed));
+      if (data) setWorkItems(data.filter((w: { completed?: boolean }) => !w.completed));
     }
     loadWorkItems();
   }, [supabase]);
 
-  // Convert work items into read-only overlay calendar events.
   const overlayEvents = useMemo<CalendarEvent[]>(() => {
     return workItems
       .filter((w) => !hiddenLayers.has(w.provider))
@@ -192,47 +231,133 @@ export default function CalendarPage() {
     });
   };
 
-  const handleSaveToNotion = useCallback((event: CalendarEvent) => {
-    openBruno({
-      source: 'calendar',
-      page: '/dashboard/calendar',
-      label: `Calendar - Save to Notion`,
-      payload: {
-        prompt: `Create a Notion page with notes for my calendar event "${event.title}" (${format(new Date(event.start_time), 'PPp')}).${event.description ? ` Context: ${event.description}` : ''}`,
-      },
+  const getDefaultCreateDraft = useCallback((): CalendarComposerDraft => {
+    const slot = findNextFreeSlot({
+      date: selectedDate,
+      events: mergedEvents,
+      durationMinutes: 60,
+      dayStartHour: preferences.day_start_hour,
+      dayEndHour: preferences.day_end_hour,
     });
-    toast.info('Bruno is ready to save this to Notion.');
-  }, [openBruno]);
+    const start =
+      slot ?? setMinutes(setHours(startOfDay(selectedDate), 9), 0);
+    const end = addMinutes(start, 60);
+    return {
+      title: '',
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+    };
+  }, [selectedDate, mergedEvents, preferences.day_start_hour, preferences.day_end_hour]);
 
-  const navigateDate = (direction: 'prev' | 'next') => {
-    const delta = direction === 'next' ? 1 : -1;
-    switch (activeView) {
-      case 'day':
-        setSelectedDate(prev => addDays(prev, delta));
-        break;
-      case 'week':
-        setSelectedDate(prev => addDays(prev, delta * 7));
-        break;
-      case 'month':
-        const newMonth = new Date(selectedDate);
-        newMonth.setMonth(newMonth.getMonth() + delta);
-        setSelectedDate(newMonth);
-        break;
-      case 'list':
-        setSelectedDate(prev => addDays(prev, delta));
-        break;
-    }
-  };
+  const openComposerCreate = useCallback(
+    (draft: CalendarComposerDraft, anchor?: ComposerAnchor) => {
+      setComposer({ mode: 'create', draft, anchor });
+    },
+    []
+  );
+
+  const handleCreateEvent = useCallback(
+    (time?: Date, anchor?: ComposerAnchor) => {
+      const useAnchor =
+        anchor && (activeView === 'day' || activeView === 'week');
+      if (time) {
+        openComposerCreate(
+          {
+            title: '',
+            start_time: time.toISOString(),
+            end_time: addMinutes(time, 60).toISOString(),
+          },
+          useAnchor ? anchor : undefined
+        );
+      } else {
+        openComposerCreate(getDefaultCreateDraft());
+      }
+    },
+    [openComposerCreate, getDefaultCreateDraft, activeView]
+  );
+
+  const handleSaveToNotion = useCallback(
+    (event: CalendarEvent) => {
+      openBruno({
+        source: 'calendar',
+        page: '/dashboard/calendar',
+        label: 'Calendar - Save to Notion',
+        payload: {
+          prompt: `Create a Notion page with notes for my calendar event "${event.title}" (${format(new Date(event.start_time), 'PPp')}).${event.description ? ` Context: ${event.description}` : ''}`,
+        },
+      });
+      toast.info('Bruno is ready to save this to Notion.');
+    },
+    [openBruno]
+  );
+
+  const navigateDate = useCallback(
+    (direction: 'prev' | 'next') => {
+      const delta = direction === 'next' ? 1 : -1;
+      switch (activeView) {
+        case 'day':
+          setSelectedDate((prev) => addDays(prev, delta));
+          break;
+        case 'week':
+          setSelectedDate((prev) => addDays(prev, delta * 7));
+          break;
+        case 'month':
+          setSelectedDate((prev) => {
+            const next = new Date(prev);
+            next.setMonth(next.getMonth() + delta);
+            return next;
+          });
+          break;
+        case 'year':
+          setSelectedDate((prev) => {
+            const next = new Date(prev);
+            next.setFullYear(next.getFullYear() + delta);
+            return next;
+          });
+          break;
+        case 'list':
+          setSelectedDate((prev) => addDays(prev, delta));
+          break;
+      }
+    },
+    [activeView]
+  );
+
+  const handleToday = useCallback(() => {
+    setSelectedDate(new Date());
+    shellRef.current?.scrollToNow();
+  }, []);
+
+  const handleJumpToWeekday = useCallback((dayIndex: number) => {
+    const weekStart = startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON });
+    setSelectedDate(addDays(weekStart, dayIndex));
+  }, [selectedDate]);
+
+  useCalendarKeyboardShortcuts({
+    onToday: handleToday,
+    onNavigate: navigateDate,
+    onViewChange: setActiveView,
+    onNewEvent: () => handleCreateEvent(),
+    onToggleBacklog: () => setBacklogOpen((o) => !o),
+    onJumpToWeekday: handleJumpToWeekday,
+    onOpenShortcuts: () => setShortcutsOpen(true),
+    onEscape: () => {
+      setShortcutsOpen(false);
+      setComposer({ mode: 'closed' });
+    },
+  });
 
   const getSubheadText = () => {
     try {
       switch (activeView) {
         case 'week':
-          return `CALENDAR · WEEK OF ${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'MMMM d').toUpperCase()}`;
+          return `CALENDAR · WEEK OF ${format(startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON }), 'MMMM d').toUpperCase()}`;
         case 'day':
           return `CALENDAR · ${format(selectedDate, 'EEEE · MMMM d').toUpperCase()}`;
         case 'month':
           return `CALENDAR · ${format(selectedDate, 'MMMM yyyy').toUpperCase()}`;
+        case 'year':
+          return `CALENDAR · ${format(selectedDate, 'yyyy')}`;
         case 'list':
           return 'CALENDAR · UPCOMING SCHEDULE';
       }
@@ -241,52 +366,17 @@ export default function CalendarPage() {
     }
   };
 
-  const getTitle = () => {
-    switch (activeView) {
-      case 'week':
-        return <>Your <span className="font-serif italic text-[var(--color-honey-deep)] font-normal">week</span>, unified.</>;
-      case 'day':
-        return <>Your <span className="font-serif italic text-[var(--color-honey-deep)] font-normal">day</span>, unified.</>;
-      case 'month':
-        return <>Your <span className="font-serif italic text-[var(--color-honey-deep)] font-normal">month</span>, unified.</>;
-      case 'list':
-        return <>Your <span className="font-serif italic text-[var(--color-honey-deep)] font-normal">timeline</span>, unified.</>;
-    }
-  };
-
   const handleEventClick = (event: CalendarEvent) => {
-    // Read-only work overlays open their source in a new tab instead of editing.
     if (event.metadata?.readOnly) {
       const url = event.metadata?.url || event.external_id;
       if (url) window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
-    setSelectedEvent(event);
+    setComposer({ mode: 'edit', event });
   };
 
   const handleEventComplete = async (id: string) => {
     await completeEvent(id);
-  };
-
-  const handleCreateEvent = async (time?: Date) => {
-    if (time) {
-      const endTime = new Date(time.getTime() + 60 * 60 * 1000); // 1 hour default
-      const newEvent = await createEvent({
-        title: 'New Event',
-        start_time: time.toISOString(),
-        end_time: endTime.toISOString(),
-        source: 'manual',
-      });
-      if (newEvent) {
-        setSelectedEvent(newEvent);
-      }
-    } else {
-      setIsQuickAddOpen(true);
-    }
-  };
-
-  const handleQuickAddSave = async (data: QuickAddData) => {
-    await createEvent(data as Partial<CalendarEvent>);
   };
 
   const handleReschedule = async (eventId: string, newStart: Date, newEnd: Date) => {
@@ -298,7 +388,11 @@ export default function CalendarPage() {
   };
 
   const handleStartFresh = async () => {
-    if (window.confirm("Are you sure you want to clear your timeline? This will delete all calendar events.")) {
+    if (
+      window.confirm(
+        'Are you sure you want to clear your timeline? This will delete all calendar events.'
+      )
+    ) {
       await clearAll();
     }
   };
@@ -309,61 +403,104 @@ export default function CalendarPage() {
 
   const handleReExtractGoogle = async () => {
     setIsProcessing(true);
-    const toastId = toast.loading('Re-extracting events from Google Calendar...', { id: 're-extract' });
+    const toastId = toast.loading('Syncing Google Calendar...', { id: 're-extract' });
     try {
       const response = await fetch('/api/integrations/google/sync?force=true', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       if (!response.ok) {
-        throw new Error('Failed to re-extract events');
+        const errBody = await response.text().catch(() => '');
+        let message = 'Failed to sync Google Calendar';
+        try {
+          const parsed = JSON.parse(errBody) as { error?: string };
+          if (parsed.error) message = parsed.error;
+        } catch {
+          // keep default
+        }
+        throw new Error(message);
       }
       const data = await response.json();
-      toast.success(data.message || 'Events re-extracted successfully', { id: toastId });
-      loadEvents(); 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+      toast.success(data.message || 'Google Calendar synced', { id: toastId });
+      setGoogleLastSyncedAt(new Date().toISOString());
+      loadEvents();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sync failed';
       console.error(err);
-      toast.error(`Re-extract failed: ${err.message || err}`, { id: toastId });
+      toast.error(`Sync failed: ${message}`, { id: toastId });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleTaskDrop = async (task: Task, time: Date) => {
-    const endTime = new Date(time.getTime() + (task.estimated_minutes || 60) * 60 * 1000); 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    let linkedTaskId: string;
+    try {
+      linkedTaskId = await resolveTaskIdForSchedule(supabase, task, user.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not schedule task';
+      toast.error(message);
+      return;
+    }
+
+    const durationMs = (task.estimated_minutes || 60) * 60 * 1000;
+    const endTime = new Date(time.getTime() + durationMs);
     const newEvent = await createEvent({
       title: task.title,
       description: task.description || undefined,
       start_time: time.toISOString(),
       end_time: endTime.toISOString(),
       source: 'cargo_bay',
-      linked_task_id: task.id,
+      linked_task_id: linkedTaskId,
+      color: task.color ?? undefined,
       energy_level: task.energy_level_required as CalendarEvent['energy_level'],
     });
-    
+
     if (newEvent) {
+      setBacklogRefreshKey((k) => k + 1);
       toast.success(`Scheduled "${task.title}"`, {
         action: {
           label: 'Undo',
           onClick: async () => {
             await deleteEvent(newEvent.id);
             toast.info(`Removed "${task.title}" from schedule`);
-          }
-        }
+          },
+        },
       });
     }
   };
 
-  const handleRangeChange = useCallback((start: Date, end: Date) => {
-    loadEvents(start, end);
-  }, [loadEvents]);
+  const handleAskBruno = useCallback(
+    (task: Task) => {
+      openBruno({
+        source: 'calendar',
+        page: '/dashboard/calendar',
+        label: 'Calendar - Schedule task',
+        payload: {
+          prompt: `Find the best time slot today or this week for my task "${task.title}" (${task.estimated_minutes || 30} minutes).`,
+        },
+      });
+    },
+    [openBruno]
+  );
 
-  // Initial load
+  const handleRangeChange = useCallback(
+    (start: Date, end: Date) => {
+      loadEvents(start, end);
+    },
+    [loadEvents]
+  );
+
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleAutoSchedule = async (backlogTasks?: Task[]) => {
     setIsProcessing(true);
     const toastId = toast.loading('Bruno is finding optimal slots...', { id: 'auto-schedule' });
@@ -376,7 +513,12 @@ export default function CalendarPage() {
           energyLevel: 'medium',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           localTime: new Date().toISOString(),
-        })
+          backlogTasks: backlogTasks?.map((t) => ({
+            id: t.id,
+            title: t.title,
+            estimated_minutes: t.estimated_minutes || 30,
+          })),
+        }),
       });
 
       if (!response.ok) {
@@ -385,240 +527,162 @@ export default function CalendarPage() {
 
       const data = await response.json();
       toast.success(data.message || 'Schedule generated successfully', { id: toastId });
-      loadEvents(); 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+      setBacklogRefreshKey((k) => k + 1);
+      loadEvents();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Auto-scheduling failed';
       console.error(err);
-      toast.error(`Auto-scheduling failed: ${err.message || err}`, { id: toastId });
+      toast.error(`Auto-scheduling failed: ${message}`, { id: toastId });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleComposerSchedule = async (draft: CalendarComposerDraft) => {
+    await createEvent({
+      title: draft.title,
+      start_time: draft.start_time,
+      end_time: draft.end_time,
+      description: draft.description,
+      is_all_day: draft.is_all_day ?? false,
+      color: draft.color,
+      source: 'manual',
+      metadata: draft.metadata,
+    });
+    toast.success(`Added "${draft.title}" to calendar`);
+  };
 
+  const handleComposerBacklog = async (draft: CalendarComposerDraft) => {
+    const { user, error: profileError } = await ensureUserProfile(supabase);
+    if (profileError || !user) {
+      toast.error('Please log in again.');
+      return;
+    }
 
+    const start = new Date(draft.start_time);
+    const durationMins = Math.round(
+      (new Date(draft.end_time).getTime() - start.getTime()) / 60000
+    );
+
+    const { error } = await supabase.from('tasks').insert({
+      user_id: user.id,
+      title: draft.title,
+      description: draft.description || null,
+      estimated_minutes: durationMins > 0 ? durationMins : 30,
+      status: 'todo',
+      completed: false,
+      priority: 'medium',
+      energy_level_required: 'medium',
+      best_time_of_day: 'anytime',
+      due_date: start.toISOString().split('T')[0],
+    });
+
+    if (error) {
+      toast.error('Failed to add to backlog');
+      return;
+    }
+
+    setBacklogRefreshKey((k) => k + 1);
+    toast.success(`Added "${draft.title}" to backlog`);
+  };
 
   if (loading) {
     return (
-      <div className="flex flex-col lg:flex-row gap-8 h-full w-full animate-pulse fade-in duration-500 pb-12">
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header Skeleton */}
-          <div className="pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
-            <div>
-              <div className="w-32 h-3 bg-[var(--color-line-strong)] rounded-full mb-3"></div>
-              <div className="w-64 h-10 md:w-80 md:h-12 bg-[var(--color-line-strong)] rounded-xl"></div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-24 h-8 bg-[var(--color-line-strong)] rounded-md"></div>
-              <div className="w-28 h-8 bg-[var(--color-line-strong)] rounded-xl"></div>
-              <div className="w-48 h-8 bg-[var(--color-line-strong)] rounded-xl"></div>
-            </div>
-          </div>
-          {/* Calendar Grid Skeleton */}
-          <div className="flex-1 min-h-[600px] border border-[var(--color-line)] rounded-[22px] bg-[var(--color-paper)] p-6">
-            <div className="w-full h-full flex flex-col">
-              <div className="flex border-b border-[var(--color-line)] pb-4 mb-4 gap-4">
-                <div className="w-16 h-8"></div>
-                {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                    <div className="w-8 h-3 bg-[var(--color-line-strong)] rounded-full"></div>
-                    <div className="w-10 h-10 bg-[var(--color-cream)] rounded-full"></div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex-1 flex gap-4">
-                <div className="w-16 flex flex-col gap-8 pt-4">
-                  {[1, 2, 3, 4, 5].map(i => <div key={i} className="w-10 h-3 bg-[var(--color-line-strong)] rounded-full self-end"></div>)}
-                </div>
-                <div className="flex-1 grid grid-cols-7 gap-4">
-                  {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                    <div key={i} className="h-full border-l border-[var(--color-line)] relative">
-                       {i === 2 && <div className="absolute top-10 left-2 right-2 h-24 bg-[var(--color-cream-2)] rounded-lg"></div>}
-                       {i === 4 && <div className="absolute top-32 left-2 right-2 h-16 bg-[var(--color-cream-2)] rounded-lg"></div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className="flex flex-col h-full w-full animate-pulse fade-in duration-500 min-h-0">
+        <div className="pb-2 shrink-0">
+          <div className="w-48 h-3 bg-[var(--color-line-strong)] rounded-full" />
         </div>
-        {/* Sidebar Skeleton */}
-        <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-6 h-full hidden lg:flex">
-          <div className="bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] p-6 h-[400px]"></div>
-          <div className="bg-[#2c221a] rounded-[22px] p-6 h-48 opacity-80"></div>
+        <div className="flex-1 min-h-0 border border-[var(--color-line)] rounded-[22px] bg-[var(--color-paper)] p-4">
+          <div className="w-full h-10 bg-[var(--color-line-strong)] rounded-xl mb-4" />
+          <div className="w-full h-full bg-[var(--color-cream)] rounded-xl opacity-50" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 h-full w-full animate-fade-in pb-12">
-      {/* Main Calendar Column */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Editorial Title Section */}
-        <div className="pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
-          <div>
-            <span className="font-mono text-[10px] tracking-widest text-[var(--color-ink-muted)] uppercase block mb-1">
-              {getSubheadText()}
-            </span>
-            <h1 className="text-4xl font-bold tracking-tight text-[var(--color-ink)] font-sans leading-none">
-              {getTitle()}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {connectedProviders.length > 0 && (
-              <div className="flex items-center gap-1.5 mr-1">
-                {connectedProviders.map((provider) => {
-                  const Icon = LAYER_ICONS[provider];
-                  const active = !hiddenLayers.has(provider);
-                  return (
-                    <button
-                      key={provider}
-                      onClick={() => toggleLayer(provider)}
-                      title={`${active ? 'Hide' : 'Show'} ${provider} items`}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                        active
-                          ? 'bg-[var(--color-ink)] text-[var(--color-cream)] border-[var(--color-ink)]'
-                          : 'bg-[var(--color-paper)] text-[var(--color-ink-muted)] border-[var(--color-line)]'
-                      }`}
-                    >
-                      <Icon className="w-3 h-3" />
-                      {provider}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {googleConnected && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleReExtractGoogle}
-                disabled={isProcessing}
-                className="text-[var(--color-blue)] hover:text-blue-600 hover:bg-blue-50/50 text-xs font-mono uppercase tracking-wider font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 mr-2"
-              >
-                <ArrowsCounterClockwise className={`w-3.5 h-3.5 mr-1.5 ${isProcessing ? 'animate-spin' : ''}`} />
-                Sync Google
-              </Button>
-            )}
-            {/* Start Fresh / Action buttons */}
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleStartFresh}
-              className="text-[var(--color-ink-muted)] hover:text-red-600 hover:bg-red-50/50 text-xs font-mono uppercase tracking-wider font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-            >
-              <ArrowsCounterClockwise className="w-3.5 h-3.5 mr-1.5" />
-              Start Fresh
-            </Button>
-
-            {/* Date navigation */}
-            <div className="flex items-center gap-1 bg-[var(--color-paper)] p-1 rounded-xl border border-[var(--color-line)] shadow-sm">
-              <button
-                onClick={() => navigateDate('prev')}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
-                aria-label="Previous date range"
-              >
-                <CaretLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setSelectedDate(new Date())}
-                className="text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
-              >
-                Today
-              </button>
-              <button
-                onClick={() => navigateDate('next')}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-ink)]"
-                aria-label="Next date range"
-              >
-                <CaretRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* View Switcher Pills */}
-            <div className="flex bg-[var(--color-paper)] p-1 rounded-xl border border-[var(--color-line)] shadow-sm relative">
-              {(['day', 'week', 'month', 'list'] as const).map((view) => (
-                <button
-                  key={view}
-                  onClick={() => setActiveView(view)}
-                  className={`
-                    relative px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 z-10 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--color-ink)]
-                    ${activeView === view
-                      ? 'text-[var(--color-cream)] bg-[var(--color-ink)] shadow-sm'
-                      : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
-                    }
-                  `}
-                >
-                  <span className="relative z-10">{view}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Calendar Shell Grid */}
-        <div className="flex-1 min-h-[600px] relative">
-          <CalendarShell
-            events={mergedEvents}
-            preferences={preferences}
-            selectedDate={selectedDate}
-            activeView={activeView}
-            onDateChange={setSelectedDate}
-            onViewChange={setActiveView}
-            onEventClick={handleEventClick}
-            onEventComplete={handleEventComplete}
-            onCreateEvent={handleCreateEvent}
-            onEventReschedule={handleReschedule}
-            onEventResize={handleResize}
-            onTaskDrop={handleTaskDrop}
-            onRangeChange={handleRangeChange}
-          />
-        </div>
+    <div className="flex flex-col h-full w-full animate-fade-in min-h-0">
+      <div className="pb-2 shrink-0">
+        <span className="font-mono text-[10px] tracking-widest text-[var(--color-ink-muted)] uppercase">
+          {getSubheadText()}
+        </span>
       </div>
 
-      {/* Sidebar (Task Backlog) */}
-      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4 h-full lg:h-[80vh]">
-        <div className="flex items-center justify-center gap-2 bg-[var(--color-ink)] px-3 py-2.5 rounded-xl border border-[var(--color-line)] shadow-sm text-[var(--color-cream)] shrink-0">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider">
-            Task Backlog
-          </span>
-          {backlogCount > 0 && (
-            <span className="px-1.5 py-0.5 text-[9px] font-sans font-bold rounded-full bg-[var(--color-paper)] text-[var(--color-ink)]">
-              {backlogCount}
-            </span>
-          )}
-        </div>
-
-        <div className="flex-1 min-h-0">
-          <TaskBacklog
-            onScheduleAll={handleAutoSchedule}
-            onScheduleOne={(task) => {
-              toast.info(`Drag "${task.title}" onto the calendar grid to schedule it.`);
-            }}
-            isProcessing={isProcessing}
-            scheduledTaskIds={events.map(e => e.linked_task_id).filter(Boolean) as string[]}
-          />
-        </div>
+      <div className="flex-1 min-h-0 relative">
+        <CalendarShell
+          ref={shellRef}
+          events={mergedEvents}
+          preferences={preferences}
+          selectedDate={selectedDate}
+          activeView={activeView}
+          onDateChange={setSelectedDate}
+          onViewChange={setActiveView}
+          onEventClick={handleEventClick}
+          onEventComplete={handleEventComplete}
+          onCreateEvent={handleCreateEvent}
+          onEventReschedule={handleReschedule}
+          onEventResize={handleResize}
+          onTaskDrop={handleTaskDrop}
+          onRangeChange={handleRangeChange}
+          draggedTask={draggedTask}
+          onDragTaskChange={setDraggedTask}
+          backlogOpen={backlogOpen}
+          onToggleBacklog={() => setBacklogOpen((o) => !o)}
+          backlogCount={backlogCount}
+          connectedProviders={connectedProviders}
+          hiddenLayers={hiddenLayers}
+          onToggleLayer={toggleLayer}
+          googleConnected={googleConnected}
+          googleLastSyncedAt={googleLastSyncedAt}
+          onSyncGoogle={handleReExtractGoogle}
+          onStartFresh={handleStartFresh}
+          isProcessing={isProcessing}
+          onNavigate={navigateDate}
+          onToday={handleToday}
+          onOpenShortcuts={() => setShortcutsOpen(true)}
+          onCreate={() => handleCreateEvent()}
+          backlogPanel={
+            <TaskBacklog
+              key={backlogRefreshKey}
+              variant="embedded"
+              onScheduleAll={handleAutoSchedule}
+              onScheduleOne={(task, time) => {
+                if (time) {
+                  void handleTaskDrop(task, time);
+                }
+              }}
+              onAskBruno={handleAskBruno}
+              onDragStartTask={setDraggedTask}
+              isProcessing={isProcessing}
+              scheduledTaskIds={
+                events.map((e) => e.linked_task_id).filter(Boolean) as string[]
+              }
+              selectedDate={selectedDate}
+              events={mergedEvents}
+              dayStartHour={preferences.day_start_hour}
+              dayEndHour={preferences.day_end_hour}
+              onTaskCreated={() => setBacklogRefreshKey((k) => k + 1)}
+            />
+          }
+        />
       </div>
 
-      <EventDialog
-        isOpen={!!selectedEvent}
-        onOpenChange={(open) => !open && setSelectedEvent(null)}
-        event={selectedEvent}
-        onSave={handleUpdateEvent}
+      <CalendarComposer
+        state={composer}
+        timeFormat={preferences.time_format}
+        onClose={() => setComposer({ mode: 'closed' })}
+        onSaveSchedule={handleComposerSchedule}
+        onSaveBacklog={handleComposerBacklog}
+        onSaveEdit={handleUpdateEvent}
         onDelete={async (id) => {
           await deleteEvent(id);
-          setSelectedEvent(null);
+          setComposer({ mode: 'closed' });
         }}
-        onSaveToNotion={connectedProviders.includes('notion') ? handleSaveToNotion : undefined}
+        onSaveToNotion={
+          connectedProviders.includes('notion') ? handleSaveToNotion : undefined
+        }
       />
-      <QuickAddSidebar 
-        isOpen={isQuickAddOpen}
-        onOpenChange={setIsQuickAddOpen}
-        onSave={handleQuickAddSave}
-      />
+      <CalendarShortcutHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

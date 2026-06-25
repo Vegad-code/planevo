@@ -24,6 +24,7 @@ export default function EnhancedTasks() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showWhyModal, setShowWhyModal] = useState(false);
+  const [showStartFreshConfirm, setShowStartFreshConfirm] = useState(false);
 
   // Tabs for source-based filtering
   const [activeTab, setActiveTab] = useState<'all' | 'canvas' | 'calendar' | 'work' | 'personal'>('all');
@@ -236,16 +237,17 @@ export default function EnhancedTasks() {
     router.push('/dashboard/focus');
   }, [setActiveTask, router]);
 
-  const handleStartFresh = async () => {
+  const handleStartFreshClick = () => {
     if (tasks.length === 0) return;
+    setShowStartFreshConfirm(true);
+  };
 
-    if (!window.confirm(`Are you sure you want to delete ALL ${tasks.length} tasks and start fresh? This cannot be undone.`)) return;
+  const confirmStartFresh = async () => {
+    setShowStartFreshConfirm(false);
 
     const result = await startFresh();
     if (result.error) {
       showToast.error('Fresh Start Failed', result.error);
-    } else {
-      showToast.success('Your workspace has been cleared! 🌱');
     }
   };
 
@@ -375,7 +377,7 @@ export default function EnhancedTasks() {
             </label>
             {tasks.length > 0 && (
               <button
-                onClick={handleStartFresh}
+                onClick={handleStartFreshClick}
                 className="flex items-center gap-1.5 text-sm font-medium text-red-500/80 hover:text-red-600 transition-colors cursor-pointer"
               >
                 Start Fresh
@@ -452,6 +454,50 @@ export default function EnhancedTasks() {
           </div>
         )}
       </div>
+
+      {/* Start Fresh Confirmation Modal */}
+      <AnimatePresence>
+        {showStartFreshConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowStartFreshConfirm(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-6 z-10 shadow-2xl"
+            >
+              <h2 className="text-lg font-serif italic font-semibold text-red-600 mb-2">
+                Start fresh?
+              </h2>
+              <p className="text-sm text-[var(--color-ink-soft)] leading-relaxed mb-6">
+                Are you sure you want to delete all{' '}
+                <span className="font-semibold text-[var(--color-ink)]">{tasks.length} tasks</span>{' '}
+                and start fresh? This cannot be undone.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowStartFreshConfirm(false)}
+                  className="flex-1 py-2.5 rounded-[14px] font-medium text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-cream)] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmStartFresh}
+                  disabled={saving}
+                  className="flex-1 py-2.5 rounded-[14px] font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? 'Clearing...' : 'Delete all tasks'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Why Modal */}
       <AnimatePresence>

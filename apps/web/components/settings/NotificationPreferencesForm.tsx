@@ -1,25 +1,65 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
-import { Bell, BellRinging, EnvelopeSimple, AppWindow, Moon, WarningCircle, CheckCircle, PaperPlaneRight } from '@phosphor-icons/react';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
+import { Bell, BellRinging, EnvelopeSimple, AppWindow, Moon, WarningCircle, CheckCircle, PaperPlaneRight, CalendarBlank } from '@phosphor-icons/react';
 import { SettingsSection } from './ui/SettingsSection';
 import { SettingsToggleRow } from './ui/SettingsToggleRow';
 import { SettingsRow } from './ui/SettingsRow';
-import { NotificationPreferences, updateNotificationPreferences } from '@/app/dashboard/settings/notifications/actions';
+import {
+  NotificationPreferences,
+  ensureDetectedTimezone,
+  updateNotificationPreferences,
+} from '@/app/dashboard/settings/notifications/actions';
+import type { NotificationDeliveryInsight } from '@/lib/notifications/insights';
 
 interface Props {
   initialPreferences: NotificationPreferences;
+  initialDeliveryInsight: NotificationDeliveryInsight;
 }
 
 const timezones = Intl.supportedValuesOf('timeZone');
 
-export function NotificationPreferencesForm({ initialPreferences }: Props) {
+function formatDeliveryType(type: string) {
+  return type.replace(/_/g, ' ');
+}
+
+function formatSentAt(sentAt: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(sentAt));
+}
+
+export function NotificationPreferencesForm({ initialPreferences, initialDeliveryInsight }: Props) {
   const [prefs, setPrefs] = useState<NotificationPreferences>(initialPreferences);
+  const [deliveryInsight] = useState<NotificationDeliveryInsight>(initialDeliveryInsight);
   const [, startTransition] = useTransition();
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [emailTestStatus, setEmailTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [emailTestMessage, setEmailTestMessage] = useState('');
+  const timezoneBootstrapped = useRef(false);
+
+  useEffect(() => {
+    if (timezoneBootstrapped.current) return;
+    timezoneBootstrapped.current = true;
+
+    if (prefs.quiet_hours.timezone !== 'UTC') return;
+
+    const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!detectedTimezone || detectedTimezone === 'UTC') return;
+
+    setPrefs((current) => ({
+      ...current,
+      quiet_hours: { ...current.quiet_hours, timezone: detectedTimezone },
+    }));
+
+    startTransition(() => {
+      ensureDetectedTimezone(detectedTimezone).catch((error) => {
+        console.error('Failed to persist detected timezone', error);
+      });
+    });
+  }, [prefs.quiet_hours.timezone]);
 
   const handleUpdate = (updates: Partial<Omit<NotificationPreferences, 'id' | 'user_id'>>) => {
     const newPrefs = { ...prefs, ...updates };
@@ -27,7 +67,6 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
     startTransition(() => {
       updateNotificationPreferences(updates).catch((err) => {
         console.error('Failed to update preferences', err);
-        // Revert on failure could be implemented here
       });
     });
   };
@@ -72,6 +111,40 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+
+      <SettingsSection title="Email Delivery Status" description="Why automated emails may or may not have reached your inbox.">
+        <div className="px-4 pb-4 flex flex-col gap-3">
+          {deliveryInsight.lastAutomatedEmail ? (
+            <p className="text-sm text-settings-text">
+              Last automated email: <span className="font-semibold">{formatDeliveryType(deliveryInsight.lastAutomatedEmail.type)}</span> on {formatSentAt(deliveryInsight.lastAutomatedEmail.sentAt)}.
+            </p>
+          ) : (
+            <p className="text-sm text-settings-text">No automated Planevo emails have been logged for this account yet.</p>
+          )}
+          {deliveryInsight.lastAutomatedPush ? (
+            <p className="text-sm text-settings-text">
+              Last automated push: <span className="font-semibold">{formatDeliveryType(deliveryInsight.lastAutomatedPush.type)}</span> on {formatSentAt(deliveryInsight.lastAutomatedPush.sentAt)}.
+            </p>
+          ) : (
+            <p className="text-sm text-settings-text-muted">No automated push notifications logged yet.</p>
+          )}
+          <div className="grid gap-2 sm:grid-cols-3 text-sm text-settings-text-muted">
+            <div>Tasks due today: <span className="font-semibold text-settings-text">{deliveryInsight.tasksDueToday}</span></div>
+            <div>Tasks due soon: <span className="font-semibold text-settings-text">{deliveryInsight.tasksDueSoon}</span></div>
+            <div>Events next 24h: <span className="font-semibold text-settings-text">{deliveryInsight.upcomingEvents}</span></div>
+          </div>
+          {deliveryInsight.skipReasons.length > 0 && (
+            <ul className="flex flex-col gap-2 text-sm text-settings-text-muted">
+              {deliveryInsight.skipReasons.map((reason) => (
+                <li key={reason} className="flex items-start gap-2">
+                  <WarningCircle size={16} className="mt-0.5 shrink-0 text-settings-brand" />
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </SettingsSection>
 
       {/* Master Toggle */}
       <SettingsSection title="Notification Delivery" description="Manage how and when you receive notifications.">
@@ -125,6 +198,54 @@ export function NotificationPreferencesForm({ initialPreferences }: Props) {
               icon={<WarningCircle size={18} weight="bold" />}
               checked={prefs.types.deadline_rescue}
               onChange={(c) => handleUpdate({ types: { ...prefs.types, deadline_rescue: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Upcoming Reminders"
+              description="Morning digest for tasks due in the next few days and calendar events in the next 24 hours."
+              icon={<CalendarBlank size={18} weight="bold" />}
+              checked={prefs.types.upcoming_reminders}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, upcoming_reminders: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Canvas Assignments"
+              description="Bundled push when new Canvas assignments sync in."
+              icon={<AppWindow size={18} weight="bold" />}
+              checked={prefs.types.canvas_assignments}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, canvas_assignments: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Google Calendar"
+              description="Events starting soon and daily calendar digest."
+              icon={<CalendarBlank size={18} weight="bold" />}
+              checked={prefs.types.calendar_events}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, calendar_events: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Slack Digest"
+              description="Pro: bundled updates from connected Slack workspaces."
+              icon={<AppWindow size={18} weight="bold" />}
+              checked={prefs.types.work_slack}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, work_slack: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Linear Digest"
+              description="Pro: issue assignments and status changes."
+              icon={<AppWindow size={18} weight="bold" />}
+              checked={prefs.types.work_linear}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, work_linear: c } })}
+            />
+            <div className="h-px bg-settings-border mx-4" />
+            <SettingsToggleRow
+              title="Notion Digest"
+              description="Pro: page updates and due dates from connected databases."
+              icon={<AppWindow size={18} weight="bold" />}
+              checked={prefs.types.work_notion}
+              onChange={(c) => handleUpdate({ types: { ...prefs.types, work_notion: c } })}
             />
             <div className="h-px bg-settings-border mx-4" />
             <SettingsToggleRow

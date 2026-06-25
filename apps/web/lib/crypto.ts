@@ -3,10 +3,6 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // GCM standard IV length
 
-type DecryptTokenOptions = {
-  allowLegacyPlaintext?: boolean;
-};
-
 export function encryptToken(token: string): string {
   if (!token) return '';
   const keyHex = process.env.ENCRYPTION_KEY;
@@ -20,24 +16,21 @@ export function encryptToken(token: string): string {
 
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
+
   let encrypted = cipher.update(token, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   const tag = cipher.getAuthTag();
-  
+
   // Format: iv:encrypted:tag (all hex encoded)
   return `${iv.toString('hex')}:${encrypted}:${tag.toString('hex')}`;
 }
 
-export function decryptToken(encryptedString: string, options: DecryptTokenOptions = {}): string {
+export function decryptToken(encryptedString: string): string {
   if (!encryptedString) return '';
-  
-  // Explicit compatibility path for legacy plaintext tokens created before
-  // encrypted integration storage was enforced.
+
   if (!encryptedString.includes(':')) {
-    if (options.allowLegacyPlaintext) return encryptedString;
-    throw new Error('Token is not encrypted');
+    throw new Error('Token is not encrypted — run scripts/reencrypt-integration-tokens.mjs');
   }
 
   const parts = encryptedString.split(':');
@@ -62,13 +55,13 @@ export function decryptToken(encryptedString: string, options: DecryptTokenOptio
 
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
-    
+
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(tag);
-    
+
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
     console.error('Failed to decrypt token:', error);

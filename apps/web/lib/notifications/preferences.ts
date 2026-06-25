@@ -3,10 +3,19 @@ export type NotificationChannel = 'push' | 'email';
 export type NotificationType =
   | 'daily_plan'
   | 'deadline_rescue'
+  | 'upcoming_reminders'
+  | 'canvas_assignments'
+  | 'calendar_events'
+  | 'work_slack'
+  | 'work_linear'
+  | 'work_notion'
   | 'weekly_review'
   | 'account'
   | 'billing'
   | 'system';
+
+export const DEFAULT_MORNING_TIME = '09:00';
+export const DEFAULT_EVENING_TIME = '18:00';
 
 export interface NotificationPreferences {
   master_toggle: boolean;
@@ -27,6 +36,12 @@ export const defaultNotificationPreferences: NotificationPreferences = {
   types: {
     daily_plan: true,
     deadline_rescue: true,
+    upcoming_reminders: true,
+    canvas_assignments: false,
+    calendar_events: true,
+    work_slack: false,
+    work_linear: false,
+    work_notion: false,
     weekly_review: true,
     account: true,
     billing: true,
@@ -52,6 +67,16 @@ export function normalizeNotificationPreferences(
       ...(input?.types ?? {}),
     },
   };
+}
+
+/** Coerce a Supabase JSON preferences row into a partial preferences object. */
+export function parseNotificationPreferencesRow(
+  raw: unknown
+): Partial<NotificationPreferences> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return null;
+  }
+  return raw as Partial<NotificationPreferences>;
 }
 
 export function isQuietHour(
@@ -105,6 +130,28 @@ export function getLocalDateKey(date: Date, timezone: string): string {
     return `${year}-${month}-${day}`;
   } catch {
     return date.toISOString().slice(0, 10);
+  }
+}
+
+export function isPastLocalTime(date: Date, timezone: string, targetTime: string): boolean {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hourCycle: 'h23',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const hour = parseInt(parts.find((part) => part.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find((part) => part.type === 'minute')?.value || '0', 10);
+    const currentMinutes = hour * 60 + minute;
+
+    const [targetHour, targetMinute] = targetTime.split(':').map(Number);
+    const targetMinutes = (targetHour || 0) * 60 + (targetMinute || 0);
+
+    return currentMinutes >= targetMinutes;
+  } catch {
+    return false;
   }
 }
 

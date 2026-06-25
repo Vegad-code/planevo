@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
@@ -147,10 +147,15 @@ function ScheduleBlockItem({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          {...({ style: Object.assign({}, provided.draggableProps.style, snapshot.isDragging ? { zIndex: 50 } : {}) })}
+          style={{
+            ...provided.draggableProps.style,
+            ...(snapshot.isDragging ? { zIndex: 50 } : {}),
+          } as CSSProperties}
         >
           <motion.div
             ref={ref}
+            data-testid="plan-block"
+            data-plan-block-index={index}
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={inView ? { scale: 1, opacity: 1, y: 0 } : { scale: 0.95, opacity: 0, y: 10 }}
             transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.2) }}
@@ -277,11 +282,11 @@ function ScheduleBlockItem({
               {/* Feedback buttons */}
               {!block.completed && onFeedback && (
                 <div className="mt-4 pt-3 border-t border-line flex flex-wrap gap-2">
-                  <FeedbackButton label="Looks Good" onClick={() => onFeedback(block, 'accept')} icon={<ThumbsUp className="w-3 h-3" />} />
-                  <FeedbackButton label="Too Vague" onClick={() => onFeedback(block, 'too_vague')} />
-                  <FeedbackButton label="Wrong Time" onClick={() => onFeedback(block, 'wrong_time')} />
+                  <FeedbackButton testId="plan-block-feedback-accept" label="Looks Good" onClick={() => onFeedback(block, 'accept')} icon={<ThumbsUp className="w-3 h-3" />} />
+                  <FeedbackButton testId="plan-block-feedback-too-vague" label="Too Vague" onClick={() => onFeedback(block, 'too_vague')} />
+                  <FeedbackButton testId="plan-block-feedback-wrong-time" label="Wrong Time" onClick={() => onFeedback(block, 'wrong_time')} />
                   {block.type === 'break' && (
-                    <FeedbackButton label="Too Many Breaks" onClick={() => onFeedback(block, 'too_many_breaks')} />
+                    <FeedbackButton testId="plan-block-feedback-too-many-breaks" label="Too Many Breaks" onClick={() => onFeedback(block, 'too_many_breaks')} />
                   )}
                 </div>
               )}
@@ -292,6 +297,7 @@ function ScheduleBlockItem({
               {block.status === 'pending' ? (
                 <div className="flex flex-col gap-2">
                   <button
+                    data-testid="plan-block-confirm"
                     onClick={(e) => {
                       e.stopPropagation();
                       onFeedback?.(block, 'accept');
@@ -302,6 +308,7 @@ function ScheduleBlockItem({
                     <ThumbsUp className="w-4 h-4" />
                   </button>
                   <button
+                    data-testid="plan-block-reject"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeconstruct(block.id);
@@ -315,6 +322,7 @@ function ScheduleBlockItem({
               ) : (
                 <>
                   <button
+                    data-testid="plan-block-toggle-complete"
                     title={block.completed ? "Mark incomplete" : "Mark complete"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -331,6 +339,7 @@ function ScheduleBlockItem({
                   
                   {!block.completed && block.type === 'focus' && block.duration > 40 && (
                     <button
+                      data-testid="plan-block-break-down"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeconstruct(block.id);
@@ -374,9 +383,10 @@ function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; val
   );
 }
 
-function FeedbackButton({ label, onClick, icon }: { label: string; onClick: () => void; icon?: ReactNode }) {
+function FeedbackButton({ label, onClick, icon, testId }: { label: string; onClick: () => void; icon?: ReactNode; testId?: string }) {
   return (
     <button
+      data-testid={testId}
       onClick={(e) => {
         e.stopPropagation();
         onClick();

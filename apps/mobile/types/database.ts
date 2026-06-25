@@ -878,6 +878,7 @@ export type Database = {
           accent_color: string | null
           font_size: string | null
           reduce_motion: boolean | null
+          sidebar_style: string
         }
         Insert: {
           avatar_url?: string | null
@@ -913,6 +914,7 @@ export type Database = {
           accent_color?: string | null
           font_size?: string | null
           reduce_motion?: boolean | null
+          sidebar_style?: string
         }
         Update: {
           avatar_url?: string | null
@@ -948,6 +950,7 @@ export type Database = {
           accent_color?: string | null
           font_size?: string | null
           reduce_motion?: boolean | null
+          sidebar_style?: string
         }
         Relationships: []
       }

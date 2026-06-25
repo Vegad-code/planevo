@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import type { Json } from '@/types/database';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { googleCalendarsSaveBodySchema } from '@/lib/api/schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,11 +17,13 @@ export async function POST(request: NextRequest) {
 
     const { supabase, user } = auth;
 
-    const { selectedCalendarIds } = await request.json();
-
-    if (!Array.isArray(selectedCalendarIds)) {
+    const body = await request.json().catch(() => null);
+    const parsed = googleCalendarsSaveBodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
+
+    const { selectedCalendarIds } = parsed.data;
 
     const { data: userData, error: fetchError } = await supabase
       .from('users')

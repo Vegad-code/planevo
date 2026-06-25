@@ -79,3 +79,35 @@ export async function getRecentTestNotificationCount(
 
   return count || 0;
 }
+
+const AUTOMATED_EMAIL_TYPES = [
+  'daily_plan',
+  'deadline_rescue',
+  'upcoming_reminders',
+  'weekly_review',
+  'welcome_series',
+  'billing_receipt',
+  'billing_payment_failed',
+] as const;
+
+export async function getLastAutomatedEmailDelivery(
+  supabase: SupabaseClient<Database>,
+  userId: string
+) {
+  const { data, error } = await supabase
+    .from('notification_deliveries')
+    .select('notification_type, sent_at, metadata')
+    .eq('user_id', userId)
+    .eq('channel', 'email')
+    .in('notification_type', [...AUTOMATED_EMAIL_TYPES])
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[notifications] Failed to fetch last automated email delivery:', error);
+    return null;
+  }
+
+  return data;
+}

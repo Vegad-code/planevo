@@ -1,0 +1,52 @@
+name: Integration tests
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: planevo
+
+jobs:
+  supabase-integration:
+    name: Supabase local — RLS and RPCs
+    runs-on: ubuntu-latest
+    env:
+      INTEGRATION_TEST: '1'
+      ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: planevo/package-lock.json
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: Apply migrations
+        run: supabase db reset --no-seed
+
+      - name: Export Supabase keys
+        run: supabase status -o env >> $GITHUB_ENV
+
+      - name: Run integration tests
+        run: npm run test:integration --workspace planevo
+        env:
+          INTEGRATION_TEST: '1'
+          ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop

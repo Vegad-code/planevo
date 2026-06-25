@@ -8,9 +8,11 @@ import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { getBrunoMasterContext } from '@/lib/ai/orchestrator';
 import { z } from 'zod';
+import { dailyPlanBodySchema, parseJsonBody } from '@/lib/api/schemas';
 import * as Sentry from '@sentry/nextjs';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 import { posthogServer } from '@/lib/posthog-server';
+import { resolveProposalColor } from '@/lib/bruno/proposalColors';
 
 
 // --- Zod schema for AI response validation ---
@@ -82,8 +84,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Get Unified World State
-    const body = await request.json();
-    const { energyLevel = 'medium', localTime, timezone, todayStart, todayEnd } = body;
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(dailyPlanBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const { energyLevel, localTime, timezone, todayStart, todayEnd } = parsed.data;
     const worldState = await getBrunoMasterContext(authUser.id, energyLevel);
     
     // Determine "Today" relative to the user's local time
@@ -204,14 +210,14 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
     }
 
     // --- Zod validation of AI output ---
-    const parsed = aiResponseSchema.safeParse(aiResponse);
+    const aiParsed = aiResponseSchema.safeParse(aiResponse);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let plan: any[];
 
-    if (parsed.success) {
-      plan = parsed.data.schedule || parsed.data.plan || [];
+    if (aiParsed.success) {
+      plan = aiParsed.data.schedule || aiParsed.data.plan || [];
     } else {
-      console.warn('[DailyPlan] AI output failed validation:', parsed.error.format());
+      console.warn('[DailyPlan] AI output failed validation:', aiParsed.error.format());
       // Try to salvage valid items from the raw response
       const rawPlan = aiResponse.schedule || aiResponse.plan || [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,7 +237,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ghostBlocks = plan.map((item: any) => {
+      const ghostBlocks = plan.map((item: any, index: number) => {
         let startTime: string;
         let endTime: string;
 
@@ -248,6 +254,12 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
         const taskId = item.id && isUuid(item.id) ? item.id : null;
         const canvasId = item.id && !isUuid(item.id) ? item.id : null;
 
+        const blockColor = resolveProposalColor({
+          title: item.title,
+          description: item.reason,
+          batchIndex: index,
+        });
+
         return {
           user_id: authUser.id,
           title: item.title,
@@ -256,6 +268,7 @@ IMPORTANT: The "suggested_start" and "suggested_end" MUST be within the provided
           linked_task_id: taskId,
           external_id: null,
           source: 'schedule',
+          color: blockColor,
           energy_level: energyLevel,
           is_ai_suggested: true,
           status: 'pending',

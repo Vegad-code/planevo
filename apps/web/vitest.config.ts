@@ -12,6 +12,20 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      include: [
+        'lib/auth/rateLimit.ts',
+        'lib/auth/ip-rate-limit.ts',
+        'lib/auth/plan-types.ts',
+        'lib/auth/owner-emails.ts',
+        'lib/crypto.ts',
+        'lib/api/schemas.ts',
+      ],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        statements: 70,
+        branches: 59,
+      },
     },
     alias: {
       '@': path.resolve(__dirname, './')

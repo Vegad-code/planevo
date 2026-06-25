@@ -59,6 +59,32 @@ export function calculateMomentumStats(
   };
 }
 
+export interface WeeklyFocusPoint {
+  label: string;
+  date: string;
+  minutes: number;
+}
+
+/** Last 7 days of focus time for the dashboard sparkline/chart. */
+export function getWeeklyFocusSeries(metrics: DailyMetric[]): WeeklyFocusPoint[] {
+  const days: WeeklyFocusPoint[] = [];
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const row = metrics.find((m) => m.date === dateStr);
+    days.push({
+      label: dayLabels[d.getDay()],
+      date: dateStr,
+      minutes: row ? Math.round(row.focus_time_seconds / 60) : 0,
+    });
+  }
+
+  return days;
+}
+
 // Legacy type kept for backwards compat with any imports
 export interface UserStats {
   currentStreak: number;

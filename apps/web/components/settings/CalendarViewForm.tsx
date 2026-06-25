@@ -58,6 +58,8 @@ export function CalendarViewForm({ initialData }: { initialData: Record<string, 
             <option value="day">Day</option>
             <option value="week">Week</option>
             <option value="month">Month</option>
+            <option value="list">Schedule</option>
+            <option value="year">Year</option>
           </select>
         </SettingsRow>
 

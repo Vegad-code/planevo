@@ -1,10 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { extractComposioRecords } from '../composioPayload';
 import {
+  filterBrunoChatTools,
+  isBrunoChatToolAllowed,
   LINEAR_SYNC_ATTEMPTS,
   mapNotionDatabaseOptions,
   SLACK_SYNC_ATTEMPTS,
 } from '../providerTools';
+
+describe('bruno chat tool filtering', () => {
+  it('blocks meta and block-content Notion tools', () => {
+    expect(isBrunoChatToolAllowed('NOTION_QUERY_DATABASE')).toBe(true);
+    expect(isBrunoChatToolAllowed('NOTION_FETCH_ALL_BLOCK_CONTENTS')).toBe(
+      false
+    );
+    expect(isBrunoChatToolAllowed('COMPOSIO_SEARCH_TOOLS')).toBe(false);
+  });
+
+  it('filters denied tools from the tool map', () => {
+    const filtered = filterBrunoChatTools({
+      NOTION_QUERY_DATABASE: {},
+      NOTION_FETCH_ALL_BLOCK_CONTENTS: {},
+      LINEAR_LIST_LINEAR_ISSUES: {},
+    });
+    expect(Object.keys(filtered)).toEqual([
+      'NOTION_QUERY_DATABASE',
+      'LINEAR_LIST_LINEAR_ISSUES',
+    ]);
+  });
+});
 
 describe('composioPayload', () => {
   it('extracts Slack search matches from nested payloads', () => {

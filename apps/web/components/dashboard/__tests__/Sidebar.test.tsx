@@ -6,8 +6,9 @@ import {
 } from '@/components/bruno/BrunoProvider';
 import Sidebar from '@/components/dashboard/Sidebar';
 
-const { setMobileMenuOpen, supabase } = vi.hoisted(() => ({
+const { setMobileMenuOpen, supabase, mockSidebarStyle } = vi.hoisted(() => ({
   setMobileMenuOpen: vi.fn(),
+  mockSidebarStyle: { current: 'classic' as 'classic' | 'floating' },
   supabase: {
     auth: {
       getUser: vi.fn().mockResolvedValue({
@@ -15,6 +16,11 @@ const { setMobileMenuOpen, supabase } = vi.hoisted(() => ({
       }),
       signOut: vi.fn(),
     },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null }),
+    })),
   },
 }));
 
@@ -35,6 +41,13 @@ vi.mock('@/lib/store/ui-store', () => ({
   }),
 }));
 
+vi.mock('@/components/providers/AppearanceProvider', () => ({
+  useAppearance: () => ({
+    sidebarStyle: mockSidebarStyle.current,
+    reduceMotion: false,
+  }),
+}));
+
 function BrunoStateProbe() {
   const { isOpen } = useBruno();
 
@@ -43,6 +56,7 @@ function BrunoStateProbe() {
 
 describe('Sidebar Bruno entry point', () => {
   beforeEach(() => {
+    mockSidebarStyle.current = 'classic';
     vi.stubGlobal(
       'requestAnimationFrame',
       (callback: FrameRequestCallback) => {
@@ -69,5 +83,36 @@ describe('Sidebar Bruno entry point', () => {
 
     expect(screen.getByTestId('bruno-open-state').textContent).toBe('open');
     expect(setMobileMenuOpen).toHaveBeenCalledWith(false);
+  });
+
+  it('renders the classic rectangular sidebar by default', async () => {
+    const { container } = render(
+      <BrunoProvider>
+        <Sidebar />
+      </BrunoProvider>
+    );
+
+    await screen.findByRole('button', { name: /Ask Bruno/i });
+
+    const aside = container.querySelector('aside');
+    expect(aside?.className).toContain('top-0');
+    expect(aside?.className).toContain('h-full');
+    expect(aside?.className).not.toContain('shadow-2xl');
+  });
+
+  it('renders the floating pill sidebar when selected', async () => {
+    mockSidebarStyle.current = 'floating';
+
+    const { container } = render(
+      <BrunoProvider>
+        <Sidebar />
+      </BrunoProvider>
+    );
+
+    await screen.findByRole('button', { name: /Ask Bruno/i });
+
+    const aside = container.querySelector('aside');
+    expect(aside?.className).toContain('shadow-2xl');
+    expect(aside?.className).toContain('top-4');
   });
 });

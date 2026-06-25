@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isFreeLikePlan, isPaidPlan, normalizePlanType, type PlanType } from '@/lib/auth/plan-types';
 
-const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
-
 interface SubscriptionState {
   planType: PlanType;
   subscriptionStatus: string;
@@ -50,7 +48,7 @@ export function useSubscription(): SubscriptionState {
 
       if (profile) {
         const planType = normalizePlanType(profile.plan_type);
-        const isOwner = user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
+        const isOwner = planType === 'admin';
         
         // Only the owner can be 'admin'
         const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' as PlanType : planType;

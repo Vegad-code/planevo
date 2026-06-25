@@ -4,7 +4,9 @@ import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { computeIsPro } from '@/lib/integrations/summary';
 import { syncAllComposioProviders } from '@/lib/integrations/composio/syncEngine';
+import { evaluatePostSyncNotifications } from '@/lib/notifications/post-sync-notify';
 import type { ProIntegrationProvider } from '@/lib/integrations/types';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 const PRO_PROVIDERS: ProIntegrationProvider[] = ['notion', 'slack', 'linear'];
 const SYNC_DEBOUNCE_MS = 5 * 60 * 1000;
@@ -25,6 +27,12 @@ export async function POST(request: NextRequest) {
     const { user, error } = await getAuthenticatedUser(request);
     if (error || !user) {
       return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
     const { data: profile } = await supabaseAdmin
@@ -60,6 +68,17 @@ export async function POST(request: NextRequest) {
     }
 
     const synced = await syncAllComposioProviders(user.id, provider);
+
+    const totalSynced = Object.values(synced).reduce((sum, count) => sum + (count ?? 0), 0);
+    if (totalSynced > 0) {
+      const providersToNotify = provider ? [provider] : (['slack', 'linear', 'notion'] as const);
+      await Promise.all(
+        providersToNotify.map((item) =>
+          evaluatePostSyncNotifications(supabaseAdmin, user.id, item, synced[item] ?? 0)
+        )
+      );
+    }
+
     return NextResponse.json({ synced });
   } catch (err) {
     console.error('[composio-sync] route error:', err);

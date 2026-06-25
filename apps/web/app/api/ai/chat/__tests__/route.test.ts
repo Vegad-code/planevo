@@ -16,6 +16,10 @@ vi.mock('@/lib/bruno/handleChatV2', () => ({
 
 vi.mock('@/lib/bruno/runtime', () => ({
   getBrunoRoutingFlags: getBrunoRoutingFlagsMock,
+  extractLastUserMessage: (messages: Array<{ role?: string; content?: string }>) => {
+    const userMessage = [...messages].reverse().find((message) => message.role === 'user');
+    return typeof userMessage?.content === 'string' ? userMessage.content : '';
+  },
 }));
 
 vi.mock('@/lib/supabase/server', () => ({

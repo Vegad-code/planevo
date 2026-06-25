@@ -44,15 +44,22 @@ export async function updateSession(request: NextRequest) {
     '/login',
     '/signup',
     '/forgot-password',
+    '/reset-password',
     '/auth/callback',
     '/onboarding',
     '/pricing',
+    '/terms',
+    '/privacy',
+    '/cookies',
     '/api/auth/password-reset',
+    '/api/auth/recovery-session',
+    '/api/auth/sign-in',
+    '/api/auth/sign-up',
   ];
 
-  const isPublicRoute = publicRoutes.some(
-    (route) => request.nextUrl.pathname === route
-  );
+  const isPublicRoute =
+    publicRoutes.includes(request.nextUrl.pathname) ||
+    request.nextUrl.pathname.startsWith('/auth/callback/');
 
   // Redirect unauthenticated users to login
   if (!user && !isPublicRoute) {

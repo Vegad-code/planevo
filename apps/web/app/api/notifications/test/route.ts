@@ -7,11 +7,18 @@ import {
 import { recordNotificationDelivery, getRecentTestNotificationCount } from '@/lib/notifications/delivery';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 export async function POST(request: NextRequest) {
   try {
     if (!isAllowedOriginOrBearer(request)) {
       return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
     const auth = await createAuthenticatedSupabaseClient(request);
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
       sound: 'default',
       title: 'Planevo Test Notification',
       body: `Hi ${userData.name || 'there'}! This is a test notification to verify your setup.`,
-      data: { screen: 'index' },
+      data: { screen: 'settings', source: 'test' },
     };
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {

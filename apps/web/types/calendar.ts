@@ -42,9 +42,11 @@ export interface CalendarEvent {
   metadata?: any;
 }
 
+export type CalendarView = 'day' | 'week' | 'month' | 'list' | 'year';
+
 export interface CalendarPreferences {
   user_id: string;
-  default_view: 'day' | 'week' | 'month' | 'list';
+  default_view: CalendarView;
   week_starts_on: 'sunday' | 'monday';
   time_format: '12h' | '24h';
   day_start_hour: number;
@@ -65,4 +67,26 @@ export interface DayLayoutEvent extends CalendarEvent {
   top: number;
   height: number;
 }
+
+export interface CalendarComposerDraft {
+  title: string;
+  start_time: string;
+  end_time: string;
+  description?: string;
+  is_all_day?: boolean;
+  color?: string;
+  metadata?: CalendarEvent['metadata'];
+}
+
+export type ComposerAnchor = {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+};
+
+export type ComposerState =
+  | { mode: 'closed' }
+  | { mode: 'create'; draft: CalendarComposerDraft; anchor?: ComposerAnchor }
+  | { mode: 'edit'; event: CalendarEvent; anchor?: ComposerAnchor };
 

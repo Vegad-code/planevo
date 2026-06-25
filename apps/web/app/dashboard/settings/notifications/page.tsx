@@ -1,8 +1,11 @@
 import { NotificationPreferencesForm } from '@/components/settings/NotificationPreferencesForm';
-import { getNotificationPreferences } from './actions';
+import { getNotificationDeliveryStatus, getNotificationPreferences } from './actions';
 
 export default async function NotificationsSettingsPage() {
-  const preferences = await getNotificationPreferences();
+  const [preferences, deliveryInsight] = await Promise.all([
+    getNotificationPreferences(),
+    getNotificationDeliveryStatus(),
+  ]);
 
   return (
     <div className="space-y-8 animate-fade-in text-settings-text">
@@ -13,7 +16,10 @@ export default async function NotificationsSettingsPage() {
         </p>
       </div>
 
-      <NotificationPreferencesForm initialPreferences={preferences} />
+      <NotificationPreferencesForm
+        initialPreferences={preferences}
+        initialDeliveryInsight={deliveryInsight}
+      />
     </div>
   );
 }

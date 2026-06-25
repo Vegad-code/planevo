@@ -1,4 +1,5 @@
 import { detectAppAction } from './detectAppAction';
+import { detectNotesIntent } from './conversationRouting';
 import type { BrunoMode, BrunoRouteDecision } from './types';
 
 type RouteOptions = Omit<
@@ -106,10 +107,22 @@ export function detectObviousMode(
     );
   }
 
+  if (detectNotesIntent(text)) {
+    return decision('notes', 0.88, 'study notes generation request', {
+      needsCalendarContext: false,
+      needsTaskContext: false,
+      needsCanvasContext: true,
+      estimatedOutputSize: 'long',
+      upgradeMoment: false,
+    });
+  }
+
   if (
-    /\b(teach me|explain|quiz me|practice questions?|study guide|ap (macro|world|bio|chem|physics)|exam prep|test prep)\b/i.test(
+    /\b(teach me|explain|quiz me|practice questions?|study guide)\b/i.test(
       text
-    )
+    ) ||
+    (/\b(ap (macro|world|bio|chem|physics)|exam prep|test prep)\b/i.test(text) &&
+      !/\bnotes?\b/i.test(text))
   ) {
     return decision(
       'academic_tutoring',

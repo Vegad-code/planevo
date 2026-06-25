@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -45,7 +44,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, mode, setMode, accentId, setAccent, accents } = useTheme();
   const { user, signOut } = useAuth();
-  const { profile, notificationPrefs, fetchProfile, updateEnergyPreference, toggleNotifications, loading: storeLoading } = useGlobalStore();
+  const { profile, notificationPrefs, fetchProfile, updateEnergyPreference, loading: storeLoading } = useGlobalStore();
   const notificationsEnabled = notificationPrefs?.master_toggle ?? true;
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -131,9 +130,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleToggleNotifications = async (value: boolean) => {
-    await toggleNotifications(value);
-  };
 
   const handleChangeEnergy = () => {
     Alert.alert(
@@ -221,19 +217,22 @@ export default function SettingsScreen() {
             <ChevronRight size={16} color={colors.textMuted} strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: colors.separator }]} />
-          <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/notifications-settings' as any)}
+            testID="settings-notifications"
+          >
             <View style={styles.rowLeft}>
               <Bell size={18} color={colors.tint} strokeWidth={2.5} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Notifications</Text>
+              <View>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>Notifications</Text>
+                <Text style={[styles.rowDetail, { color: colors.textMuted }]}>
+                  {notificationsEnabled ? 'On' : 'Off'} · Tap to customize
+                </Text>
+              </View>
             </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={handleToggleNotifications}
-              trackColor={{ false: colors.separator, true: colors.tint }}
-              thumbColor={'#ffffff'}
-              testID="settings-notifications-toggle"
-            />
-          </View>
+            <ChevronRight size={16} color={colors.textMuted} strokeWidth={2.5} />
+          </TouchableOpacity>
         </View>
 
         {/* Appearance Section */}
@@ -319,13 +318,15 @@ export default function SettingsScreen() {
         {/* Account Section */}
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACCOUNT</Text>
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Shield size={18} color={Colors.brand[500]} strokeWidth={2.5} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Privacy & Security</Text>
-            </View>
-            <ChevronRight size={16} color={colors.textMuted} strokeWidth={2.5} />
-          </View>
+          <SettingsRow
+            icon={<Shield size={18} color={Colors.brand[500]} strokeWidth={2.5} />}
+            label="Privacy & Security"
+            detail="Password and account security"
+            connected={false}
+            colors={colors}
+            testID="settings-security"
+            onPress={() => router.push('/change-password' as never)}
+          />
         </View>
 
         {/* Sign Out */}

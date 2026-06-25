@@ -1,0 +1,21 @@
+import { DefaultChatTransport } from 'ai';
+import { supabase } from '@/lib/supabase';
+
+function getApiUrl(): string {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (apiUrl) return apiUrl;
+  if (__DEV__) return 'http://localhost:3000';
+  throw new Error('EXPO_PUBLIC_API_URL is required in production builds.');
+}
+
+export function createBrunoChatTransport() {
+  return new DefaultChatTransport({
+    api: `${getApiUrl()}/api/ai/chat`,
+    headers: async (): Promise<Record<string, string>> => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return {};
+      return { Authorization: `Bearer ${token}` };
+    },
+  });
+}

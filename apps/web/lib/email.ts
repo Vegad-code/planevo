@@ -7,6 +7,7 @@ import { PlanevoOnboardingEmail } from '../emails/PlanevoOnboardingEmail';
 import { PlanevoPaymentFailedEmail } from '../emails/PlanevoPaymentFailedEmail';
 import { PlanevoReceiptEmail } from '../emails/PlanevoReceiptEmail';
 import { PlanevoResetPasswordEmail } from '../emails/PlanevoResetPasswordEmail';
+import { PlanevoPasswordChangedEmail } from '../emails/PlanevoPasswordChangedEmail';
 
 export interface EmailNotificationOptions {
   idempotencyKey?: string;
@@ -34,8 +35,13 @@ function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.co';
 }
 
-function getFromAddress(fallback = 'Bruno <bruno@planevo.co>') {
-  return process.env.WEEKLY_REVIEW_FROM || fallback;
+function getFromAddress(fallback = 'Planevo <notifications@planevo.co>') {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  if (process.env.WEEKLY_REVIEW_FROM) return process.env.WEEKLY_REVIEW_FROM;
+  if (process.env.NODE_ENV === 'development') {
+    return 'Planevo <onboarding@resend.dev>';
+  }
+  return fallback;
 }
 
 function getSendOptions(options: EmailNotificationOptions) {
@@ -249,6 +255,74 @@ export async function sendDeadlineRescueEmail(
   return data?.id;
 }
 
+export interface UpcomingReminderItem {
+  title: string;
+  dueLabel: string;
+}
+
+export async function sendUpcomingRemindersEmail(
+  to: string,
+  name: string,
+  tasks: UpcomingReminderItem[],
+  events: UpcomingReminderItem[],
+  options: EmailNotificationOptions = {}
+) {
+  const safeName = escapeEmailHtml(name);
+  const taskLines = tasks.map((task) => `- ${task.title} (${task.dueLabel})`);
+  const eventLines = events.map((event) => `- ${event.title} (${event.dueLabel})`);
+  const subject = 'Coming up in Planevo';
+  const text = [
+    `Hi ${name},`,
+    '',
+    'Here is what is coming up soon:',
+    '',
+    ...(tasks.length > 0 ? ['Tasks:', ...taskLines, ''] : []),
+    ...(events.length > 0 ? ['Calendar:', ...eventLines, ''] : []),
+    `Open Planevo: ${getAppUrl()}/dashboard`,
+  ].join('\n');
+
+  const htmlSections = [
+    tasks.length > 0
+      ? `<h2 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#8a8a8a;">Tasks</h2><ul>${tasks.map((task) => `<li style="margin-bottom:8px;"><strong>${escapeEmailHtml(task.title)}</strong> <span style="color:#8a8a8a;">${escapeEmailHtml(task.dueLabel)}</span></li>`).join('')}</ul>`
+      : '',
+    events.length > 0
+      ? `<h2 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#8a8a8a;">Calendar</h2><ul>${events.map((event) => `<li style="margin-bottom:8px;"><strong>${escapeEmailHtml(event.title)}</strong> <span style="color:#8a8a8a;">${escapeEmailHtml(event.dueLabel)}</span></li>`).join('')}</ul>`
+      : '',
+  ].join('');
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,Helvetica,sans-serif;background:#faf8f3;color:#1a1a1a;padding:40px 24px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e8e4de;border-radius:16px;padding:32px;">
+    <h1 style="font-size:24px;margin:0 0 16px;">Coming up soon, ${safeName}</h1>
+    <p style="font-size:16px;line-height:1.6;color:#4a4a4a;">A quick look at tasks and events on your horizon.</p>
+    ${htmlSections}
+    <a href="${getAppUrl()}/dashboard" style="display:inline-block;background:#d4a574;color:#1a1a1a;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:600;margin-top:24px;">Open Planevo</a>
+  </div>
+</body>
+</html>`;
+
+  const { data, error } = await getResendClient().emails.send(
+    {
+      from: getFromAddress(),
+      to,
+      subject,
+      html,
+      text,
+    },
+    getSendOptions(options)
+  );
+
+  if (error) {
+    console.error(`[email] Failed to send upcoming reminders email to ${to}:`, error);
+    throw error;
+  }
+
+  return data?.id;
+}
+
 export async function sendWelcomeEmail(
   to: string,
   name: string,
@@ -290,7 +364,7 @@ export async function sendSubscriptionReceiptEmail(
 ) {
   const { data, error } = await getResendClient().emails.send(
     {
-      from: getFromAddress('Billing <bruno@planevo.co>'),
+      from: getFromAddress('Billing <notifications@planevo.co>'),
       to,
       subject: 'Receipt from Planevo',
       text: `Hi ${name}, your ${plan} payment of $${amount} was received.`,
@@ -314,7 +388,7 @@ export async function sendPaymentFailedEmail(
 ) {
   const { data, error } = await getResendClient().emails.send(
     {
-      from: getFromAddress('Billing <bruno@planevo.co>'),
+      from: getFromAddress('Billing <notifications@planevo.co>'),
       to,
       subject: 'Action Required: Planevo Payment Failed',
       text: `Hi ${name}, we could not process your Planevo subscription payment. Please open settings to review it.`,
@@ -349,6 +423,46 @@ export async function sendPasswordResetEmail(
 
   if (error) {
     console.error(`[email] Failed to send password reset email to ${to}:`, error);
+    throw error;
+  }
+
+  return data?.id;
+}
+
+function summarizeUserAgent(userAgent: string | null | undefined): string {
+  if (!userAgent) return 'Unknown device';
+  const trimmed = userAgent.slice(0, 120);
+  return trimmed.length < userAgent.length ? `${trimmed}…` : trimmed;
+}
+
+export async function sendPasswordChangedEmail(
+  to: string,
+  options: EmailNotificationOptions & {
+    changedAt?: string;
+    userAgent?: string | null;
+  } = {}
+) {
+  const resetPasswordUrl = `${getAppUrl()}/forgot-password`;
+  const changedAt = options.changedAt ?? new Date().toUTCString();
+  const deviceHint = summarizeUserAgent(options.userAgent);
+
+  const { data, error } = await getResendClient().emails.send(
+    {
+      from: getFromAddress(),
+      to,
+      subject: 'Your Planevo password was changed',
+      text: `Your Planevo password was changed on ${changedAt}. If this wasn't you, reset your password immediately: ${resetPasswordUrl}`,
+      react: PlanevoPasswordChangedEmail({
+        changedAt,
+        deviceHint,
+        resetPasswordUrl,
+      }) as ReactElement,
+    },
+    getSendOptions(options)
+  );
+
+  if (error) {
+    console.error(`[email] Failed to send password changed email to ${to}:`, error);
     throw error;
   }
 

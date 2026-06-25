@@ -5,6 +5,7 @@ import {
   defaultNotificationPreferences,
   type NotificationPreferences as BaseNotificationPreferences,
 } from '@/lib/notifications/preferences';
+import { getNotificationDeliveryInsight, type NotificationDeliveryInsight } from '@/lib/notifications/insights';
 import { revalidatePath } from 'next/cache';
 
 export interface NotificationPreferences extends BaseNotificationPreferences {
@@ -113,4 +114,57 @@ export async function updateNotificationPreferences(
   }
 
   revalidatePath('/dashboard/settings/notifications');
+}
+
+export async function ensureDetectedTimezone(detectedTimezone: string): Promise<void> {
+  if (!detectedTimezone || detectedTimezone === 'UTC') {
+    return;
+  }
+
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return;
+
+  const { data: existing } = await supabase
+    .from('notification_preferences')
+    .select('quiet_hours')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const currentTimezone = (existing?.quiet_hours as { timezone?: string } | null)?.timezone ?? 'UTC';
+  if (currentTimezone !== 'UTC') {
+    return;
+  }
+
+  await updateNotificationPreferences({
+    quiet_hours: {
+      ...defaultNotificationPreferences.quiet_hours,
+      ...(existing?.quiet_hours as Partial<NotificationPreferences['quiet_hours']> | undefined),
+      timezone: detectedTimezone,
+    },
+  });
+}
+
+export async function getNotificationDeliveryStatus(): Promise<NotificationDeliveryInsight> {
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const [preferences, userRow] = await Promise.all([
+    getNotificationPreferences(),
+    supabase
+      .from('users')
+      .select('plan_type')
+      .eq('id', user.id)
+      .single(),
+  ]);
+
+  return getNotificationDeliveryInsight(
+    supabase,
+    user.id,
+    preferences,
+    userRow.data?.plan_type ?? 'free'
+  );
 }

@@ -9,8 +9,8 @@ const DEFAULT_PREFERENCES: CalendarPreferences = {
   default_view: 'day',
   week_starts_on: 'sunday',
   time_format: '12h',
-  day_start_hour: 6,
-  day_end_hour: 22,
+  day_start_hour: 0,
+  day_end_hour: 24,
   show_weekends: true,
   show_google_calendar: true,
   show_canvas: true,
@@ -45,8 +45,8 @@ export function useCalendarPreferences() {
           ...DEFAULT_PREFERENCES,
           user_id: data.user_id,
           default_view: (data.default_view as CalendarPreferences['default_view']) || 'day',
-          day_start_hour: data.start_hour ?? 6,
-          day_end_hour: data.end_hour ?? 22,
+          day_start_hour: data.start_hour ?? 0,
+          day_end_hour: data.end_hour ?? 24,
           show_completed: data.show_completed ?? true,
         });
       }

@@ -3,6 +3,7 @@ import { UpdateIdentityForm } from '@/components/settings/UpdateIdentityForm';
 import { UpdateContextForm } from '@/components/settings/UpdateContextForm';
 import { UpdateBaselineForm } from '@/components/settings/UpdateBaselineForm';
 import { AccountSecuritySummary } from '@/components/settings/AccountSecuritySummary';
+import { ChangePasswordSection } from '@/components/settings/ChangePasswordForm';
 import { redirect } from 'next/navigation';
 
 export default async function ProfileSettingsPage() {
@@ -28,6 +29,7 @@ export default async function ProfileSettingsPage() {
     preferred_name: userData?.name || profileData?.preferred_name,
     email: user.email,
     provider: user.app_metadata?.provider || 'Email',
+    identities: user.identities?.map((identity) => ({ provider: identity.provider })),
     last_sign_in_at: user.last_sign_in_at,
     avatar_url: userData?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
   };
@@ -46,6 +48,10 @@ export default async function ProfileSettingsPage() {
         <UpdateContextForm initialData={initialData} />
         <UpdateBaselineForm initialData={initialData} />
         <AccountSecuritySummary initialData={initialData} />
+        <ChangePasswordSection
+          provider={initialData.provider}
+          identities={initialData.identities}
+        />
       </div>
     </div>
   );

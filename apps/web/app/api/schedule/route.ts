@@ -3,6 +3,7 @@ import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { BRUNO_SYSTEM_PROMPT } from '@/lib/bruno';
 import { checkRateLimit, checkRateLimitForUser } from '@/lib/auth/rateLimit';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { scheduleBodySchema } from '@/lib/api/schemas';
 
 type ScheduleTask = {
   id: string;
@@ -23,6 +24,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { supabase, user, authMethod } = auth;
+
+    const body = await request.json().catch(() => ({}));
+    const parsed = scheduleBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
 
     const rateLimitResult =
       authMethod === 'bearer'

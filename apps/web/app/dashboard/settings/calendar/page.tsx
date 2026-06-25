@@ -15,7 +15,7 @@ export default async function CalendarSettingsPage() {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    redirect('/auth/login');
+    redirect('/login');
   }
 
   // Fetch memory (this auto-initializes if missing)

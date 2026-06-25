@@ -38,11 +38,41 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --workspace planevo
 
-      - name: Test
-        run: npm run test --workspace planevo
+      - name: Test with coverage
+        run: npm run test:coverage --workspace planevo
+        env:
+          ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+      - name: Dependency audit
+        run: node scripts/ci-audit.mjs
+
+      - name: Secret pattern grep
+        run: node scripts/ci-secret-grep.mjs
+
+      - name: API route validation
+        run: node scripts/ci-route-validation.mjs
+
+      - name: OpenAPI drift check
+        run: node scripts/ci-openapi-drift.mjs
 
       - name: Build
         run: npm run build --workspace planevo
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: planevo/apps/web
+
+      - name: E2E smoke, security, and accessibility
+        run: npm run test:e2e --workspace planevo
+        working-directory: planevo
+        env:
+          CI: true
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
+      - name: Lighthouse accessibility audit
+        run: npx start-server-and-test "npm run start --workspace planevo" http://localhost:3000 "npm run test:lighthouse --workspace planevo"
+        working-directory: planevo
 
   mobile:
     name: Mobile — lint, typecheck, test

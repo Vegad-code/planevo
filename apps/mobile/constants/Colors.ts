@@ -98,3 +98,12 @@ export const Colors = {
 };
 
 export default Colors;
+
+/** Notes card accent palette — matches web globals.css */
+export const NOTE_ACCENTS = {
+  yellow: '#F7D44C',
+  coral: '#EB7A53',
+  sky: '#98B7DB',
+  green: '#A8D672',
+  cream: '#F6ECC9',
+} as const;

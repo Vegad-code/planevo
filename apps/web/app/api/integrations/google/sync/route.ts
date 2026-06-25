@@ -3,11 +3,18 @@ import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 import { posthogServer } from '@/lib/posthog-server';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 export async function POST(req: NextRequest) {
   try {
     if (!isAllowedOriginOrBearer(req)) {
       return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
     const url = new URL(req.url);

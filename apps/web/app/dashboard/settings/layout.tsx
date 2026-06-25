@@ -1,6 +1,7 @@
 import SettingsSidebar from '@/components/settings/SettingsSidebar';
 import SettingsSearch from '@/components/settings/SettingsSearch';
 import { createClient } from '@/lib/supabase/server';
+import { isOwnerEmail } from '@/lib/auth/owner-emails';
 
 import { isPaidPlan, normalizePlanType } from '@/lib/auth/plan-types';
 
@@ -25,7 +26,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
 
     if (data) {
       const plan = normalizePlanType(data.plan_type);
-      const isOwner = user.email?.toLowerCase() === 'jabbouranthony720@gmail.com';
+      const isOwner = isOwnerEmail(user.email);
       const effectivePlan = (plan === 'admin' && !isOwner) ? 'free' : plan;
 
       if (effectivePlan === 'trialing' && data.trial_end) {

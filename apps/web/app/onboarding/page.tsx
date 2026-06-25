@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -18,7 +18,7 @@ import { MagicLoadingStep } from "@/components/onboarding/MagicLoadingStep";
 import { PlanRevealStep } from "@/components/onboarding/PlanRevealStep";
 import { Bruno } from "@/components/onboarding/Bruno";
 import { BrunoBubble } from "@/components/onboarding/BrunoBubble";
-import { PlanevoLoader } from "@/components/branding/PlanevoLoader";
+import { PlanevoLoader, LOADER_SPIN_MS } from "@/components/branding/PlanevoLoader";
 
 const steps = ["welcome", "calendar", "building", "reveal"] as const;
 type Step = (typeof steps)[number];
@@ -39,6 +39,11 @@ export default function OnboardingPage() {
   const [isPolling, setIsPolling] = useState(false);
   const [loaderMode, setLoaderMode] = useState<'loading' | 'complete'>('loading');
   const [showLoader, setShowLoader] = useState(true);
+  const spinStartRef = useRef(0);
+
+  useEffect(() => {
+    spinStartRef.current = Date.now();
+  }, []);
 
   // Form State
   const [userName, setUserName] = useState("");
@@ -265,9 +270,15 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
-    if (mounted && !isPolling) {
+    if (!mounted || isPolling) return;
+
+    const elapsed = Date.now() - spinStartRef.current;
+    const remaining = Math.max(0, LOADER_SPIN_MS - elapsed);
+    const timer = window.setTimeout(() => {
       setLoaderMode('complete');
-    }
+    }, remaining);
+
+    return () => window.clearTimeout(timer);
   }, [mounted, isPolling]);
 
   if (showLoader) {

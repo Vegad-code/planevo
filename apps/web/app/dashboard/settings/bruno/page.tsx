@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getUserAIMemory } from '@/lib/ai/memory';
 import { BrunoPreferencesForm } from '@/components/settings/BrunoPreferencesForm';
+import { BrunoDataAccessForm } from '@/components/settings/BrunoDataAccessForm';
 import { LLMImportForm } from '@/components/settings/LLMImportForm';
 import { MemoryControls } from '@/components/settings/MemoryControls';
 
@@ -17,7 +18,14 @@ export default async function BrunoSettingsPage() {
     redirect('/login');
   }
 
-  const memory = await getUserAIMemory(supabase, user.id);
+  const [memory, { data: profile }] = await Promise.all([
+    getUserAIMemory(supabase, user.id),
+    supabase
+      .from('users')
+      .select('scheduling_preferences')
+      .eq('id', user.id)
+      .single()
+  ]);
 
   return (
     <div className="space-y-8 animate-fade-in text-settings-text">
@@ -29,8 +37,10 @@ export default async function BrunoSettingsPage() {
       </div>
 
       <BrunoPreferencesForm initialData={memory} />
+      <BrunoDataAccessForm initialPreferences={profile?.scheduling_preferences as Record<string, unknown> | null} />
       <LLMImportForm initialData={memory} />
       <MemoryControls initialData={memory} />
     </div>
   );
 }
+

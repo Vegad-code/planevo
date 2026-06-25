@@ -40,6 +40,10 @@ server_converted.log
 server_utf8.log
 *.tsbuildinfo
 
+# Test artifacts
+playwright-report/
+test-results/
+
 # Vercel and Deployment
 .vercel/
 

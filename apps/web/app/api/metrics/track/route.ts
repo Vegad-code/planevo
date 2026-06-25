@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { metricsTrackBodySchema } from '@/lib/api/schemas';
 
 /**
  * POST /api/metrics/track
@@ -25,17 +26,13 @@ export async function POST(request: NextRequest) {
 
     const { supabase, user } = auth;
 
-    const body = await request.json();
-    const { type, value, date } = body;
-
-    if (!type || typeof value !== 'number') {
+    const body = await request.json().catch(() => null);
+    const parsed = metricsTrackBodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid request. Requires type and value.' }, { status: 400 });
     }
 
-    const validTypes = ['focus_time', 'task_completed', 'task_planned'];
-    if (!validTypes.includes(type)) {
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-    }
+    const { type, value, date } = parsed.data;
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 

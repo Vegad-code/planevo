@@ -1,14 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizePlanType, type PlanType } from './plan-types';
+import { isOwnerEmail } from './owner-emails';
 
 // Re-export for consumers
 export { normalizePlanType, type PlanType } from './plan-types';
 
-export const OWNER_EMAIL = 'jabbouranthony720@gmail.com';
-
 function resolvePlan(rawPlan: PlanType, email?: string | null) {
-  const isOwner = email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
+  const isOwner = isOwnerEmail(email);
   const plan = (rawPlan === 'admin' && !isOwner) ? 'free' as PlanType : rawPlan;
   return {
     plan,

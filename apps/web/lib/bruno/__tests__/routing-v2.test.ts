@@ -21,6 +21,7 @@ describe('Bruno V2 deterministic routing', () => {
     ['I got behind. Fix the rest of my day.', 'schedule_repair'],
     ['I have three missing assignments and two tests. Fix my week.', 'deadline_rescue'],
     ['Teach me AP Macro Unit 1 and quiz me', 'academic_tutoring'],
+    ['Make notes for AP Biology unit 1', 'notes'],
     ['Help me wire Supabase auth into this API route', 'coding_help'],
     ['Break down my research paper into steps for the next two weeks', 'project_breakdown'],
     ['I wasted the whole day and feel behind', 'emotional_recovery'],

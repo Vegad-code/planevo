@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { encryptToken } from '@/lib/crypto';
-import { upsertIntegrationAccount } from '@/lib/integrations/accounts';
+import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -49,6 +50,43 @@ export async function GET(request: Request) {
           provider: 'google_calendar',
           refreshTokenEncrypted: encryptToken(provider_refresh_token),
           status: 'connected',
+        });
+      } else {
+        const existing = await getIntegrationAccount(user.id, 'google_calendar');
+        const { data: userRow } = await supabaseAdmin
+          .from('users')
+          .select('google_calendar_refresh_token')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (!existing?.refresh_token_encrypted && !userRow?.google_calendar_refresh_token) {
+          return new NextResponse(popupHtml('google_calendar_no_refresh_token'), {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        }
+
+        if (!existing?.refresh_token_encrypted && userRow?.google_calendar_refresh_token) {
+          const legacy = userRow.google_calendar_refresh_token;
+          const encrypted = legacy.includes(':') ? legacy : encryptToken(legacy);
+          await upsertIntegrationAccount({
+            userId: user.id,
+            provider: 'google_calendar',
+            refreshTokenEncrypted: encrypted,
+            status: 'connected',
+          });
+        } else {
+          await upsertIntegrationAccount({
+            userId: user.id,
+            provider: 'google_calendar',
+            status: 'connected',
+          });
+        }
+      }
+
+      const credentials = await getIntegrationAccount(user.id, 'google_calendar');
+      if (!credentials?.refresh_token_encrypted) {
+        return new NextResponse(popupHtml('google_calendar_no_refresh_token'), {
+          headers: { 'Content-Type': 'text/html' },
         });
       }
 

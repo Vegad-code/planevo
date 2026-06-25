@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 /**
  * Adaptive Rescheduling (Step 4 of Phase Two)
@@ -18,6 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { supabase } = auth;
+
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -33,6 +33,7 @@ export type BrunoMode =
   | 'schedule_repair'
   | 'deadline_rescue'
   | 'academic_tutoring'
+  | 'notes'
   | 'project_breakdown'
   | 'coding_help'
   | 'emotional_recovery'
@@ -119,8 +120,59 @@ export type BrunoProCapNotice = {
   body: string;
 };
 
+export type BrunoTruncatedNotice = {
+  type: 'bruno_truncated';
+  message: string;
+  assistantText: string;
+  canContinue: boolean;
+};
+
+import type { PlanType } from '@/lib/auth/plan-types';
+
+export type BrunoRateLimitLimitType = 'daily' | 'hourly';
+
+export type BrunoRateLimitPayload = {
+  error: 'rate_limit_reached';
+  limitType: BrunoRateLimitLimitType;
+  message: string;
+  used: number;
+  limit: number;
+  plan: PlanType;
+  resetAt: string;
+};
+
+export type BrunoDataAccess = {
+  tasks: boolean;
+  calendar: boolean;
+  canvas: boolean;
+  integrations: boolean;
+};
+
+export const DEFAULT_BRUNO_DATA_ACCESS: BrunoDataAccess = {
+  tasks: true,
+  calendar: true,
+  canvas: true,
+  integrations: true,
+};
+
+export function parseBrunoDataAccess(
+  preferences: Record<string, unknown> | null | undefined
+): BrunoDataAccess {
+  const prefs = preferences ?? {};
+  return {
+    tasks: prefs.bruno_access_tasks !== false,
+    calendar: prefs.bruno_access_calendar !== false,
+    canvas: prefs.bruno_access_canvas !== false,
+    integrations: prefs.bruno_access_integrations !== false,
+  };
+}
+
+import type { BrunoProgressPayload } from './bruno-progress';
+
 export type BrunoDataParts = {
   'bruno-upgrade-card': BrunoUpgradeCard;
   'bruno-pro-warning': BrunoProWarningNotice;
   'bruno-pro-cap': BrunoProCapNotice;
+  'bruno-progress': BrunoProgressPayload;
+  'bruno-truncated': BrunoTruncatedNotice;
 };

@@ -41,8 +41,19 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000"]
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/reset-password",
+  "http://127.0.0.1:3000/auth/callback",
+  "http://127.0.0.1:3000/reset-password",
+  "https://planevo.co/auth/callback",
+  "https://planevo.co/reset-password",
+  "https://www.planevo.co/auth/callback",
+  "https://www.planevo.co/reset-password",
+  "planevo://auth/callback",
+  "planevo://reset-password",
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

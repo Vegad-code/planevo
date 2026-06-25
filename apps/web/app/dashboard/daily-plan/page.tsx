@@ -146,6 +146,14 @@ export default function DailyPlanPage() {
           task_duration_preferences: (memoryData as any).task_duration_preferences as UserAiMemory['task_duration_preferences'] ?? [],
           task_time_preferences: (memoryData as any).task_time_preferences as UserAiMemory['task_time_preferences'] ?? [],
           task_grouping_preferences: (memoryData as any).task_grouping_preferences as UserAiMemory['task_grouping_preferences'] ?? [],
+          note_preference: (memoryData as any).note_preference as UserAiMemory['note_preference'] ?? {
+            format: 'bullets',
+            density: 'standard',
+            include_mnemonics: true,
+            include_practice_questions: false,
+            handwriting_friendly: true,
+            subject_overrides: {},
+          },
         });
       } else {
         setAiMemory(null);

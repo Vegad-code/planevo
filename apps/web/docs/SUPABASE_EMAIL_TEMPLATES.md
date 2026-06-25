@@ -10,7 +10,7 @@ from the same verified Planevo domain:
 1. Verify `planevo.co` in Resend.
 2. In Supabase, open **Project Settings > Authentication > SMTP Settings**.
 3. Enable custom SMTP and use the Resend SMTP credentials from the Resend dashboard.
-4. Set the sender address to the same verified address used by `WEEKLY_REVIEW_FROM`.
+4. Set the sender address to the same verified address used by `EMAIL_FROM` (or legacy `WEEKLY_REVIEW_FROM`).
 5. Add the production callback URLs under **Authentication > URL Configuration**.
 
 The application-level password reset flow uses `RESEND_API_KEY` directly.

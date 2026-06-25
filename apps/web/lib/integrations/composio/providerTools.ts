@@ -1,6 +1,48 @@
 import type { ComposioToolResult } from './client';
 import { executeComposioTool } from './client';
 import type { ProIntegrationProvider } from '@/lib/integrations/types';
+
+/** Composio meta-tools and low-level block APIs that confuse task-listing flows. */
+const BRUNO_DENIED_TOOL_SUBSTRINGS = [
+  'FETCH_ALL_BLOCK',
+  'FETCH_BLOCK_CONTENT',
+  'REMOTE_BASH',
+  'REMOTE_WORKBENCH',
+] as const;
+
+export function isBrunoChatToolAllowed(toolName: string): boolean {
+  const upper = toolName.toUpperCase();
+  if (upper.startsWith('COMPOSIO_')) return false;
+  return !BRUNO_DENIED_TOOL_SUBSTRINGS.some((fragment) =>
+    upper.includes(fragment)
+  );
+}
+
+export function filterBrunoChatTools(
+  tools: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => isBrunoChatToolAllowed(name))
+  );
+}
+
+export function buildNotionToolHint(databaseIds: string[]): string {
+  if (databaseIds.length === 0) {
+    return [
+      'Notion is connected but no task databases are selected.',
+      'Ask the user to pick databases under Settings > Integrations > Notion,',
+      'or use NOTION_SEARCH_NOTION_PAGE to discover databases.',
+      'Do not use block-content fetch tools for task lists.',
+    ].join(' ');
+  }
+
+  return [
+    `Notion task database IDs (use NOTION_QUERY_DATABASE with database_id): ${databaseIds.join(', ')}.`,
+    'For open tasks, prefer Work items under CONNECTED WORK INTEGRATIONS first.',
+    'Do not use NOTION_FETCH_ALL_BLOCK_CONTENTS or other block-content tools for task lists.',
+    'Never invent placeholder IDs like YOUR_NOTION_DATABASE_ID.',
+  ].join(' ');
+}
 import { extractComposioRecords } from './composioPayload';
 
 export interface ComposioToolAttempt {

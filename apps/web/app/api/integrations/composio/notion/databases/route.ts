@@ -13,6 +13,7 @@ import {
   getIntegrationAccount,
   upsertIntegrationAccount,
 } from '@/lib/integrations/accounts';
+import { composioNotionDatabasesBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 async function requirePro(request: NextRequest) {
   if (!isAllowedOriginOrBearer(request)) {
@@ -77,10 +78,12 @@ export async function POST(request: NextRequest) {
   const user = gate.user;
 
   try {
-    const body = await request.json();
-    const databaseIds: string[] = Array.isArray(body?.databaseIds)
-      ? body.databaseIds.map(String)
-      : [];
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(composioNotionDatabasesBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const databaseIds = parsed.data.databaseIds;
 
     const account = await getIntegrationAccount(user.id, 'notion');
     const metadata = {

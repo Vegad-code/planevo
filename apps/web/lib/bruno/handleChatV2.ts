@@ -4,12 +4,12 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  generateText,
   jsonSchema,
   stepCountIs,
   streamText,
   tool,
   type UIMessage,
+  type UIMessageStreamWriter,
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -20,6 +20,8 @@ import { posthogServer } from '@/lib/posthog-server';
 import { normalizePlanType, isPaidPlan } from '@/lib/auth/plan-types';
 import type { Json } from '@/types/database';
 import { buildBrunoSystemPrompt } from './brunoPrompts';
+import { extractLastUserMessageText } from '@/lib/bruno/enrichTimeBlockProposal';
+import { enrichBrunoProposal } from '@/lib/bruno/enrichProposalColor';
 import {
   buildBrunoContext,
   type BrunoContextLoaders,
@@ -43,11 +45,13 @@ import {
 } from './safety';
 import type {
   BrunoDataParts,
+  BrunoDataAccess,
   BrunoGenerationPlan,
   BrunoMode,
   BrunoRouteDecision,
   BrunoRouteSource,
 } from './types';
+import { parseBrunoDataAccess } from './types';
 import {
   completeBrunoUsage,
   createBrunoUsageRepository,
@@ -62,9 +66,19 @@ import {
   getBrunoProWarning,
   getBrunoUpgradeCard,
 } from './upgradeCards';
-import { getComposioClientOptions } from '@/lib/integrations/composio/config';
-import { Composio } from "@composio/core";
-import { VercelProvider } from "@composio/vercel";
+import {
+  buildStickyNotesDecision,
+  shouldStickToNotesMode,
+} from './conversationRouting';
+import {
+  checkBrunoNotesMonthlyQuota,
+  consumeBrunoNotesQuota,
+} from '@/lib/auth/rateLimit';
+import { getBrunoComposioTools } from '@/lib/integrations/composio/client';
+import { buildNotionToolHint } from '@/lib/integrations/composio/providerTools';
+import { BrunoProgressWriter } from './progressWriter';
+import { getBrunoReadTools } from './readTools';
+import { getBrunoNoteTools } from './noteTools';
 type ChatMessage = {
   id?: string;
   role: 'user' | 'assistant' | 'tool';
@@ -119,6 +133,16 @@ const proposeActionParams = jsonSchema({
         estimatedMinutes: { type: 'number' },
         priority: { type: 'string', enum: ['low', 'medium', 'high'] },
         dueDate: { type: 'string' },
+        startTime: { type: 'string', description: 'ISO 8601 start time for CREATE_TIME_BLOCK' },
+        endTime: { type: 'string', description: 'ISO 8601 end time for CREATE_TIME_BLOCK' },
+        durationMinutes: { type: 'number', description: 'Duration in minutes when endTime is omitted' },
+        location: { type: 'string' },
+        color: { type: 'string', description: 'Hex color e.g. #039BE5 for calendar display' },
+        colorCategory: {
+          type: 'string',
+          enum: ['study', 'exercise', 'break', 'admin', 'work', 'creative', 'social', 'health'],
+          description: 'Semantic color category when proposing multiple tasks',
+        },
         source: { type: 'string', enum: ['bruno'] },
       },
       additionalProperties: true,
@@ -148,6 +172,36 @@ function normalizeMessages(messages: ChatMessage[]): UIMessage[] {
     }));
 }
 
+function writeStaticText(
+  writer: Pick<
+    UIMessageStreamWriter<UIMessage<unknown, BrunoDataParts>>,
+    'write'
+  >,
+  text: string
+) {
+  const id = crypto.randomUUID();
+  writer.write({ type: 'text-start', id });
+  writer.write({ type: 'text-delta', id, delta: text });
+  writer.write({ type: 'text-end', id });
+}
+
+async function loadLastConversationMode(
+  conversationId?: string
+): Promise<BrunoMode | null> {
+  if (!conversationId) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('bruno_route_events')
+    .select('mode')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.mode) return null;
+  return data.mode as BrunoMode;
+}
+
 function staticUiResponse(text: string, headers?: HeadersInit) {
   const stream = createUIMessageStream<
     UIMessage<unknown, BrunoDataParts>
@@ -164,7 +218,8 @@ function staticUiResponse(text: string, headers?: HeadersInit) {
 }
 
 function createContextLoaders(
-  assignmentId?: string
+  assignmentId?: string,
+  dataAccess?: BrunoDataAccess
 ): BrunoContextLoaders {
   return {
     async loadTasks(userId) {
@@ -178,16 +233,6 @@ function createContextLoaders(
 
       if (tasksError) throw tasksError;
 
-      const { data: sourceItems, error: sourceItemsError } = await supabaseAdmin
-        .from('source_items')
-        .select('id, title, provider, due_date')
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .is('imported_task_id', null)
-        .limit(100);
-
-      if (sourceItemsError) throw sourceItemsError;
-
       const mappedTasks = (tasks ?? []).map((task) => ({
         id: task.id,
         title: task.title,
@@ -197,14 +242,27 @@ function createContextLoaders(
         estimatedMinutes: task.estimated_minutes,
       }));
 
-      const mappedSourceItems = (sourceItems ?? []).map((item) => ({
-        id: item.id,
-        title: `[${item.provider.charAt(0).toUpperCase() + item.provider.slice(1)}] ${item.title}`,
-        status: 'todo',
-        dueDate: item.due_date,
-        priority: 'medium',
-        estimatedMinutes: 60,
-      }));
+      let mappedSourceItems: typeof mappedTasks = [];
+      if (dataAccess?.integrations !== false) {
+        const { data: sourceItems, error: sourceItemsError } = await supabaseAdmin
+          .from('source_items')
+          .select('id, title, provider, due_date')
+          .eq('user_id', userId)
+          .is('deleted_at', null)
+          .is('imported_task_id', null)
+          .limit(100);
+
+        if (sourceItemsError) throw sourceItemsError;
+
+        mappedSourceItems = (sourceItems ?? []).map((item) => ({
+          id: item.id,
+          title: `[${item.provider.charAt(0).toUpperCase() + item.provider.slice(1)}] ${item.title}`,
+          status: 'todo',
+          dueDate: item.due_date,
+          priority: 'medium',
+          estimatedMinutes: 60,
+        }));
+      }
 
       return [...mappedTasks, ...mappedSourceItems];
     },
@@ -427,369 +485,481 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
     return logSafetyResponse('crisis', BRUNO_CRISIS_RESPONSE);
   }
 
-  let moderation;
-  try {
-    moderation = await moderateBrunoMessage(latestMessage);
-  } catch (error) {
-    Sentry.captureException(error);
-    await completeBrunoUsage(usageRepository, {
-      usageLogId: input.usageLogId,
-      model: null,
-      mode: 'unsafe',
-      tier: 'none',
-      inputTokens: 0,
-      outputTokens: 0,
-      estimatedCostCents: 0,
-      latencyMs: Math.round(performance.now() - startedAt),
-      status: 'failed',
-    }).catch(Sentry.captureException);
-    return NextResponse.json(
-      {
-        error: 'Safety check unavailable',
-        message: 'Bruno is temporarily unavailable. Please try again shortly.',
-      },
-      { status: 503 }
-    );
-  }
-
-  if (moderation.status === 'unsafe') {
-    return logSafetyResponse('unsafe', UNSAFE_RESPONSE);
-  }
-
-  const routeResult = await routeBrunoMessage(
-    { message: latestMessage },
-    flags.llmRouterEnabled
-      ? {}
-      : {
-          classify: async () => {
-            throw new Error('LLM router disabled');
-          },
-        }
-  );
-
-  let entitlement = await getBrunoEntitlement(usageRepository, {
-    userId: input.user.id,
-    isPro,
-  });
-
-  if (!isPro && !flags.deepCreditsEnabled) {
-    entitlement = {
-      ...entitlement,
-      onboardingDeepCreditsRemaining: 0,
-      earnedDeepCreditsRemaining: 0,
-    };
-  }
-
-  let generationPlan = resolveBrunoGenerationPlan({
-    decision: routeResult.decision,
-    entitlement,
-  });
-  let usedDeepCredit = false;
-  let deepAccessReserved = false;
-
-  if (
-    generationPlan.shouldReserveDeepAccess &&
-    generationPlan.deepAccessSource
-  ) {
-    let reservationSucceeded = false;
-    try {
-      const reservation = await reserveBrunoDeepAccess(
-        supabaseAdmin as unknown as BrunoRpcClient,
-        {
-          userId: input.user.id,
-          requestId: input.requestId,
-          source: generationPlan.deepAccessSource,
-        }
-      );
-      reservationSucceeded = reservation.reserved;
-    } catch (error) {
-      Sentry.captureException(error);
-    }
-
-    if (reservationSucceeded) {
-      deepAccessReserved = true;
-      usedDeepCredit =
-        generationPlan.deepAccessSource !== 'pro_monthly';
-    } else {
-      entitlement = {
-        ...entitlement,
-        onboardingDeepCreditsRemaining: 0,
-        earnedDeepCreditsRemaining: 0,
-        monthlyDeepRequestsRemaining: 0,
-      };
-      generationPlan = resolveBrunoGenerationPlan({
-        decision: routeResult.decision,
-        entitlement,
-      });
-    }
-  }
-
-  const context = await buildBrunoContext(
-    {
-      userId: input.user.id,
-      policy: generationPlan.policy,
-      assignmentId: input.assignmentId,
-    },
-    createContextLoaders(input.assignmentId)
-  );
-  const memory = await getUserAIMemory(supabaseAdmin, input.user.id);
-  const memoryContext = buildMemoryContext(memory);
-  const preferences =
-    typeof input.profile?.scheduling_preferences === 'object' &&
-    input.profile.scheduling_preferences !== null
-      ? input.profile.scheduling_preferences
-      : {};
-  const preferredTimeZone =
-    'timezone' in preferences &&
-    typeof preferences.timezone === 'string'
-      ? preferences.timezone
-      : input.timeZone ?? 'UTC';
-
-  // Determine which Pro work integrations are connected for this user.
-  const proProviders = ['notion', 'slack', 'linear'];
-  let connectedProviders: string[] = [];
-  if (isPro) {
-    const { data: accts } = await supabaseAdmin
-      .from('integration_accounts')
-      .select('provider, status')
-      .eq('user_id', input.user.id)
-      .in('provider', proProviders);
-    connectedProviders = (accts ?? [])
-      .filter((a) => a.status === 'connected')
-      .map((a) => a.provider);
-  }
-
-  // Load Composio Tools — only for Pro users with at least one connected app.
-  let dynamicMcpTools: Record<string, any> = {};
-  let mcpContext = '';
-  if (!isPro) {
-    mcpContext +=
-      'Work integrations (Notion, Slack, Linear) are a Planevo Pro feature. If the user asks to use them, let them know these connect under Settings > Integrations on the Pro plan. Do not claim to perform external actions.\n';
-  } else if (connectedProviders.length === 0) {
-    mcpContext +=
-      'The user is on Pro but has not connected any work tools yet. If they ask about Notion, Slack, or Linear, point them to Settings > Integrations to connect. Do not claim to perform external actions.\n';
-  } else {
-    try {
-      if (process.env.COMPOSIO_API_KEY) {
-        const composio = new Composio({
-          ...getComposioClientOptions(process.env.COMPOSIO_API_KEY),
-          provider: new VercelProvider(),
-        });
-        // Create a tool router session for the specific user
-        const composioSession = await composio.create(input.user.id);
-        dynamicMcpTools = await composioSession.tools();
-        mcpContext += `Connected work tools: ${connectedProviders.join(', ')}. You have access to tools via Composio for these apps. IMPORTANT: When a user asks you to perform an action on an external app (like creating a Notion page or sending a Slack message), you MUST use the Composio tools. DO NOT use the propose_action tool to create a local Planevo task for external app requests. Confirm with the user before sending messages or making destructive external changes.\n`;
-      }
-    } catch (err) {
-      console.warn('Failed to load Composio tools:', err);
-    }
-  }
-
-  const systemPrompt = buildBrunoSystemPrompt({
-    mode: routeResult.decision.mode,
-    userName: input.profile?.name ?? 'User',
-    userPlan,
-    localTime: input.localTime ?? new Date().toLocaleString(),
-    timeZone: preferredTimeZone,
-    pageContext: buildPageContextBlock(input.pageContext),
-    memoryContext,
-    taskContext: context.taskContext,
-    calendarContext: context.calendarContext,
-    canvasContext: context.canvasContext,
-    integrationContext: context.integrationContext,
-    connectedProviders,
-    mcpContext: mcpContext.trim(),
-  });
-
-  const tools = {
-    propose_action: tool({
-      description:
-        'Create a proposal card for a Planevo action. ONLY use this when the user has explicitly requested an action inside Planevo (like creating a local task, updating schedule, etc). DO NOT use this for external tools or integrations (Notion, Slack, Linear, etc) - use their respective Composio tools directly instead. This never mutates data directly and must wait for user confirmation.',
-      inputSchema: proposeActionParams,
-      execute: async (proposal: unknown) => {
-        const { error } = await supabaseAdmin.from('bruno_tool_logs').insert({
-          user_id: input.user.id,
-          tool_name: 'propose_action',
-          arguments:
-            typeof proposal === 'object' && proposal !== null
-              ? (proposal as Json)
-              : { value: String(proposal) },
-          result: { success: true },
-        });
-        if (error) Sentry.captureException(error);
-        return {
-          success: true,
-          message: 'Proposal recorded. Waiting for user confirmation.',
-        };
-      },
-    }),
-    ...dynamicMcpTools,
-  };
-
-  const normalizedMessages = normalizeMessages(input.messages);
-  const modelMessages = await convertToModelMessages(normalizedMessages);
-  const upgradeCard =
-    flags.upgradeCardsEnabled && generationPlan.shouldShowUpgradeCard
-      ? getBrunoUpgradeCard(routeResult.decision.mode)
-      : null;
-  const proWarning = generationPlan.shouldShowProWarning
-    ? getBrunoProWarning(
-        Math.max(0, entitlement.monthlyDeepRequestsRemaining - 1)
-      )
-    : null;
-  const proCap = generationPlan.shouldShowProCap
-    ? getBrunoProCapNotice()
-    : null;
-  if (!generationPlan.model) {
-    if (routeResult.decision.mode === 'unsafe') {
-      return logSafetyResponse('unsafe', UNSAFE_RESPONSE);
-    }
-    // Fallback: if model is null for a non-unsafe mode, use standard.
-    generationPlan = {
-      ...generationPlan,
-      tier: 'standard',
-      model: BRUNO_MODELS.STANDARD,
-    };
-  }
-
-  const model: string = generationPlan.model!;
-
   let finalized = false;
-  const finalize = async (
-    status: 'completed' | 'failed',
-    usage: { inputTokens?: number; outputTokens?: number }
-  ) => {
-    if (finalized) return;
-    finalized = true;
-
-    const inputTokens = usage.inputTokens ?? 0;
-    const outputTokens = usage.outputTokens ?? 0;
-    const estimatedCostCents = estimateModelCostCents(model, {
-      inputTokens,
-      outputTokens,
-    });
-    const latencyMs = Math.round(performance.now() - startedAt);
-
-    const completionTasks: Promise<unknown>[] = [
-      completeBrunoUsage(usageRepository, {
-        usageLogId: input.usageLogId,
-        model,
-        mode: routeResult.decision.mode,
-        tier: generationPlan.tier,
-        inputTokens,
-        outputTokens,
-        estimatedCostCents,
-        latencyMs,
-        status,
-      }),
-      logBrunoRouteEvent(usageRepository, {
-        userId: input.user.id,
-        requestId: input.requestId,
-        conversationId: input.conversationId,
-        mode: routeResult.decision.mode,
-        confidence: routeResult.decision.confidence,
-        routeSource: routeResult.routeSource,
-        selectedTier: generationPlan.tier,
-        selectedModel: model,
-        isPro,
-        usedDeepCredit,
-        upgradeCardShown: Boolean(upgradeCard),
-        safetyStatus: 'clear',
-        inputTokens,
-        outputTokens,
-        estimatedCostCents,
-        latencyMs,
-        rationale: routeResult.decision.rationale,
-      }),
-    ];
-
-    if (status === 'failed' && deepAccessReserved) {
-      completionTasks.push(
-        refundBrunoDeepAccess(
-          supabaseAdmin as unknown as BrunoRpcClient,
-          {
-            userId: input.user.id,
-            requestId: input.requestId,
-          }
-        )
-      );
-    }
-
-    await Promise.allSettled(completionTasks);
-
-    posthogServer.capture({
-      distinctId: input.user.id,
-      event: 'bruno_route_completed',
-      properties: {
-        mode: routeResult.decision.mode,
-        route_source: routeResult.routeSource,
-        selected_tier: generationPlan.tier,
-        selected_model: model,
-        is_pro: isPro,
-        used_deep_credit: usedDeepCredit,
-        upgrade_card_shown: Boolean(upgradeCard),
-        estimated_cost_cents: estimatedCostCents,
-        latency_ms: latencyMs,
-        status,
-      },
-    });
-  };
-
-  const generationOptions = {
-    model: openai(model),
-    system: systemPrompt,
-    messages: modelMessages,
-    tools,
-    stopWhen: stepCountIs(5),
-    maxOutputTokens: generationPlan.policy.maxOutputTokens,
-    ...getModelCallSettings(model, generationPlan.policy.temperature),
-  };
-
-
-  if (input.isMobile) {
-    try {
-      const result = await generateText(generationOptions);
-      await finalize('completed', result.totalUsage);
-
-      return NextResponse.json({
-        text: result.text,
-        toolCalls: result.steps.flatMap((step) => step.toolCalls),
-        metadata: {
-          mode: routeResult.decision.mode,
-          tier: generationPlan.tier,
-          upgradeCard,
-          proWarning,
-          proCap,
-        },
-      });
-    } catch (error) {
-      Sentry.captureException(error);
-      await finalize('failed', {});
-      throw error;
-    }
-  }
-
-  const result = streamText({
-    ...generationOptions,
-    onFinish: async ({ totalUsage, finishReason }) => {
-      await finalize(
-        finishReason === 'error' ? 'failed' : 'completed',
-        totalUsage
-      );
-    },
-    onError: async ({ error }) => {
-      Sentry.captureException(error);
-      await finalize('failed', {});
-    },
-    onAbort: async () => {
-      await finalize('failed', {});
-    },
-  });
+  let routeMode: BrunoMode = 'basic_chat';
+  let routeTier: string = 'standard';
 
   const stream = createUIMessageStream<
     UIMessage<unknown, BrunoDataParts>
   >({
-    execute: ({ writer }) => {
+    execute: async ({ writer }) => {
+      const progress = new BrunoProgressWriter(writer);
+      progress.markReadDone();
+
+      let moderation;
+      try {
+        moderation = await moderateBrunoMessage(latestMessage);
+      } catch (error) {
+        Sentry.captureException(error);
+        progress.markError('safety', 'Safety check unavailable');
+        writeStaticText(
+          writer,
+          'Bruno is temporarily unavailable. Please try again shortly.'
+        );
+        await completeBrunoUsage(usageRepository, {
+          usageLogId: input.usageLogId,
+          model: null,
+          mode: 'unsafe',
+          tier: 'none',
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostCents: 0,
+          latencyMs: Math.round(performance.now() - startedAt),
+          status: 'failed',
+        }).catch(Sentry.captureException);
+        return;
+      }
+
+      if (moderation.status === 'unsafe') {
+        progress.markError('safety');
+        writeStaticText(writer, UNSAFE_RESPONSE);
+        const latencyMs = Math.round(performance.now() - startedAt);
+        await Promise.allSettled([
+          completeBrunoUsage(usageRepository, {
+            usageLogId: input.usageLogId,
+            model: null,
+            mode: 'unsafe',
+            tier: 'none',
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostCents: 0,
+            latencyMs,
+            status: 'completed',
+          }),
+          logBrunoRouteEvent(usageRepository, {
+            userId: input.user.id,
+            requestId: input.requestId,
+            conversationId: input.conversationId,
+            mode: 'unsafe',
+            confidence: 1,
+            routeSource: 'deterministic',
+            selectedTier: 'none',
+            selectedModel: null,
+            isPro,
+            usedDeepCredit: false,
+            upgradeCardShown: false,
+            safetyStatus: 'unsafe',
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostCents: 0,
+            latencyMs,
+            rationale: 'unsafe safety response',
+          }),
+        ]);
+        progress.markComplete();
+        return;
+      }
+
+      progress.markSafetyDone();
+
+      const lastMode = await loadLastConversationMode(input.conversationId);
+      const stickyNotes = shouldStickToNotesMode({
+        message: latestMessage,
+        lastMode,
+      });
+
+      let routeResult: Awaited<ReturnType<typeof routeBrunoMessage>>;
+      if (stickyNotes) {
+        routeResult = {
+          decision: buildStickyNotesDecision('notes refinement follow-up'),
+          routeSource: 'deterministic',
+          latencyMs: 0,
+        };
+      } else {
+        routeResult = await routeBrunoMessage(
+          { message: latestMessage },
+          flags.llmRouterEnabled
+            ? {}
+            : {
+                classify: async () => {
+                  throw new Error('LLM router disabled');
+                },
+              }
+        );
+      }
+
+      if (routeResult.decision.mode === 'notes' && !isPro) {
+        const notesQuota = await checkBrunoNotesMonthlyQuota(
+          input.user.id,
+          input.user.email
+        );
+        if (!notesQuota.allowed) {
+          progress.markError('route', 'Notes limit reached');
+          writeStaticText(
+            writer,
+            notesQuota.message ??
+              "You've reached your free notes limit for this month."
+          );
+          await completeBrunoUsage(usageRepository, {
+            usageLogId: input.usageLogId,
+            model: null,
+            mode: 'notes',
+            tier: 'none',
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostCents: 0,
+            latencyMs: Math.round(performance.now() - startedAt),
+            status: 'completed',
+          }).catch(Sentry.captureException);
+          progress.markComplete();
+          return;
+        }
+      }
+
+      routeMode = routeResult.decision.mode;
+      progress.markRouteDone(
+        routeResult.decision.mode,
+        routeResult.decision.rationale
+      );
+
+      let entitlement = await getBrunoEntitlement(usageRepository, {
+        userId: input.user.id,
+        isPro,
+      });
+
+      if (!isPro && !flags.deepCreditsEnabled) {
+        entitlement = {
+          ...entitlement,
+          onboardingDeepCreditsRemaining: 0,
+          earnedDeepCreditsRemaining: 0,
+        };
+      }
+
+      let generationPlan = resolveBrunoGenerationPlan({
+        decision: routeResult.decision,
+        entitlement,
+      });
+      let usedDeepCredit = false;
+      let deepAccessReserved = false;
+
+      if (
+        generationPlan.shouldReserveDeepAccess &&
+        generationPlan.deepAccessSource
+      ) {
+        let reservationSucceeded = false;
+        try {
+          const reservation = await reserveBrunoDeepAccess(
+            supabaseAdmin as unknown as BrunoRpcClient,
+            {
+              userId: input.user.id,
+              requestId: input.requestId,
+              source: generationPlan.deepAccessSource,
+            }
+          );
+          reservationSucceeded = reservation.reserved;
+        } catch (error) {
+          Sentry.captureException(error);
+        }
+
+        if (reservationSucceeded) {
+          deepAccessReserved = true;
+          usedDeepCredit =
+            generationPlan.deepAccessSource !== 'pro_monthly';
+        } else {
+          entitlement = {
+            ...entitlement,
+            onboardingDeepCreditsRemaining: 0,
+            earnedDeepCreditsRemaining: 0,
+            monthlyDeepRequestsRemaining: 0,
+          };
+          generationPlan = resolveBrunoGenerationPlan({
+            decision: routeResult.decision,
+            entitlement,
+          });
+        }
+      }
+
+      routeTier = generationPlan.tier;
+
+      const contextPolicy = generationPlan.policy;
+      const contextParts: string[] = [];
+      if (contextPolicy.includeTasks) contextParts.push('tasks');
+      if (contextPolicy.includeCalendar) contextParts.push('calendar');
+      if (contextPolicy.includeCanvas) contextParts.push('Canvas');
+      progress.markContextLoading(
+        contextParts.length > 0
+          ? `Loading ${contextParts.join(', ')}`
+          : undefined
+      );
+
+      const preferences =
+        typeof input.profile?.scheduling_preferences === 'object' &&
+        input.profile.scheduling_preferences !== null
+          ? input.profile.scheduling_preferences
+          : {};
+      const preferredTimeZone =
+        'timezone' in preferences &&
+        typeof preferences.timezone === 'string'
+          ? preferences.timezone
+          : input.timeZone ?? 'UTC';
+
+      const dataAccess = parseBrunoDataAccess(
+        typeof preferences === 'object' && preferences !== null
+          ? (preferences as Record<string, unknown>)
+          : undefined
+      );
+
+      const context = await buildBrunoContext(
+        {
+          userId: input.user.id,
+          policy: generationPlan.policy,
+          assignmentId: input.assignmentId,
+          dataAccess,
+        },
+        createContextLoaders(input.assignmentId, dataAccess)
+      );
+      progress.markContextDone(
+        contextParts.length > 0
+          ? `Loaded ${contextParts.join(', ')}`
+          : undefined
+      );
+
+      const memory = await getUserAIMemory(supabaseAdmin, input.user.id);
+      const memoryContext = buildMemoryContext(memory);
+
+      const proProviders = ['notion', 'slack', 'linear'];
+      let connectedProviders: string[] = [];
+      if (isPro && dataAccess.integrations) {
+        const { data: accts } = await supabaseAdmin
+          .from('integration_accounts')
+          .select('provider, status')
+          .eq('user_id', input.user.id)
+          .in('provider', proProviders);
+        connectedProviders = (accts ?? [])
+          .filter((a) => a.status === 'connected')
+          .map((a) => a.provider);
+      }
+
+      let dynamicMcpTools: Record<string, unknown> = {};
+      let mcpContext = '';
+      if (!dataAccess.integrations) {
+        mcpContext +=
+          'Access to Slack, Notion, and Linear is disabled in the user\'s privacy settings. You cannot view or write to them. If the user asks about integrations, tell them to enable access in Settings > Bruno Preferences.\n';
+      } else if (!isPro) {
+        mcpContext +=
+          'Work integrations (Notion, Slack, Linear) are a Planevo Pro feature. If the user asks to use them, let them know these connect under Settings > Integrations on the Pro plan. Do not claim to perform external actions.\n';
+      } else if (connectedProviders.length === 0) {
+        mcpContext +=
+          'The user is on Pro but has not connected any work tools yet. If they ask about Notion, Slack, or Linear, point them to Settings > Integrations to connect. Do not claim to perform external actions.\n';
+      } else {
+        progress.markIntegrationsActive(
+          connectedProviders.join(', ')
+        );
+        try {
+          if (process.env.COMPOSIO_API_KEY) {
+            dynamicMcpTools = await getBrunoComposioTools(
+              input.user.id,
+              connectedProviders as Array<'notion' | 'slack' | 'linear'>
+            );
+
+            if (connectedProviders.includes('notion')) {
+              const { data: notionAccount } = await supabaseAdmin
+                .from('integration_accounts')
+                .select('metadata')
+                .eq('user_id', input.user.id)
+                .eq('provider', 'notion')
+                .maybeSingle();
+              const notionDbIds = Array.isArray(
+                (notionAccount?.metadata as Record<string, unknown> | null)
+                  ?.notion_database_ids
+              )
+                ? (
+                    (notionAccount?.metadata as Record<string, unknown>)
+                      .notion_database_ids as string[]
+                  ).map(String)
+                : [];
+              mcpContext += `${buildNotionToolHint(notionDbIds)}\n`;
+            }
+
+            mcpContext += `Connected work tools: ${connectedProviders.join(', ')}. You have access to tools via Composio for these apps. IMPORTANT: When a user asks you to perform an action on an external app (like creating a Notion page or sending a Slack message), you MUST use the Composio tools. DO NOT use the propose_action tool to create a local Planevo task for external app requests. Confirm with the user before sending messages or making destructive external changes.\n`;
+          }
+          progress.markIntegrationsDone(
+            connectedProviders.join(', ')
+          );
+        } catch (err) {
+          console.warn('Failed to load Composio tools:', err);
+          progress.markIntegrationsDone('Unavailable');
+        }
+      }
+
+      const systemPrompt = buildBrunoSystemPrompt({
+        mode: routeResult.decision.mode,
+        userName: input.profile?.name ?? 'User',
+        userPlan,
+        localTime: input.localTime ?? new Date().toLocaleString(),
+        timeZone: preferredTimeZone,
+        pageContext: buildPageContextBlock(input.pageContext),
+        memoryContext,
+        taskContext: context.taskContext,
+        calendarContext: context.calendarContext,
+        canvasContext: context.canvasContext,
+        integrationContext: context.integrationContext,
+        connectedProviders,
+        mcpContext: mcpContext.trim(),
+        dataAccess,
+      });
+
+      const readTools = getBrunoReadTools(input.user.id, dataAccess);
+      const noteTools = getBrunoNoteTools(input.user.id);
+      const lastUserMessageText = extractLastUserMessageText(
+        input.messages as Parameters<typeof extractLastUserMessageText>[0]
+      );
+
+      const tools = {
+        propose_action: tool({
+          description:
+            'Create a proposal card for a Planevo action. ONLY use this when the user has explicitly requested an action inside Planevo (like creating a local task, updating schedule, etc). DO NOT use this for external tools or integrations (Notion, Slack, Linear, etc) - use their respective Composio tools directly instead. This never mutates data directly and must wait for user confirmation. When proposing multiple CREATE_TASK or CREATE_TIME_BLOCK actions in one response, assign each a distinct payload.colorCategory (study, exercise, break, admin, work, creative, social, health) or payload.color so they are visually distinct on the calendar.',
+          inputSchema: proposeActionParams,
+          execute: async (proposal: unknown) => {
+            const argsObj =
+              typeof proposal === 'object' && proposal !== null
+                ? (proposal as Record<string, unknown>)
+                : { value: String(proposal) };
+            const enrichedArgs = await enrichBrunoProposal(argsObj, {
+              userId: input.user.id,
+              supabase: supabaseAdmin,
+              texts: lastUserMessageText ? [lastUserMessageText] : [],
+              timeZone: preferredTimeZone,
+            });
+            const { error } = await supabaseAdmin.from('bruno_tool_logs').insert({
+              user_id: input.user.id,
+              tool_name: 'propose_action',
+              arguments: enrichedArgs as Json,
+              result: { success: true },
+            });
+            if (error) Sentry.captureException(error);
+            return {
+              success: true,
+              message: 'Proposal recorded. Waiting for user confirmation.',
+            };
+          },
+        }),
+        ...readTools,
+        ...dynamicMcpTools,
+      };
+
+      const normalizedMessages = normalizeMessages(input.messages);
+      const modelMessages = await convertToModelMessages(normalizedMessages);
+      const upgradeCard =
+        flags.upgradeCardsEnabled && generationPlan.shouldShowUpgradeCard
+          ? getBrunoUpgradeCard(routeResult.decision.mode)
+          : null;
+      const proWarning = generationPlan.shouldShowProWarning
+        ? getBrunoProWarning(
+            Math.max(0, entitlement.monthlyDeepRequestsRemaining - 1)
+          )
+        : null;
+      const proCap = generationPlan.shouldShowProCap
+        ? getBrunoProCapNotice()
+        : null;
+
+      if (!generationPlan.model) {
+        if (routeResult.decision.mode === 'unsafe') {
+          progress.markError('route');
+          writeStaticText(writer, UNSAFE_RESPONSE);
+          progress.markComplete();
+          return;
+        }
+        generationPlan = {
+          ...generationPlan,
+          tier: 'standard',
+          model: BRUNO_MODELS.STANDARD,
+        };
+      }
+
+      const model: string = generationPlan.model!;
+      routeTier = generationPlan.tier;
+
+      const finalize = async (
+        status: 'completed' | 'failed',
+        usage: { inputTokens?: number; outputTokens?: number }
+      ) => {
+        if (finalized) return;
+        finalized = true;
+
+        const inputTokens = usage.inputTokens ?? 0;
+        const outputTokens = usage.outputTokens ?? 0;
+        const estimatedCostCents = estimateModelCostCents(model, {
+          inputTokens,
+          outputTokens,
+        });
+        const latencyMs = Math.round(performance.now() - startedAt);
+
+        const completionTasks: Promise<unknown>[] = [
+          completeBrunoUsage(usageRepository, {
+            usageLogId: input.usageLogId,
+            model,
+            mode: routeResult.decision.mode,
+            tier: generationPlan.tier,
+            inputTokens,
+            outputTokens,
+            estimatedCostCents,
+            latencyMs,
+            status,
+          }),
+          logBrunoRouteEvent(usageRepository, {
+            userId: input.user.id,
+            requestId: input.requestId,
+            conversationId: input.conversationId,
+            mode: routeResult.decision.mode,
+            confidence: routeResult.decision.confidence,
+            routeSource: routeResult.routeSource,
+            selectedTier: generationPlan.tier,
+            selectedModel: model,
+            isPro,
+            usedDeepCredit,
+            upgradeCardShown: Boolean(upgradeCard),
+            safetyStatus: 'clear',
+            inputTokens,
+            outputTokens,
+            estimatedCostCents,
+            latencyMs,
+            rationale: routeResult.decision.rationale,
+          }),
+        ];
+
+        if (status === 'failed' && deepAccessReserved) {
+          completionTasks.push(
+            refundBrunoDeepAccess(
+              supabaseAdmin as unknown as BrunoRpcClient,
+              {
+                userId: input.user.id,
+                requestId: input.requestId,
+              }
+            )
+          );
+        }
+
+        await Promise.allSettled(completionTasks);
+
+        posthogServer.capture({
+          distinctId: input.user.id,
+          event: 'bruno_route_completed',
+          properties: {
+            mode: routeResult.decision.mode,
+            route_source: routeResult.routeSource,
+            selected_tier: generationPlan.tier,
+            selected_model: model,
+            is_pro: isPro,
+            used_deep_credit: usedDeepCredit,
+            upgrade_card_shown: Boolean(upgradeCard),
+            estimated_cost_cents: estimatedCostCents,
+            latency_ms: latencyMs,
+            status,
+          },
+        });
+      };
+
       if (upgradeCard) {
         writer.write({
           type: 'data-bruno-upgrade-card',
@@ -808,6 +978,73 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
           data: proCap,
         });
       }
+
+      progress.markGenerating();
+
+      const hasIntegrationTools = Object.keys(dynamicMcpTools).length > 0;
+      const isNotesMode = routeResult.decision.mode === 'notes';
+
+      const generationOptions = {
+        model: openai(model),
+        system: systemPrompt,
+        messages: modelMessages,
+        tools: isNotesMode
+          ? { ...readTools, ...noteTools, ...dynamicMcpTools }
+          : tools,
+        stopWhen: stepCountIs(hasIntegrationTools ? 10 : 5),
+        maxOutputTokens: generationPlan.policy.maxOutputTokens,
+        ...getModelCallSettings(model, generationPlan.policy.temperature),
+      };
+
+      const result = streamText({
+        ...generationOptions,
+        onFinish: async ({ totalUsage, finishReason, text, steps }) => {
+          if (!text?.trim() && (steps?.length ?? 0) > 0) {
+            writeStaticText(
+              writer,
+              "I connected to your tools but couldn't finish a summary in time. Try a narrower ask—for example, \"List my urgent Notion tasks only\"—and I'll pick up from there."
+            );
+            progress.markError('generate', 'No text response');
+          } else if (finishReason === 'length' && text?.trim()) {
+            writer.write({
+              type: 'data-bruno-truncated',
+              data: {
+                type: 'bruno_truncated',
+                message:
+                  'I hit the length limit. Say **continue** for the rest, or tap **Save to Notes**.',
+                assistantText: text,
+                canContinue: true,
+              },
+            });
+            writeStaticText(
+              writer,
+              '\n\n---\n\nI hit the length limit. Say **continue** for the rest, or tap **Save to Notes**.'
+            );
+            progress.markComplete();
+          } else {
+            progress.markComplete();
+          }
+
+          if (isNotesMode && finishReason !== 'error') {
+            await consumeBrunoNotesQuota(input.user.id, input.requestId);
+          }
+
+          await finalize(
+            finishReason === 'error' ? 'failed' : 'completed',
+            totalUsage
+          );
+        },
+        onError: async ({ error }) => {
+          Sentry.captureException(error);
+          progress.markError('generate');
+          await finalize('failed', {});
+        },
+        onAbort: async () => {
+          progress.markError('generate', 'Stopped');
+          await finalize('failed', {});
+        },
+      });
+
       writer.merge(result.toUIMessageStream());
     },
   });
@@ -815,8 +1052,8 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
   return createUIMessageStreamResponse({
     stream,
     headers: {
-      'x-bruno-mode': routeResult.decision.mode,
-      'x-bruno-tier': generationPlan.tier,
+      'x-bruno-mode': routeMode,
+      'x-bruno-tier': routeTier,
       'x-bruno-pro-limit': String(BRUNO_PRO_MONTHLY_DEEP_LIMIT),
     },
   });

@@ -16,18 +16,18 @@ export interface TimeGap {
 /**
  * Fetches events from Google Calendar for the current user.
  * Requires the user to have logged in via Google OAuth with the calendar scope.
+ * @deprecated Unused — calendar sync uses encrypted tokens in google-calendar.ts.
  */
 export async function getCalendarEvents(timeMin?: string, timeMax?: string): Promise<{ events: CalendarEvent[], error: unknown }> {
   const supabase = await createClient();
-  
-  // Get the session to retrieve the provider_token
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !session) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
     return { events: [], error: 'No active session' };
   }
 
-  const providerToken = session.provider_token;
+  const { data: { session } } = await supabase.auth.getSession();
+  const providerToken = session?.provider_token;
   
   if (!providerToken) {
     return { events: [], error: 'No Google provider token found. Please re-login.' };

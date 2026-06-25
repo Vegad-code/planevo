@@ -197,3 +197,46 @@ ${rawText}
     return { success: false, error: err.message || 'Failed to parse instructions.' };
   }
 }
+
+export async function updateBrunoDataAccessAction(
+  key: 'bruno_access_tasks' | 'bruno_access_calendar' | 'bruno_access_canvas' | 'bruno_access_integrations',
+  value: boolean
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('scheduling_preferences')
+      .eq('id', user.id)
+      .single();
+
+    const existingPrefs = (profile?.scheduling_preferences as Record<string, any>) || {};
+    const newPrefs = {
+      ...existingPrefs,
+      [key]: value,
+    };
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ scheduling_preferences: newPrefs })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Failed to update scheduling preferences:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    revalidatePath('/dashboard/settings/bruno');
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateBrunoDataAccessAction] error:', err);
+    return { success: false, error: err.message || 'Failed to save settings.' };
+  }
+}
+

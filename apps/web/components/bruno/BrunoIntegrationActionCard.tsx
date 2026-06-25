@@ -88,6 +88,10 @@ export function BrunoIntegrationActionCard({
           href={url}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(url, '_blank', 'noopener,noreferrer');
+          }}
           className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-settings-brand)] hover:underline"
         >
           Open <ArrowSquareOut className="h-3 w-3" />

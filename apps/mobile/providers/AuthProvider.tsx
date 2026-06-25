@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
+import { disablePushNotifications } from '@/lib/notifications';
+import { useGlobalStore } from '@/store/globalStore';
 import type { Session, User } from '@supabase/supabase-js';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -105,6 +107,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser) {
+      try {
+        await disablePushNotifications(currentUser.id);
+      } catch (error) {
+        console.warn('[auth] Failed to clear push token on sign-out:', error);
+      }
+    }
+    useGlobalStore.getState().clearStore();
     await supabase.auth.signOut();
   };
 

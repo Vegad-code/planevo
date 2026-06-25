@@ -18,6 +18,7 @@ import {
   getIntegrationAccount,
   upsertIntegrationAccount,
 } from '@/lib/integrations/accounts';
+import { composioLinearSettingsBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 export async function GET(request: NextRequest) {
   const gate = await requireProComposioUser(request);
@@ -92,13 +93,12 @@ export async function POST(request: NextRequest) {
   const user = gate.user;
 
   try {
-    const body = await request.json();
-    const teamIds: string[] = Array.isArray(body?.teamIds) ? body.teamIds.map(String) : [];
-    const projectIds: string[] = Array.isArray(body?.projectIds)
-      ? body.projectIds.map(String)
-      : [];
-    const includeCompleted = body?.includeCompleted === true;
-    const assigneeFilter = body?.assigneeFilter === 'me' ? 'me' : 'all';
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(composioLinearSettingsBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const { teamIds, projectIds, includeCompleted, assigneeFilter } = parsed.data;
 
     const account = await getIntegrationAccount(user.id, 'linear');
     const metadata = buildLinearMetadataPatch(account?.metadata, {

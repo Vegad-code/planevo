@@ -2,6 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { createLogger } from '@/lib/logger';
+import { logSecurityAudit } from '@/lib/security-audit';
+
+const log = createLogger({ route: 'deleteAccountAction' });
 
 type DeleteAccountResult = {
   success: boolean;
@@ -103,9 +107,18 @@ export async function deleteAccountAction(confirmation: string): Promise<DeleteA
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
 
     if (deleteError) {
-      console.error('[Account deletion] Failed to delete auth user:', deleteError);
+      log.error('failed to delete auth user', { userId: user.id, error: deleteError.message });
       return { success: false, error: 'We could not delete your account. Please try again.' };
     }
+
+    await logSecurityAudit({
+      actorUserId: user.id,
+      action: 'account.delete',
+      resourceType: 'user',
+      resourceId: user.id,
+    });
+
+    log.info('account deleted', { userId: user.id });
 
     try {
       await supabase.auth.signOut({ scope: 'local' });

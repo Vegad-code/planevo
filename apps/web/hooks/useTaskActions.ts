@@ -230,7 +230,9 @@ export function useTaskActions(onRefresh: () => void) {
       setSaving(true);
       try {
         const { user, error: profileError } = await ensureUserProfile(supabase);
-        if (profileError || !user) return { error: 'Auth/profile error' };
+        if (profileError || !user) {
+          return { error: 'Auth/profile error' };
+        }
 
         // 1) Fetch tasks that are about to be cleared so we can undo
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -240,36 +242,68 @@ export function useTaskActions(onRefresh: () => void) {
           .eq('user_id', user.id)
           .is('deleted_at', null);
 
-        if (!tasksToDelete || tasksToDelete.length === 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: sourceItemsToDelete } = await (supabase as any)
+          .from('source_items')
+          .select('id')
+          .eq('user_id', user.id)
+          .is('deleted_at', null);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const taskIds = tasksToDelete?.map((t: any) => t.id) ?? [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sourceItemIds = sourceItemsToDelete?.map((s: any) => s.id) ?? [];
+        const totalCount = taskIds.length + sourceItemIds.length;
+
+        if (totalCount === 0) {
           onRefresh();
           return { error: null };
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const taskIds = tasksToDelete.map((t: any) => t.id);
+        const deletedAt = new Date().toISOString();
 
-        // 2) Soft delete them
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any)
-          .from('tasks')
-          .update({ deleted_at: new Date().toISOString() })
-          .in('id', taskIds);
+        if (taskIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: taskError } = await (supabase as any)
+            .from('tasks')
+            .update({ deleted_at: deletedAt })
+            .in('id', taskIds);
 
-        if (error) throw error;
+          if (taskError) throw taskError;
+        }
+
+        if (sourceItemIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: sourceError } = await (supabase as any)
+            .from('source_items')
+            .update({ deleted_at: deletedAt })
+            .in('id', sourceItemIds);
+
+          if (sourceError) throw sourceError;
+        }
 
         onRefresh();
 
         // 3) Show undo toast
-        toast(`Cleared ${taskIds.length} tasks`, {
+        toast(`Cleared ${totalCount} tasks`, {
           description: 'Your workspace is now fresh.',
           action: {
             label: 'Undo',
             onClick: async () => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (supabase as any)
-                .from('tasks')
-                .update({ deleted_at: null })
-                .in('id', taskIds);
+              if (taskIds.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any)
+                  .from('tasks')
+                  .update({ deleted_at: null })
+                  .in('id', taskIds);
+              }
+              if (sourceItemIds.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any)
+                  .from('source_items')
+                  .update({ deleted_at: null })
+                  .in('id', sourceItemIds);
+              }
               onRefresh();
             }
           }

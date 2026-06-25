@@ -454,7 +454,12 @@ export default function TasksScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+      accessibilityRole="none"
+      accessibilityLabel="Tasks list"
+    >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.separator }]}>
         <View style={styles.headerTopRow}>

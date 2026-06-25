@@ -2,23 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { profileUpdateSchema, parseJsonBody } from '@/lib/api/schemas';
 
-export async function updateProfileAction(data: { 
-  name?: string; 
-  energy_preference?: string;
-  preferred_name?: string;
-  timezone?: string;
-  context_type?: string;
-  school_name?: string;
-  major_role?: string;
-  graduation_year?: string;
-  term_start?: string | null;
-  term_end?: string | null;
-  default_canvas_url?: string;
-  workload_style?: string;
-  default_task_duration?: number;
-  preferred_planning_time?: string;
-}) {
+export async function updateProfileAction(data: unknown) {
+  const parsed = parseJsonBody(profileUpdateSchema, data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error };
+  }
+  const validated = parsed.data;
   try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -39,18 +30,18 @@ export async function updateProfileAction(data: {
 
     const newPrefs = {
       ...existingPrefs,
-      preferred_focus_time: data.energy_preference !== undefined ? data.energy_preference : existingPrefs.preferred_focus_time,
-      timezone: data.timezone !== undefined ? data.timezone : existingPrefs.timezone,
-      context_type: data.context_type !== undefined ? data.context_type : existingPrefs.context_type,
-      organization_name: data.school_name !== undefined ? data.school_name : existingPrefs.organization_name,
-      major_role: data.major_role !== undefined ? data.major_role : existingPrefs.major_role,
-      graduation_year: data.graduation_year !== undefined ? data.graduation_year : existingPrefs.graduation_year,
-      term_start: data.term_start !== undefined ? data.term_start : existingPrefs.term_start,
-      term_end: data.term_end !== undefined ? data.term_end : existingPrefs.term_end,
-      default_canvas_url: data.default_canvas_url !== undefined ? data.default_canvas_url : existingPrefs.default_canvas_url,
-      workload_style: data.workload_style !== undefined ? data.workload_style : existingPrefs.workload_style,
-      default_task_duration: data.default_task_duration !== undefined ? data.default_task_duration : existingPrefs.default_task_duration,
-      preferred_planning_time: data.preferred_planning_time !== undefined ? data.preferred_planning_time : existingPrefs.preferred_planning_time,
+      preferred_focus_time: validated.energy_preference !== undefined ? validated.energy_preference : existingPrefs.preferred_focus_time,
+      timezone: validated.timezone !== undefined ? validated.timezone : existingPrefs.timezone,
+      context_type: validated.context_type !== undefined ? validated.context_type : existingPrefs.context_type,
+      organization_name: validated.school_name !== undefined ? validated.school_name : existingPrefs.organization_name,
+      major_role: validated.major_role !== undefined ? validated.major_role : existingPrefs.major_role,
+      graduation_year: validated.graduation_year !== undefined ? validated.graduation_year : existingPrefs.graduation_year,
+      term_start: validated.term_start !== undefined ? validated.term_start : existingPrefs.term_start,
+      term_end: validated.term_end !== undefined ? validated.term_end : existingPrefs.term_end,
+      default_canvas_url: validated.default_canvas_url !== undefined ? validated.default_canvas_url : existingPrefs.default_canvas_url,
+      workload_style: validated.workload_style !== undefined ? validated.workload_style : existingPrefs.workload_style,
+      default_task_duration: validated.default_task_duration !== undefined ? validated.default_task_duration : existingPrefs.default_task_duration,
+      preferred_planning_time: validated.preferred_planning_time !== undefined ? validated.preferred_planning_time : existingPrefs.preferred_planning_time,
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,10 +49,9 @@ export async function updateProfileAction(data: {
       scheduling_preferences: newPrefs
     };
 
-    if (data.name !== undefined) updates.name = data.name;
-    // Map preferred_name to name if provided separately
-    if (data.preferred_name !== undefined) updates.name = data.preferred_name;
-    if (data.energy_preference !== undefined) updates.energy_preference = data.energy_preference;
+    if (validated.name !== undefined) updates.name = validated.name;
+    if (validated.preferred_name !== undefined) updates.name = validated.preferred_name;
+    if (validated.energy_preference !== undefined) updates.energy_preference = validated.energy_preference;
 
     const { error: userUpdateError } = await supabase
       .from('users')

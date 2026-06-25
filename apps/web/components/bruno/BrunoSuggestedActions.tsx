@@ -27,6 +27,11 @@ const INTEGRATION_ACTIONS: Record<ProIntegrationProvider, SuggestedAction> = {
 const ACTIONS: Record<string, SuggestedAction[]> = {
   dashboard: [
     {
+      label: 'Make notes',
+      prompt:
+        'Make handwriteable notes for my current subject or unit. Match how I usually like my notes.',
+    },
+    {
       label: 'Review my week',
       prompt: 'Review my week and tell me what I should focus on first.',
     },

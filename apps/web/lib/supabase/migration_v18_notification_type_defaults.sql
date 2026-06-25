@@ -3,7 +3,7 @@
 
 UPDATE notification_preferences
 SET types =
-  '{"daily_plan": true, "deadline_rescue": true, "weekly_review": true, "account": true, "billing": true, "system": true}'::jsonb
+  '{"daily_plan": true, "deadline_rescue": true, "upcoming_reminders": true, "weekly_review": true, "account": true, "billing": true, "system": true}'::jsonb
   || COALESCE(types, '{}'::jsonb),
   updated_at = now();
 

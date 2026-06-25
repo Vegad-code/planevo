@@ -3,13 +3,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { updateUserAIMemory } from '@/lib/ai/memory';
+import { calendarPreferencesSchema, planningStyleSchema, parseJsonBody } from '@/lib/api/schemas';
 
-export async function updateCalendarPreferencesAction(data: {
-  default_view?: string;
-  start_hour?: number;
-  end_hour?: number;
-  show_completed?: boolean;
-}) {
+export async function updateCalendarPreferencesAction(data: unknown) {
+  const parsed = parseJsonBody(calendarPreferencesSchema, data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error };
+  }
+  const validated = parsed.data;
   try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -22,10 +23,10 @@ export async function updateCalendarPreferencesAction(data: {
       .from('calendar_preferences')
       .upsert({
         user_id: user.id,
-        default_view: data.default_view,
-        start_hour: data.start_hour,
-        end_hour: data.end_hour,
-        show_completed: data.show_completed,
+        default_view: validated.default_view,
+        start_hour: validated.start_hour,
+        end_hour: validated.end_hour,
+        show_completed: validated.show_completed,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 

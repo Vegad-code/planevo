@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 
 /**
@@ -22,6 +23,12 @@ export async function POST(request: NextRequest) {
     // --- ORIGIN / CSRF GUARD (with cron exemption) ---
     if (!isAllowedOriginOrCron(request)) {
       return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
     // Rate limit to prevent bill abuse

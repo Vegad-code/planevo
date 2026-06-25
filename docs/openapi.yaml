@@ -1,0 +1,419 @@
+openapi: 3.1.0
+info:
+  title: Planevo API
+  version: 1.0.0
+  description: |
+    REST API for Planevo web and mobile clients.
+    Contracts are implemented with Zod schemas in `apps/web/lib/api/schemas.ts`.
+servers:
+  - url: https://planevo.co
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+paths:
+  /api/auth/sign-in:
+    post:
+      summary: Sign in with email and password
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthSignInBody'
+      responses:
+        '200':
+          description: Session cookies set
+        '401':
+          description: Invalid credentials
+        '429':
+          description: IP rate limit exceeded
+  /api/auth/sign-up:
+    post:
+      summary: Create account with email and password
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthSignUpBody'
+      responses:
+        '200':
+          description: Sign-up accepted
+        '400':
+          description: Invalid input
+        '429':
+          description: IP rate limit exceeded
+  /api/auth/password-reset:
+    post:
+      summary: Request password reset email
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPasswordResetBody'
+      responses:
+        '200':
+          description: Request accepted (uniform response)
+        '429':
+          description: IP rate limit exceeded
+  /api/metrics/track:
+    post:
+      summary: Track daily user metrics
+      tags: [Metrics]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetricsTrackBody'
+      responses:
+        '200':
+          description: Metric recorded
+        '401':
+          description: Unauthorized
+    get:
+      summary: Fetch last 7 days of metrics
+      tags: [Metrics]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metrics list
+  /api/integrations/google/calendars/save:
+    post:
+      summary: Save selected Google Calendar IDs
+      tags: [Integrations]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleCalendarsSaveBody'
+      responses:
+        '200':
+          description: Preferences saved
+  /api/integrations/composio/connect:
+    post:
+      summary: Start Composio OAuth connection
+      tags: [Integrations]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComposioConnectBody'
+      responses:
+        '200':
+          description: Redirect URL or already connected
+  /api/schedule:
+    post:
+      summary: Generate AI daily schedule from tasks
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Schedule blocks
+        '403':
+          description: Rate limit reached
+  /api/ai/chat:
+    post:
+      summary: Bruno chat completion (streaming)
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Streamed response
+        '429':
+          description: Rate limit reached
+  /api/ai/conversations/{id}:
+    get:
+      summary: Get conversation by ID
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Conversation
+        '404':
+          description: Not found
+  /api/ai/daily-plan:
+    post:
+      summary: Generate daily plan
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Plan generated
+  /api/ai/generate-title:
+    post:
+      summary: Generate conversation title
+      tags: [AI]
+      responses:
+        '200':
+          description: Title
+  /api/ai/insight:
+    post:
+      summary: AI insight
+      tags: [AI]
+      responses:
+        '200':
+          description: Insight
+  /api/ai/weekly-review:
+    post:
+      summary: Weekly productivity review
+      tags: [AI]
+      responses:
+        '200':
+          description: Review text
+  /api/bruno/actions/execute:
+    post:
+      summary: Execute Bruno proposed action
+      tags: [Bruno]
+      responses:
+        '200':
+          description: Action executed
+  /api/bruno/fallback/breakdown:
+    post:
+      summary: Bruno fallback task breakdown
+      tags: [Bruno]
+      responses:
+        '200':
+          description: Breakdown
+  /api/integrations/canvas/save:
+    post:
+      summary: Save Canvas credentials
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Saved
+  /api/integrations/composio/connections:
+    get:
+      summary: List Composio connections
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Connections
+  /api/integrations/composio/disconnect:
+    post:
+      summary: Disconnect Composio integration
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Disconnected
+  /api/integrations/composio/linear/settings:
+    get:
+      summary: Linear integration settings
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Settings
+    post:
+      summary: Save Linear settings
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Saved
+  /api/integrations/composio/notion/databases:
+    get:
+      summary: List Notion databases
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Databases
+    post:
+      summary: Save Notion database selection
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Saved
+  /api/integrations/composio/slack/settings:
+    get:
+      summary: Slack integration settings
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Settings
+    post:
+      summary: Save Slack settings
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Saved
+  /api/integrations/composio/sync:
+    post:
+      summary: Sync Composio providers
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Synced
+  /api/integrations/composio/verify:
+    post:
+      summary: Verify Composio connection
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Verified
+  /api/integrations/google/calendars:
+    get:
+      summary: List Google calendars
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Calendars
+  /api/integrations/google/sync:
+    post:
+      summary: Sync Google Calendar
+      tags: [Integrations]
+      responses:
+        '200':
+          description: Synced
+  /api/notifications/test:
+    post:
+      summary: Send test push notification
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Sent
+  /api/notifications/test-email:
+    post:
+      summary: Send test email notification
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Sent
+  /api/schedule/rollover:
+    post:
+      summary: Rollover overdue tasks to today
+      tags: [Schedule]
+      responses:
+        '200':
+          description: Rollover complete
+  /api/stripe/checkout:
+    post:
+      summary: Create Stripe checkout session
+      tags: [Billing]
+      responses:
+        '200':
+          description: Checkout URL
+  /api/stripe/portal:
+    post:
+      summary: Create Stripe customer portal session
+      tags: [Billing]
+      responses:
+        '200':
+          description: Portal URL
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sb-access-token
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthSignInBody:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+    AuthSignUpBody:
+      type: object
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 256
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        referralCode:
+          type: string
+          maxLength: 64
+        nextPath:
+          type: string
+          maxLength: 256
+    AuthPasswordResetBody:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    MetricsTrackBody:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [focus_time, task_completed, task_planned]
+        value:
+          type: number
+          minimum: 0
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+    GoogleCalendarsSaveBody:
+      type: object
+      required: [selectedCalendarIds]
+      properties:
+        selectedCalendarIds:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+    ComposioConnectBody:
+      type: object
+      required: [appName]
+      properties:
+        appName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        redirectUrl:
+          type: string
+          maxLength: 2048
+        reconnect:
+          type: boolean

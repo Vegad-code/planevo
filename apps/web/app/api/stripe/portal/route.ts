@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
 import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
+import { logSecurityAudit } from '@/lib/security-audit';
 
 type PortalProfile = {
   stripe_customer_id: string | null;
@@ -19,6 +21,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { supabase, user } = auth;
+
+    const body = await req.json().catch(() => ({}));
+    const parsed = parseJsonBody(emptyStrictBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
 
     // Look up the user's Stripe customer ID
     const { data } = await supabase
@@ -40,6 +48,14 @@ export async function POST(req: NextRequest) {
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${req.nextUrl.origin}/dashboard/settings/membership`,
+    });
+
+    await logSecurityAudit({
+      actorUserId: user.id,
+      action: 'stripe.portal_open',
+      resourceType: 'stripe_customer',
+      resourceId: profile.stripe_customer_id,
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
     });
 
     return NextResponse.json({ url: session.url });

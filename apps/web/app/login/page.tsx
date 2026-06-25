@@ -23,9 +23,16 @@ export default function SignIn() {
     setLoading(true);
     setError(null);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const { error: authError } = await fetch('/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return { error: { message: payload.error || 'Sign in failed.' } };
+      }
+      return { error: null };
     });
 
     if (authError) {

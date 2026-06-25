@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { encryptToken, decryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
+import { resilientFetch } from '@/lib/http/resilient-fetch';
+import { evaluatePostSyncNotifications } from '@/lib/notifications/post-sync-notify';
 
 /**
  * Server-side proxy for Canvas API calls to avoid CORS issues.
@@ -21,11 +23,11 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
         return false;
       }
     } else {
-      cleanToken = decryptToken(token, { allowLegacyPlaintext: true }).trim();
+      cleanToken = decryptToken(token).trim();
     }
     
     const cleanUrl = url.trim().replace(/\/$/, '');
-    const response = await fetch(`${cleanUrl}/api/v1/users/self`, {
+    const response = await resilientFetch(`${cleanUrl}/api/v1/users/self`, {
       headers: {
         'Authorization': `Bearer ${cleanToken}`
       },
@@ -40,7 +42,7 @@ export async function testCanvasConnectionAction(url: string, token: string): Pr
 
 export async function fetchCanvasUpcomingAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const decryptedToken = decryptToken(token, { allowLegacyPlaintext: true });
+    const decryptedToken = decryptToken(token);
     const cleanUrl = url.trim().replace(/\/$/, '');
     const cleanToken = decryptedToken.trim();
     
@@ -223,7 +225,7 @@ export async function fetchCanvasUpcomingAction(url: string, token: string): Pro
 
 export async function fetchCanvasTodoAction(url: string, token: string): Promise<CanvasAssignment[]> {
   try {
-    const decryptedToken = decryptToken(token, { allowLegacyPlaintext: true });
+    const decryptedToken = decryptToken(token);
     const cleanUrl = url.trim().replace(/\/$/, '');
     const response = await fetch(`${cleanUrl}/api/v1/users/self/todo`, {
       headers: {
@@ -462,7 +464,7 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
     const canvasUrl = (account?.metadata as { canvas_url?: string } | null)?.canvas_url ?? '';
 
     const decryptedToken = encryptedToken
-      ? decryptToken(encryptedToken, { allowLegacyPlaintext: true })
+      ? decryptToken(encryptedToken)
       : '';
     let displayToken = decryptedToken;
     
@@ -636,6 +638,11 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
         items_created: itemsCreated,
         items_updated: itemsUpdated
       }).eq('id', syncRunId);
+    }
+
+    const assignmentCount = assignmentsOnly.length;
+    if (assignmentCount > 0) {
+      await evaluatePostSyncNotifications(supabaseAdmin, userId, 'canvas', assignmentCount);
     }
 
     return upcoming.length;

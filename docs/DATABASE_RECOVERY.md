@@ -1,5 +1,7 @@
 # Planevo Database Point-in-Time Recovery (PITR) & Backup Verification
 
+For incident response, RTO/RPO targets, and the full runbook see [DISASTER_RECOVERY.md](./DISASTER_RECOVERY.md).
+
 This guide outlines the point-in-time recovery (PITR) and manual backup procedures for the Planevo Supabase database. PITR allows you to restore your database to any specific second within your retention window (typically 7 days on the Pro tier).
 
 ---

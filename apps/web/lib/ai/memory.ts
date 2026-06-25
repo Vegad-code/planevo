@@ -96,6 +96,15 @@ const taskGroupingPrefSchema = z.object({
   last_seen_at: z.string().optional(),
 });
 
+const notePreferenceSchema = z.object({
+  format: z.enum(['outline', 'cornell', 'bullets', 'narrative']).default('bullets'),
+  density: z.enum(['concise', 'standard', 'detailed']).default('standard'),
+  include_mnemonics: z.boolean().default(true),
+  include_practice_questions: z.boolean().default(false),
+  handwriting_friendly: z.boolean().default(true),
+  subject_overrides: z.record(z.string(), z.enum(['concise', 'standard', 'detailed'])).default({}),
+});
+
 export const userAiMemorySchema = z.object({
   preferred_focus_windows: z.array(memoryWindowSchema).default([]),
   avoided_focus_windows: z.array(memoryWindowSchema).default([]),
@@ -138,6 +147,14 @@ export const userAiMemorySchema = z.object({
   task_duration_preferences: z.array(taskDurationPrefSchema).default([]),
   task_time_preferences: z.array(taskTimePrefSchema).default([]),
   task_grouping_preferences: z.array(taskGroupingPrefSchema).default([]),
+  note_preference: notePreferenceSchema.default({
+    format: 'bullets',
+    density: 'standard',
+    include_mnemonics: true,
+    include_practice_questions: false,
+    handwriting_friendly: true,
+    subject_overrides: {},
+  }),
 });
 
 export type UserAiMemory = z.infer<typeof userAiMemorySchema>;
@@ -166,6 +183,7 @@ export function parseUserAiMemory(row: UserAiMemoryRow | null | undefined): User
     task_duration_preferences: raw.task_duration_preferences ?? [],
     task_time_preferences: raw.task_time_preferences ?? [],
     task_grouping_preferences: raw.task_grouping_preferences ?? [],
+    note_preference: raw.note_preference ?? undefined,
   });
 }
 
@@ -387,6 +405,22 @@ export function buildMemoryContext(memory: UserAiMemory): string {
 
   if (memory.tone_preference.avoid_phrases.length > 0) {
     lines.push(`CRITICAL - AVOID THESE PHRASES: ${memory.tone_preference.avoid_phrases.join(', ')}`);
+  }
+
+  const notesRules = memory.learned_rules.filter((rule) => rule.feature === 'notes');
+  if (notesRules.length > 0) {
+    lines.push(`Note style learned rules: ${notesRules.map((rule) => rule.text).join(' | ')}`);
+  }
+
+  lines.push(
+    `Note preferences: format=${memory.note_preference.format}, density=${memory.note_preference.density}, handwriting_friendly=${memory.note_preference.handwriting_friendly}, mnemonics=${memory.note_preference.include_mnemonics}, practice_questions=${memory.note_preference.include_practice_questions}`
+  );
+
+  const subjectOverrides = Object.entries(memory.note_preference.subject_overrides);
+  if (subjectOverrides.length > 0) {
+    lines.push(
+      `Note density by subject: ${subjectOverrides.map(([subject, density]) => `${subject}=${density}`).join(', ')}`
+    );
   }
 
   return lines.join('\n');
@@ -654,6 +688,7 @@ function memoryToDb(memory: UserAiMemory) {
     disliked_patterns: memory.disliked_patterns as Json,
     accepted_patterns: memory.accepted_patterns as Json,
     source_counters: memory.source_counters as Json,
+    note_preference: memory.note_preference as Json,
     // The following fields exist in types but appear to be missing from the Supabase 
     // remote schema cache or table, causing postgREST to reject saves:
     // memory_learning_settings: memory.memory_learning_settings as Json,

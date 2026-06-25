@@ -4,6 +4,7 @@ import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { prepareConnectionForLink, getComposioClient, dedupeComposioConnections } from '@/lib/integrations/composio/client';
 import { resolveComposioCallbackUrl } from '@/lib/integrations/composio/oauth';
 import { reconcileProAccounts } from '@/lib/integrations/summary';
+import { composioConnectBodySchema } from '@/lib/api/schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,10 +21,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Composio API key missing' }, { status: 500 });
     }
 
-    const { appName, redirectUrl, reconnect } = await request.json();
-    if (!appName) {
-      return NextResponse.json({ error: 'Missing appName' }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const parsed = composioConnectBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Missing or invalid appName' }, { status: 400 });
     }
+
+    const { appName, redirectUrl, reconnect } = parsed.data;
 
     const composio = getComposioClient();
     if (!composio) {

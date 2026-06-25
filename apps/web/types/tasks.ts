@@ -11,6 +11,7 @@ export interface Task {
   priority?: TaskPriority | null;
   estimated_minutes?: number | null;
   best_time_of_day?: BestTimeOfDay | null;
+  color?: string | null;
   energy_level_required?: EnergyLevel | null;
   due_date?: string | null;
   external_url?: string | null;

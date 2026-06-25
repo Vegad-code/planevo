@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
 
 @theme {
   --color-cream: #F2E8D2;
@@ -7,7 +8,7 @@
   --color-ink: #1A140D;
   --color-ink-2: #2A2118;
   --color-ink-soft: #4A3F32;
-  --color-ink-faint: #8A7B66;
+  --color-ink-faint: #6B5F4D;
   --color-bruno: #8B5A2B;
   --color-bruno-deep: #6B4423;
   --color-bruno-light: #C99A5F;
@@ -25,9 +26,16 @@
   --color-line: rgba(26, 20, 13, 0.10);
   --color-line-strong: rgba(26, 20, 13, 0.18);
 
+  /* Notes accent palette */
+  --color-note-yellow: #F7D44C;
+  --color-note-coral: #EB7A53;
+  --color-note-sky: #98B7DB;
+  --color-note-green: #A8D672;
+  --color-note-cream: #F6ECC9;
+
   /* Calendar category source colors */
-  --color-manual: var(--color-ink-soft);
-  --color-manual-soft: var(--color-cream-2);
+  --color-manual: #039BE5;
+  --color-manual-soft: #D5E3F2;
   --color-google: var(--color-blue);
   --color-google-soft: var(--color-blue-soft);
   --color-canvas: var(--color-rose);
@@ -40,6 +48,20 @@
   --color-focus-soft: var(--color-honey-soft);
   --color-rollover: var(--color-rose);
   --color-rollover-soft: var(--color-rose-soft);
+
+  /* Event color palette (Google Calendar–inspired) */
+  --event-color-tomato: #D50000;
+  --event-color-flamingo: #E67C73;
+  --event-color-tangerine: #F4511E;
+  --event-color-banana: #F6BF26;
+  --event-color-sage: #33B679;
+  --event-color-basil: #0B8043;
+  --event-color-peacock: #039BE5;
+  --event-color-blueberry: #3F51B5;
+  --event-color-lavender: #7986CB;
+  --event-color-grape: #8E24AA;
+  --event-color-graphite: #616161;
+  --event-color-cocoa: #795548;
 
   /* Dashboard Sleek Dark Theme Tokens (legacy, retained) */
   --color-bg-dark: #09090b;
@@ -61,7 +83,7 @@
   --color-settings-card-hover: #F5EFE1;
   --color-settings-border: #E6DCCE;
   --color-settings-text: #2A2118;
-  --color-settings-text-muted: #8A7B66;
+  --color-settings-text-muted: #6B5F4D;
   --color-settings-brand: var(--color-honey);
   
   /* Sidebar Tokens (Light Mode defaults) */
@@ -106,6 +128,12 @@ html.dark {
   
   --color-sidebar-bg: #121214;
   --color-sidebar-text: #fafafa;
+
+  --color-note-yellow: #3d3520;
+  --color-note-coral: #3d2820;
+  --color-note-sky: #1e2a38;
+  --color-note-green: #243020;
+  --color-note-cream: #1c1a16;
 }
 
 html.sepia {
@@ -115,7 +143,7 @@ html.sepia {
   --color-ink: #3a2f1f;
   --color-ink-2: #4a3c28;
   --color-ink-soft: #6b5a40;
-  --color-ink-faint: #8a785a;
+  --color-ink-faint: #6B5F4D;
   --color-line: rgba(58, 47, 31, 0.12);
   --color-line-strong: rgba(58, 47, 31, 0.20);
 
@@ -124,7 +152,7 @@ html.sepia {
   --color-settings-card-hover: #efe2c4;
   --color-settings-border: #e0d0ac;
   --color-settings-text: #3a2f1f;
-  --color-settings-text-muted: #7a6a4d;
+  --color-settings-text-muted: #6B5F4D;
 }
 
 html[data-public="true"].dark,
@@ -136,7 +164,7 @@ html[data-public="true"].sepia {
   --color-ink: #1A140D;
   --color-ink-2: #2A2118;
   --color-ink-soft: #4A3F32;
-  --color-ink-faint: #8A7B66;
+  --color-ink-faint: #6B5F4D;
   --color-line: rgba(26, 20, 13, 0.10);
   --color-line-strong: rgba(26, 20, 13, 0.18);
 
@@ -145,7 +173,7 @@ html[data-public="true"].sepia {
   --color-settings-card-hover: #F5EFE1;
   --color-settings-border: #E6DCCE;
   --color-settings-text: #2A2118;
-  --color-settings-text-muted: #8A7B66;
+  --color-settings-text-muted: #6B5F4D;
   
   --color-sidebar-bg: var(--color-ink);
   --color-sidebar-text: var(--color-paper);
@@ -241,20 +269,62 @@ html.reduce-motion *::after {
 /* Custom react-big-calendar styling to match planevo */
 .rbc-calendar {
   font-family: var(--font-sans);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .rbc-event {
   border-radius: 8px;
   border: none;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.rbc-event:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+  z-index: 5;
+}
+.rbc-month-view .rbc-date-cell {
+  padding: 6px 4px;
+}
+.rbc-month-view .rbc-event {
+  padding: 1px 4px;
+  font-size: 11px;
+}
+.rbc-month-row {
+  min-height: 100px;
 }
 .rbc-time-view, .rbc-month-view {
   border: none;
   background: var(--color-paper);
 }
+.rbc-time-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.rbc-time-content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  flex: 1;
+  min-height: 0;
+}
 .rbc-header {
   border-bottom: 1px solid var(--color-line) !important;
   border-left: 1px solid var(--color-line) !important;
-  padding: 8px 0;
+  padding: 4px 2px !important;
   font-weight: 600;
+  background: var(--color-paper);
+}
+.rbc-time-header .rbc-header {
+  border-top: none !important;
+}
+.rbc-time-header-content > .rbc-row:first-child {
+  min-height: 0;
+}
+.rbc-allday-cell {
+  display: none;
 }
 .rbc-time-content, .rbc-time-header {
   border-color: var(--color-line) !important;
@@ -267,7 +337,7 @@ html.reduce-motion *::after {
   border-color: var(--color-line-strong) !important;
 }
 .rbc-time-slot {
-  min-height: 16px; /* 4 slots * 16px = 64px per hour */
+  min-height: 20px; /* 4 slots * 20px = 80px per hour */
 }
 .rbc-day-slot .rbc-time-slot {
   border-top: none !important;
@@ -593,4 +663,56 @@ select option {
 .bruno-markdown ul:has(> li > input[type="checkbox"]) {
   list-style-type: none;
   padding-left: 0.25rem;
+}
+
+/* --- Notes / BlockNote editor --- */
+.planevo-blocknote {
+  --bn-colors-editor-background: var(--color-note-cream);
+  --bn-colors-editor-text: var(--color-ink);
+  --bn-colors-menu-background: var(--color-paper);
+  --bn-colors-menu-text: var(--color-ink);
+  --bn-colors-border: var(--color-line-strong);
+  --bn-colors-hovered-background: var(--color-cream-2);
+  --bn-colors-selected-background: var(--color-honey-soft);
+  --bn-colors-shadow: rgba(26, 20, 13, 0.08);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+
+.planevo-blocknote .bn-editor {
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+}
+
+.planevo-blocknote .bn-block-group .bn-block-outer {
+  border-radius: 0.5rem;
+}
+
+html.dark .planevo-blocknote {
+  --bn-colors-editor-background: var(--color-note-cream);
+  --bn-colors-editor-text: var(--color-ink);
+}
+
+.note-card-accent-yellow { background-color: var(--color-note-yellow); }
+.note-card-accent-coral { background-color: var(--color-note-coral); }
+.note-card-accent-sky { background-color: var(--color-note-sky); }
+.note-card-accent-green { background-color: var(--color-note-green); }
+.note-card-accent-cream { background-color: var(--color-note-cream); }
+
+html:not(.dark) .note-card-accent-yellow,
+html:not(.dark) .note-card-accent-coral,
+html:not(.dark) .note-card-accent-sky,
+html:not(.dark) .note-card-accent-green,
+html:not(.dark) .note-card-accent-cream {
+  color: var(--color-ink);
+}
+
+html.dark .note-card-accent-yellow,
+html.dark .note-card-accent-coral,
+html.dark .note-card-accent-sky,
+html.dark .note-card-accent-green,
+html.dark .note-card-accent-cream {
+  border: 1px solid var(--color-line-strong);
 }

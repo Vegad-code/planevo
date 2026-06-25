@@ -11,14 +11,24 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspace planevo",
     "test": "npm run test --workspaces --if-present",
-    "check": "npm run check --workspace planevo"
+    "check": "npm run check --workspace planevo",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "vitest": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.7"
   },
   "overrides": {
     "@xmldom/xmldom": "^0.8.13",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-test-renderer": "19.2.0"
+    "react-test-renderer": "19.2.0",
+    "ws": "8.21.0",
+    "undici": "7.28.0",
+    "engine.io": "6.6.9",
+    "next": {
+      "postcss": "8.5.10"
+    }
   }
 }

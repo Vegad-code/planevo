@@ -11,13 +11,15 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { useAuth } from '@/providers/AuthProvider';
+import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
+import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const { colors, isDark } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -138,6 +140,18 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
+          {!isSignUp && (
+            <TouchableOpacity
+              onPress={() => router.push('/forgot-password' as never)}
+              style={styles.forgotButton}
+              testID="auth-forgot-password"
+            >
+              <Text style={[styles.forgotText, { color: Colors.brand[500] }]}>
+                Forgot password?
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.submitButton, { backgroundColor: Colors.brand[600] }]}
             onPress={handleSubmit}
@@ -224,6 +238,14 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 14,
+  },
+  forgotButton: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   inputWrapper: {
     flexDirection: 'row',

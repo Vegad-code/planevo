@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
@@ -10,16 +10,47 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkRecoverySession() {
+      try {
+        const response = await fetch('/api/auth/recovery-session', {
+          cache: 'no-store',
+        });
+        const data = (await response.json()) as { hasSession?: boolean };
+
+        if (mounted) {
+          setHasSession(Boolean(data.hasSession));
+          setSessionChecked(true);
+        }
+      } catch {
+        if (mounted) {
+          setHasSession(false);
+          setSessionChecked(true);
+        }
+      }
+    }
+
+    void checkRecoverySession();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
       setLoading(false);
       return;
     }
@@ -37,6 +68,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    await supabase.auth.signOut({ scope: 'others' });
+
     setSuccess(true);
     setLoading(false);
   }
@@ -52,7 +85,22 @@ export default function ResetPasswordPage() {
           </div>
         </div>
 
-        {success ? (
+        {!sessionChecked ? (
+          <p className="text-sm text-[var(--color-ink-soft)]">Verifying your reset link...</p>
+        ) : !hasSession && !success ? (
+          <div>
+            <h1 className="mb-3 text-2xl font-bold">Link expired</h1>
+            <p className="mb-6 text-sm text-[var(--color-ink-soft)]">
+              This password reset link is invalid or has expired. Request a new one to continue.
+            </p>
+            <Link
+              href="/forgot-password"
+              className="block w-full rounded-xl bg-[var(--color-ink)] px-4 py-3 text-center font-semibold text-[var(--color-paper)] transition-colors hover:bg-[var(--color-ink-2)]"
+            >
+              Request new link
+            </Link>
+          </div>
+        ) : success ? (
           <div>
             <h1 className="mb-3 text-2xl font-bold">Password updated</h1>
             <p className="mb-6 text-sm text-[var(--color-ink-soft)]">
@@ -78,7 +126,7 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label htmlFor="new-password" className="mb-1.5 block text-sm font-semibold">
                   New password
@@ -88,7 +136,7 @@ export default function ResetPasswordPage() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  minLength={6}
+                  minLength={8}
                   required
                   className="w-full rounded-xl border border-[var(--color-cream-2)] bg-[var(--color-cream)] px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-[var(--color-honey)]"
                 />
@@ -103,7 +151,7 @@ export default function ResetPasswordPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  minLength={6}
+                  minLength={8}
                   required
                   className="w-full rounded-xl border border-[var(--color-cream-2)] bg-[var(--color-cream)] px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-[var(--color-honey)]"
                 />

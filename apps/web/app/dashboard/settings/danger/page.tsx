@@ -1,5 +1,6 @@
 import { DeleteAccountCard } from '@/components/settings/DeleteAccountCard';
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 function getConfirmationText(email: string | undefined) {
   return email?.trim() || 'DELETE MY ACCOUNT';
@@ -9,7 +10,7 @@ export default async function DangerZonePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user) redirect('/login');
 
   return (
     <div className="space-y-8 animate-fade-in text-settings-text">

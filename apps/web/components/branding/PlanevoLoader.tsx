@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styles from './planevo-loader.module.css';
 
 export interface PlanevoLoaderProps {
@@ -10,6 +10,10 @@ export interface PlanevoLoaderProps {
   onAnimationFinished?: () => void;
 }
 
+/** Original repo timing (a6ae571): 1.1s spin, 700ms complete callback */
+export const LOADER_SPIN_MS = 1100;
+export const LOADER_COMPLETE_MS = 700;
+
 export const PlanevoLoader = ({
   size = 80,
   className = '',
@@ -17,34 +21,39 @@ export const PlanevoLoader = ({
   onAnimationFinished,
 }: PlanevoLoaderProps) => {
   const [showCheckFallback, setShowCheckFallback] = useState(false);
+  const onFinishedRef = useRef(onAnimationFinished);
 
   useEffect(() => {
-    if (mode === 'complete') {
-      // Small timeout to ensure the CSS class applies smoothly for fallback
-      const timer = setTimeout(() => setShowCheckFallback(true), 50);
-      
-      const callbackTimer = setTimeout(() => {
-        if (onAnimationFinished) onAnimationFinished();
-      }, 700); // draw (350ms) + spring pop (250ms) + small buffer
+    onFinishedRef.current = onAnimationFinished;
+  }, [onAnimationFinished]);
 
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(callbackTimer);
-      };
-    } else {
+  useEffect(() => {
+    if (mode !== 'complete') {
       setShowCheckFallback(false);
+      return;
     }
-  }, [mode, onAnimationFinished]);
+
+    const timer = setTimeout(() => setShowCheckFallback(true), 50);
+    const callbackTimer = setTimeout(() => {
+      onFinishedRef.current?.();
+    }, LOADER_COMPLETE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(callbackTimer);
+    };
+  }, [mode]);
 
   return (
     <div className={`${styles.container} ${className} ${mode === 'complete' ? styles.modeComplete : ''} ${showCheckFallback ? styles.showCheckFallback : ''}`}>
+      <div className={styles.spinWrapper}>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width={size * 1.2}
         height={size * 1.2}
         viewBox="260 260 500 500"
         className={styles.logoSvg}
-        style={{ flex: 'none', color: '#fff' }} // Assuming white logo for #111113 background
+        style={{ flex: 'none', color: '#fff', shapeRendering: 'geometricPrecision' }}
       >
         <g className={styles.spinGroup}>
           <path fill="currentColor" d="M540.661 292.702C561.681 291.306 582.503 297.513 599.326 310.192C619.864 325.408 631.341 345.26 635.022 370.411C626.97 376.673 621.514 383.383 611.868 385.887C612.887 369.679 609.722 355.259 599.542 342.24C558.952 290.331 484.871 322.575 477.116 382.714C473.296 412.334 489.651 443.85 507.755 466.768C506.592 470.675 505.912 473.553 505.088 477.556C501.02 474.165 496.4 470.56 492.149 467.387C458.146 442.01 403.08 399.444 358.607 415.94C342.444 421.763 329.303 433.844 322.145 449.462C315.323 464.707 314.917 482.054 321.016 497.602C328.479 516.639 343.219 531.917 361.975 540.059C386.33 550.701 408.018 546.682 431.65 537.422C437.292 543.063 444.157 550.952 449.255 557.14C428.616 587.138 401.181 630.531 417.497 667.998C431.596 700.376 469.642 716.681 502.533 701.919C521.535 693.352 536.37 677.607 543.794 658.13C544.242 656.99 544.637 655.83 544.978 654.654C553.211 627.127 544.162 600.858 531.126 576.671C535.046 571.868 537.945 568.073 541.507 563.007C543.771 564.623 545.968 566.539 548.186 568.242C563.308 579.848 579.509 590.14 595.407 600.669C599.21 608.218 602.171 616.208 605.254 624.083C594.634 621.411 577.484 610.706 567.687 605.435C568.377 607.951 568.836 610.577 569.295 613.149C574.312 639.754 568.478 667.259 553.094 689.537C538.139 710.777 518.819 725.74 492.754 730.168C469.683 733.924 446.065 728.377 427.078 714.744C407.385 700.81 394.083 679.579 390.134 655.781C384.887 622.615 398.532 592.119 417.461 565.89C413.601 566.927 409.435 567.882 405.51 568.606C357.172 577.52 302.193 539.099 293.778 490.835C289.836 468.249 295.217 445.031 308.692 426.482C326.951 400.82 356.932 385.704 388.374 388.976C411.473 391.38 437.965 404.314 456.667 417.821C455.42 412.762 454.523 406.24 454.018 401.035C451.448 374.275 459.775 347.61 477.115 327.067C494.283 306.383 513.911 295.279 540.661 292.702Z"/>
@@ -82,6 +91,7 @@ export const PlanevoLoader = ({
           />
         )}
       </svg>
+      </div>
     </div>
   );
 };

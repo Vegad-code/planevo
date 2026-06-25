@@ -16,6 +16,7 @@ import {
   getIntegrationAccount,
   upsertIntegrationAccount,
 } from '@/lib/integrations/accounts';
+import { composioSlackSettingsBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 export async function GET(request: NextRequest) {
   const gate = await requireProComposioUser(request);
@@ -79,12 +80,12 @@ export async function POST(request: NextRequest) {
   const user = gate.user;
 
   try {
-    const body = await request.json();
-    const channelIds: string[] = Array.isArray(body?.channelIds)
-      ? body.channelIds.map(String)
-      : [];
-    const includeStarred = body?.includeStarred !== false;
-    const includeDms = body?.includeDms === true;
+    const body = await request.json().catch(() => ({}));
+    const parsed = parseJsonBody(composioSlackSettingsBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const { channelIds, includeStarred, includeDms } = parsed.data;
 
     const account = await getIntegrationAccount(user.id, 'slack');
     const metadata = buildSlackMetadataPatch(account?.metadata, {

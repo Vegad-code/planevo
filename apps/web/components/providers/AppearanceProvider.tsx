@@ -22,10 +22,18 @@ export const FONT_SIZES = [
 
 export type FontSizeId = (typeof FONT_SIZES)[number]['id'];
 
+export const SIDEBAR_STYLES = [
+  { id: 'classic', name: 'Classic' },
+  { id: 'floating', name: 'Floating pill' },
+] as const;
+
+export type SidebarStyleId = (typeof SIDEBAR_STYLES)[number]['id'];
+
 export const STORAGE_KEYS = {
   accent: 'planevo-accent',
   fontSize: 'planevo-font-size',
   motion: 'planevo-motion',
+  sidebarStyle: 'planevo-sidebar-style',
 } as const;
 
 interface AppearanceContextValue {
@@ -35,6 +43,8 @@ interface AppearanceContextValue {
   setFontSize: (f: FontSizeId) => void;
   reduceMotion: boolean;
   setReduceMotion: (v: boolean) => void;
+  sidebarStyle: SidebarStyleId;
+  setSidebarStyle: (s: SidebarStyleId) => void;
   resetAppearance: () => void;
 }
 
@@ -51,6 +61,10 @@ function applyMotion(reduce: boolean) {
   document.documentElement.classList.toggle('reduce-motion', reduce);
 }
 
+function isSidebarStyleId(value: string | null | undefined): value is SidebarStyleId {
+  return SIDEBAR_STYLES.some((s) => s.id === value);
+}
+
 import { useTheme } from 'next-themes';
 import { createClient } from '@/lib/supabase/client';
 import { usePathname } from 'next/navigation';
@@ -59,6 +73,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [accent, setAccentState] = useState<AccentId>('honey');
   const [fontSize, setFontSizeState] = useState<FontSizeId>('default');
   const [reduceMotion, setReduceMotionState] = useState(false);
+  const [sidebarStyle, setSidebarStyleState] = useState<SidebarStyleId>('classic');
   
   const { theme, setTheme } = useTheme();
   // Memoize the supabase client so it isn't recreated on every render
@@ -81,6 +96,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     const localAccent = (localStorage.getItem(STORAGE_KEYS.accent) as AccentId) || 'honey';
     const localFont = (localStorage.getItem(STORAGE_KEYS.fontSize) as FontSizeId) || 'default';
     const localMotion = localStorage.getItem(STORAGE_KEYS.motion) === 'reduced';
+    const localSidebarStyle = localStorage.getItem(STORAGE_KEYS.sidebarStyle);
     applyFontSize(localFont);
     applyMotion(localMotion);
 
@@ -93,13 +109,16 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       let savedAccent = localAccent;
       let savedFont = localFont;
       let savedMotion = localMotion;
+      let savedSidebarStyle: SidebarStyleId = isSidebarStyleId(localSidebarStyle)
+        ? localSidebarStyle
+        : 'classic';
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user && isMounted) {
           const { data: profile } = await supabase
             .from('users')
-            .select('theme, accent_color, font_size, reduce_motion')
+            .select('theme, accent_color, font_size, reduce_motion, sidebar_style')
             .eq('id', session.user.id)
             .single();
           
@@ -115,6 +134,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             if (profile.reduce_motion !== null) {
               savedMotion = profile.reduce_motion;
               localStorage.setItem(STORAGE_KEYS.motion, savedMotion ? 'reduced' : 'normal');
+            }
+            if (isSidebarStyleId(profile.sidebar_style)) {
+              savedSidebarStyle = profile.sidebar_style;
+              localStorage.setItem(STORAGE_KEYS.sidebarStyle, savedSidebarStyle);
             }
             if (profile.theme && profile.theme !== theme) {
               setTheme(profile.theme);
@@ -132,6 +155,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
           applyFontSize(savedFont);
           setReduceMotionState(savedMotion);
           applyMotion(savedMotion);
+          setSidebarStyleState(savedSidebarStyle);
           setIsReady(true);
         }
       }
@@ -208,16 +232,30 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     } catch (e) {}
   }, [supabase]);
 
+  const setSidebarStyle = useCallback(async (s: SidebarStyleId) => {
+    setSidebarStyleState(s);
+    localStorage.setItem(STORAGE_KEYS.sidebarStyle, s);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.from('users').update({ sidebar_style: s }).eq('id', session.user.id);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {}
+  }, [supabase]);
+
   const resetAppearance = useCallback(() => {
     setAccent('honey');
     setFontSize('default');
     setReduceMotion(false);
+    setSidebarStyle('classic');
     setTheme('system');
-  }, [setAccent, setFontSize, setReduceMotion, setTheme]);
+  }, [setAccent, setFontSize, setReduceMotion, setSidebarStyle, setTheme]);
 
   return (
     <AppearanceContext.Provider
-      value={{ accent, setAccent, fontSize, setFontSize, reduceMotion, setReduceMotion, resetAppearance }}
+      value={{ accent, setAccent, fontSize, setFontSize, reduceMotion, setReduceMotion, sidebarStyle, setSidebarStyle, resetAppearance }}
     >
       {children}
     </AppearanceContext.Provider>
@@ -229,19 +267,3 @@ export function useAppearance() {
   if (!ctx) throw new Error('useAppearance must be used within AppearanceProvider');
   return ctx;
 }
-
-/**
- * Blocking script injected in <head> to apply accent / font-size / motion
- * BEFORE first paint, preventing a flash of the default theme.
- */
-export const appearanceNoFlashScript = `(function(){try{
-  if (!window.location.pathname.startsWith('/dashboard')) {
-    document.documentElement.setAttribute('data-public', 'true');
-  }
-  var a=localStorage.getItem('${STORAGE_KEYS.accent}')||'honey';
-  document.documentElement.setAttribute('data-accent',a);
-  var f=localStorage.getItem('${STORAGE_KEYS.fontSize}')||'default';
-  var s={compact:0.92,'default':1,large:1.1}[f]||1;
-  document.documentElement.style.setProperty('--font-scale',String(s));
-  if(localStorage.getItem('${STORAGE_KEYS.motion}')==='reduced'){document.documentElement.classList.add('reduce-motion');}
-}catch(e){}})();`;

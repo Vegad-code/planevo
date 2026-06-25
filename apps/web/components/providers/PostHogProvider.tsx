@@ -1,11 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { PostHogProvider as ReactPostHogProvider } from 'posthog-js/react';
 import { initPostHog, posthog } from '@/lib/posthog';
 import { createClient } from '@/lib/supabase/client';
 import * as Sentry from '@sentry/nextjs';
+
+function PostHogPageView() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!pathname) return;
+    const url =
+      window.origin +
+      pathname +
+      (searchParams?.toString() ? `?${searchParams.toString()}` : '');
+    posthog.capture('$pageview', { $current_url: url });
+  }, [pathname, searchParams]);
+
+  return null;
+}
 
 /**
  * PostHogProvider
@@ -13,14 +29,10 @@ import * as Sentry from '@sentry/nextjs';
  * Wraps the app to initialise PostHog on mount and track
  * page views on every client-side navigation.
  *
- * Call `posthog.identify(userId, { email, plan_type })` from
- * your auth flow to tie events to a person.
+ * Pageview tracking is isolated in PostHogPageView so useSearchParams
+ * never suspends auth and marketing routes.
  */
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  // Init once
   useEffect(() => {
     initPostHog();
 
@@ -28,7 +40,9 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const identifyUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || cancelled) {
         posthog.reset();
         Sentry.setUser(null);
@@ -69,12 +83,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Track page views on client-side navigations
-  useEffect(() => {
-    if (!pathname) return;
-    const url = window.origin + pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
-    posthog.capture('$pageview', { $current_url: url });
-  }, [pathname, searchParams]);
-
-  return <ReactPostHogProvider client={posthog}>{children}</ReactPostHogProvider>;
+  return (
+    <ReactPostHogProvider client={posthog}>
+      {children}
+      <Suspense fallback={null}>
+        <PostHogPageView />
+      </Suspense>
+    </ReactPostHogProvider>
+  );
 }

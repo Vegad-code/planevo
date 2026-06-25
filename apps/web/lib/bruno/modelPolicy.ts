@@ -15,6 +15,15 @@ export const BRUNO_MODELS = {
 export const BRUNO_PRO_MONTHLY_DEEP_LIMIT = 150;
 export const BRUNO_PRO_DEEP_WARNING_AT = 120;
 
+export const BRUNO_NOTES_FREE_MONTHLY_LIMIT = Number(
+  process.env.BRUNO_NOTES_FREE_MONTHLY_LIMIT ?? 8
+);
+
+export const BRUNO_NOTES_OUTPUT_TOKENS = {
+  free: 2500,
+  pro: 4500,
+} as const;
+
 export const MODEL_POLICY: Record<
   BrunoRouteDecision['mode'],
   BrunoModelPolicy
@@ -92,9 +101,20 @@ export const MODEL_POLICY: Record<
     includeTasks: false,
     includeCalendar: false,
     includeCanvas: true,
-    maxOutputTokens: 1800,
+    maxOutputTokens: 4500,
     temperature: 0.25,
     upgradeCardEligible: true,
+  },
+  notes: {
+    tier: 'standard',
+    proLocked: false,
+    freeCreditsAllowed: false,
+    includeTasks: false,
+    includeCalendar: false,
+    includeCanvas: true,
+    maxOutputTokens: BRUNO_NOTES_OUTPUT_TOKENS.free,
+    temperature: 0.25,
+    upgradeCardEligible: false,
   },
   project_breakdown: {
     tier: 'deep',
@@ -165,6 +185,39 @@ export function resolveBrunoGenerationPlan(input: {
   entitlement: BrunoEntitlement;
 }): BrunoGenerationPlan {
   const policy = MODEL_POLICY[input.decision.mode];
+
+  if (input.decision.mode === 'notes') {
+    if (input.entitlement.isPro) {
+      return {
+        tier: 'deep',
+        model: BRUNO_MODELS.DEEP,
+        shouldReserveDeepAccess: false,
+        deepAccessSource: null,
+        shouldShowUpgradeCard: false,
+        shouldShowProWarning: false,
+        shouldShowProCap: false,
+        policy: {
+          ...policy,
+          tier: 'deep',
+          maxOutputTokens: BRUNO_NOTES_OUTPUT_TOKENS.pro,
+        },
+      };
+    }
+
+    return {
+      tier: 'standard',
+      model: BRUNO_MODELS.STANDARD,
+      shouldReserveDeepAccess: false,
+      deepAccessSource: null,
+      shouldShowUpgradeCard: false,
+      shouldShowProWarning: false,
+      shouldShowProCap: false,
+      policy: {
+        ...policy,
+        maxOutputTokens: BRUNO_NOTES_OUTPUT_TOKENS.free,
+      },
+    };
+  }
 
   if (policy.tier === 'none') {
     return {

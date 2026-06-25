@@ -48,13 +48,20 @@ Ensure you have the following in `.env.local`:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
 - `RESEND_API_KEY`
-- `WEEKLY_REVIEW_FROM`
+- `EMAIL_FROM` (preferred) or `WEEKLY_REVIEW_FROM` (legacy alias)
 - `CRON_SECRET`
 - `NEXT_PUBLIC_APP_URL`
 
-Apply the notification migrations through
-`lib/supabase/migration_v19_notification_deliveries.sql` before enabling the
-hourly notification cron jobs.
+### Post-deploy: email notifications
+
+After deploying to Vercel, follow the **Post-Deploy Checklist (Emails)** in
+[`docs/NOTIFICATIONS_AUDIT.md`](docs/NOTIFICATIONS_AUDIT.md). That covers env
+vars, Supabase migrations, cron verification, and smoke-testing so automated
+emails are fully operational.
+
+Apply notification migrations through
+`lib/supabase/migration_v20_upcoming_reminders.sql` (and earlier notification
+migrations if not already applied).
 
 ### Commands
 ```bash

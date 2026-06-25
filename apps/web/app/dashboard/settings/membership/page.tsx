@@ -1,6 +1,8 @@
 import MembershipActions from '@/components/settings/MembershipActions';
 import { isFreeLikePlan, isPaidPlan, normalizePlanType } from '@/lib/auth/plan-types';
+import { isOwnerEmail } from '@/lib/auth/owner-emails';
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import { PRICE_IDS, stripe } from '@/lib/stripe';
 import Stripe from 'stripe';
 
@@ -60,7 +62,7 @@ export default async function MembershipSettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user) redirect('/login');
 
   const { data } = await supabase
     .from('users')
@@ -69,7 +71,7 @@ export default async function MembershipSettingsPage() {
     .single();
 
   const profile = data as MembershipProfile | null;
-  const isOwner = (profile?.email || user.email)?.toLowerCase() === 'jabbouranthony720@gmail.com';
+  const isOwner = isOwnerEmail(profile?.email || user.email);
   const planType = normalizePlanType(profile?.plan_type);
   const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' : planType;
   const isFree = isFreeLikePlan(effectivePlan);

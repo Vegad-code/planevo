@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { normalizePlanType, isPaidPlan } from '@/lib/auth/plan-types';
+import { isPaidPlan, normalizePlanType } from '@/lib/auth/plan-types';
+import { getOwnerEmails } from '@/lib/auth/owner-emails';
 import { getActiveProProviders } from './composio/client';
 import { upsertIntegrationAccount } from './accounts';
 import {
@@ -11,13 +12,7 @@ import {
 const PRO_PROVIDERS: ProIntegrationProvider[] = ['notion', 'slack', 'linear'];
 
 function adminEmailSet(): Set<string> {
-  return new Set(
-    (process.env.BRUNO_ADMIN_EMAILS ?? '')
-      .toLowerCase()
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean)
-  );
+  return new Set(getOwnerEmails());
 }
 
 /**

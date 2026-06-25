@@ -54,7 +54,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === 'login';
+    const inAuthGroup = segments[0] === 'login' || segments[0] === 'forgot-password';
     const isBlockedRoute = (segments[0] as string) === 'blocked';
     const isOnboardingRoute = (segments[0] as string) === 'onboarding';
 
@@ -186,11 +186,29 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // Handle notification tap → navigate to the right screen
     notificationResponseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        const screen = response.notification.request.content.data?.screen;
+        const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+        const screen = typeof data?.screen === 'string' ? data.screen : null;
+
         if (screen === 'chat') {
-          router.push('/(tabs)/chat');
+          const prompt = typeof data?.prompt === 'string' ? data.prompt : undefined;
+          if (prompt) {
+            router.push({ pathname: '/(tabs)/chat', params: { prompt } } as never);
+          } else {
+            router.push('/(tabs)/chat');
+          }
+        } else if (screen === 'tasks') {
+          router.push('/(tabs)/tasks');
+        } else if (screen === 'calendar') {
+          const eventId = typeof data?.eventId === 'string' ? data.eventId : undefined;
+          if (eventId) {
+            router.push({ pathname: '/(tabs)/calendar', params: { eventId } } as never);
+          } else {
+            router.push('/(tabs)/calendar');
+          }
+        } else if (screen === 'notifications') {
+          router.push('/notifications-inbox');
         } else if (screen === 'settings') {
-          router.push('/(tabs)/settings');
+          router.push('/notifications-settings');
         } else {
           router.push('/(tabs)');
         }
@@ -282,10 +300,14 @@ function RootLayoutNav() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+            <Stack.Screen name="change-password" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
             <Stack.Screen name="blocked" options={{ headerShown: false }} />
             <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="canvas-connect" options={{ presentation: 'modal', title: 'Connect Canvas' }} />
+            <Stack.Screen name="notifications-settings" options={{ headerShown: false }} />
+            <Stack.Screen name="notifications-inbox" options={{ headerShown: false }} />
           </Stack>
         </AuthGate>
       </ThemeProvider>

@@ -3,24 +3,26 @@ import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    is: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    lte: vi.fn().mockResolvedValue({ data: [], error: null }),
-  }))
+  createClient: vi.fn(() => ({})),
 }));
 
-vi.mock('@/lib/email', () => ({
-  buildEmailIdempotencyKey: vi.fn(),
-  sendMorningPlanEmail: vi.fn(),
+vi.mock('@/lib/notifications/daily-sweep', () => ({
+  runDailyNotificationSweep: vi.fn().mockResolvedValue({
+    sent_morning_emails: 0,
+    sent_deadline_emails: 0,
+    sent_upcoming_emails: 0,
+    sent_welcome_emails: 0,
+    sent_push: 0,
+    failed_push: 0,
+    users_processed: 0,
+  }),
 }));
 
 describe('notifications push cron', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
   });
 
   it('rejects requests without CRON_SECRET authorization', async () => {
@@ -42,6 +44,6 @@ describe('notifications push cron', () => {
 
     const res = await GET(req);
 
-    expect([200, 204]).toContain(res.status);
+    expect(res.status).toBe(200);
   });
 });

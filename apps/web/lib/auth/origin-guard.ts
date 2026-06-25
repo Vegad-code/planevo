@@ -91,3 +91,21 @@ export function isAllowedOriginOrBearer(request: NextRequest): boolean {
   if (hasBearerToken(request)) return true;
   return isAllowedOriginOrCron(request);
 }
+
+const MOBILE_CLIENT_HEADER = 'x-planevo-client';
+
+/**
+ * Public auth endpoints (e.g. password reset) from native mobile clients.
+ * The header is not secret — IP rate limits and uniform responses are the real controls.
+ */
+export function isMobileClient(request: NextRequest): boolean {
+  return request.headers.get(MOBILE_CLIENT_HEADER)?.toLowerCase() === 'mobile';
+}
+
+/**
+ * Browser CSRF protection, plus unauthenticated mobile public auth calls.
+ */
+export function isAllowedOriginOrMobileClient(request: NextRequest): boolean {
+  if (isMobileClient(request)) return true;
+  return isAllowedOrigin(request);
+}

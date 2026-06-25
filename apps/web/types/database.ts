@@ -265,6 +265,7 @@ export type Database = {
           disliked_patterns: Json
           last_compacted_at: string | null
           learned_rules: Json
+          note_preference: Json
           planning_style: Json
           preferred_focus_windows: Json
           recurring_constraints: Json
@@ -285,6 +286,7 @@ export type Database = {
           disliked_patterns?: Json
           last_compacted_at?: string | null
           learned_rules?: Json
+          note_preference?: Json
           planning_style?: Json
           preferred_focus_windows?: Json
           recurring_constraints?: Json
@@ -305,6 +307,7 @@ export type Database = {
           disliked_patterns?: Json
           last_compacted_at?: string | null
           learned_rules?: Json
+          note_preference?: Json
           planning_style?: Json
           preferred_focus_windows?: Json
           recurring_constraints?: Json
@@ -510,6 +513,368 @@ export type Database = {
           },
         ]
       }
+      notes: {
+        Row: {
+          canvas_course_name: string | null
+          content: string
+          content_json: Json | null
+          content_markdown: string | null
+          created_at: string
+          daily_date: string | null
+          id: string
+          is_archived: boolean
+          is_daily: boolean
+          is_pinned: boolean
+          linked_assignment_id: string | null
+          linked_task_id: string | null
+          note_kind: string
+          notebook_id: string | null
+          privacy: string
+          search_vector: unknown | null
+          source_conversation_id: string | null
+          subject: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canvas_course_name?: string | null
+          content?: string
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          daily_date?: string | null
+          id?: string
+          is_archived?: boolean
+          is_daily?: boolean
+          is_pinned?: boolean
+          linked_assignment_id?: string | null
+          linked_task_id?: string | null
+          note_kind?: string
+          notebook_id?: string | null
+          privacy?: string
+          search_vector?: unknown | null
+          source_conversation_id?: string | null
+          subject?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canvas_course_name?: string | null
+          content?: string
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          daily_date?: string | null
+          id?: string
+          is_archived?: boolean
+          is_daily?: boolean
+          is_pinned?: boolean
+          linked_assignment_id?: string | null
+          linked_task_id?: string | null
+          note_kind?: string
+          notebook_id?: string | null
+          privacy?: string
+          search_vector?: unknown | null
+          source_conversation_id?: string | null
+          subject?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_linked_assignment_id_fkey"
+            columns: ["linked_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_linked_task_id_fkey"
+            columns: ["linked_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notebooks: {
+        Row: {
+          canvas_course_name: string | null
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          kind: string
+          name: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canvas_course_name?: string | null
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          kind?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canvas_course_name?: string | null
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notebooks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_tag_assignments: {
+        Row: {
+          note_id: string
+          tag_id: string
+          user_id: string
+        }
+        Insert: {
+          note_id: string
+          tag_id: string
+          user_id: string
+        }
+        Update: {
+          note_id?: string
+          tag_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_links: {
+        Row: {
+          created_at: string
+          id: string
+          source_block_id: string | null
+          source_note_id: string
+          target_note_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          source_block_id?: string | null
+          source_note_id: string
+          target_note_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          source_block_id?: string | null
+          source_note_id?: string
+          target_note_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_block_refs: {
+        Row: {
+          block_id: string
+          block_type: string
+          id: string
+          note_id: string
+          text_preview: string | null
+          user_id: string
+        }
+        Insert: {
+          block_id: string
+          block_type: string
+          id?: string
+          note_id: string
+          text_preview?: string | null
+          user_id: string
+        }
+        Update: {
+          block_id?: string
+          block_type?: string
+          id?: string
+          note_id?: string
+          text_preview?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_revisions: {
+        Row: {
+          content_json: Json | null
+          content_markdown: string | null
+          created_at: string
+          id: string
+          note_id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          id?: string
+          note_id: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          id?: string
+          note_id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_templates: {
+        Row: {
+          content_json: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          note_kind: string
+          slug: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          content_json?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          note_kind?: string
+          slug: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          content_json?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          note_kind?: string
+          slug?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      note_flashcards: {
+        Row: {
+          back: string
+          block_id: string | null
+          created_at: string
+          ease_factor: number
+          front: string
+          id: string
+          interval_days: number
+          next_review_at: string
+          note_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          back: string
+          block_id?: string | null
+          created_at?: string
+          ease_factor?: number
+          front: string
+          id?: string
+          interval_days?: number
+          next_review_at?: string
+          note_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          back?: string
+          block_id?: string | null
+          created_at?: string
+          ease_factor?: number
+          front?: string
+          id?: string
+          interval_days?: number
+          next_review_at?: string
+          note_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_conversations: {
         Row: {
           created_at: string | null
@@ -706,6 +1071,7 @@ export type Database = {
           tool_name: string
           arguments: Json
           result: Json
+          idempotency_key: string | null
           created_at: string
         }
         Insert: {
@@ -714,6 +1080,7 @@ export type Database = {
           tool_name: string
           arguments?: Json
           result?: Json
+          idempotency_key?: string | null
           created_at?: string
         }
         Update: {
@@ -722,6 +1089,7 @@ export type Database = {
           tool_name?: string
           arguments?: Json
           result?: Json
+          idempotency_key?: string | null
           created_at?: string
         }
         Relationships: [
@@ -851,6 +1219,7 @@ export type Database = {
         Row: {
           ai_confidence_score: number | null
           best_time_of_day: string | null
+          color: string | null
           completed: boolean | null
           completed_at: string | null
           consistency_score: number | null
@@ -878,6 +1247,7 @@ export type Database = {
         Insert: {
           ai_confidence_score?: number | null
           best_time_of_day?: string | null
+          color?: string | null
           completed?: boolean | null
           completed_at?: string | null
           consistency_score?: number | null
@@ -905,6 +1275,7 @@ export type Database = {
         Update: {
           ai_confidence_score?: number | null
           best_time_of_day?: string | null
+          color?: string | null
           completed?: boolean | null
           completed_at?: string | null
           consistency_score?: number | null
@@ -1023,6 +1394,7 @@ export type Database = {
           accent_color: string | null
           font_size: string | null
           reduce_motion: boolean | null
+          sidebar_style: string
         }
         Insert: {
           avatar_url?: string | null
@@ -1058,6 +1430,7 @@ export type Database = {
           accent_color?: string | null
           font_size?: string | null
           reduce_motion?: boolean | null
+          sidebar_style?: string
         }
         Update: {
           avatar_url?: string | null
@@ -1093,6 +1466,7 @@ export type Database = {
           accent_color?: string | null
           font_size?: string | null
           reduce_motion?: boolean | null
+          sidebar_style?: string
         }
         Relationships: []
       }
@@ -1453,6 +1827,26 @@ export type Database = {
         Args: { p_feature: string; p_limit: number; p_user_id: string }
         Returns: boolean
       }
+      consume_ai_usage_admin: {
+        Args: {
+          p_user_id: string
+          p_feature: string
+          p_daily_limit: number
+          p_request_id?: string | null
+        }
+        Returns: { allowed: boolean; usage_log_id: string | null }[]
+      }
+      insert_security_audit_log: {
+        Args: {
+          p_actor_user_id: string | null
+          p_action: string
+          p_resource_type?: string | null
+          p_resource_id?: string | null
+          p_metadata?: Json
+          p_ip_hash?: string | null
+        }
+        Returns: string
+      }
       get_bruno_chat_context: { Args: { p_feature: string }; Returns: Json }
       refund_bruno_deep_access: {
         Args: { p_request_id: string; p_user_id: string }
@@ -1469,6 +1863,14 @@ export type Database = {
           credit_type: string | null
           reserved: boolean
         }[]
+      }
+      consume_ip_rate_limit: {
+        Args: {
+          p_bucket_key: string
+          p_max_attempts: number
+          p_window_seconds: number
+        }
+        Returns: boolean
       }
     }
     Enums: {

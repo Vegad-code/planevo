@@ -24,6 +24,12 @@ export function BrunoPreferencesForm({ initialData }: { initialData: UserAiMemor
   const [proactivity, setProactivity] = useState(initialData.planning_style.proactivity);
   const [maxFocusBlocks, setMaxFocusBlocks] = useState(initialData.planning_style.max_focus_blocks_per_day);
 
+  const [noteFormat, setNoteFormat] = useState(initialData.note_preference.format);
+  const [noteDensity, setNoteDensity] = useState(initialData.note_preference.density);
+  const [handwritingFriendly, setHandwritingFriendly] = useState(initialData.note_preference.handwriting_friendly);
+  const [includeMnemonics, setIncludeMnemonics] = useState(initialData.note_preference.include_mnemonics);
+  const [includePracticeQuestions, setIncludePracticeQuestions] = useState(initialData.note_preference.include_practice_questions);
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -51,7 +57,15 @@ export function BrunoPreferencesForm({ initialData }: { initialData: UserAiMemor
         mode: planningMode as 'strict' | 'balanced' | 'flexible',
         proactivity: proactivity as 'silent' | 'light' | 'active' | 'high',
         max_focus_blocks_per_day: maxFocusBlocks,
-      }
+      },
+      note_preference: {
+        ...initialData.note_preference,
+        format: noteFormat as 'outline' | 'cornell' | 'bullets' | 'narrative',
+        density: noteDensity as 'concise' | 'standard' | 'detailed',
+        handwriting_friendly: handwritingFriendly,
+        include_mnemonics: includeMnemonics,
+        include_practice_questions: includePracticeQuestions,
+      },
     });
     
     if (res.success) {
@@ -176,6 +190,52 @@ export function BrunoPreferencesForm({ initialData }: { initialData: UserAiMemor
           description="Bruno must explain why a task was scheduled at its particular time."
           checked={requireWhyNow}
           onChange={setRequireWhyNow}
+        />
+
+        <SettingsRow title="Note format">
+          <select
+            value={noteFormat}
+            onChange={(e) => setNoteFormat(e.target.value as 'outline' | 'cornell' | 'bullets' | 'narrative')}
+            className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-settings-text transition-colors text-settings-text appearance-none"
+          >
+            <option value="bullets">Bullets</option>
+            <option value="outline">Outline</option>
+            <option value="cornell">Cornell-style</option>
+            <option value="narrative">Narrative</option>
+          </select>
+        </SettingsRow>
+
+        <SettingsRow title="Note density">
+          <select
+            value={noteDensity}
+            onChange={(e) => setNoteDensity(e.target.value as 'concise' | 'standard' | 'detailed')}
+            className="w-full bg-settings-card border border-settings-border p-3 rounded-xl font-bold text-sm focus:outline-none focus:border-settings-text transition-colors text-settings-text appearance-none"
+          >
+            <option value="concise">Concise</option>
+            <option value="standard">Standard</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </SettingsRow>
+
+        <SettingsToggleRow
+          title="Handwriting-friendly notes"
+          description="Shorter lines with room for diagrams when Bruno makes notes."
+          checked={handwritingFriendly}
+          onChange={setHandwritingFriendly}
+        />
+
+        <SettingsToggleRow
+          title="Include mnemonics"
+          description="Bruno adds memory hooks in notes when helpful."
+          checked={includeMnemonics}
+          onChange={setIncludeMnemonics}
+        />
+
+        <SettingsToggleRow
+          title="End with practice questions"
+          description="Bruno adds a short active-recall section at the end of notes."
+          checked={includePracticeQuestions}
+          onChange={setIncludePracticeQuestions}
         />
       </div>
 

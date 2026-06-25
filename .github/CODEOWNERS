@@ -1,0 +1,7 @@
+# Security-sensitive paths require owner review
+/supabase/migrations/ @jabbo
+/apps/web/lib/auth/ @jabbo
+/apps/web/lib/crypto.ts @jabbo
+/apps/web/lib/security-audit.ts @jabbo
+/scripts/ci-secret-grep.mjs @jabbo
+/scripts/reencrypt-integration-tokens.mjs @jabbo

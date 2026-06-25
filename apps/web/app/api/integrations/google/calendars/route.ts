@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/get-user';
 import { fetchGoogleCalendars } from '@/lib/integrations/google-calendar';
+import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
 export async function GET(request: NextRequest) {
   try {
+    if (!isAllowedOriginOrBearer(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+
     const { user, error: authError } = await getAuthenticatedUser(request);
 
     if (authError || !user) {

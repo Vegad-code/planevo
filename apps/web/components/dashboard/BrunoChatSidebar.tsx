@@ -8,6 +8,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
+import { brunoMarkdownComponents } from '@/components/bruno/brunoMarkdownComponents';
 import BrunoAvatar from '../bruno/BrunoAvatar';
 import PlanDraftCard from '../bruno/PlanDraftCard';
 import type { PlanDraftItemData } from '../bruno/PlanDraftCard';
@@ -19,6 +20,8 @@ import { BrunoSuggestedActions } from '@/components/bruno/BrunoSuggestedActions'
 import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
 
 import type { BrunoActionProposal } from '@/lib/bruno/tools/types';
+import { enrichTimeBlockProposal } from '@/lib/bruno/enrichTimeBlockProposal';
+import { assignColorsToProposalBatch } from '@/lib/bruno/proposalColors';
 import { type ExecutionStatus } from '../bruno/BrunoActionProposalCard';
 import { BrunoProposalGroup } from '../bruno/BrunoProposalGroup';
 import { BrunoEntitlementNotice } from '../bruno/BrunoEntitlementNotice';
@@ -28,18 +31,18 @@ import {
   type IntegrationActionStatus,
 } from '../bruno/BrunoIntegrationActionCard';
 import type { BrunoDataParts } from '@/lib/bruno/types';
+import { BrunoActivityPanel } from '@/components/bruno/BrunoActivityPanel';
+import { BrunoNoteActions } from '@/components/bruno/BrunoNoteActions';
+import { BrunoChatLimitPaywall } from '@/components/bruno/BrunoChatLimitPaywall';
+import { useBrunoChatProgressState } from '@/hooks/useBrunoChatProgress';
+import { useSubscription } from '@/hooks/use-subscription';
+import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
+import {
+  isRateLimitActive,
+  parseBrunoRateLimitError,
+} from '@/lib/bruno/rate-limit-client';
 
 type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
-
-const LOADING_PHRASES = [
-  "Thinking...",
-  "Calculating...",
-  "Manifesting...",
-  "Brewing...",
-  "Solving...",
-  "Vibing...",
-  "Cooking..."
-];
 
 interface BrunoChatSidebarProps {
   onFinish?: () => void;
@@ -76,21 +79,44 @@ export default function BrunoChatSidebar({
       p.type === 'tool-propose_action' || 
       (p.type === 'tool-invocation' && p.toolInvocation?.toolName === 'propose_action')
     );
-    
-    return tools.map((part: any) => {
-      const args = part.input ?? part.args ?? part.toolInvocation?.args ?? part.toolInvocation?.input ?? {};
-      const id = args.id ?? part.toolCallId ?? part.toolInvocation?.toolCallId ?? `proposal-${stableHash(JSON.stringify(args))}`;
+
+    const prepared = tools.map((part: Record<string, unknown>) => {
+      const rawArgs = (part.input ?? part.args ?? (part.toolInvocation as Record<string, unknown> | undefined)?.args ?? (part.toolInvocation as Record<string, unknown> | undefined)?.input ?? {}) as Record<string, unknown>;
+      const args =
+        rawArgs.type === 'CREATE_TIME_BLOCK'
+          ? enrichTimeBlockProposal(rawArgs, {
+              texts: lastUserMessageRef.current ? [lastUserMessageRef.current] : [],
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            })
+          : rawArgs;
+      return { part, args };
+    });
+
+    const colorizedArgs = assignColorsToProposalBatch(
+      prepared.map(({ args }: { args: Record<string, unknown> }) => ({
+        ...args,
+        payload:
+          typeof args.payload === 'object' && args.payload !== null
+            ? args.payload
+            : {},
+      }))
+    );
+
+    return prepared.map(({ part, args }: { part: Record<string, unknown>; args: Record<string, unknown> }, index: number) => {
+      const enriched = colorizedArgs[index] ?? args;
+      const toolInvocation = part.toolInvocation as Record<string, unknown> | undefined;
+      const id = enriched.id ?? part.toolCallId ?? toolInvocation?.toolCallId ?? `proposal-${stableHash(JSON.stringify(enriched))}`;
       
       return {
         id,
-        type: args.type,
-        title: args.title,
-        description: args.description,
+        type: enriched.type,
+        title: enriched.title,
+        description: enriched.description,
         status: "pending_confirmation",
-        riskLevel: args.riskLevel ?? "low",
-        requiresConfirmation: args.requiresConfirmation ?? true,
-        payload: args.payload ?? {},
-        createdAt: args.createdAt ?? new Date().toISOString(),
+        riskLevel: enriched.riskLevel ?? "low",
+        requiresConfirmation: enriched.requiresConfirmation ?? true,
+        payload: enriched.payload ?? {},
+        createdAt: enriched.createdAt ?? new Date().toISOString(),
       };
     });
   }
@@ -161,7 +187,6 @@ export default function BrunoChatSidebar({
   }
 
   const handleConfirmProposal = async (proposal: BrunoActionProposal) => {
-    // Need to use functional update to avoid stale state in loop
     let alreadyProcessing = false;
     setExecutingActions(prev => {
       if (prev[proposal.id]) alreadyProcessing = true;
@@ -174,16 +199,19 @@ export default function BrunoChatSidebar({
     setActionStatuses((prev) => ({ ...prev, [proposal.id]: "executing" }));
 
     try {
+      const executeBody = {
+        proposalId: proposal.id,
+        type: proposal.type,
+        title: proposal.title,
+        description: proposal.description,
+        payload: proposal.payload,
+        userPrompt: lastUserMessageRef.current || undefined,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
       const response = await fetch("/api/bruno/actions/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposalId: proposal.id,
-          type: proposal.type,
-          title: proposal.title,
-          description: proposal.description,
-          payload: proposal.payload,
-        }),
+        body: JSON.stringify(executeBody),
       });
 
       const result = await response.json();
@@ -216,10 +244,12 @@ export default function BrunoChatSidebar({
     }
   };
   const { currentContext, closeBruno } = useBruno();
+  const { isFree } = useSubscription();
   const supabase = createClient();
   const [isExpanded, setIsExpanded] = useState(false);
   const [input, setInput] = useState('');
-  const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
+  const [rateLimitInfo, setRateLimitInfo] = useState<BrunoRateLimitPayload | null>(null);
+  const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -254,6 +284,8 @@ export default function BrunoChatSidebar({
   const [showHistory, setShowHistory] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<{id: string, title: string} | null>(null);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
+  const isDeletingConversationRef = useRef(false);
   const [isCommittingPlan, setIsCommittingPlan] = useState(false);
 
   const [mentionState, setMentionState] = useState<{ active: boolean, text: string }>({ active: false, text: '' });
@@ -289,11 +321,6 @@ export default function BrunoChatSidebar({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    await supabase.from('chat_conversations').delete().eq('user_id', user.id).lt('last_active', thirtyDaysAgo.toISOString());
-
     const { data } = await supabase
       .from('chat_conversations')
       .select('*')
@@ -307,7 +334,24 @@ export default function BrunoChatSidebar({
     fetchConversations();
   }, [fetchConversations]);
 
-  const { messages, setMessages, sendMessage, status, stop } =
+  const handleRateLimitError = useCallback(
+    (error: unknown) => {
+      if (!isFree) return;
+      const parsed = parseBrunoRateLimitError(error);
+      if (parsed) {
+        setRateLimitInfo(parsed);
+        setIsPaywallDismissed(false);
+      }
+    },
+    [isFree]
+  );
+
+  const handleRateLimitExpired = useCallback(() => {
+    setRateLimitInfo(null);
+    setIsPaywallDismissed(false);
+  }, []);
+
+  const { messages, setMessages, sendMessage, status, stop, error, clearError } =
     useChat<BrunoUIMessage>({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
@@ -319,6 +363,7 @@ export default function BrunoChatSidebar({
         parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
       } as BrunoUIMessage
     ],
+    onError: handleRateLimitError,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
@@ -367,6 +412,13 @@ export default function BrunoChatSidebar({
     }
   });
 
+  useEffect(() => {
+    if (error) {
+      handleRateLimitError(error);
+    }
+  }, [error, handleRateLimitError]);
+
+  const isRateLimited = isFree && isRateLimitActive(rateLimitInfo);
   const loadConversation = async (id: string) => {
     setCurrentConversationId(id);
     setShowHistory(false);
@@ -407,11 +459,14 @@ export default function BrunoChatSidebar({
   };
 
   const confirmDeleteConversation = async () => {
-    if (!chatToDelete) return;
+    if (!chatToDelete || isDeletingConversationRef.current) return;
+    isDeletingConversationRef.current = true;
+    setIsDeletingConversation(true);
     const { id } = chatToDelete;
     try {
       const response = await fetch(`/api/ai/conversations/${id}`, { method: 'DELETE' });
-      if (response.ok) {
+      // 404 means already deleted — treat as success for idempotent UX (e.g. double-click race)
+      if (response.ok || response.status === 404) {
         setConversations(prev => prev.filter(c => c.id !== id));
         if (currentConversationId === id) {
           startNewConversation();
@@ -423,22 +478,29 @@ export default function BrunoChatSidebar({
     } catch (error) {
       console.error('Failed to delete conversation:', error);
       toast.error('Planevo could not complete that action. Please try again.');
+    } finally {
+      isDeletingConversationRef.current = false;
+      setIsDeletingConversation(false);
+      setChatToDelete(null);
     }
-    setChatToDelete(null);
   };
 
   const isChatGenerating = status === 'streaming' || status === 'submitted';
   const isProcessing = isExternalProcessing || isChatGenerating;
 
-  const isWaitingForFirstToken = isProcessing && (
-    messages.length === 0 ||
-    messages[messages.length - 1]?.role === 'user' ||
-    (messages[messages.length - 1]?.role === 'assistant' && 
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     !(messages[messages.length - 1].parts?.some((p: any) => p.type === 'text' && p.text.length > 0)) &&
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     !(messages[messages.length - 1].parts?.some((p: any) => p.type === 'tool-invocation')))
-  );
+  const {
+    progressSteps,
+    progressSummary,
+    isBrunoWorking,
+    isProgressExpanded,
+    toggleProgressExpanded,
+    resetProgress,
+  } = useBrunoChatProgressState({
+    messages,
+    status,
+    isExternallyProcessing: isExternalProcessing,
+    resetSignal: currentConversationId,
+  });
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -466,7 +528,7 @@ export default function BrunoChatSidebar({
     event?.preventDefault();
     const trimmedPrompt = prompt.trim();
 
-    if (!trimmedPrompt || isProcessing) return;
+    if (!trimmedPrompt || isProcessing || isRateLimited) return;
 
     if (
       prompt === input &&
@@ -481,7 +543,7 @@ export default function BrunoChatSidebar({
     lastUserMessageRef.current = userMessage;
     setInput('');
     setMentionState({ active: false, text: '' });
-    setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
+    resetProgress();
 
     let convId = currentConversationId;
 
@@ -586,7 +648,11 @@ export default function BrunoChatSidebar({
                 <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-base md:text-lg" : "text-base"}`}>Bruno</h3>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-sm md:text-base" : "text-sm"}`}>
-                    {isProcessing ? 'Thinking by the fire...' : 'Your academic guide'}
+                    {isBrunoWorking && progressSummary
+                      ? progressSummary
+                      : isProcessing
+                        ? 'Working on your request'
+                        : 'Your academic guide'}
                   </span>
                   <BrunoIntegrationChips />
                 </div>
@@ -726,6 +792,13 @@ export default function BrunoChatSidebar({
                         part.type === 'data-bruno-pro-warning' ||
                         part.type === 'data-bruno-pro-cap'
                     ) || [];
+                    const truncatedPart = message.parts?.find(
+                      (part) => part.type === 'data-bruno-truncated'
+                    );
+                    const truncatedNotice =
+                      truncatedPart?.type === 'data-bruno-truncated'
+                        ? truncatedPart.data
+                        : null;
                     const isEditing = editingMessageId === message.id;
 
                     // Check if any tool invocation is a propose_plan_draft
@@ -746,6 +819,18 @@ export default function BrunoChatSidebar({
                     const displayText = hasProposals && textPart.length < 50
                       ? "I've drafted a plan based on your request. Confirm the tasks you want me to add."
                       : textPart;
+
+                    const hasVisibleAssistantContent =
+                      Boolean(displayText) ||
+                      hasProposals ||
+                      integrationCalls.length > 0 ||
+                      isPlanDraft ||
+                      entitlementParts.length > 0 ||
+                      Boolean(truncatedNotice);
+
+                    if (message.role === 'assistant' && !hasVisibleAssistantContent) {
+                      return null;
+                    }
                     
                     return (
                       <motion.div
@@ -799,7 +884,7 @@ export default function BrunoChatSidebar({
                               <div className="w-full">
                                 {textPart && (
                                   <div className="w-full rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 md:px-5 text-[15px] leading-7 text-[var(--color-settings-text)]">
-                                    <div className="bruno-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{textPart}</ReactMarkdown></div>
+                                    <div className="bruno-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{textPart}</ReactMarkdown></div>
                                   </div>
                                 )}
                               </div>
@@ -829,12 +914,6 @@ export default function BrunoChatSidebar({
                               <div className="rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
                                 <div className="w-full">
                                 <div className="bruno-markdown max-w-none text-[15px] text-[var(--color-settings-text)]">
-                                  {toolParts.length > 0 && !planDraftInvocation && !hasProposals && (
-                                    <div className="text-xs text-amber-500/80 mb-2 font-mono uppercase tracking-wider">
-                                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                      {toolParts.map((t: any) => t.toolInvocation?.toolName).join(', ')}...
-                                    </div>
-                                  )}
                                   {integrationCalls.map((call) => (
                                     <BrunoIntegrationActionCard
                                       key={call.key}
@@ -844,7 +923,7 @@ export default function BrunoChatSidebar({
                                       errorText={call.errorText}
                                     />
                                   ))}
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{displayText}</ReactMarkdown>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{displayText}</ReactMarkdown>
                                 </div>
                                 {hasProposals && (
                                   <div className="mt-3">
@@ -858,6 +937,22 @@ export default function BrunoChatSidebar({
                                     />
                                   </div>
                                 )}
+                                <BrunoNoteActions
+                                  content={truncatedNotice?.assistantText || displayText}
+                                  conversationId={currentConversationId}
+                                  truncated={truncatedNotice}
+                                  onContinue={() => {
+                                    sendMessage(
+                                      { text: 'continue' },
+                                      {
+                                        body: createBrunoChatRequestBody(
+                                          currentConversationId,
+                                          currentContext
+                                        ),
+                                      }
+                                    );
+                                  }}
+                                />
                               </div>
                             </div>
                             {!isProcessing && displayText && (
@@ -878,23 +973,20 @@ export default function BrunoChatSidebar({
                       </motion.div>
                     );
                   })}
-                  {isWaitingForFirstToken && (
+                  {isBrunoWorking && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-                      className="flex relative z-10 justify-start"
+                      className="relative z-10"
                     >
-                      <div className="mr-auto max-w-[min(90%,44rem)] rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                            <div className="w-1.5 h-1.5 bg-[var(--color-settings-text-muted)] rounded-full animate-bounce" />
-                          </div>
-                          <span className="font-sans font-medium text-[var(--color-settings-text-muted)] ml-1 text-sm">( {loadingPhrase} )</span>
-                        </div>
-                      </div>
+                      <BrunoActivityPanel
+                        steps={progressSteps}
+                        summary={progressSummary}
+                        isExpanded={isProgressExpanded}
+                        isWorking={isBrunoWorking}
+                        onToggle={toggleProgressExpanded}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -916,6 +1008,18 @@ export default function BrunoChatSidebar({
               >
                 <CaretDown weight="bold" className="w-4 h-4 text-[var(--color-settings-text-muted)]" />
               </button>
+
+              {rateLimitInfo && isRateLimited ? (
+                <BrunoChatLimitPaywall
+                  rateLimit={rateLimitInfo}
+                  isDismissed={isPaywallDismissed}
+                  onDismiss={() => {
+                    setIsPaywallDismissed(true);
+                    clearError();
+                  }}
+                  onExpired={handleRateLimitExpired}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -978,8 +1082,16 @@ export default function BrunoChatSidebar({
                       setMentionState({ active: false, text: '' });
                     }
                   }}
-                  disabled={isExternalProcessing}
-                  placeholder={editingMessageId ? "Edit your message..." : (isProcessing ? "Bruno is working..." : "Ask Bruno anything...")}
+                  disabled={isExternalProcessing || isRateLimited}
+                  placeholder={
+                    editingMessageId
+                      ? 'Edit your message...'
+                      : isRateLimited
+                        ? 'Your free Bruno limit is reached for now…'
+                        : isProcessing
+                          ? 'Bruno is working...'
+                          : 'Ask Bruno anything...'
+                  }
                   onKeyDown={(e) => {
                     if (mentionState.active && suggestions.length > 0) {
                       if (e.key === 'ArrowDown') {
@@ -1035,7 +1147,7 @@ export default function BrunoChatSidebar({
                 ) : (
                   <button
                     type="submit"
-                    disabled={!input.trim() || isProcessing}
+                    disabled={!input.trim() || isProcessing || isRateLimited}
                     className={`absolute bg-[var(--color-settings-brand)] hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] cursor-pointer ${
                       isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
                     }`}
@@ -1081,9 +1193,10 @@ export default function BrunoChatSidebar({
                 </button>
                 <button
                   onClick={confirmDeleteConversation}
-                  className="flex-1 py-2.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                  disabled={isDeletingConversation}
+                  className="flex-1 py-2.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50"
                 >
-                  Delete
+                  {isDeletingConversation ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </motion.div>
