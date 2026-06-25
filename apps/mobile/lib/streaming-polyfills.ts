@@ -1,6 +1,10 @@
 import 'react-native-url-polyfill/auto';
 import { polyfill as polyfillFetch } from 'react-native-polyfill-globals/src/fetch';
-import { polyfill as polyfillReadableStream } from 'react-native-polyfill-globals/src/readable-stream';
+import { ReadableStream } from 'web-streams-polyfill';
+import { polyfillGlobal } from 'react-native/Libraries/Utilities/PolyfillFunctions';
 
 polyfillFetch();
-polyfillReadableStream();
+
+if (typeof global.ReadableStream === 'undefined') {
+  polyfillGlobal('ReadableStream', () => ReadableStream);
+}

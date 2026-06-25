@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Search, StickyNote, Cards } from 'lucide-react-native';
+import { Plus, Search, StickyNote, Layers2 } from 'lucide-react-native';
 import { getNoteAccentHex, stripMarkdownPreview } from '@planevo/notes-core';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors, NOTE_ACCENTS } from '@/constants/Colors';
@@ -108,7 +108,7 @@ export default function NotesScreen() {
             onPress={() => router.push('/notes/flashcards')}
             style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <Cards size={18} color={colors.text} />
+            <Layers2 size={18} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => void handleQuickCapture()}

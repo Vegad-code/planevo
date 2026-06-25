@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "postinstall": "node ./scripts/ensure-ios-pod-paths.mjs",
     "start": "expo start --dev-client --lan",
     "start:tunnel": "expo start --dev-client --tunnel",
     "start:go": "expo start --go --lan",

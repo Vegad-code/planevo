@@ -1,7 +1,15 @@
 import type { BlockNoteBlock, InlineContent } from '../types';
 
 export function generateBlockId(): string {
-  return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    if (char === 'x') return random.toString(16);
+    return ((random & 0x3) | 0x8).toString(16);
+  });
 }
 
 function textContent(text: string): InlineContent[] {
