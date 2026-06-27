@@ -55,7 +55,7 @@ export async function exportUserDataAction(): Promise<ExportUserDataResult> {
           'id, title, description, start_time, end_time, status, source, created_at, updated_at'
         )
         .eq('user_id', userId)
-        .is('deleted_at', null),
+        .eq('is_deleted', false),
       supabase
         .from('chat_conversations')
         .select('id, title, created_at, updated_at')

@@ -18,40 +18,54 @@ export async function syncCanvasEvents(userId: string) {
   if (!assignments || assignments.length === 0) return 0;
 
   const supabase = await createClient();
+  const now = new Date();
+  const nowIso = now.toISOString();
 
-  const events = assignments.map((item) => {
-    const end = new Date(item.due_at);
-    const start = new Date(end.getTime() - 60 * 60 * 1000);
+  const events = assignments
+    .filter((item) => item.due_at)
+    .map((item) => {
+      const end = new Date(item.due_at);
+      const start = new Date(end.getTime() - 60 * 60 * 1000);
 
-    return {
-      user_id: userId,
-      title: item.name,
-      description: item.description || null,
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      is_all_day: false,
-      source: 'canvas',
-      external_id: item.id.toString(),
-      location: item.html_url || null,
-      is_completed: false,
-      is_deleted: false,
-    };
-  });
+      return {
+        user_id: userId,
+        title: item.name,
+        description: item.description || null,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        is_all_day: false,
+        source: 'canvas' as const,
+        external_id: item.id.toString(),
+        location: item.html_url || null,
+        is_completed: false,
+        is_deleted: false,
+      };
+    });
 
-  const now = new Date().toISOString();
-  await supabase
-    .from('calendar_events')
-    .delete()
-    .eq('user_id', userId)
-    .eq('source', 'canvas')
-    .gte('start_time', now);
-
-  const futureEvents = events.filter((e) => new Date(e.start_time) >= new Date(now));
+  const futureEvents = events.filter((e) => new Date(e.start_time) >= now);
 
   if (futureEvents.length > 0) {
-    const { error: insertError } = await supabase.from('calendar_events').insert(futureEvents);
-    if (insertError) throw insertError;
+    const { error: upsertError } = await supabase.from('calendar_events').upsert(futureEvents, {
+      onConflict: 'user_id,source,external_id',
+    });
+    if (upsertError) throw upsertError;
   }
+
+  const syncedExternalIds = futureEvents.map((e) => e.external_id);
+  let staleQuery = supabase
+    .from('calendar_events')
+    .update({ is_deleted: true })
+    .eq('user_id', userId)
+    .eq('source', 'canvas')
+    .eq('is_deleted', false)
+    .gte('start_time', nowIso);
+
+  if (syncedExternalIds.length > 0) {
+    staleQuery = staleQuery.not('external_id', 'in', `(${syncedExternalIds.join(',')})`);
+  }
+
+  const { error: staleError } = await staleQuery;
+  if (staleError) throw staleError;
 
   return futureEvents.length;
 }

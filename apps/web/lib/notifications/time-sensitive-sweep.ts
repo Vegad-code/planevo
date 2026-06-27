@@ -41,7 +41,7 @@ export async function collectTimeSensitivePushCandidates(
     .from('calendar_events')
     .select('id, user_id, title, start_time')
     .in('user_id', userIds)
-    .is('deleted_at', null)
+    .eq('is_deleted', false)
     .gte('start_time', windowStart)
     .lte('start_time', windowEnd);
 

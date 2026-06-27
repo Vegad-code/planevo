@@ -7,9 +7,12 @@ import type { Database } from '@/types/database';
 const RETENTION_RULES = [
   { table: 'bruno_tool_logs', column: 'created_at', days: 90 },
   { table: 'mcp_tool_calls', column: 'created_at', days: 90 },
-  { table: 'notification_deliveries', column: 'created_at', days: 180 },
+  { table: 'notification_deliveries', column: 'sent_at', days: 180 },
   { table: 'ip_rate_limit_buckets', column: 'window_start', days: 7 },
   { table: 'ai_usage_logs', column: 'created_at', days: 365 },
+  { table: 'bruno_route_events', column: 'created_at', days: 365 },
+  { table: 'security_audit_log', column: 'created_at', days: 730 },
+  { table: 'bruno_messages', column: 'created_at', days: 180 },
 ] as const;
 
 /**
@@ -52,6 +55,32 @@ export async function GET(request: NextRequest) {
       results[rule.table] = count ?? 0;
     }
   }
+
+  const chatCutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const { error: chatError, count: chatCount } = await supabase
+    .from('chat_conversations')
+    .delete({ count: 'exact' })
+    .lt('last_active', chatCutoff);
+  results.chat_conversations = chatError ? chatError.message : (chatCount ?? 0);
+
+  const oauthConsumedCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { error: oauthConsumedError, count: oauthConsumedCount } = await supabase
+    .from('mcp_oauth_sessions' as 'chat_conversations')
+    .delete({ count: 'exact' })
+    .not('consumed_at', 'is', null)
+    .lt('consumed_at', oauthConsumedCutoff);
+  results.mcp_oauth_sessions_consumed = oauthConsumedError
+    ? oauthConsumedError.message
+    : (oauthConsumedCount ?? 0);
+
+  const { error: oauthExpiredError, count: oauthExpiredCount } = await supabase
+    .from('mcp_oauth_sessions' as 'chat_conversations')
+    .delete({ count: 'exact' })
+    .is('consumed_at', null)
+    .lt('expires_at', new Date().toISOString());
+  results.mcp_oauth_sessions_expired = oauthExpiredError
+    ? oauthExpiredError.message
+    : (oauthExpiredCount ?? 0);
 
   logger.info('data-retention sweep complete', { route: '/api/cron/data-retention', results });
 

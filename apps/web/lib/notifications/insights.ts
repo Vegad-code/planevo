@@ -85,7 +85,7 @@ export async function getNotificationDeliveryInsight(
       .from('calendar_events')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .is('deleted_at', null)
+      .eq('is_deleted', false)
       .gte('start_time', now.toISOString())
       .lte('start_time', new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()),
     getLastAutomatedEmailDelivery(supabase, userId),

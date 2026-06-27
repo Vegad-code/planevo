@@ -620,10 +620,13 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
         start_time: e.due_at, // In Canvas, events use start_at mapped to due_at in our action
         end_time: new Date(new Date(e.due_at).getTime() + 60 * 60 * 1000).toISOString(), // Default 1hr
         source: 'canvas',
+        is_deleted: false,
         description: e.description || `Canvas Course: ${e.course_id}`,
         metadata: { canvas_course_id: e.course_id, html_url: e.html_url }
       }));
-      const { error } = await supabase.from('calendar_events').upsert(toUpsertEvents, { onConflict: 'external_id' });
+      const { error } = await supabase.from('calendar_events').upsert(toUpsertEvents, {
+        onConflict: 'user_id,source,external_id',
+      });
       if (error) throw error;
       itemsCreated += toUpsertEvents.length;
     }

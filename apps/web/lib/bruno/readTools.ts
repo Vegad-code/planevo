@@ -164,7 +164,7 @@ export function getBrunoReadTools(userId: string, dataAccess: BrunoDataAccess) {
             'id, title, description, start_time, end_time, status, source'
           )
           .eq('user_id', userId)
-          .is('deleted_at', null);
+          .eq('is_deleted', false);
 
         if (query) {
           const sanitized = sanitizeSearchQuery(query);

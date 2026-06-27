@@ -10,6 +10,7 @@ import {
 } from '@/lib/email';
 import type { Database } from '@/types/database';
 
+import { forEachUserBatch } from '@/lib/cron/batch-users';
 import {
   hasNotificationDelivery,
   recordNotificationDelivery,
@@ -47,14 +48,9 @@ type CalendarRow = {
   user_id: string | null;
   title: string;
   start_time: string;
-};
-
-type ExpoPushTicket =
-  | { status: 'ok'; id?: string }
-  | { status: 'error'; message?: string; details?: { error?: string } };
-
-type ExpoPushResponse = {
-  data?: ExpoPushTicket[];
+  is_ai_suggested: boolean | null;
+  source: string | null;
+  status: string | null;
 };
 
 export type DailySweepResult = {
@@ -123,21 +119,83 @@ export async function runDailyNotificationSweep(
     users_processed: 0,
   };
 
-  const { data: users, error: usersError } = await supabase
-    .from('users')
-    .select(`
+  const pushCandidates: PushCandidate[] = [];
+  const emailPromises: Promise<void>[] = [];
+  const usersByTimezone = new Map<string, { timezone: string }>();
+
+  result.users_processed = await forEachUserBatch<SweepUser>(
+    supabase,
+    `
       id, name, email, expo_push_token, preferred_morning_time, created_at,
       notification_preferences ( master_toggle, channels, types, quiet_hours )
-    `);
+    `,
+    async (batchUsers) => {
+      const batchOutcome = await processDailyNotificationUserBatch(
+        supabase,
+        batchUsers,
+        now
+      );
+      result.sent_morning_emails += batchOutcome.sent_morning_emails;
+      result.sent_deadline_emails += batchOutcome.sent_deadline_emails;
+      result.sent_upcoming_emails += batchOutcome.sent_upcoming_emails;
+      result.sent_welcome_emails += batchOutcome.sent_welcome_emails;
+      pushCandidates.push(...batchOutcome.pushCandidates);
+      emailPromises.push(...batchOutcome.emailPromises);
+      for (const [userId, value] of batchOutcome.usersByTimezone) {
+        usersByTimezone.set(userId, value);
+      }
 
-  if (usersError) {
-    throw usersError;
+      const integrationCandidates = await collectIntegrationDigestCandidates(
+        supabase,
+        batchUsers,
+        now
+      );
+      pushCandidates.push(...integrationCandidates);
+    }
+  );
+
+  if (result.users_processed === 0) {
+    return result;
   }
 
-  const sweepUsers = (users ?? []) as unknown as SweepUser[];
-  result.users_processed = sweepUsers.length;
+  await Promise.all(emailPromises);
+
+  if (pushCandidates.length > 0) {
+    const pushResult = await dispatchPushCandidates(supabase, pushCandidates, usersByTimezone);
+    result.sent_push = pushResult.sent;
+    result.failed_push = pushResult.failed;
+  }
+
+  return result;
+}
+
+type BatchOutcome = {
+  sent_morning_emails: number;
+  sent_deadline_emails: number;
+  sent_upcoming_emails: number;
+  sent_welcome_emails: number;
+  pushCandidates: PushCandidate[];
+  emailPromises: Promise<void>[];
+  usersByTimezone: Map<string, { timezone: string }>;
+};
+
+async function processDailyNotificationUserBatch(
+  supabase: SupabaseClient<Database>,
+  sweepUsers: SweepUser[],
+  now: Date
+): Promise<BatchOutcome> {
+  const outcome: BatchOutcome = {
+    sent_morning_emails: 0,
+    sent_deadline_emails: 0,
+    sent_upcoming_emails: 0,
+    sent_welcome_emails: 0,
+    pushCandidates: [],
+    emailPromises: [],
+    usersByTimezone: new Map(),
+  };
+
   if (sweepUsers.length === 0) {
-    return result;
+    return outcome;
   }
 
   const userIds = sweepUsers.map((user) => user.id);
@@ -145,23 +203,25 @@ export async function runDailyNotificationSweep(
   const queryEnd = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000).toISOString();
   const eventEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: tasks, error: tasksError }, { data: events, error: eventsError }] = await Promise.all([
-    supabase
-      .from('tasks')
-      .select('user_id, title, due_date')
-      .in('user_id', userIds)
-      .in('status', ['todo', 'in_progress'])
-      .is('deleted_at', null)
-      .gte('due_date', queryStart)
-      .lte('due_date', queryEnd),
-    supabase
-      .from('calendar_events')
-      .select('user_id, title, start_time')
-      .in('user_id', userIds)
-      .is('deleted_at', null)
-      .gte('start_time', now.toISOString())
-      .lte('start_time', eventEnd),
-  ]);
+  const [{ data: tasks, error: tasksError }, { data: events, error: eventsError }] =
+    await Promise.all([
+      supabase
+        .from('tasks')
+        .select('user_id, title, due_date')
+        .in('user_id', userIds)
+        .in('status', ['todo', 'in_progress'])
+        .is('deleted_at', null)
+        .gte('due_date', queryStart)
+        .lte('due_date', queryEnd),
+      supabase
+        .from('calendar_events')
+        .select('user_id, title, start_time, is_ai_suggested, source, status')
+        .in('user_id', userIds)
+        .eq('is_deleted', false)
+        .neq('status', 'rejected')
+        .gte('start_time', now.toISOString())
+        .lte('start_time', eventEnd),
+    ]);
 
   if (tasksError) throw tasksError;
   if (eventsError) throw eventsError;
@@ -169,6 +229,7 @@ export async function runDailyNotificationSweep(
   const tasksDueToday = new Map<string, { count: number; titles: string[] }>();
   const upcomingTasks = new Map<string, UpcomingReminderItem[]>();
   const upcomingEvents = new Map<string, UpcomingReminderItem[]>();
+  const nextPlanBlock = new Map<string, { title: string; timeLabel: string }>();
   const usersById = new Map(sweepUsers.map((user) => [user.id, user]));
 
   for (const task of (tasks ?? []) as TaskRow[]) {
@@ -209,28 +270,40 @@ export async function runDailyNotificationSweep(
     if (!user) continue;
 
     const timezone = normalizeNotificationPreferences(user.notification_preferences).quiet_hours.timezone;
+    const timeLabel = formatEventLabel(new Date(event.start_time), timezone);
+
+    const isPlanBlock =
+      event.is_ai_suggested === true ||
+      event.source === 'schedule';
+
+    if (isPlanBlock && !nextPlanBlock.has(event.user_id)) {
+      nextPlanBlock.set(event.user_id, { title: event.title, timeLabel });
+    }
+
     const current = upcomingEvents.get(event.user_id) ?? [];
     current.push({
       title: event.title,
-      dueLabel: formatEventLabel(new Date(event.start_time), timezone),
+      dueLabel: timeLabel,
     });
     upcomingEvents.set(event.user_id, current);
   }
 
   const pushCandidates: PushCandidate[] = [];
   const emailPromises: Promise<void>[] = [];
-  const usersByTimezone = new Map<string, { timezone: string }>();
 
   for (const user of sweepUsers) {
     const prefs = user.notification_preferences;
     const normalizedPrefs = normalizeNotificationPreferences(prefs);
     const timezone = normalizedPrefs.quiet_hours.timezone;
-    usersByTimezone.set(user.id, { timezone });
+    outcome.usersByTimezone.set(user.id, { timezone });
     const dedupeKey = getLocalDateKey(now, timezone);
     const morningTime = user.preferred_morning_time || DEFAULT_MORNING_TIME;
     const dueToday = tasksDueToday.get(user.id);
     const dueTodayCount = dueToday?.count ?? 0;
     const firstTask = dueToday?.titles[0] ?? 'your task';
+    const planBlock = nextPlanBlock.get(user.id);
+    const hasPlanReady = Boolean(planBlock);
+    const notifyDailyPlan = hasPlanReady || dueTodayCount > 0;
 
     const welcomeDay = getWelcomeDay(user.created_at, now);
     if (
@@ -252,7 +325,7 @@ export async function runDailyNotificationSweep(
             { provider: 'resend', provider_message_id: providerMessageId ?? null, day: welcomeDay }
           ))
           .then(() => {
-            result.sent_welcome_emails += 1;
+            outcome.sent_welcome_emails += 1;
           })
           .catch((error) => {
             console.error(`[daily-sweep] Failed welcome email for ${user.email}:`, error);
@@ -261,7 +334,7 @@ export async function runDailyNotificationSweep(
     }
 
     if (
-      dueTodayCount > 0 &&
+      notifyDailyPlan &&
       isPastLocalTime(now, timezone, morningTime) &&
       user.email &&
       canSendNotification(prefs, 'email', 'daily_plan', { now, respectQuietHours: true }) &&
@@ -280,7 +353,7 @@ export async function runDailyNotificationSweep(
             { provider: 'resend', provider_message_id: providerMessageId ?? null, task_count: dueTodayCount }
           ))
           .then(() => {
-            result.sent_morning_emails += 1;
+            outcome.sent_morning_emails += 1;
           })
           .catch((error) => {
             console.error(`[daily-sweep] Failed morning plan email for ${user.email}:`, error);
@@ -313,7 +386,7 @@ export async function runDailyNotificationSweep(
             }
           ))
           .then(() => {
-            result.sent_deadline_emails += 1;
+            outcome.sent_deadline_emails += 1;
           })
           .catch((error) => {
             console.error(`[daily-sweep] Failed deadline rescue email for ${user.email}:`, error);
@@ -348,7 +421,7 @@ export async function runDailyNotificationSweep(
             }
           ))
           .then(() => {
-            result.sent_upcoming_emails += 1;
+            outcome.sent_upcoming_emails += 1;
           })
           .catch((error) => {
             console.error(`[daily-sweep] Failed upcoming reminders email for ${user.email}:`, error);
@@ -379,21 +452,27 @@ export async function runDailyNotificationSweep(
     }
 
     if (
-      dueTodayCount > 0 &&
+      notifyDailyPlan &&
       isPastLocalTime(now, timezone, morningTime) &&
       user.expo_push_token &&
       canSendNotification(prefs, 'push', 'daily_plan', { now, respectQuietHours: true }) &&
       !(await hasNotificationDelivery(supabase, user.id, 'daily_plan', 'push', dedupeKey))
     ) {
+      const pushBody = planBlock
+        ? `First up: ${planBlock.title} at ${planBlock.timeLabel}.`
+        : dueTodayCount > 0
+          ? `${dueTodayCount} ${dueTodayCount === 1 ? 'thing' : 'things'} on your plate today. Tap to see your plan.`
+          : 'Your day is ready. Tap to open your plan.';
+
       pushCandidates.push({
         userId: user.id,
         token: user.expo_push_token,
         notificationType: 'daily_plan',
         dedupeKey,
         title: 'Your daily plan is ready',
-        body: `${dueTodayCount} ${dueTodayCount === 1 ? 'thing' : 'things'} on your plate today. Tap to see your plan.`,
+        body: pushBody,
         data: { screen: 'index', source: 'daily_plan' },
-        metadata: { task_count: dueTodayCount },
+        metadata: { task_count: dueTodayCount, has_plan: hasPlanReady },
       });
     }
 
@@ -421,16 +500,7 @@ export async function runDailyNotificationSweep(
     }
   }
 
-  const integrationCandidates = await collectIntegrationDigestCandidates(supabase, sweepUsers, now);
-  pushCandidates.push(...integrationCandidates);
-
-  await Promise.all(emailPromises);
-
-  if (pushCandidates.length > 0) {
-    const pushResult = await dispatchPushCandidates(supabase, pushCandidates, usersByTimezone);
-    result.sent_push = pushResult.sent;
-    result.failed_push = pushResult.failed;
-  }
-
-  return result;
+  outcome.pushCandidates = pushCandidates;
+  outcome.emailPromises = emailPromises;
+  return outcome;
 }

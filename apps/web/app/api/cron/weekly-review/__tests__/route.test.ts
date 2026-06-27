@@ -2,14 +2,25 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
+function createSupabaseQueryMock() {
+  const result = { data: [] as unknown[], error: null };
+  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+
+  const methods = ['from', 'select', 'range', 'order', 'in', 'eq', 'gte'] as const;
+  for (const method of methods) {
+    chain[method] = vi.fn(() => chain);
+  }
+
+  chain.then = vi.fn((resolve: (value: typeof result) => void) => {
+    resolve(result);
+    return Promise.resolve(result);
+  }) as unknown as ReturnType<typeof vi.fn>;
+
+  return chain;
+}
+
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    in: vi.fn().mockResolvedValue({ data: [], error: null }),
-    eq: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockResolvedValue({ data: [], error: null }),
-  }))
+  createClient: vi.fn(() => createSupabaseQueryMock()),
 }));
 
 vi.mock('@/lib/email', () => ({
