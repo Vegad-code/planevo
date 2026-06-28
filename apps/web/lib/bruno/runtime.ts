@@ -66,6 +66,8 @@ export function getBrunoRoutingFlags(
     llmRouterEnabled: enabled(env.BRUNO_LLM_ROUTER_ENABLED),
     upgradeCardsEnabled: enabled(env.BRUNO_UPGRADE_CARDS_ENABLED),
     deepCreditsEnabled: enabled(env.BRUNO_DEEP_CREDITS_ENABLED),
+    clarificationCardsEnabled:
+      env.BRUNO_CLARIFICATION_CARDS_ENABLED?.toLowerCase() !== 'false',
   };
 }
 

@@ -8,7 +8,7 @@ import {
   Notebook,
   NotePencil,
 } from '@phosphor-icons/react';
-import { createClient } from '@/lib/supabase/client';
+import { useUserProfileOptional } from '@/components/providers/UserProfileProvider';
 import { normalizePlanType } from '@/lib/auth/plan-types';
 
 export const NAV_ITEMS = [
@@ -100,58 +100,36 @@ export interface SidebarProfile {
 }
 
 export function useSidebarProfile(): SidebarProfile {
+  const cached = useUserProfileOptional();
   const [mounted, setMounted] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [planType, setPlanType] = useState('free');
-  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
-    async function fetchUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('name, plan_type, avatar_url')
-          .eq('id', user.id)
-          .single();
-        if (profile) {
-          setUserName(profile.name || 'User');
-          setAvatarUrl(
-            profile.avatar_url ||
-              user.user_metadata?.avatar_url ||
-              user.user_metadata?.picture ||
-              null
-          );
-          const normalizedPlan = normalizePlanType(profile.plan_type);
-          setPlanType(normalizedPlan);
-          setIsPremium(['premium', 'trialing', 'admin', 'student'].includes(normalizedPlan));
-        }
-      }
-    }
-    fetchUser();
-  }, [supabase]);
+  }, []);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = '/login';
-  }
+  const normalizedPlan = normalizePlanType(cached?.planType ?? 'free');
+  const isPremium =
+    cached?.isPremium ??
+    ['premium', 'trialing', 'admin', 'student'].includes(normalizedPlan);
 
-  const initials = userName
+  const initials = (cached?.userName ?? '')
     .split(' ')
     .map((n) => n[0])
     .join('')
     .substring(0, 2)
     .toUpperCase() || 'P';
 
+  const handleLogout = useMemo(
+    () => cached?.handleLogout ?? (async () => {}),
+    [cached]
+  );
+
   return {
     mounted,
     isPremium,
-    userName,
-    avatarUrl,
-    planType,
+    userName: cached?.userName ?? '',
+    avatarUrl: cached?.avatarUrl ?? null,
+    planType: normalizedPlan,
     initials,
     handleLogout,
   };

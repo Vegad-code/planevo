@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Broom, ArrowsClockwise } from '@phosphor-icons/react';
-import { createClient } from '@/lib/supabase/client';
 import { useProIntegrations } from '@/hooks/useProIntegrations';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { Task, BestTimeOfDay, EnergyLevel, TaskPriority } from '@/types/tasks';
@@ -13,15 +12,25 @@ import { useTaskActions } from '@/hooks/useTaskActions';
 import { showToast } from '@/hooks/use-toast';
 import TaskGroup from './TaskGroup';
 import ShameFreeRescheduleModal from './ShameFreeRescheduleModal';
+import { BrunoThinkingIllustration } from '@/components/bruno/BrunoThinkingIllustration';
 import BrunoAvatar from '@/components/bruno/BrunoAvatar';
 import { calculateUserStats } from '@/lib/stats';
 import { useFocusStore } from '@/store/useFocusStore';
 import { useRouter } from 'next/navigation';
 import { parseTaskInput } from '@/lib/taskParser';
+import { useTasksQuery } from '@/hooks/useTasksQuery';
+import { useTaskOptimisticEvents } from '@/hooks/useTaskOptimisticEvents';
+import { useSupabaseTableRealtime } from '@/hooks/useSupabaseTableRealtime';
 
 export default function EnhancedTasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { tasks, loading, refresh, setTasks, userId } = useTasksQuery();
+  useTaskOptimisticEvents(setTasks);
+  useSupabaseTableRealtime({
+    userId,
+    tables: ['tasks', 'source_items'],
+    onChange: refresh,
+  });
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [showStartFreshConfirm, setShowStartFreshConfirm] = useState(false);
@@ -48,63 +57,16 @@ export default function EnhancedTasks() {
   // Hide Completed tasks toggle
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  const supabase = createClient();
   const router = useRouter();
   const setActiveTask = useFocusStore((state) => state.setActiveTask);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { aiResponse, aiLoading, aiError, fetchAIPriorities, invalidateCache } = useTaskAI();
 
-  const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    const { data: sourceItems } = await supabase
-      .from('source_items')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    let allTasks: Task[] = [];
-    if (data) allTasks = [...(data as Task[])];
-
-    if (sourceItems) {
-      const mappedSources = sourceItems.map(item => ({
-        id: item.external_id,
-        user_id: item.user_id,
-        title: item.title || 'Untitled',
-        description: item.description,
-        due_date: item.due_date,
-        priority: 'medium',
-        estimated_minutes: 30,
-        completed: false,
-        completed_at: null,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        deleted_at: null,
-        external_id: item.external_id,
-        external_url: item.url,
-        best_time_of_day: 'anytime',
-        energy_level_required: 'medium',
-        is_recurring: false,
-        recurrence_pattern: null,
-        parent_task_id: null,
-        provider: item.provider
-      } as Task));
-      allTasks = [...allTasks, ...mappedSources];
-    }
-
-    setTasks(allTasks);
-    setLoading(false);
-  }, [supabase]);
-
   const handleRefresh = useCallback(() => {
     invalidateCache();
-    fetchTasks();
-  }, [invalidateCache, fetchTasks]);
+    refresh();
+  }, [invalidateCache, refresh]);
 
   const {
     saving,
@@ -115,17 +77,10 @@ export default function EnhancedTasks() {
     moveToWaiting,
     breakDownTask,
     startFresh
-  } = useTaskActions(handleRefresh);
+  } = useTaskActions({ onRefresh: handleRefresh, setTasks });
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);
-
-  // Fetch tasks on mount
-  useEffect(() => {
-    setTimeout(() => {
-      fetchTasks();
-    }, 0);
-  }, [fetchTasks]);
 
   // Fetch AI priorities when tasks change
   useEffect(() => {
@@ -428,8 +383,8 @@ export default function EnhancedTasks() {
 
         {/* Task List */}
         {filteredTasks.length === 0 ? (
-          <div className="bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-12 flex flex-col items-center justify-center text-center shadow-sm">
-            <BrunoAvatar mood="happy" size="lg" />
+          <div className="bg-transparent border border-[var(--color-line)]/60 rounded-[22px] p-12 flex flex-col items-center justify-center text-center">
+            <BrunoThinkingIllustration maxHeight={160} />
             <h2 className="mt-4 text-lg font-medium text-[var(--color-ink)] font-serif italic">
               {activeTab !== 'all' ? `All caught up on ${activeTab}!` : 'No tasks yet'}
             </h2>

@@ -35,6 +35,18 @@ describe('routeBrunoMessage', () => {
     expect(classify).not.toHaveBeenCalled();
   });
 
+  it('does not call the LLM router for document writing requests', async () => {
+    const classify = vi.fn();
+    const result = await routeBrunoMessage(
+      { message: 'Draft a polished email asking my teacher for an extension' },
+      { classify }
+    );
+
+    expect(result.decision.mode).toBe('document_writing');
+    expect(result.routeSource).toBe('obvious_mode');
+    expect(classify).not.toHaveBeenCalled();
+  });
+
   it('uses the structured classifier for ambiguous messages', async () => {
     const classify = vi.fn().mockResolvedValue({
       mode: 'task_management',
@@ -133,10 +145,51 @@ describe('Bruno prompts and server notices', () => {
     expect(prompt).not.toContain('CANVAS CONTEXT');
   });
 
+  it('adds document-writing quality and integrity boundaries', () => {
+    const prompt = buildBrunoSystemPrompt({
+      mode: 'document_writing',
+      userName: 'Sam',
+      userPlan: 'free',
+      localTime: 'Monday 3:00 PM',
+      timeZone: 'America/Los_Angeles',
+      pageContext: '',
+      memoryContext: '',
+      taskContext: '',
+      calendarContext: '',
+      canvasContext: '',
+    });
+
+    expect(prompt).toContain('DOCUMENT WRITING MODE');
+    expect(prompt).toContain('Do not invent sources');
+    expect(prompt).toContain('bracketed placeholder');
+    expect(prompt).toContain('Do not help bypass AI detectors');
+  });
+
+  it('adds the short coding boundary to Bruno prompts', () => {
+    const prompt = buildBrunoSystemPrompt({
+      mode: 'coding_help',
+      userName: 'Sam',
+      userPlan: 'free',
+      localTime: 'Monday 3:00 PM',
+      timeZone: 'America/Los_Angeles',
+      pageContext: '',
+      memoryContext: '',
+      taskContext: '',
+      calendarContext: '',
+      canvasContext: '',
+    });
+
+    expect(prompt).toContain('CODING HELP MODE');
+    expect(prompt).toContain('do not generate whole websites');
+    expect(prompt).toContain('under 40 lines');
+    expect(prompt).toContain('Bruno is not a website/app code generator');
+  });
+
   it('creates mode-specific upgrade and Pro cap notices', () => {
     expect(getBrunoUpgradeCard('academic_tutoring')?.title).toContain(
       'full tutoring'
     );
+    expect(getBrunoUpgradeCard('coding_help')).toBeNull();
     expect(getBrunoProWarning(28).remaining).toBe(28);
     expect(getBrunoProCapNotice().title).toContain('monthly limit');
   });

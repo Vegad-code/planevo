@@ -97,7 +97,7 @@ export default function LandingHeader() {
             className="bg-[var(--color-ink)] text-[var(--color-cream)] text-[14px] font-semibold py-5.5 px-6 border-none shadow-none hover:bg-[var(--color-ink-2)] transition-all rounded-full font-sans gap-1"
             asChild
           >
-            <Link href="/onboarding">
+            <Link href="/signup">
               Start free <span className="text-base font-normal">-&gt;</span>
             </Link>
           </Button>
@@ -146,7 +146,7 @@ export default function LandingHeader() {
                 className="w-full font-mono font-bold uppercase tracking-widest py-6 border-none shadow-none bg-[var(--color-ink)] text-[var(--color-cream)] rounded-full hover:bg-[var(--color-ink-2)]"
                 asChild
               >
-                <Link href="/onboarding" onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
                   Get Started Free
                 </Link>
               </Button>

@@ -4,6 +4,12 @@ export type BrunoActionType =
   | "RESCHEDULE_TASK"
   | "CREATE_TIME_BLOCK"
   | "UPDATE_DAILY_PLAN"
+  | "CREATE_NOTE"
+  | "UPDATE_NOTE"
+  | "APPEND_TO_NOTE"
+  | "ARCHIVE_NOTE"
+  | "DELETE_CALENDAR_EVENT"
+  | "DELETE_TASK"
   | "EXPLAIN_PLAN"
   | "NO_ACTION";
 

@@ -55,6 +55,7 @@ export const dailyPlanBodySchema = z.object({
   timezone: z.string().max(64).optional(),
   todayStart: z.string().datetime({ offset: true }).optional(),
   todayEnd: z.string().datetime({ offset: true }).optional(),
+  force: z.boolean().optional(),
 });
 
 export const stripeCheckoutBodySchema = z.object({

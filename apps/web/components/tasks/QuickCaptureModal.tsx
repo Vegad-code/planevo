@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { useUIStore } from '@/lib/store/ui-store';
 import { useTaskActions } from '@/hooks/useTaskActions';
 
@@ -12,12 +13,13 @@ export default function QuickCaptureModal() {
   const [duration, setDuration] = useState<15 | 30 | 60>(30);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { addTask, saving } = useTaskActions(() => {
-    setQuickCaptureOpen(false);
+  const resetForm = () => {
     setTitle('');
     setDueDate('today');
     setDuration(30);
-  });
+  };
+
+  const { addTask } = useTaskActions({});
 
   // Handle Cmd+K
   useEffect(() => {
@@ -42,11 +44,12 @@ export default function QuickCaptureModal() {
     }
   }, [quickCaptureOpen]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || saving) return;
+    const trimmed = title.trim();
+    if (!trimmed) return;
 
-    let targetDate = undefined;
+    let targetDate: string | undefined;
     if (dueDate !== 'none') {
       const d = new Date();
       if (dueDate === 'tomorrow') {
@@ -55,10 +58,17 @@ export default function QuickCaptureModal() {
       targetDate = d.toISOString().split('T')[0];
     }
 
-    await addTask({
-      title: title.trim(),
+    setQuickCaptureOpen(false);
+    resetForm();
+
+    void addTask({
+      title: trimmed,
       estimated_minutes: duration,
       due_date: targetDate,
+    }).then((result) => {
+      if (result.error) {
+        toast.error(result.error);
+      }
     });
   };
 
@@ -98,62 +108,71 @@ export default function QuickCaptureModal() {
               exit={{ y: '100%', opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="bg-[var(--color-paper)] border border-[var(--color-line-strong)] rounded-t-[24px] sm:rounded-[24px] shadow-2xl p-4 sm:p-6 w-full max-w-lg pointer-events-auto flex flex-col gap-4"
-              onClick={(e) => e.stopPropagation()}
             >
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="What's on your mind?"
-                  className="w-full text-lg sm:text-xl font-medium bg-transparent border-none outline-none text-[var(--color-ink)] placeholder-[var(--color-ink-soft)]/50"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={saving}
-                />
-                
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[var(--color-line)]/50">
-                  <div className="flex gap-2">
-                    {/* Date Selector */}
-                    <select
-                      className="text-xs bg-[var(--color-cream)] border border-[var(--color-line)] rounded-full px-3 py-1.5 outline-none text-[var(--color-ink-soft)] cursor-pointer"
-                      value={dueDate}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      onChange={(e) => setDueDate(e.target.value as any)}
-                      disabled={saving}
-                    >
-                      <option value="today">Today</option>
-                      <option value="tomorrow">Tomorrow</option>
-                      <option value="none">No Date</option>
-                    </select>
-
-                    {/* Duration Selector */}
-                    <select
-                      className="text-xs bg-[var(--color-cream)] border border-[var(--color-line)] rounded-full px-3 py-1.5 outline-none text-[var(--color-ink-soft)] cursor-pointer"
-                      value={duration}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      onChange={(e) => setDuration(Number(e.target.value) as any)}
-                      disabled={saving}
-                    >
-                      <option value={15}>15m</option>
-                      <option value={30}>30m</option>
-                      <option value={60}>1h</option>
-                    </select>
-                  </div>
-                  
-                  <button
-                    type="submit"
-                    disabled={!title.trim() || saving}
-                    className="bg-[var(--color-ink)] text-[var(--color-paper)] text-sm font-medium px-4 py-1.5 rounded-full hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {saving ? 'Saving...' : 'Save (Enter)'}
-                  </button>
+                <div>
+                  <label htmlFor="quick-capture-title" className="sr-only">
+                    Task title
+                  </label>
+                  <input
+                    ref={inputRef}
+                    id="quick-capture-title"
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="What needs to get done?"
+                    className="w-full text-lg bg-transparent border-none outline-none placeholder:text-[var(--color-ink-faint)] text-[var(--color-ink)]"
+                    autoComplete="off"
+                  />
                 </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(['today', 'tomorrow', 'none'] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setDueDate(option)}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                        dueDate === option
+                          ? 'bg-[var(--color-ink)] text-[var(--color-paper)] border-[var(--color-ink)]'
+                          : 'border-[var(--color-line)] text-[var(--color-ink-soft)] hover:border-[var(--color-line-strong)]'
+                      }`}
+                    >
+                      {option === 'today' ? 'Today' : option === 'tomorrow' ? 'Tomorrow' : 'No date'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {([15, 30, 60] as const).map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setDuration(mins)}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                        duration === mins
+                          ? 'bg-[var(--color-honey)] text-[var(--color-ink)] border-[var(--color-honey)]'
+                          : 'border-[var(--color-line)] text-[var(--color-ink-soft)] hover:border-[var(--color-line-strong)]'
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!title.trim()}
+                  className="w-full py-3 rounded-xl bg-[var(--color-ink)] text-[var(--color-paper)] font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
+                >
+                  Add task
+                </button>
               </form>
             </motion.div>
           </div>
         </>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
     </>
   );
 }

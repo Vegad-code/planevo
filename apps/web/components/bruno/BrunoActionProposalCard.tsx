@@ -1,7 +1,10 @@
 "use client";
 
 import type { BrunoActionProposal } from "@/lib/bruno/tools/types";
-import { getActionDefinition } from "@/lib/bruno/tools/registry";
+import {
+  getProposalActionLabels,
+  isV3ExecutableAction,
+} from "@/lib/bruno/tools/actionLabels";
 import { isValidProposalColor } from "@/lib/bruno/proposalColors";
 
 export type ExecutionStatus = "idle" | "executing" | "success" | "error" | "cancelled";
@@ -23,12 +26,12 @@ export function BrunoActionProposalCard({
   onCancel,
   compact = false,
 }: BrunoActionProposalCardProps) {
-  const actionDef = getActionDefinition(proposal.type);
-  const isExecutable = actionDef?.executable ?? false;
-  const isConfirmableType =
-    proposal.type === "CREATE_TASK" || proposal.type === "CREATE_TIME_BLOCK";
+  const isExecutable = isV3ExecutableAction(proposal.type);
+  const isConfirmableType = isExecutable;
   const canConfirm =
     isExecutable && isConfirmableType && executionStatus === "idle";
+
+  const labels = getProposalActionLabels(proposal.type);
 
   const estimatedMinutes = proposal.payload?.estimatedMinutes
     ? Number(proposal.payload.estimatedMinutes)
@@ -49,16 +52,10 @@ export function BrunoActionProposalCard({
       ? proposal.payload.colorCategory
       : null;
 
-  const successLabel =
-    proposal.type === "CREATE_TIME_BLOCK" ? "Event added to calendar" : "Task created";
-  const errorLabel =
-    proposal.type === "CREATE_TIME_BLOCK"
-      ? "Couldn't add event. Try again."
-      : "Couldn't create task. Try again.";
-  const confirmLabel =
-    proposal.type === "CREATE_TIME_BLOCK" ? "Add to calendar" : "Confirm";
-  const executingLabel =
-    proposal.type === "CREATE_TIME_BLOCK" ? "Adding..." : "Creating...";
+  const successLabel = labels.successLabel;
+  const errorLabel = labels.errorLabel;
+  const confirmLabel = labels.confirmLabel;
+  const executingLabel = labels.executingLabel;
 
   return (
     <div className={compact ? "rounded-xl border border-white/10 p-3 bg-[#111113]" : "rounded-2xl border border-white/10 p-5 bg-[#111113]"}>

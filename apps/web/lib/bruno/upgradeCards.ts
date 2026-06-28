@@ -13,7 +13,6 @@ export function getBrunoUpgradeCard(
       'academic_tutoring',
       'deadline_rescue',
       'project_breakdown',
-      'coding_help',
     ].includes(mode)
   ) {
     return null;

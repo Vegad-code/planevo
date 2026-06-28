@@ -63,7 +63,10 @@ export function CalendarViewForm({ initialData }: { initialData: Record<string, 
           </select>
         </SettingsRow>
 
-        <SettingsRow title="Day Start Time" description="The hour your day typically begins.">
+        <SettingsRow
+          title="Day Start Time"
+          description="Used for scheduling suggestions only — the calendar grid always shows the full day (12 AM–11 PM)."
+        >
           <select
             value={startHour}
             onChange={(e) => setStartHour(parseInt(e.target.value))}
@@ -77,7 +80,10 @@ export function CalendarViewForm({ initialData }: { initialData: Record<string, 
           </select>
         </SettingsRow>
 
-        <SettingsRow title="Day End Time" description="The hour your day typically ends.">
+        <SettingsRow
+          title="Day End Time"
+          description="Used for scheduling suggestions only — the calendar grid always shows the full day (12 AM–11 PM)."
+        >
           <select
             value={endHour}
             onChange={(e) => setEndHour(parseInt(e.target.value))}

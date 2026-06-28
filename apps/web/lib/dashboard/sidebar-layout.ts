@@ -4,5 +4,8 @@ export function getSidebarMainOffset(style: SidebarStyleId, collapsed: boolean):
   if (style === 'floating') {
     return collapsed ? 'lg:ml-[110px]' : 'lg:ml-[320px]';
   }
+  if (style === 'glass') {
+    return collapsed ? 'lg:ml-[72px]' : 'lg:ml-[248px]';
+  }
   return collapsed ? 'lg:ml-17' : 'lg:ml-60';
 }

@@ -22,17 +22,42 @@ import {
   pageContextSchema,
 } from '@/lib/bruno/page-context';
 import { handleBrunoChatV2 } from '@/lib/bruno/handleChatV2';
-import { detectNotesIntent, isNotesRefinementMessage } from '@/lib/bruno/conversationRouting';
+import {
+  BRUNO_DETECTOR_EVASION_RESPONSE,
+  detectDocumentWritingIntent,
+  detectNotesIntent,
+  hasDetectorEvasionRequest,
+  isDocumentRefinementMessage,
+  isNotesRefinementMessage,
+} from '@/lib/bruno/conversationRouting';
 import { extractLastUserMessage } from '@/lib/bruno/runtime';
 import { getBrunoReadTools } from '@/lib/bruno/readTools';
-import { buildReadToolsBlock } from '@/lib/bruno/brunoPrompts';
+import {
+  buildCodingBoundaryBlock,
+  buildReadToolsBlock,
+  buildGeneralSystemPrompt,
+  buildWritingQualityBlock,
+} from '@/lib/bruno/brunoPrompts';
+import {
+  parseBrunoAssistantMode,
+  resolveEffectiveAssistantMode,
+  usesMinimalGeneralPrompt,
+} from '@/lib/bruno/assistantMode';
+import {
+  applyClarificationResponseToMessages,
+  brunoClarificationResponseSchema,
+  generateBrunoClarificationCard,
+  isClarificationSkip,
+  shouldRequestClarification,
+} from '@/lib/bruno/clarification';
+import { routeBrunoMessage } from '@/lib/bruno/routeMessage';
 import { extractLastUserMessageText } from '@/lib/bruno/enrichTimeBlockProposal';
 import { enrichBrunoProposal } from '@/lib/bruno/enrichProposalColor';
 import { getBrunoRoutingFlags } from '@/lib/bruno/runtime';
 import { BrunoProgressWriter } from '@/lib/bruno/progressWriter';
 import { parseBrunoDataAccess } from '@/lib/bruno/types';
 import type { BrunoDataParts } from '@/lib/bruno/types';
-import type { UIMessage } from 'ai';
+import type { UIMessage, UIMessageStreamWriter } from 'ai';
 
 // Secure message schema to prevent role spoofing and excessive payload sizes
 const messageSchema = z.object({
@@ -49,7 +74,34 @@ const requestSchema = z.object({
   timeZone: z.string().optional(),
   localTime: z.string().optional(),
   pageContext: pageContextSchema.optional(),
+  assistantMode: z.enum(['general', 'planning']).optional().default('general'),
+  clarificationResponse: brunoClarificationResponseSchema.optional(),
 });
+
+function writeStaticText(
+  writer: Pick<
+    UIMessageStreamWriter<UIMessage<unknown, BrunoDataParts>>,
+    'write'
+  >,
+  text: string
+) {
+  const id = crypto.randomUUID();
+  writer.write({ type: 'text-start', id });
+  writer.write({ type: 'text-delta', id, delta: text });
+  writer.write({ type: 'text-end', id });
+}
+
+function staticUiResponse(text: string, headers?: HeadersInit) {
+  const stream = createUIMessageStream<
+    UIMessage<unknown, BrunoDataParts>
+  >({
+    execute: ({ writer }) => {
+      writeStaticText(writer, text);
+    },
+  });
+
+  return createUIMessageStreamResponse({ stream, headers });
+}
 
 // --- Tool schemas as raw JSON Schema objects ---
 const proposeActionParams = jsonSchema({
@@ -165,25 +217,76 @@ export async function POST(request: NextRequest) {
 
     const {
       diagnostics,
-      messages,
+      messages: rawMessages,
       conversationId,
       assignmentId,
       isMobile,
       timeZone,
       localTime,
       pageContext,
+      assistantMode,
+      clarificationResponse,
     } = parsedBody.data;
+    const messages = applyClarificationResponseToMessages(
+      rawMessages,
+      clarificationResponse
+    );
     const requestId = crypto.randomUUID();
     const latestUserText = extractLastUserMessage(
       messages as Parameters<typeof extractLastUserMessage>[0]
     );
+
+    if (clarificationResponse) {
+      posthogServer.capture({
+        distinctId: user.id,
+        event: isClarificationSkip(clarificationResponse)
+          ? 'bruno_clarification_skipped'
+          : 'bruno_clarification_submitted',
+        properties: {
+          conversation_id: conversationId ?? null,
+          question_count: clarificationResponse.answers.length,
+          platform: isMobile ? 'mobile' : 'web',
+        },
+      });
+    }
+
+    const notesSignalText = clarificationResponse?.originalPrompt ?? latestUserText;
+    if (hasDetectorEvasionRequest(notesSignalText)) {
+      if (isMobile) {
+        return NextResponse.json({
+          text: BRUNO_DETECTOR_EVASION_RESPONSE,
+          toolCalls: [],
+          metadata: {
+            mode: 'document_writing',
+            tier: 'none',
+            safetyStatus: 'detector_evasion',
+          },
+        });
+      }
+
+      return staticUiResponse(BRUNO_DETECTOR_EVASION_RESPONSE, {
+        'Server-Timing': buildServerTimingHeader(
+          latencyTimer.complete(performance.now() - startAt)
+        ),
+        'x-bruno-mode': 'document_writing',
+        'x-bruno-tier': 'none',
+        'x-bruno-safety': 'detector_evasion',
+      });
+    }
+
     const isNotesChat =
-      detectNotesIntent(latestUserText) || isNotesRefinementMessage(latestUserText);
+      detectNotesIntent(notesSignalText) ||
+      (!clarificationResponse && isNotesRefinementMessage(latestUserText));
+    const isDocumentChat =
+      detectDocumentWritingIntent(notesSignalText) ||
+      (!clarificationResponse &&
+        isDocumentRefinementMessage(latestUserText));
+    const routingFlags = getBrunoRoutingFlags(process.env, user.id);
 
     // Consume daily quota only after validating the request body.
-    // Notes use a separate monthly quota (enforced in handleChatV2) and skip the daily chat cap.
+    // Notes/documents use separate monthly quotas in V2 and skip the daily chat cap.
     let usageLogId: string | undefined;
-    if (isNotesChat) {
+    if (isNotesChat || (routingFlags.routingV2Enabled && isDocumentChat)) {
       const { data: notesLog, error: notesLogError } = await supabaseAdmin
         .from('ai_usage_logs')
         .insert({
@@ -195,7 +298,7 @@ export async function POST(request: NextRequest) {
         .select('id')
         .single();
       if (notesLogError) {
-        console.error('[Bruno Chat] Failed to reserve notes usage log:', notesLogError);
+        console.error('[Bruno Chat] Failed to reserve monthly-quota usage log:', notesLogError);
       } else {
         usageLogId = notesLog.id;
       }
@@ -265,7 +368,7 @@ export async function POST(request: NextRequest) {
     Sentry.setTag('plan_type', normalizePlanType(profile?.plan_type));
     Sentry.setTag('auth_method', authMethod || 'unknown');
 
-    if (getBrunoRoutingFlags(process.env, user.id).routingV2Enabled) {
+    if (routingFlags.routingV2Enabled) {
       if (!usageLogId) {
         return jsonWithDiagnostics(
           {
@@ -289,16 +392,100 @@ export async function POST(request: NextRequest) {
         timeZone,
         localTime,
         pageContext,
+        assistantMode: parseBrunoAssistantMode(assistantMode),
+        clarificationResponse,
       });
     }
 
     const prefs = (profile?.scheduling_preferences || {}) as Record<string, unknown>;
 
     const dataAccess = parseBrunoDataAccess(prefs);
+    const requestedAssistantMode = parseBrunoAssistantMode(assistantMode);
+    const v1RouteResult = await routeBrunoMessage({ message: latestUserText });
+    const effectiveAssistantMode = resolveEffectiveAssistantMode({
+      assistantMode: requestedAssistantMode,
+      routeMode: v1RouteResult.decision.mode,
+    });
+    const useMinimalPrompt = usesMinimalGeneralPrompt({
+      effectiveAssistantMode,
+      routeMode: v1RouteResult.decision.mode,
+    });
+
+    if (
+      shouldRequestClarification({
+        message: latestUserText,
+        decision: v1RouteResult.decision,
+        clarificationResponse,
+      })
+    ) {
+      try {
+        const { card } = await generateBrunoClarificationCard({
+          message: latestUserText,
+          routeMode: v1RouteResult.decision.mode,
+          userName: profile?.name,
+          pageLabel: pageContext?.label,
+          localTime,
+          timeZone,
+        }, {
+          onGenerationError: (error) => {
+            Sentry.captureException(error);
+            console.warn(
+              '[Bruno Clarification] Using fallback questions after generation failed:',
+              error
+            );
+          },
+        });
+
+        posthogServer.capture({
+          distinctId: user.id,
+          event: 'bruno_clarification_requested',
+          properties: {
+            conversation_id: conversationId ?? null,
+            mode: v1RouteResult.decision.mode,
+            question_count: card.questions.length,
+            platform: isMobile ? 'mobile' : 'web',
+            route_source: v1RouteResult.routeSource,
+          },
+        });
+
+        const stream = createUIMessageStream<UIMessage<unknown, BrunoDataParts>>({
+          execute: ({ writer }) => {
+            const progress = new BrunoProgressWriter(writer);
+            progress.markReadDone();
+            progress.markSafetyDone();
+            progress.markRouteDone(
+              v1RouteResult.decision.mode,
+              'Clarification needed'
+            );
+            writeStaticText(writer, card.intro);
+            writer.write({
+              type: 'data-bruno-clarification-card',
+              data: card,
+            });
+            progress.markComplete();
+          },
+        });
+
+        return createUIMessageStreamResponse({
+          stream,
+          headers: {
+            'Server-Timing': buildServerTimingHeader(
+              latencyTimer.complete(performance.now() - startAt)
+            ),
+            'x-bruno-assistant-mode': effectiveAssistantMode,
+            'x-bruno-assistant-requested': requestedAssistantMode,
+            'x-bruno-clarification': 'requested',
+          },
+        });
+      } catch (error) {
+        Sentry.captureException(error);
+        console.warn('[Bruno Clarification] Falling back to normal chat:', error);
+      }
+    }
 
     // Fetch active tasks for Bruno to have context of task names and IDs
     let allTasks: { id: string; title: string; status: string; due_date: string | null; priority: string; estimated_minutes: number }[] = [];
-    if (dataAccess.tasks) {
+    if (!useMinimalPrompt && dataAccess.tasks) {
       const { data: tasks } = await supabaseAdmin
         .from('tasks')
         .select('id, title, status, due_date, priority, estimated_minutes')
@@ -310,7 +497,7 @@ export async function POST(request: NextRequest) {
       allTasks = (tasks || []) as typeof allTasks;
     }
 
-    if (dataAccess.tasks && dataAccess.integrations) {
+    if (!useMinimalPrompt && dataAccess.tasks && dataAccess.integrations) {
       const { data: sourceItems } = await supabaseAdmin
         .from('source_items')
         .select('id, title, provider, due_date, url, imported_task_id')
@@ -332,7 +519,9 @@ export async function POST(request: NextRequest) {
     }
     latencyTimer.mark('assignments');
 
-    const taskListContext = !dataAccess.tasks
+    const taskListContext = useMinimalPrompt
+      ? ''
+      : !dataAccess.tasks
       ? 'Task access is disabled by the user.'
       : allTasks && allTasks.length > 0
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -346,12 +535,12 @@ export async function POST(request: NextRequest) {
     nextWeek.setDate(today.getDate() + 7);
 
     let calendarListContext = '';
-    if (dataAccess.calendar) {
+    if (!useMinimalPrompt && dataAccess.calendar) {
       const { data: events } = await supabaseAdmin
         .from('calendar_events')
         .select('id, title, start_time, end_time, status')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
+        .eq('is_deleted', false)
         .gte('start_time', today.toISOString())
         .lt('start_time', nextWeek.toISOString())
         .order('start_time', { ascending: true })
@@ -361,19 +550,21 @@ export async function POST(request: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? (events as any[]).map(e => `- [${e.status}] "${e.title}" (ID: ${e.id}, ${new Date(e.start_time).toLocaleString()} to ${new Date(e.end_time).toLocaleTimeString()})`).join('\n')
         : 'No upcoming calendar events for the next 7 days.';
-    } else {
+    } else if (!useMinimalPrompt) {
       calendarListContext = 'Calendar access is disabled by the user.';
     }
 
     // Get learned memory
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const memory = await getUserAIMemory(supabaseAdmin as any, user.id);
-    const memoryContext = buildMemoryContext(memory);
+    const memory = useMinimalPrompt
+      ? null
+      : await getUserAIMemory(supabaseAdmin as any, user.id);
+    const memoryContext = memory ? buildMemoryContext(memory) : '';
     latencyTimer.mark('memory');
 
     // Get assignment context if requested
     let assignmentContext = '';
-    if (assignmentId && dataAccess.canvas) {
+    if (!useMinimalPrompt && assignmentId && dataAccess.canvas) {
       const { data: assignment } = await supabaseAdmin
         .from('canvas_assignments')
         .select('*')
@@ -394,7 +585,7 @@ URL: ${a.html_url || 'N/A'}
 `;
       }
       latencyTimer.mark('assignment_context');
-    } else if (assignmentId && !dataAccess.canvas) {
+    } else if (!useMinimalPrompt && assignmentId && !dataAccess.canvas) {
       assignmentContext = 'Canvas access is disabled by the user.';
     }
 
@@ -421,7 +612,9 @@ DATA ACCESS PERMISSIONS:
 - Integrations: ${dataAccess.integrations ? 'ENABLED' : 'DISABLED'}
 ${permissionLines.length > 0 ? '\n' + permissionLines.join('\n') : ''}`;
 
-    const systemPrompt = `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and Master Planner.
+    const systemPrompt = useMinimalPrompt
+      ? buildGeneralSystemPrompt({ dataAccess })
+      : `You are Bruno, a hyper-intelligent AI Scholar, Elite Academic Advisor, and Master Planner.
 Your job is to read the user's workload (assignments, events, tasks) and architect the perfect schedule for them.
 ${v1PermissionBlock}
 
@@ -450,6 +643,10 @@ ${buildReadToolsBlock(dataAccess)}
 
 CORE MISSION:
 You are as capable as the world's most advanced LLMs. You are an elite strategic planner and academic advisor.
+
+${buildWritingQualityBlock()}
+
+${buildCodingBoundaryBlock()}
 
 BRUNO ACTION SAFETY RULES
 
@@ -510,7 +707,7 @@ RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
 ONLY use this when the user has explicitly requested an action or made a clear choice. DO NOT use this preemptively when you are still asking the user clarifying questions or offering options.
 This tool is proposal-only. It does not create, update, delete, move, or reschedule anything.
 For assignment/project/task breakdown requests, call this tool once per proposed CREATE_TASK with a distinct payload.colorCategory per task.
-For calendar event or schedule block requests, call this tool with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601 in the user's timezone) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when proposing multiple blocks.
+For calendar event or schedule block requests, call this tool with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601 in the user's timezone) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when proposing multiple blocks. payload.startTime MUST be a valid ISO 8601 datetime string in the user's timezone (e.g. "2026-07-28T09:00:00"). Never write natural language like "July 28 at 9 AM" in the startTime field.
 Do not only write the tasks in text.
 If you mention "confirm" or "create these tasks", corresponding CREATE_TASK proposal cards must exist.`,
         inputSchema: proposeActionParams,
@@ -583,6 +780,8 @@ If you mention "confirm" or "create these tasks", corresponding CREATE_TASK prop
       stream,
       headers: {
         'Server-Timing': buildServerTimingHeader(latencyTimer.complete(performance.now() - startAt)),
+        'x-bruno-assistant-mode': effectiveAssistantMode,
+        'x-bruno-assistant-requested': requestedAssistantMode,
       },
     });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

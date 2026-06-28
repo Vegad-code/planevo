@@ -1,4 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { isPaidPlan, normalizePlanType } from '@/lib/auth/plan-types';
 import { getOwnerEmails } from '@/lib/auth/owner-emails';
 import { getActiveProProviders } from './composio/client';
@@ -8,8 +10,26 @@ import {
   type IntegrationPulse,
   type ProIntegrationProvider,
 } from './types';
+import type { Database } from '@/types/database';
 
 const PRO_PROVIDERS: ProIntegrationProvider[] = ['notion', 'slack', 'linear'];
+
+/** Fast path: read mirrored connection state from Postgres (no Composio round-trip). */
+export async function getConnectedProProvidersFromDb(
+  userId: string,
+  supabase?: SupabaseClient<Database>
+): Promise<ProIntegrationProvider[]> {
+  const client = supabase ?? (await createClient());
+  const { data } = await client
+    .from('integration_accounts_public' as 'integration_accounts')
+    .select('provider, status')
+    .eq('user_id', userId)
+    .in('provider', PRO_PROVIDERS);
+
+  return (data ?? [])
+    .filter((row) => row.status === 'connected')
+    .map((row) => row.provider as ProIntegrationProvider);
+}
 
 function adminEmailSet(): Set<string> {
   return new Set(getOwnerEmails());
@@ -86,7 +106,7 @@ function buildLabel(provider: ProIntegrationProvider, openCount: number): string
 export async function getIntegrationPulses(
   userId: string
 ): Promise<IntegrationPulse[]> {
-  const connected = new Set(await getConnectedProProviders(userId));
+  const connected = new Set(await getConnectedProProvidersFromDb(userId));
 
   const { data: items } = await (supabaseAdmin as any)
     .from('source_items')

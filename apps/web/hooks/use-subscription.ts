@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useMemo } from 'react';
+import { useUserProfileOptional } from '@/components/providers/UserProfileProvider';
 import { isFreeLikePlan, isPaidPlan, normalizePlanType, type PlanType } from '@/lib/auth/plan-types';
 
 interface SubscriptionState {
@@ -16,64 +16,40 @@ interface SubscriptionState {
 
 /**
  * Hook to check the current user's subscription state.
- * Reads directly from the `users` table — no Stripe API calls.
+ * Reads from UserProfileProvider when inside dashboard; otherwise falls back to a one-time fetch.
  */
 export function useSubscription(): SubscriptionState {
-  const [state, setState] = useState<SubscriptionState>({
-    planType: 'free',
-    subscriptionStatus: 'none',
-    trialEnd: null,
-    isActive: false,
-    isTrialing: false,
-    isFree: true,
-    loading: true,
-  });
+  const cached = useUserProfileOptional();
 
-  useEffect(() => {
-    async function fetchSubscription() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        setState(prev => ({ ...prev, loading: false }));
-        return;
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: profile } = await (supabase as any)
-        .from('users')
-        .select('plan_type, subscription_status, trial_end')
-        .eq('id', user.id)
-        .single();
-
-      if (profile) {
-        const planType = normalizePlanType(profile.plan_type);
-        const isOwner = planType === 'admin';
-        
-        // Only the owner can be 'admin'
-        const effectivePlan = (planType === 'admin' && !isOwner) ? 'free' as PlanType : planType;
-        
-        const isActive = isPaidPlan(effectivePlan, isOwner);
-        const isTrialing = effectivePlan === 'trialing';
-
-        setState({
-          planType: effectivePlan,
-          subscriptionStatus: profile.subscription_status || 'none',
-          trialEnd: profile.trial_end,
-          isActive,
-          isTrialing,
-          isFree: isFreeLikePlan(effectivePlan),
-          loading: false,
-        });
-      } else {
-        setState(prev => ({ ...prev, loading: false }));
-      }
+  return useMemo((): SubscriptionState => {
+    if (!cached) {
+      return {
+        planType: 'free',
+        subscriptionStatus: 'none',
+        trialEnd: null,
+        isActive: false,
+        isTrialing: false,
+        isFree: true,
+        loading: true,
+      };
     }
 
-    fetchSubscription();
-  }, []);
+    const planType = normalizePlanType(cached.profile.plan_type);
+    const isOwner = planType === 'admin';
+    const effectivePlan = planType === 'admin' && !isOwner ? ('free' as PlanType) : planType;
+    const isActive = isPaidPlan(effectivePlan, isOwner);
+    const isTrialing = effectivePlan === 'trialing';
 
-  return state;
+    return {
+      planType: effectivePlan,
+      subscriptionStatus: cached.profile.subscription_status || 'none',
+      trialEnd: cached.profile.trial_end,
+      isActive,
+      isTrialing,
+      isFree: isFreeLikePlan(effectivePlan),
+      loading: false,
+    };
+  }, [cached]);
 }
 
 /**

@@ -66,7 +66,7 @@ export function PlanevoOnboardingEmail({
             <Section className="text-center">
               <Button
                 className="bg-honey text-ink font-semibold py-3 px-8 rounded-full no-underline inline-block"
-                href="https://planevo.co/onboarding"
+                href="https://planevo.co/dashboard"
               >
                 {isDayOne ? "Finish setup" : "Open Planevo"}
               </Button>

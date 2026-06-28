@@ -35,12 +35,102 @@ type ParsedParts = {
   minute: number;
 };
 
+const ISO_DATE_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})?$/i;
+
+const ISO_DATE_TIME_IN_TEXT_PATTERN =
+  /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})?/i;
+
 function to24Hour(hour: number, meridiem?: string | null): number {
   if (!meridiem) return hour;
   const normalized = meridiem.toLowerCase();
   if (normalized === "pm" && hour < 12) return hour + 12;
   if (normalized === "am" && hour === 12) return 0;
   return hour;
+}
+
+function validDateParts(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  millisecond: number
+) {
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59 ||
+    millisecond < 0 ||
+    millisecond > 999
+  ) {
+    return false;
+  }
+
+  const normalized = new Date(
+    Date.UTC(year, month - 1, day, hour, minute, second, millisecond)
+  );
+  return (
+    normalized.getUTCFullYear() === year &&
+    normalized.getUTCMonth() === month - 1 &&
+    normalized.getUTCDate() === day &&
+    normalized.getUTCHours() === hour &&
+    normalized.getUTCMinutes() === minute &&
+    normalized.getUTCSeconds() === second
+  );
+}
+
+export function parseIsoDateTimeToUtcIso(
+  value: unknown,
+  timeZone: string
+): string | null {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  const match = trimmed.match(ISO_DATE_TIME_PATTERN);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = match[6] ? Number(match[6]) : 0;
+  const millisecond = match[7]
+    ? Number(match[7].slice(0, 3).padEnd(3, "0"))
+    : 0;
+  const zone = match[8];
+
+  if (
+    !validDateParts(year, month, day, hour, minute, second, millisecond)
+  ) {
+    return null;
+  }
+
+  if (zone) {
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
+  const localIso = localDateTimeToUtcIso(
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    timeZone
+  );
+  if (second === 0 && millisecond === 0) return localIso;
+  return new Date(
+    new Date(localIso).getTime() + second * 1000 + millisecond
+  ).toISOString();
 }
 
 function inferYear(
@@ -74,42 +164,39 @@ function parseMonthDayTime(text: string): ParsedParts | null {
   const monthPattern =
     "(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)";
 
-  const monthFirst = new RegExp(
-    `${monthPattern}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\s+(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?`,
-    "i"
+  // Parse the date (month + day [+ year]) independently of the time so that
+  // arbitrary words between the date and time (e.g. "july 28 to go to my
+  // meeting at 9am") don't prevent a match.
+  const dateMatch = text.match(
+    new RegExp(
+      `${monthPattern}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`,
+      "i"
+    )
   );
-  const timeFirst = new RegExp(
-    `(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)\\s+(?:on\\s+)?${monthPattern}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`,
-    "i"
-  );
+  if (!dateMatch) return null;
+  const month = MONTHS[dateMatch[1].toLowerCase()];
+  if (!month) return null;
+  const day = Number(dateMatch[2]);
+  const year = dateMatch[3] ? Number(dateMatch[3]) : undefined;
 
-  const monthFirstMatch = text.match(monthFirst);
-  if (monthFirstMatch) {
-    const month = MONTHS[monthFirstMatch[1].toLowerCase()];
-    if (!month) return null;
-    return {
-      month,
-      day: Number(monthFirstMatch[2]),
-      year: monthFirstMatch[3] ? Number(monthFirstMatch[3]) : undefined,
-      hour: to24Hour(Number(monthFirstMatch[4]), monthFirstMatch[6]),
-      minute: monthFirstMatch[5] ? Number(monthFirstMatch[5]) : 0,
-    };
+  // Parse the time independently. Prefer an explicit am/pm time anywhere in the
+  // text; otherwise accept an "at <hour>" phrase (defaults to that hour).
+  const meridiemTime = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+  const atTime = text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+
+  let hour: number;
+  let minute: number;
+  if (meridiemTime) {
+    hour = to24Hour(Number(meridiemTime[1]), meridiemTime[3]);
+    minute = meridiemTime[2] ? Number(meridiemTime[2]) : 0;
+  } else if (atTime) {
+    hour = to24Hour(Number(atTime[1]), atTime[3]);
+    minute = atTime[2] ? Number(atTime[2]) : 0;
+  } else {
+    return null;
   }
 
-  const timeFirstMatch = text.match(timeFirst);
-  if (timeFirstMatch) {
-    const month = MONTHS[timeFirstMatch[4].toLowerCase()];
-    if (!month) return null;
-    return {
-      month,
-      day: Number(timeFirstMatch[5]),
-      year: timeFirstMatch[6] ? Number(timeFirstMatch[6]) : undefined,
-      hour: to24Hour(Number(timeFirstMatch[1]), timeFirstMatch[3]),
-      minute: timeFirstMatch[2] ? Number(timeFirstMatch[2]) : 0,
-    };
-  }
-
-  return null;
+  return { month, day, year, hour, minute };
 }
 
 export function inferEventDateTimeFromText(
@@ -121,15 +208,13 @@ export function inferEventDateTimeFromText(
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return null;
 
-  const isoMatch = normalized.match(
-    /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/
-  );
+  const isoMatch = normalized.match(ISO_DATE_TIME_IN_TEXT_PATTERN);
   if (isoMatch) {
-    const start = new Date(isoMatch[0]);
-    if (!Number.isNaN(start.getTime())) {
-      const end = new Date(start.getTime() + durationMinutes * 60_000);
+    const startTime = parseIsoDateTimeToUtcIso(isoMatch[0], timeZone);
+    if (startTime) {
+      const end = new Date(new Date(startTime).getTime() + durationMinutes * 60_000);
       return {
-        startTime: start.toISOString(),
+        startTime,
         endTime: end.toISOString(),
         durationMinutes,
       };

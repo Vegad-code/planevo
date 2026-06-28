@@ -54,6 +54,18 @@ export function getDueOnDateTasks(tasks: Task[], date: Date): Task[] {
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime());
 }
 
+/** All tasks with a due date on `date`, including completed (for progress stats). */
+export function getAllTasksDueOnDate(tasks: Task[], date: Date): Task[] {
+  const { start, end } = dayBounds(date);
+  return tasks
+    .filter((t) => {
+      if (!t.due_date) return false;
+      const due = new Date(t.due_date);
+      return due >= start && due <= end;
+    })
+    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime());
+}
+
 export function getRemainingBlocks(
   blocks: ParsedScheduleBlock[],
   now = new Date()

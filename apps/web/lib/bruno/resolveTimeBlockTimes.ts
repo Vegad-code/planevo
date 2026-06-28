@@ -1,4 +1,7 @@
-import { inferEventDateTimeFromText } from "@/lib/bruno/inferEventDateTime";
+import {
+  inferEventDateTimeFromText,
+  parseIsoDateTimeToUtcIso,
+} from "@/lib/bruno/inferEventDateTime";
 
 type TimeBlockPayload = {
   startTime?: string;
@@ -34,34 +37,61 @@ export function resolveTimeBlockTimes(
     payload.duration_minutes ??
     payload.estimatedMinutes ??
     60;
+  const timeZone = options.timeZone ?? "UTC";
 
   if (startRaw) {
-    const start = new Date(startRaw);
-    if (Number.isNaN(start.getTime())) {
-      throw new Error("Invalid start time on proposal");
-    }
+    const startIso = parseIsoDateTimeToUtcIso(startRaw, timeZone);
 
-    let end: Date;
-    if (endRaw) {
-      end = new Date(endRaw);
-      if (Number.isNaN(end.getTime())) {
-        throw new Error("Invalid end time on proposal");
+    if (startIso) {
+      const start = new Date(startIso);
+      let endIso: string | null = null;
+      if (endRaw) {
+        endIso = parseIsoDateTimeToUtcIso(endRaw, timeZone);
+        if (!endIso) {
+          throw new Error("Invalid end time on proposal");
+        }
       }
-    } else {
-      end = new Date(start.getTime() + durationMinutes * 60_000);
+
+      let end = endIso
+        ? new Date(endIso)
+        : new Date(start.getTime() + durationMinutes * 60_000);
+      if (end.getTime() <= start.getTime()) {
+        end = new Date(start.getTime() + durationMinutes * 60_000);
+      }
+      return {
+        startTime: startIso,
+        endTime: end.toISOString(),
+      };
     }
 
-    if (end.getTime() <= start.getTime()) {
-      end = new Date(start.getTime() + durationMinutes * 60_000);
+    // startRaw exists but is not strict ISO (e.g. "July 28 at 9 AM").
+    // Fall through to text inference using it as an additional hint.
+    const hintTexts = [
+      startRaw,
+      ...(options.hintTexts ?? []),
+      options.title ?? "",
+      options.description ?? "",
+    ].filter(Boolean);
+
+    const inferred = inferEventDateTimeFromText(
+      hintTexts.join(" "),
+      timeZone,
+      options.referenceDate ?? new Date(),
+      durationMinutes
+    );
+
+    if (!inferred) {
+      throw new Error(
+        "Could not determine the event date and time. Ask Bruno to regenerate the proposal with a specific date and time."
+      );
     }
 
     return {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      startTime: inferred.startTime,
+      endTime: inferred.endTime,
     };
   }
 
-  const timeZone = options.timeZone ?? "UTC";
   const hintTexts = [
     ...(options.hintTexts ?? []),
     options.title ?? "",

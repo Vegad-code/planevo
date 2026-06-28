@@ -86,4 +86,34 @@ describe('deriveBrunoProgressState', () => {
     expect(state.progressSummary).toBe('Done');
     expect(state.assistantAnswerText).toBe('Here is your plan.');
   });
+
+  it('sets isBrunoFinalizing when generate step is active', () => {
+    const messages: BrunoUIMessage[] = [
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'data-bruno-progress',
+            data: {
+              phase: 'working',
+              summary: 'Writing response',
+              steps: [
+                { id: 'read', label: 'Reading your message', status: 'done' },
+                { id: 'generate', label: 'Writing response', status: 'active' },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+
+    const state = deriveBrunoProgressState({
+      messages,
+      chatStatus: 'streaming',
+    });
+
+    expect(state.isBrunoWorking).toBe(true);
+    expect(state.isBrunoFinalizing).toBe(true);
+  });
 });

@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { detectAppAction } from '@/lib/bruno/detectAppAction';
 import { detectObviousMode } from '@/lib/bruno/detectObviousMode';
-import { MODEL_POLICY, resolveBrunoGenerationPlan } from '@/lib/bruno/modelPolicy';
+import {
+  BRUNO_DOCUMENTS_OUTPUT_TOKENS,
+  BRUNO_MODELS,
+  MODEL_POLICY,
+  resolveBrunoGenerationPlan,
+} from '@/lib/bruno/modelPolicy';
 import { estimateModelCostCents } from '@/lib/bruno/costEstimator';
 import { checkDeterministicBrunoSafety } from '@/lib/bruno/safety';
+import { hasDetectorEvasionRequest } from '@/lib/bruno/conversationRouting';
 
 describe('Bruno V2 deterministic routing', () => {
   it.each([
@@ -22,7 +28,14 @@ describe('Bruno V2 deterministic routing', () => {
     ['I have three missing assignments and two tests. Fix my week.', 'deadline_rescue'],
     ['Teach me AP Macro Unit 1 and quiz me', 'academic_tutoring'],
     ['Make notes for AP Biology unit 1', 'notes'],
+    ['Write me a five paragraph essay about Macbeth', 'document_writing'],
+    ['Draft a cover letter for a summer internship', 'document_writing'],
+    ['Write a report about renewable energy', 'document_writing'],
+    ['Compose an email asking my teacher for an extension', 'document_writing'],
+    ['Write my intro for this history paper', 'document_writing'],
+    ['Make my essay undetectable by AI detectors', 'document_writing'],
     ['Help me wire Supabase auth into this API route', 'coding_help'],
+    ['Can you code me a whole website then', 'coding_help'],
     ['Break down my research paper into steps for the next two weeks', 'project_breakdown'],
     ['I wasted the whole day and feel behind', 'emotional_recovery'],
     ['How many Deep Bruno requests do I have?', 'account_or_billing'],
@@ -37,6 +50,14 @@ describe('Bruno V2 deterministic routing', () => {
   ])('does not classify fancy wording as deep: %s', (message) => {
     const mode = detectObviousMode(message)?.mode;
     expect(['task_management', 'daily_planning', undefined]).toContain(mode);
+  });
+
+  it('detects AI-detector evasion as a deterministic safety boundary', () => {
+    expect(
+      hasDetectorEvasionRequest(
+        'Make my essay impossible to detect with GPTZero and no watermark'
+      )
+    ).toBe(true);
   });
 });
 
@@ -53,6 +74,13 @@ describe('Bruno V2 model policy', () => {
   it('keeps app actions on the Standard model without an LLM router', () => {
     expect(MODEL_POLICY.app_action.tier).toBe('standard');
     expect(MODEL_POLICY.app_action.includeTasks).toBe(true);
+  });
+
+  it('keeps the existing Bruno model defaults unchanged', () => {
+    expect(BRUNO_MODELS.ROUTER).toBe('gpt-5.4-nano');
+    expect(BRUNO_MODELS.STANDARD).toBe('gpt-4o-mini');
+    expect(BRUNO_MODELS.MEDIUM).toBe('gpt-5.4-nano');
+    expect(BRUNO_MODELS.DEEP).toBe('gpt-5.4-mini');
   });
 
   it('uses a free onboarding credit for an eligible deep request', () => {
@@ -101,16 +129,79 @@ describe('Bruno V2 model policy', () => {
     expect(result.policy.includeCanvas).toBe(false);
   });
 
-  it('warns Pro at 120 and falls back at the 150 request cap', () => {
+  it('keeps coding help on Standard with a small output cap', () => {
+    const result = resolveBrunoGenerationPlan({
+      decision: {
+        mode: 'coding_help',
+        confidence: 0.9,
+        needsCalendarContext: false,
+        needsTaskContext: false,
+        needsCanvasContext: false,
+        estimatedOutputSize: 'medium',
+        upgradeMoment: false,
+        rationale: 'coding boundary request',
+      },
+      entitlement: {
+        ...freeNoCredits,
+        isPro: true,
+        monthlyDeepRequestsRemaining: 30,
+      },
+    });
+
+    expect(result.tier).toBe('standard');
+    expect(result.shouldReserveDeepAccess).toBe(false);
+    expect(result.shouldShowUpgradeCard).toBe(false);
+    expect(result.policy.maxOutputTokens).toBe(700);
+  });
+
+  it('uses Standard document writing for free and existing Deep tier for Pro', () => {
     const decision = {
-      mode: 'coding_help' as const,
+      mode: 'document_writing' as const,
       confidence: 0.9,
       needsCalendarContext: false,
       needsTaskContext: false,
-      needsCanvasContext: false,
+      needsCanvasContext: true,
+      estimatedOutputSize: 'long' as const,
+      upgradeMoment: false,
+      rationale: 'document writing request',
+    };
+
+    const free = resolveBrunoGenerationPlan({
+      decision,
+      entitlement: freeNoCredits,
+    });
+    expect(free.tier).toBe('standard');
+    expect(free.model).toBe(BRUNO_MODELS.STANDARD);
+    expect(free.policy.maxOutputTokens).toBe(
+      BRUNO_DOCUMENTS_OUTPUT_TOKENS.free
+    );
+
+    const pro = resolveBrunoGenerationPlan({
+      decision,
+      entitlement: {
+        ...freeNoCredits,
+        isPro: true,
+        monthlyDeepRequestsRemaining: 30,
+      },
+    });
+    expect(pro.tier).toBe('deep');
+    expect(pro.model).toBe(BRUNO_MODELS.DEEP);
+    expect(pro.shouldReserveDeepAccess).toBe(false);
+    expect(pro.policy.maxOutputTokens).toBe(
+      BRUNO_DOCUMENTS_OUTPUT_TOKENS.pro
+    );
+  });
+
+  it('warns Pro at 120 and falls back at the 150 request cap', () => {
+    const decision = {
+      mode: 'deadline_rescue' as const,
+      confidence: 0.9,
+      needsCalendarContext: true,
+      needsTaskContext: true,
+      needsCanvasContext: true,
       estimatedOutputSize: 'long' as const,
       upgradeMoment: true,
-      rationale: 'coding implementation request',
+      rationale: 'deadline rescue request',
     };
 
     const warning = resolveBrunoGenerationPlan({

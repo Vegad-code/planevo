@@ -294,15 +294,40 @@ export default function DailyPlanScreen() {
 
 
   const completeTask = async (taskId: string) => {
-    // Dopamine hit!
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    
-    await supabase
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              completed: true,
+              completed_at: new Date().toISOString(),
+              status: 'done',
+            }
+          : t
+      )
+    );
+
+    const { error } = await supabase
       .from('tasks')
       .update({ completed: true, completed_at: new Date().toISOString(), status: 'done' })
       .eq('id', taskId);
+
+    if (error) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, completed: false, completed_at: null, status: 'todo' }
+            : t
+        )
+      );
+      Alert.alert('Could not complete task', 'Please try again.');
+      return;
+    }
+
     fetchAll();
   };
 

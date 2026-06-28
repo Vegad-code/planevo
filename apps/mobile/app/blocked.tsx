@@ -26,7 +26,7 @@ export default function BlockedScreen() {
         </View>
         <Text style={[styles.title, { color: colors.text }]}>Setup Required</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Please complete your onboarding or renew your subscription on the Planevo web app before using the mobile companion.
+          Please renew your subscription on the Planevo web app before using the mobile companion.
         </Text>
 
         <View style={styles.actions}>

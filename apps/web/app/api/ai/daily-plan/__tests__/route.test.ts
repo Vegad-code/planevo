@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { NextRequest } from 'next/server';
+import { generateDailyPlan } from '@/lib/ai/generate-daily-plan';
 
-// Mock dependencies
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockResolvedValue({
-    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) }
-  })
+vi.mock('@/lib/ai/generate-daily-plan', () => ({
+  generateDailyPlan: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -14,95 +12,54 @@ vi.mock('@/lib/supabase/admin', () => ({
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              gte: vi.fn().mockReturnValue({
-                lte: vi.fn().mockResolvedValue({ data: [] })
-              })
-            })
-          }),
-          is: vi.fn().mockReturnValue({
-            gte: vi.fn().mockReturnValue({
-              lte: vi.fn().mockResolvedValue({ data: [] })
-            })
-          }),
-          single: vi.fn().mockResolvedValue({ data: null })
-        })
+          single: vi.fn().mockResolvedValue({ data: { plan_type: 'free' } }),
+        }),
       }),
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              gte: vi.fn().mockReturnValue({
-                lte: vi.fn().mockResolvedValue({ error: null })
-              })
-            })
-          })
-        })
-      }),
-      insert: vi.fn().mockResolvedValue({ error: null })
-    })
-  }
+    }),
+  },
 }));
 
 vi.mock('@/lib/auth/origin-guard', () => ({
-  isAllowedOriginOrBearer: vi.fn().mockReturnValue(true)
+  isAllowedOriginOrBearer: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock('@/lib/auth/get-user', () => ({
   getAuthenticatedUser: vi.fn().mockResolvedValue({
     user: { id: 'test-user', email: 'test@example.com' },
     error: null,
-    authMethod: 'cookie'
-  })
+    authMethod: 'cookie',
+  }),
 }));
 
 vi.mock('@/lib/auth/rateLimit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  checkRateLimitForUser: vi.fn().mockResolvedValue({ allowed: true })
-}));
-
-vi.mock('@/lib/ai/orchestrator', () => ({
-  getBrunoMasterContext: vi.fn().mockResolvedValue({
-    tasks: [{ id: 'task-1', title: 'Test task', estimated_minutes: 30 }],
-    memory: {},
-    calendarEvents: [],
-    memoryContext: 'Test memory context'
-  })
+  checkRateLimitForUser: vi.fn().mockResolvedValue({ allowed: true }),
 }));
 
 describe('Daily Plan API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.mocked(generateDailyPlan).mockResolvedValue({
       ok: true,
-      json: vi.fn().mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                schedule: [
-                  {
-                    id: 'task-1',
-                    title: 'Test task',
-                    suggested_start: new Date(Date.now() + 3600000).toISOString(),
-                    suggested_end: new Date(Date.now() + 7200000).toISOString()
-                  }
-                ],
-                message: 'Here is your plan'
-              })
-            }
-          }
-        ]
-      })
+      plan: [
+        {
+          id: 'task-1',
+          title: 'Test task',
+          suggested_start: new Date(Date.now() + 3_600_000).toISOString(),
+          suggested_end: new Date(Date.now() + 7_200_000).toISOString(),
+        },
+      ],
+      overflow: 0,
+      summary: 'Test summary',
+      message: 'Here is your plan',
+      energyLevel: 'medium',
     });
-    process.env.OPENAI_API_KEY = 'test-key';
   });
 
   it('generates a daily plan successfully', async () => {
     const req = new NextRequest('http://localhost:3000/api/ai/daily-plan', {
       method: 'POST',
-      body: JSON.stringify({ energyLevel: 'medium' })
+      body: JSON.stringify({ energyLevel: 'medium' }),
     });
 
     const res = await POST(req);
@@ -112,14 +69,21 @@ describe('Daily Plan API', () => {
     expect(data.schedule).toBeDefined();
     expect(data.schedule.length).toBe(1);
     expect(data.schedule[0].title).toBe('Test task');
+    expect(generateDailyPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'test-user',
+        energyLevel: 'medium',
+        trigger: 'manual',
+      })
+    );
   });
 
-  it('handles OpenAI API failures gracefully', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false });
+  it('handles generation failures gracefully', async () => {
+    vi.mocked(generateDailyPlan).mockRejectedValueOnce(new Error('AI API failure'));
 
     const req = new NextRequest('http://localhost:3000/api/ai/daily-plan', {
       method: 'POST',
-      body: JSON.stringify({ energyLevel: 'medium' })
+      body: JSON.stringify({ energyLevel: 'medium' }),
     });
 
     const res = await POST(req);

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { rpcMock, fromMock } = vi.hoisted(() => ({
+const { rpcMock, fromMock, getUserPlanByIdMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
   fromMock: vi.fn(),
+  getUserPlanByIdMock: vi.fn().mockResolvedValue({ plan: 'free' }),
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -14,10 +15,14 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 vi.mock('@/lib/auth/subscription', () => ({
   getUserPlan: vi.fn(),
-  getUserPlanById: vi.fn().mockResolvedValue({ plan: 'free' }),
+  getUserPlanById: getUserPlanByIdMock,
 }));
 
-import { checkRateLimitForUser } from '@/lib/auth/rateLimit';
+import {
+  checkBrunoDocumentsMonthlyQuota,
+  checkRateLimitForUser,
+  consumeBrunoDocumentsQuota,
+} from '@/lib/auth/rateLimit';
 
 function mockAiUsageLogsTable(options: {
   count?: number;
@@ -32,23 +37,23 @@ function mockAiUsageLogsTable(options: {
 
   fromMock.mockImplementation((table: string) => {
     if (table !== 'ai_usage_logs') throw new Error(`unexpected table ${table}`);
-    const chain = {
+    const chain: {
+      eq: ReturnType<typeof vi.fn>;
+      gte: ReturnType<typeof vi.fn>;
+      order: ReturnType<typeof vi.fn>;
+      limit: ReturnType<typeof vi.fn>;
+      maybeSingle: ReturnType<typeof vi.fn>;
+    } = {
       eq: vi.fn(),
       gte: vi.fn(),
       order: vi.fn(),
       limit: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue(
+        existingRequestId ? { data: { id: existingRequestId } } : { data: null }
+      ),
     };
 
-    chain.eq.mockImplementation((column: string) => {
-      if (column === 'request_id') {
-        return {
-          maybeSingle: vi.fn().mockResolvedValue(
-            existingRequestId ? { data: { id: existingRequestId } } : { data: null }
-          ),
-        };
-      }
-      return chain;
-    });
+    chain.eq.mockReturnValue(chain);
     chain.gte.mockReturnValue(chain);
     chain.order.mockReturnValue(chain);
     chain.limit.mockResolvedValue({
@@ -72,6 +77,7 @@ function mockAiUsageLogsTable(options: {
         return chain;
       }),
       insert: vi.fn().mockReturnValue({
+        error: null,
         select: vi.fn().mockReturnValue({
           single: vi.fn().mockResolvedValue({ data: { id: insertedId }, error: null }),
         }),
@@ -150,5 +156,66 @@ describe('checkRateLimitForUser', () => {
     );
 
     expect(result).toMatchObject({ allowed: true, usageLogId: 'fallback-1' });
+  });
+});
+
+describe('Bruno document-writing quota', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUserPlanByIdMock.mockResolvedValue({ plan: 'free' });
+    mockAiUsageLogsTable({});
+  });
+
+  it('allows free users while monthly document quota remains', async () => {
+    mockAiUsageLogsTable({ count: 3 });
+
+    const result = await checkBrunoDocumentsMonthlyQuota(
+      'user-1',
+      'user@example.com'
+    );
+
+    expect(result).toMatchObject({
+      allowed: true,
+      remaining: 5,
+      limit: 8,
+    });
+  });
+
+  it('denies free users at the monthly document quota', async () => {
+    mockAiUsageLogsTable({ count: 8 });
+
+    const result = await checkBrunoDocumentsMonthlyQuota(
+      'user-1',
+      'user@example.com'
+    );
+
+    expect(result).toMatchObject({
+      allowed: false,
+      error: 'Documents Limit Reached',
+      remaining: 0,
+      limit: 8,
+    });
+  });
+
+  it('allows paid users without a monthly document cap', async () => {
+    getUserPlanByIdMock.mockResolvedValue({ plan: 'premium' });
+    mockAiUsageLogsTable({ count: 99 });
+
+    const result = await checkBrunoDocumentsMonthlyQuota(
+      'user-1',
+      'user@example.com'
+    );
+
+    expect(result).toEqual({ allowed: true });
+  });
+
+  it('does not double-consume document quota for the same request id', async () => {
+    mockAiUsageLogsTable({ existingRequestId: 'existing-doc-log' });
+
+    const result = await consumeBrunoDocumentsQuota('user-1', 'request-1');
+
+    expect(result).toEqual({ ok: true });
+    const insert = fromMock.mock.results[0]?.value.insert;
+    expect(insert).not.toHaveBeenCalled();
   });
 });

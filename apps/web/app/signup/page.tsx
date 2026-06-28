@@ -33,7 +33,7 @@ function SignupForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams?.get('redirect');
   const referralCode = searchParams?.get('ref');
-  const nextPath = redirect ? `/${redirect}` : '/onboarding';
+  const nextPath = redirect ? `/${redirect}` : '/dashboard';
 
   const supabase = createClient();
 

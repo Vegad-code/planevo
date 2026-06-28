@@ -347,6 +347,26 @@ export const BRUNO_NOTES_MONTHLY_LIMITS: Record<PlanType, number | null> = {
 
 const BRUNO_NOTES_FEATURE = 'bruno-notes';
 
+export const BRUNO_DOCUMENTS_MONTHLY_LIMITS: Record<PlanType, number | null> = {
+  free: Number(process.env.BRUNO_DOCUMENTS_FREE_MONTHLY_LIMIT ?? 8),
+  trialing: null,
+  premium: null,
+  student: null,
+  admin: null,
+  canceled: Number(process.env.BRUNO_DOCUMENTS_FREE_MONTHLY_LIMIT ?? 8),
+};
+
+const BRUNO_DOCUMENTS_FEATURE = 'bruno-documents';
+
+function monthlyLimitForPlan(
+  limits: Record<PlanType, number | null>,
+  plan: PlanType
+): number | null {
+  return Object.prototype.hasOwnProperty.call(limits, plan)
+    ? limits[plan]
+    : limits.free;
+}
+
 /** Monthly notes quota for free users. Pro returns allowed: true without consuming. */
 export async function checkBrunoNotesMonthlyQuota(
   userId: string,
@@ -359,7 +379,7 @@ export async function checkBrunoNotesMonthlyQuota(
   limit?: number;
 }> {
   const { plan } = await getUserPlanById(userId, email);
-  const limit = BRUNO_NOTES_MONTHLY_LIMITS[plan] ?? BRUNO_NOTES_MONTHLY_LIMITS.free;
+  const limit = monthlyLimitForPlan(BRUNO_NOTES_MONTHLY_LIMITS, plan);
 
   if (limit === null) {
     return { allowed: true };
@@ -429,6 +449,101 @@ export async function consumeBrunoNotesQuota(
     return { ok: true };
   } catch (err) {
     console.error('Failed to consume Bruno notes quota:', err);
+    return { ok: false };
+  }
+}
+
+/** Monthly document-writing quota for free users. Pro returns allowed: true. */
+export async function checkBrunoDocumentsMonthlyQuota(
+  userId: string,
+  email?: string | null
+): Promise<{
+  allowed: boolean;
+  error?: string;
+  message?: string;
+  remaining?: number;
+  limit?: number;
+}> {
+  const { plan } = await getUserPlanById(userId, email);
+  const limit = monthlyLimitForPlan(BRUNO_DOCUMENTS_MONTHLY_LIMITS, plan);
+
+  if (limit === null) {
+    return { allowed: true };
+  }
+
+  try {
+    const thirtyDaysAgo = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const { count, error } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('feature', BRUNO_DOCUMENTS_FEATURE)
+      .gte('created_at', thirtyDaysAgo);
+
+    if (error) throw error;
+
+    const used = count ?? 0;
+    if (used >= limit) {
+      return {
+        allowed: false,
+        error: 'Documents Limit Reached',
+        message: `You've used your ${limit} free document-writing sessions this month. Upgrade for longer document drafts with Deep Bruno, or try again next month.`,
+        remaining: 0,
+        limit,
+      };
+    }
+
+    return { allowed: true, remaining: limit - used, limit };
+  } catch (err) {
+    console.error('Bruno documents quota check failed:', err);
+    return {
+      allowed: false,
+      error: 'Rate Limit Unavailable',
+      message:
+        'Document-writing usage checks are temporarily unavailable. Please try again shortly.',
+    };
+  }
+}
+
+export async function consumeBrunoDocumentsQuota(
+  userId: string,
+  requestId?: string
+): Promise<{ ok: boolean }> {
+  try {
+    const documentRequestId = requestId
+      ? `${requestId}-documents`
+      : undefined;
+
+    if (documentRequestId) {
+      const { data: existing } = await supabaseAdmin
+        .from('ai_usage_logs')
+        .select('id')
+        .eq('request_id', documentRequestId)
+        .eq('feature', BRUNO_DOCUMENTS_FEATURE)
+        .maybeSingle();
+      if (existing?.id) {
+        return { ok: true };
+      }
+    }
+
+    const { error } = await supabaseAdmin.from('ai_usage_logs').insert({
+      user_id: userId,
+      feature: BRUNO_DOCUMENTS_FEATURE,
+      ...(documentRequestId
+        ? { request_id: documentRequestId, status: 'completed' }
+        : {}),
+    });
+
+    if (error) {
+      console.error('Failed to consume Bruno documents quota:', error);
+      return { ok: false };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    console.error('Failed to consume Bruno documents quota:', err);
     return { ok: false };
   }
 }

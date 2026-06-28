@@ -35,7 +35,7 @@ export async function exportUserDataAction(): Promise<ExportUserDataResult> {
       supabase
         .from('users')
         .select(
-          'id, email, name, preferred_name, plan_type, onboarding_completed, scheduling_preferences, created_at, updated_at'
+          'id, email, name, preferred_name, plan_type, onboarding_complete, scheduling_preferences, created_at, updated_at'
         )
         .eq('id', userId)
         .maybeSingle(),

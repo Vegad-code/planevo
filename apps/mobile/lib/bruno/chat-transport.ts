@@ -1,5 +1,9 @@
 import { DefaultChatTransport } from 'ai';
 import { supabase } from '@/lib/supabase';
+import type {
+  BrunoAssistantMode,
+  BrunoClarificationResponse,
+} from './types';
 
 function getApiUrl(): string {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -18,4 +22,22 @@ export function createBrunoChatTransport() {
       return { Authorization: `Bearer ${token}` };
     },
   });
+}
+
+export function createBrunoChatRequestBody({
+  conversationId,
+  assistantMode,
+  clarificationResponse,
+}: {
+  conversationId: string | null;
+  assistantMode: BrunoAssistantMode;
+  clarificationResponse?: BrunoClarificationResponse;
+}) {
+  return {
+    conversationId,
+    assistantMode,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    localTime: new Date().toLocaleString(),
+    ...(clarificationResponse ? { clarificationResponse } : {}),
+  };
 }

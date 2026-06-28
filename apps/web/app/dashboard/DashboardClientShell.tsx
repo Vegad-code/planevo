@@ -12,8 +12,10 @@ import {
   PlanevoLoader,
 } from '@/components/branding/PlanevoLoader';
 import { BrunoProvider } from '@/components/bruno/BrunoProvider';
-import { BrunoShell } from '@/components/bruno/BrunoShell';
+import { BrunoDock } from '@/components/bruno/BrunoDock';
+import { NotificationProvider } from '@/components/notifications/NotificationProvider';
 import { ProIntegrationsProvider } from '@/components/providers/ProIntegrationsProvider';
+import { QueryProvider } from '@/components/providers/QueryProvider';
 import {
   DASHBOARD_SHELL_SESSION_FLAG,
   setSessionFlag,
@@ -46,46 +48,51 @@ export default function DashboardClientShell({
   }, []);
 
   return (
+    <QueryProvider>
     <ProIntegrationsProvider>
       <BrunoProvider>
-        <div
-          className={`bg-cream text-(--color-ink) transition-colors duration-300 ${
-            isCalendar ? 'h-screen overflow-hidden' : 'min-h-screen'
-          }`}
-        >
-          <Sidebar />
-
-          <main
-            className={`
-            transition-all duration-300 ease-in-out
-            ${isCalendar ? 'h-screen overflow-hidden' : 'min-h-screen'}
-            ${mainOffset}
-          `}
+        <NotificationProvider>
+          <div
+            className={`bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors duration-300 ${
+              isCalendar ? 'h-screen overflow-hidden' : 'min-h-screen'
+            }`}
           >
-            <div
-              className={`w-full mx-auto transition-all duration-300 ease-in-out ${
-                isCalendar
-                  ? 'h-full flex flex-col min-h-0 p-3 lg:p-4 max-w-none'
-                  : `p-6 lg:p-8 ${sidebarCollapsed ? 'max-w-400' : 'max-w-5xl'}`
-              }`}
+            <Sidebar />
+
+            <main
+              className={`
+              transition-all duration-300 ease-in-out
+              ${isCalendar ? 'h-screen overflow-hidden' : 'min-h-screen'}
+              ${mainOffset}
+              pb-24
+            `}
             >
-              {children}
-            </div>
-          </main>
+              <div
+                className={`w-full mx-auto transition-all duration-300 ease-in-out ${
+                  isCalendar
+                    ? 'h-full flex flex-col min-h-0 pt-2 px-3 pb-3 lg:px-4 lg:pb-4 max-w-none'
+                    : `p-6 lg:p-8 ${sidebarCollapsed ? 'max-w-400' : 'max-w-5xl'}`
+                }`}
+              >
+                {children}
+              </div>
+            </main>
 
-          <QuickCaptureModal />
-          <BrunoShell />
-        </div>
-
-        {showLoader && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111113]">
-            <PlanevoLoader
-              mode={loaderMode}
-              onAnimationFinished={handleLoaderFinished}
-            />
+            <QuickCaptureModal />
+            <BrunoDock />
           </div>
-        )}
+
+          {showLoader && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111113]">
+              <PlanevoLoader
+                mode={loaderMode}
+                onAnimationFinished={handleLoaderFinished}
+              />
+            </div>
+          )}
+        </NotificationProvider>
       </BrunoProvider>
     </ProIntegrationsProvider>
+    </QueryProvider>
   );
 }

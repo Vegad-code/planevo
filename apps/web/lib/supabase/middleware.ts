@@ -46,7 +46,6 @@ export async function updateSession(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/auth/callback',
-    '/onboarding',
     '/pricing',
     '/terms',
     '/privacy',
@@ -76,14 +75,6 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Removed auto-redirect from auth pages so users can sign into another account if they choose
-
-  // Onboarding & Subscription Gate: Protect the app from unauthorized access
-  // Database checks have been moved to the client/layout level to prevent blocking navigation.
-  if (user && !['/', '/onboarding', '/pricing'].includes(request.nextUrl.pathname) && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.startsWith('/_next')) {
-    // If we wanted to enforce strict server-side redirects without DB queries,
-    // we would check for a JWT claim or a custom cookie here.
-    // For now, we allow the request to proceed to the DashboardLayout which performs the onboarding check securely.
-  }
 
   return supabaseResponse;
 }

@@ -155,4 +155,93 @@ describe('Chat API', () => {
       })
     );
   });
+
+  it('accepts clarification responses and passes clarified context to V2', async () => {
+    getBrunoRoutingFlagsMock.mockReturnValue({
+      routingV2Enabled: true,
+    });
+
+    const clarificationResponse = {
+      cardId: 'clarify-1',
+      originalPrompt: 'Plan my afternoon',
+      answers: [
+        {
+          questionId: 'q1',
+          question: 'What matters most?',
+          answer: 'Finish homework',
+          source: 'option',
+        },
+      ],
+    };
+
+    const req = new NextRequest('http://localhost:3000/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        conversationId: '11111111-1111-4111-8111-111111111111',
+        clarificationResponse,
+        messages: [
+          {
+            role: 'user',
+            content: 'Here is the context Bruno asked for',
+            parts: [
+              { type: 'text', text: 'Here is the context Bruno asked for' },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(handleBrunoChatV2Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clarificationResponse,
+        messages: [
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining('Original request:\nPlan my afternoon'),
+            parts: [
+              {
+                type: 'text',
+                text: expect.stringContaining('Finish homework'),
+              },
+            ],
+          }),
+        ],
+      })
+    );
+  });
+
+  it('short-circuits detector-evasion document requests without model generation', async () => {
+    getBrunoRoutingFlagsMock.mockReturnValue({
+      routingV2Enabled: true,
+    });
+
+    const req = new NextRequest('http://localhost:3000/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            content:
+              'Make my essay impossible to detect with AI detectors and no watermark',
+            parts: [
+              {
+                type: 'text',
+                text: 'Make my essay impossible to detect with AI detectors and no watermark',
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-bruno-safety')).toBe('detector_evasion');
+    expect(handleBrunoChatV2Mock).not.toHaveBeenCalled();
+    expect(checkRateLimitForUser).not.toHaveBeenCalled();
+  });
 });

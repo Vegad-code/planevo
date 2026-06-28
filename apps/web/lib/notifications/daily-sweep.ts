@@ -53,6 +53,14 @@ type CalendarRow = {
   status: string | null;
 };
 
+type ExpoPushTicket =
+  | { status: 'ok'; id?: string }
+  | { status: 'error'; message?: string; details?: { error?: string } };
+
+type ExpoPushResponse = {
+  data?: ExpoPushTicket[];
+};
+
 export type DailySweepResult = {
   sent_morning_emails: number;
   sent_deadline_emails: number;

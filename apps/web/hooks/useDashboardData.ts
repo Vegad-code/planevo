@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -12,6 +13,8 @@ import type { ScheduleBlock } from '@/lib/ai/agentic-scheduler';
 import type { CalendarEvent } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import { useOnBecameVisible } from '@/hooks/useDocumentVisible';
+import { useTaskOptimisticEvents } from '@/hooks/useTaskOptimisticEvents';
+import { queryKeys } from '@/lib/query/keys';
 import {
   DASHBOARD_INSIGHT_CACHE_KEY,
   GOOGLE_AUTO_SYNC_LOCK_KEY,
@@ -95,10 +98,13 @@ function parseSchedule(schedule: ScheduleBlock[] | null): ParsedScheduleBlock[] 
 
 export function useDashboardData() {
   const supabase = useMemo(() => createClient(), []);
+  const queryClient = useQueryClient();
+  const userIdRef = useRef<string | null>(null);
 
   const [userName, setUserName] = useState('');
   const [timeOfDay] = useState<TimeOfDay>(getTimeOfDay);
   const [tasks, setTasks] = useState<Task[]>([]);
+  useTaskOptimisticEvents(setTasks);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [canvasAssignments, setCanvasAssignments] = useState<CanvasAssignmentPreview[]>([]);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
@@ -231,7 +237,9 @@ export function useDashboardData() {
       });
 
       const typedTasks = (taskRows || []) as Task[];
+      userIdRef.current = user.id;
       setTasks(typedTasks);
+      queryClient.setQueryData(queryKeys.tasks(user.id), typedTasks);
       setCanvasAssignments(typedCanvas);
       setThisWeekEvents((thisWeekEventsData || []) as CalendarEvent[]);
       setWorkItems(
@@ -276,7 +284,7 @@ export function useDashboardData() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, queryClient]);
 
   useEffect(() => {
     void fetchAll();

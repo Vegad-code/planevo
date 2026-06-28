@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { enrichTimeBlockProposal } from "@/lib/bruno/enrichTimeBlockProposal";
 import { inferEventDateTimeFromText } from "@/lib/bruno/inferEventDateTime";
 import { resolveTimeBlockTimes } from "@/lib/bruno/resolveTimeBlockTimes";
 
@@ -38,6 +39,52 @@ describe("resolveTimeBlockTimes", () => {
     expect(result.endTime).toBe("2026-07-29T16:00:00.000Z");
   });
 
+  it("treats timezone-less ISO startTime as local wall-clock time", () => {
+    const result = resolveTimeBlockTimes(
+      {
+        startTime: "2026-07-28T09:00:00",
+        durationMinutes: 60,
+      },
+      {
+        timeZone: "America/Los_Angeles",
+      }
+    );
+
+    expect(result.startTime).toBe("2026-07-28T16:00:00.000Z");
+    expect(result.endTime).toBe("2026-07-28T17:00:00.000Z");
+  });
+
+  it("infers the correct year from compact display labels", () => {
+    const result = resolveTimeBlockTimes(
+      {
+        startTime: "Jul 28, 9:00 AM",
+        durationMinutes: 60,
+      },
+      {
+        timeZone: "America/Los_Angeles",
+        referenceDate: new Date("2026-06-27T12:00:00.000Z"),
+      }
+    );
+
+    expect(result.startTime).toBe("2026-07-28T16:00:00.000Z");
+    expect(result.endTime).toBe("2026-07-28T17:00:00.000Z");
+  });
+
+  it("infers from natural-language startTime labels", () => {
+    const result = resolveTimeBlockTimes(
+      {
+        startTime: "July 28 at 9 AM",
+        durationMinutes: 60,
+      },
+      {
+        timeZone: "America/Los_Angeles",
+        referenceDate: new Date("2026-06-27T12:00:00.000Z"),
+      }
+    );
+
+    expect(result.startTime).toBe("2026-07-28T16:00:00.000Z");
+  });
+
   it("infers from user prompt when payload is empty", () => {
     const result = resolveTimeBlockTimes(
       {},
@@ -66,5 +113,32 @@ describe("resolveTimeBlockTimes", () => {
         }
       )
     ).toThrow("Could not determine the event date and time");
+  });
+});
+
+describe("enrichTimeBlockProposal", () => {
+  it("normalizes display startTime labels before confirmation", () => {
+    const proposal = enrichTimeBlockProposal(
+      {
+        type: "CREATE_TIME_BLOCK",
+        title: "Meeting",
+        description: "Attend scheduled meeting",
+        payload: {
+          startTime: "Jul 28, 9:00 AM",
+          durationMinutes: 60,
+        },
+      },
+      {
+        texts: [],
+        timeZone: "America/Los_Angeles",
+        referenceDate: new Date("2026-06-27T12:00:00.000Z"),
+      }
+    );
+
+    expect(proposal.payload).toMatchObject({
+      startTime: "2026-07-28T16:00:00.000Z",
+      endTime: "2026-07-28T17:00:00.000Z",
+      source: "bruno",
+    });
   });
 });

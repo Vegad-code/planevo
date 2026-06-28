@@ -1,17 +1,33 @@
 'use client';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
 import { pushEventToGoogle, deleteEventFromGoogle } from '@/lib/integrations/google-calendar';
+import { useSupabaseTableRealtime } from '@/hooks/useSupabaseTableRealtime';
+import { useUserProfileOptional } from '@/components/providers/UserProfileProvider';
 
 export function useCalendarEvents() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const monthCache = useRef(new Map<string, CalendarEvent[]>());
+  const profile = useUserProfileOptional();
+
+  useSupabaseTableRealtime({
+    userId: profile?.userId,
+    tables: ['calendar_events'],
+    onChange: () => {
+      monthCache.current.clear();
+      void loadEventsRef.current?.(undefined, undefined, true);
+    },
+  });
+
+  const loadEventsRef = useRef<
+    ((startDate?: Date, endDate?: Date, silent?: boolean) => Promise<void>) | null
+  >(null);
 
   // Helper to check for conflicts
   const hasConflict = useCallback((start: Date, end: Date, excludeEventId?: string) => {
@@ -44,6 +60,16 @@ export function useCalendarEvents() {
       // Default to showing the current month
       const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const end = endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+      const cacheKey = `${user.id}:${start.getFullYear()}-${start.getMonth()}`;
+
+      if (!silent) {
+        const cached = monthCache.current.get(cacheKey);
+        if (cached) {
+          setEvents(cached);
+          setLoading(false);
+          return;
+        }
+      }
 
       const { data, error: fetchError } = await supabase
         .from('calendar_events')
@@ -96,6 +122,7 @@ export function useCalendarEvents() {
       }
 
       setEvents(loadedEvents);
+      monthCache.current.set(cacheKey, loadedEvents);
 
     } catch {
       if (!silent) setError('Failed to load calendar events');
@@ -103,6 +130,10 @@ export function useCalendarEvents() {
       if (!silent) setLoading(false);
     }
   }, [supabase]);
+
+  useEffect(() => {
+    loadEventsRef.current = loadEvents;
+  }, [loadEvents]);
 
   // Removed background polling interval to respect user sync frequency preferences
 
@@ -460,4 +491,3 @@ export function useCalendarEvents() {
     clearAll,
   };
 }
-

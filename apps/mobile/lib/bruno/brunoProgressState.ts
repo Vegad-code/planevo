@@ -6,9 +6,11 @@ import {
   humanizeBrunoToolName,
 } from './bruno-progress';
 import type { BrunoUIMessage } from './types';
+import { isBrunoFinalizingPhase } from './brunoThinkingPhrases';
 
 export type BrunoProgressState = {
   isBrunoWorking: boolean;
+  isBrunoFinalizing: boolean;
   progressSteps: BrunoProgressStep[];
   progressSummary: string | null;
   assistantAnswerText: string | null;
@@ -160,10 +162,21 @@ export function deriveBrunoProgressState(input: DeriveInput): BrunoProgressState
     progressSummary = toolSteps.find((s) => s.status === 'active')?.label ?? null;
   }
 
+  const assistantAnswerText = lastAssistantText(input.messages);
+  const isBrunoFinalizing =
+    isBrunoWorking &&
+    isBrunoFinalizingPhase({
+      progressSteps,
+      progressSummary,
+      chatStatus: input.chatStatus,
+      assistantAnswerText,
+    });
+
   return {
     isBrunoWorking,
+    isBrunoFinalizing,
     progressSteps,
     progressSummary,
-    assistantAnswerText: lastAssistantText(input.messages),
+    assistantAnswerText,
   };
 }

@@ -75,6 +75,19 @@
   --font-sans: var(--font-sans), sans-serif;
   --font-mono: var(--font-mono), monospace;
 
+  /* Glass + surface tokens (liquid glass design system) */
+  --color-surface-base: #FBF6EA;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-muted: #F5EFE1;
+  --color-accent-warm: #D08741;
+  --color-accent-cream: #FBF6EA;
+  --color-accent-sage: #6B8B69;
+  --color-accent-depth: #1A140D;
+  --glass-bg: rgba(251, 246, 234, 0.65);
+  --glass-border: rgba(26, 20, 13, 0.08);
+  --glass-shadow: 0 8px 32px rgba(26, 20, 13, 0.08);
+  --glass-card-bg: rgba(255, 255, 255, 0.85);
+
   /* Settings / surface Semantic Tokens — LIGHT (Honey) defaults.
      These now follow the active theme (see html.dark / html.sepia below) so the
      whole authenticated app stays consistent and readable across modes. */
@@ -85,6 +98,9 @@
   --color-settings-text: #2A2118;
   --color-settings-text-muted: #6B5F4D;
   --color-settings-brand: var(--color-honey);
+
+  /* Shimmer text highlight (bright sweep over base text) */
+  --shimmer-highlight: rgba(255, 255, 255, 0.95);
   
   /* Sidebar Tokens (Light Mode defaults) */
   --color-sidebar-bg: var(--color-ink);
@@ -125,9 +141,23 @@ html.dark {
   --color-settings-border: #27272a;
   --color-settings-text: #fafafa;
   --color-settings-text-muted: #a1a1aa;
+
+  --shimmer-highlight: #ffffff;
   
   --color-sidebar-bg: #121214;
   --color-sidebar-text: #fafafa;
+
+  --color-surface-base: #09090b;
+  --color-surface-raised: #121214;
+  --color-surface-muted: #18181b;
+  --color-accent-warm: #D08741;
+  --color-accent-cream: #121214;
+  --color-accent-sage: #6B8B69;
+  --color-accent-depth: #fafafa;
+  --glass-bg: rgba(18, 18, 20, 0.7);
+  --glass-border: rgba(250, 250, 250, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --glass-card-bg: rgba(18, 18, 20, 0.75);
 
   --color-note-yellow: #3d3520;
   --color-note-coral: #3d2820;
@@ -177,6 +207,16 @@ html[data-public="true"].sepia {
   
   --color-sidebar-bg: var(--color-ink);
   --color-sidebar-text: var(--color-paper);
+}
+
+/* Public/marketing pages always use default honey accent */
+html[data-public="true"] {
+  --color-honey: #D08741;
+  --color-honey-deep: #B96E2A;
+  --color-honey-soft: #F5DCB8;
+  --color-focus: #B96E2A;
+  --color-focus-soft: #F5DCB8;
+  --color-settings-brand: #D08741;
 }
 
 /* ============================================================
@@ -329,6 +369,17 @@ html.reduce-motion *::after {
 .rbc-time-content, .rbc-time-header {
   border-color: var(--color-line) !important;
 }
+.rbc-day-slot,
+.rbc-time-gutter,
+.rbc-time-content {
+  background: var(--color-paper);
+}
+.rbc-today {
+  background-color: var(--color-paper) !important;
+}
+.rbc-month-view .rbc-day-bg.rbc-today {
+  background-color: color-mix(in srgb, var(--color-honey) 12%, var(--color-paper)) !important;
+}
 .rbc-day-bg + .rbc-day-bg, .rbc-month-row + .rbc-month-row, .rbc-time-content > * + * > * {
   border-color: var(--color-line) !important;
 }
@@ -371,6 +422,41 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================================
+   LIQUID GLASS — chrome surfaces (nav, cards, overlays)
+   ============================================================ */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.glass-card {
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+html.dark .glass-panel {
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* ============================================================
@@ -716,3 +802,5 @@ html.dark .note-card-accent-green,
 html.dark .note-card-accent-cream {
   border: 1px solid var(--color-line-strong);
 }
+
+@import './color-themes.css';

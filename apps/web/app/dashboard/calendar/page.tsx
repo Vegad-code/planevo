@@ -347,25 +347,6 @@ export default function CalendarPage() {
     },
   });
 
-  const getSubheadText = () => {
-    try {
-      switch (activeView) {
-        case 'week':
-          return `CALENDAR · WEEK OF ${format(startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON }), 'MMMM d').toUpperCase()}`;
-        case 'day':
-          return `CALENDAR · ${format(selectedDate, 'EEEE · MMMM d').toUpperCase()}`;
-        case 'month':
-          return `CALENDAR · ${format(selectedDate, 'MMMM yyyy').toUpperCase()}`;
-        case 'year':
-          return `CALENDAR · ${format(selectedDate, 'yyyy')}`;
-        case 'list':
-          return 'CALENDAR · UPCOMING SCHEDULE';
-      }
-    } catch {
-      return 'CALENDAR';
-    }
-  };
-
   const handleEventClick = (event: CalendarEvent) => {
     if (event.metadata?.readOnly) {
       const url = event.metadata?.url || event.external_id;
@@ -497,9 +478,71 @@ export default function CalendarPage() {
     [loadEvents]
   );
 
+  const getVisibleCalendarRange = useCallback((): [Date, Date] => {
+    if (activeView === 'day' || activeView === 'list') {
+      const start = startOfDay(selectedDate);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      return [start, end];
+    }
+
+    if (activeView === 'week') {
+      const start = startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON });
+      const end = addDays(start, 7);
+      end.setMilliseconds(end.getMilliseconds() - 1);
+      return [start, end];
+    }
+
+    if (activeView === 'year') {
+      return [
+        new Date(selectedDate.getFullYear(), 0, 1),
+        new Date(selectedDate.getFullYear(), 11, 31, 23, 59, 59, 999),
+      ];
+    }
+
+    return [
+      new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
+      new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      ),
+    ];
+  }, [activeView, selectedDate]);
+
+  const loadVisibleCalendar = useCallback(
+    (silent = true) => {
+      const [start, end] = getVisibleCalendarRange();
+      void loadEvents(start, end, silent);
+    },
+    [getVisibleCalendarRange, loadEvents]
+  );
+
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    const handleBrunoCalendarChange = () => {
+      loadVisibleCalendar(true);
+      setBacklogRefreshKey((k) => k + 1);
+    };
+
+    window.addEventListener(
+      'planevo:calendar-events-changed',
+      handleBrunoCalendarChange
+    );
+    return () => {
+      window.removeEventListener(
+        'planevo:calendar-events-changed',
+        handleBrunoCalendarChange
+      );
+    };
+  }, [loadVisibleCalendar]);
+
+  useEffect(() => {
+    loadVisibleCalendar(false);
+  }, [loadVisibleCalendar]);
 
   const handleAutoSchedule = async (backlogTasks?: Task[]) => {
     setIsProcessing(true);
@@ -602,12 +645,6 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col h-full w-full animate-fade-in min-h-0">
-      <div className="pb-2 shrink-0">
-        <span className="font-mono text-[10px] tracking-widest text-[var(--color-ink-muted)] uppercase">
-          {getSubheadText()}
-        </span>
-      </div>
-
       <div className="flex-1 min-h-0 relative">
         <CalendarShell
           ref={shellRef}

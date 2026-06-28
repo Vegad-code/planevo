@@ -2,6 +2,8 @@
 
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { SourcePill } from '@/components/dashboard/home/SourcePill';
 import type {
   DashboardConnections,
   DashboardMode,
@@ -109,8 +111,11 @@ export function DashboardHeader({
 
   return (
     <div className="pb-7 border-b border-line mb-6">
-      <div className="font-mono text-[11px] tracking-[0.18em] text-(--color-ink-soft) uppercase mb-3">
-        {dateStr}
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="font-mono text-[11px] tracking-[0.18em] text-(--color-ink-soft) uppercase">
+          {dateStr}
+        </div>
+        <NotificationBell />
       </div>
       <h1 className="font-serif text-5xl md:text-6xl tracking-tight text-(--color-ink) m-0 leading-none">
         {greetingPrefix},{' '}
@@ -119,6 +124,21 @@ export function DashboardHeader({
       <p className="font-sans text-[15px] text-(--color-ink-soft) mt-3 mb-0 max-w-2xl">
         {subtitle}
       </p>
+
+      <div className="flex flex-wrap items-center gap-2 mt-4">
+        <SourcePill
+          kind="canvas"
+          label="Canvas"
+          count={`${connections.canvasDueCount} due`}
+          status={connections.canvasConnected ? 'synced' : ''}
+        />
+        <SourcePill
+          kind="cal"
+          label="Calendar"
+          count="Synced"
+          status={connections.googleConnected ? 'synced' : ''}
+        />
+      </div>
 
       {(showSetupLink || showPlanLink || overdueCount > 0) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4">

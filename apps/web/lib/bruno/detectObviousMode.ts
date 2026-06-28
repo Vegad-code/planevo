@@ -1,5 +1,8 @@
 import { detectAppAction } from './detectAppAction';
-import { detectNotesIntent } from './conversationRouting';
+import {
+  detectDocumentWritingIntent,
+  detectNotesIntent,
+} from './conversationRouting';
 import type { BrunoMode, BrunoRouteDecision } from './types';
 
 type RouteOptions = Omit<
@@ -139,7 +142,7 @@ export function detectObviousMode(
   }
 
   if (
-    /\b(next\.?js|react|typescript|supabase|vercel|api route|backend|frontend|database|migration|github|repo|debug|codebase|source code|programming|coding)\b/i.test(
+    /\b(next\.?js|react|typescript|supabase|vercel|api route|backend|frontend|database|migration|github|repo|debug|codebase|source code|programming|coding|code me|write code|website|web app)\b/i.test(
       text
     )
   ) {
@@ -147,8 +150,8 @@ export function detectObviousMode(
       needsCalendarContext: false,
       needsTaskContext: false,
       needsCanvasContext: false,
-      estimatedOutputSize: 'long',
-      upgradeMoment: true,
+      estimatedOutputSize: 'medium',
+      upgradeMoment: false,
     });
   }
 
@@ -170,6 +173,16 @@ export function detectObviousMode(
         upgradeMoment: true,
       }
     );
+  }
+
+  if (detectDocumentWritingIntent(text)) {
+    return decision('document_writing', 0.88, 'document writing request', {
+      needsCalendarContext: false,
+      needsTaskContext: false,
+      needsCanvasContext: true,
+      estimatedOutputSize: 'long',
+      upgradeMoment: false,
+    });
   }
 
   if (

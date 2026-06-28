@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { BrunoActionProposal } from "@/lib/bruno/tools/types";
 import { BrunoActionProposalCard, type ExecutionStatus } from "./BrunoActionProposalCard";
+import { isV3ExecutableAction } from "@/lib/bruno/tools/actionLabels";
 import { CheckSquareOffset } from "@phosphor-icons/react";
 
 type BrunoProposalGroupProps = {
@@ -24,7 +25,7 @@ export function BrunoProposalGroup({
 }: BrunoProposalGroupProps) {
   const [isExpanded, setIsExpanded] = useState(proposals.length <= 3);
 
-  const executableProposals = proposals.filter((p) => p.type === "CREATE_TASK");
+  const executableProposals = proposals.filter((p) => isV3ExecutableAction(p.type));
   const unexecutedCount = executableProposals.filter(
     (p) => actionStatuses[p.id] !== "success" && actionStatuses[p.id] !== "executing"
   ).length;
@@ -58,11 +59,17 @@ export function BrunoProposalGroup({
       {unexecutedCount > 1 && onConfirmAll && (
         <button
           type="button"
-          onClick={() => onConfirmAll(proposals)}
+          onClick={() =>
+            onConfirmAll(
+              executableProposals.filter(
+                (p) => actionStatuses[p.id] !== 'success' && actionStatuses[p.id] !== 'executing'
+              )
+            )
+          }
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#d99043]/20 px-4 py-2.5 text-sm font-semibold text-[#d99043] transition-colors hover:bg-[#d99043]/30"
         >
           <CheckSquareOffset weight="bold" />
-          Confirm All Tasks ({unexecutedCount})
+          Confirm All ({unexecutedCount})
         </button>
       )}
     </div>

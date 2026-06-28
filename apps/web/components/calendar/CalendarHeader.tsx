@@ -31,34 +31,25 @@ export function RbcDayHeader({
           handleActivate();
         }
       }}
-      className={cn(
-        'flex w-full flex-col items-center gap-0.5 py-2 rounded-xl transition-all duration-200 mx-0.5 cursor-pointer',
-        selected
-          ? 'bg-[var(--color-ink)] text-[var(--color-cream)] shadow-sm'
-          : today
-            ? 'bg-[var(--color-ink-muted)]/10 text-[var(--color-ink)] hover:bg-[var(--color-ink-muted)]/20'
-            : 'hover:bg-[var(--color-cream-2)] text-[var(--color-ink)]'
-      )}
+      className="flex w-full flex-col items-center gap-1 py-2 cursor-pointer"
     >
-      <span
-        className={cn(
-          'text-[10px] font-mono font-bold uppercase tracking-wider',
-          selected ? 'text-[var(--color-cream)]/70' : 'text-[var(--color-ink-muted)]'
-        )}
-      >
+      <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-soft)]">
         {format(date, 'EEE')}
       </span>
       <span
         className={cn(
-          'text-base font-bold',
-          selected ? 'text-[var(--color-cream)]' : 'text-[var(--color-ink)]'
+          'flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition-colors',
+          today && selected
+            ? 'bg-[var(--color-honey)] text-[var(--color-ink)] ring-2 ring-[var(--color-honey-deep)]'
+            : today
+              ? 'bg-[var(--color-honey)]/20 text-[var(--color-ink)] ring-2 ring-[var(--color-honey)]'
+              : selected
+                ? 'bg-[var(--color-ink)] text-[var(--color-cream)]'
+                : 'text-[var(--color-ink)] hover:bg-[var(--color-cream-2)]',
         )}
       >
         {format(date, 'd')}
       </span>
-      {today && !selected && (
-        <div className="w-1 h-1 rounded-full bg-[var(--color-ink)] mt-0.5" />
-      )}
     </div>
   );
 }

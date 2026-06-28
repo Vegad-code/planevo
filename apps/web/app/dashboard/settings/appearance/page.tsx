@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Sun, Moon, BookOpen, Desktop, Check, TextAa, Sparkle, ArrowCounterClockwise } from '@phosphor-icons/react';
 import ColorSchemeToggle from '@/components/ui/ColorSchemeToggle';
+import ColorThemePicker from '@/components/ui/ColorThemePicker';
 import { useAppearance, FONT_SIZES, ACCENTS, SIDEBAR_STYLES } from '@/components/providers/AppearanceProvider';
 import { SettingsSection } from '@/components/settings/ui/SettingsSection';
 import { SettingsToggleRow } from '@/components/settings/ui/SettingsToggleRow';
@@ -98,15 +99,26 @@ export default function AppearanceSettingsPage() {
         </div>
       </SettingsSection>
 
+      {/* App color palette */}
+      <SettingsSection
+        title="App palette"
+        description="Full workspace color themes — backgrounds, glass surfaces, and accents."
+      >
+        <div className="p-5">
+          <ColorThemePicker />
+        </div>
+      </SettingsSection>
+
       {/* Navigation style */}
       <SettingsSection title="Navigation" description="Choose how the dashboard sidebar is laid out.">
         <div className="p-5">
-          <div className="grid grid-cols-2 gap-3" data-testid="sidebar-style-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="sidebar-style-grid">
             {SIDEBAR_STYLES.map((style) => {
               const isActive = sidebarStyle === style.id;
               return (
                 <button
                   key={style.id}
+                  type="button"
                   onClick={() => setSidebarStyle(style.id)}
                   data-testid={`sidebar-style-${style.id}`}
                   {...({ 'aria-pressed': isActive })}
@@ -117,7 +129,15 @@ export default function AppearanceSettingsPage() {
                   }`}
                 >
                   <div className="mb-3 h-16 rounded-xl border border-black/5 bg-settings-bg p-2 flex items-end">
-                    {style.id === 'classic' ? (
+                    {style.id === 'glass' ? (
+                      <div className="flex h-full w-full">
+                        <div className="w-6 h-full rounded-r-2xl bg-[var(--color-ink)]/85 shadow-sm" />
+                        <div className="flex-1 p-1.5 flex flex-col gap-1">
+                          <div className="h-1.5 w-8 rounded bg-settings-border" />
+                          <div className="h-1.5 w-10 rounded bg-settings-brand/60" />
+                        </div>
+                      </div>
+                    ) : style.id === 'classic' ? (
                       <div className="flex h-full w-full">
                         <div className="w-5 h-full rounded-sm bg-[var(--color-ink)]/80" />
                         <div className="flex-1 p-1.5 flex flex-col gap-1">
@@ -149,7 +169,9 @@ export default function AppearanceSettingsPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-settings-text-muted mt-1">
-                    {style.id === 'classic'
+                    {style.id === 'glass'
+                      ? 'Rounded ink sidebar with honey accent highlights.'
+                      : style.id === 'classic'
                       ? 'Full-height panel with rectangular nav links.'
                       : 'Inset floating capsule with pill-shaped links.'}
                   </p>

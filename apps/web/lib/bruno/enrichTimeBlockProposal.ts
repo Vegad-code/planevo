@@ -1,4 +1,7 @@
-import { inferEventDateTimeFromText } from "@/lib/bruno/inferEventDateTime";
+import {
+  inferEventDateTimeFromText,
+  parseIsoDateTimeToUtcIso,
+} from "@/lib/bruno/inferEventDateTime";
 
 type ProposalArgs = Record<string, unknown>;
 
@@ -17,11 +20,13 @@ export function enrichTimeBlockProposal(
       ? (args.payload as Record<string, unknown>)
       : {};
 
-  if (payload.startTime || payload.start_time) {
-    return args;
+  const existingStart = payload.startTime ?? payload.start_time;
+  if (parseIsoDateTimeToUtcIso(existingStart, context.timeZone)) {
+    return args; // only skip inference if startTime is a strict ISO datetime
   }
 
   const combinedText = [
+    typeof existingStart === "string" ? existingStart : "",
     ...context.texts,
     typeof args.title === "string" ? args.title : "",
     typeof args.description === "string" ? args.description : "",

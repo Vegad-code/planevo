@@ -1,5 +1,7 @@
 import type { BlockNoteBlock, InlineContent } from '../types';
 
+type InlineStyle = Record<string, boolean | string>;
+
 export function generateBlockId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
@@ -12,8 +14,118 @@ export function generateBlockId(): string {
   });
 }
 
+function normalizeStyles(styles: InlineStyle): InlineStyle {
+  const normalized: InlineStyle = {};
+  for (const [key, value] of Object.entries(styles)) {
+    if (value) normalized[key] = value;
+  }
+  return normalized;
+}
+
+function stylesEqual(a: InlineStyle | undefined, b: InlineStyle | undefined): boolean {
+  return JSON.stringify(normalizeStyles(a ?? {})) === JSON.stringify(normalizeStyles(b ?? {}));
+}
+
+function mergeAdjacentSegments(segments: InlineContent[]): InlineContent[] {
+  const merged: InlineContent[] = [];
+
+  for (const segment of segments) {
+    const styles = normalizeStyles(segment.styles ?? {});
+    const last = merged[merged.length - 1];
+
+    if (last && last.type === 'text' && segment.type === 'text' && stylesEqual(last.styles, styles)) {
+      last.text += segment.text;
+      continue;
+    }
+
+    merged.push({ type: 'text', text: segment.text, styles });
+  }
+
+  return merged;
+}
+
+function findClosingDoubleAsterisk(text: string, start: number): number {
+  for (let i = start; i < text.length - 1; i++) {
+    if (text[i] === '*' && text[i + 1] === '*') return i;
+  }
+  return -1;
+}
+
+function findClosingSingleAsterisk(text: string, start: number): number {
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '*' && text[i - 1] !== '*' && text[i + 1] !== '*') return i;
+  }
+  return -1;
+}
+
+function parseInlineMarkdownRecursive(text: string, inheritedStyles: InlineStyle): InlineContent[] {
+  const result: InlineContent[] = [];
+  let buffer = '';
+  let i = 0;
+
+  const flushBuffer = () => {
+    if (!buffer) return;
+    result.push({ type: 'text', text: buffer, styles: normalizeStyles(inheritedStyles) });
+    buffer = '';
+  };
+
+  while (i < text.length) {
+    if (text[i] === '`') {
+      const close = text.indexOf('`', i + 1);
+      if (close !== -1) {
+        flushBuffer();
+        result.push({
+          type: 'text',
+          text: text.slice(i + 1, close),
+          styles: normalizeStyles({ ...inheritedStyles, code: true }),
+        });
+        i = close + 1;
+        continue;
+      }
+    }
+
+    if (text.startsWith('**', i)) {
+      const close = findClosingDoubleAsterisk(text, i + 2);
+      if (close !== -1) {
+        flushBuffer();
+        const inner = text.slice(i + 2, close);
+        result.push(
+          ...parseInlineMarkdownRecursive(inner, { ...inheritedStyles, bold: true })
+        );
+        i = close + 2;
+        continue;
+      }
+    }
+
+    if (text[i] === '*' && text[i + 1] !== '*') {
+      const close = findClosingSingleAsterisk(text, i + 1);
+      if (close !== -1) {
+        flushBuffer();
+        const inner = text.slice(i + 1, close);
+        result.push(
+          ...parseInlineMarkdownRecursive(inner, { ...inheritedStyles, italic: true })
+        );
+        i = close + 1;
+        continue;
+      }
+    }
+
+    buffer += text[i];
+    i += 1;
+  }
+
+  flushBuffer();
+  return mergeAdjacentSegments(result);
+}
+
+/** Parse inline markdown (**bold**, *italic*, `code`) into BlockNote inline content. */
+export function parseInlineMarkdown(text: string): InlineContent[] {
+  if (!text) return [{ type: 'text', text: '', styles: {} }];
+  return parseInlineMarkdownRecursive(text, {});
+}
+
 function textContent(text: string): InlineContent[] {
-  return [{ type: 'text', text, styles: {} }];
+  return parseInlineMarkdown(text);
 }
 
 export function createParagraphBlock(text: string): BlockNoteBlock {
@@ -139,6 +251,19 @@ function normalizeSectionName(name: string): string {
   return name.toLowerCase().replace(/[#*_]/g, '').trim();
 }
 
+/** Strip ###+ subheadings from note section bodies — convert to bold labels or plain text. */
+function flattenSubheadingsInBody(body: string): string {
+  return body
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      const subheadingMatch = trimmed.match(/^#{3,6}\s+(.+)$/);
+      if (subheadingMatch) return `**${subheadingMatch[1]}**`;
+      return line;
+    })
+    .join('\n');
+}
+
 export function markdownToStructuredBlocks(
   markdown: string,
   sectionMap: Record<string, string>
@@ -160,13 +285,13 @@ export function markdownToStructuredBlocks(
     const blockType = sectionMap[sectionTitle];
 
     if (blockType && blockType !== 'heading') {
-      blocks.push(createCustomBlock(blockType, headingMatch[1], body || ''));
+      blocks.push(createCustomBlock(blockType, headingMatch[1], flattenSubheadingsInBody(body || '')));
       continue;
     }
 
     blocks.push(createHeadingBlock(headingMatch[1], 2));
     if (body) {
-      blocks.push(...markdownToPlainParagraphBlocks(body));
+      blocks.push(...markdownToPlainParagraphBlocks(flattenSubheadingsInBody(body)));
     }
   }
 
@@ -198,11 +323,28 @@ export function inlineContentToText(content: InlineContent[] | undefined): strin
   return content.map((item) => item.text).join('');
 }
 
+export function inlineContentToMarkdown(content: InlineContent[] | undefined): string {
+  if (!content?.length) return '';
+
+  return content
+    .map((item) => {
+      if (item.type !== 'text') return item.text;
+
+      const { text, styles } = item;
+      if (styles?.code) return `\`${text}\``;
+      if (styles?.bold && styles?.italic) return `***${text}***`;
+      if (styles?.bold) return `**${text}**`;
+      if (styles?.italic) return `*${text}*`;
+      return text;
+    })
+    .join('');
+}
+
 export function blocksToMarkdown(blocks: BlockNoteBlock[], depth = 0): string {
   const lines: string[] = [];
 
   for (const block of blocks) {
-    const text = inlineContentToText(block.content);
+    const text = inlineContentToMarkdown(block.content);
     const indent = '  '.repeat(depth);
 
     switch (block.type) {

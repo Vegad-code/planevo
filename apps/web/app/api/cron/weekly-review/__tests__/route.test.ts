@@ -2,25 +2,42 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
-function createSupabaseQueryMock() {
-  const result = { data: [] as unknown[], error: null };
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-
-  const methods = ['from', 'select', 'range', 'order', 'in', 'eq', 'gte'] as const;
-  for (const method of methods) {
-    chain[method] = vi.fn(() => chain);
-  }
-
-  chain.then = vi.fn((resolve: (value: typeof result) => void) => {
-    resolve(result);
-    return Promise.resolve(result);
-  }) as unknown as ReturnType<typeof vi.fn>;
-
-  return chain;
-}
-
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => createSupabaseQueryMock()),
+  createClient: vi.fn(() => {
+    const emptyResult = { data: [] as unknown[], error: null };
+
+    const makeQuery = () => {
+      const query = {
+        select: vi.fn(),
+        range: vi.fn(),
+        order: vi.fn(),
+        in: vi.fn(),
+        eq: vi.fn(),
+        gte: vi.fn(),
+        not: vi.fn(),
+        is: vi.fn(),
+        then(
+          onFulfilled: (value: typeof emptyResult) => unknown,
+          onRejected?: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(emptyResult).then(onFulfilled, onRejected);
+        },
+      };
+      query.select.mockReturnValue(query);
+      query.range.mockReturnValue(query);
+      query.order.mockReturnValue(query);
+      query.in.mockReturnValue(query);
+      query.eq.mockReturnValue(query);
+      query.gte.mockReturnValue(query);
+      query.not.mockReturnValue(query);
+      query.is.mockReturnValue(query);
+      return query;
+    };
+
+    return {
+      from: vi.fn(() => makeQuery()),
+    };
+  }),
 }));
 
 vi.mock('@/lib/email', () => ({

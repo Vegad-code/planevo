@@ -1814,6 +1814,58 @@ export type Database = {
           }
         ]
       }
+      user_notifications: {
+        Row: {
+          id: string
+          user_id: string
+          kind: string
+          title: string
+          body: string
+          subtitle: string | null
+          href: string | null
+          source_id: string
+          priority: string
+          read_at: string | null
+          dismissed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          kind: string
+          title: string
+          body: string
+          subtitle?: string | null
+          href?: string | null
+          source_id: string
+          priority?: string
+          read_at?: string | null
+          dismissed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          kind?: string
+          title?: string
+          body?: string
+          subtitle?: string | null
+          href?: string | null
+          source_id?: string
+          priority?: string
+          read_at?: string | null
+          dismissed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_notifications_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

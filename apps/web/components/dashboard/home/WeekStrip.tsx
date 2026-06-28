@@ -25,16 +25,22 @@ export function WeekStrip({ selectedDate, onSelectDate, eventDates = [] }: WeekS
             type="button"
             onClick={() => onSelectDate(day)}
             className={`flex flex-col items-center min-w-[52px] px-3 py-2.5 rounded-2xl border transition-all cursor-pointer ${
-              isSelected
-                ? 'bg-(--color-ink) text-(--color-paper) border-(--color-ink)'
-                : 'bg-(--color-paper) text-(--color-ink-soft) border-line hover:border-line-strong'
+              isToday && isSelected
+                ? 'bg-(--color-honey) text-(--color-ink) border-(--color-honey-deep)'
+                : isSelected
+                  ? 'bg-(--color-ink) text-(--color-paper) border-(--color-ink)'
+                  : 'bg-(--color-paper) text-(--color-ink-soft) border-line hover:border-line-strong'
             }`}
           >
             <span className="font-mono text-[10px] tracking-wider uppercase">
               {format(day, 'EEE')}
             </span>
             <span
-              className={`font-serif text-lg leading-none mt-1 ${isSelected ? 'text-(--color-paper)' : 'text-(--color-ink)'}`}
+              className={`font-serif text-lg leading-none mt-1 ${
+                isSelected && !isToday
+                  ? 'text-(--color-paper)'
+                  : 'text-(--color-ink)'
+              }`}
             >
               {format(day, 'd')}
             </span>
@@ -42,7 +48,9 @@ export function WeekStrip({ selectedDate, onSelectDate, eventDates = [] }: WeekS
               <span className="size-1.5 rounded-full bg-(--color-honey) mt-1.5" />
             )}
             {isToday && isSelected && (
-              <span className="font-mono text-[8px] mt-1 tracking-wider opacity-70">TODAY</span>
+              <span className="font-mono text-[8px] mt-1 tracking-wider text-(--color-ink)">
+                TODAY
+              </span>
             )}
           </button>
         );

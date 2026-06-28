@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PaperPlaneTilt, ArrowsOutSimple, CaretLeft, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning, X, CaretDown, Copy } from '@phosphor-icons/react';
+import { PaperPlaneTilt, ArrowsInSimple, ArrowsOutSimple, ClockCounterClockwise, PencilSimple, Stop, Plus, Trash, Warning, X, CaretDown, Copy, CalendarBlank } from '@phosphor-icons/react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import { brunoMarkdownComponents } from '@/components/bruno/brunoMarkdownComponents';
-import BrunoAvatar from '../bruno/BrunoAvatar';
 import PlanDraftCard from '../bruno/PlanDraftCard';
 import type { PlanDraftItemData } from '../bruno/PlanDraftCard';
 import { createClient } from '@/lib/supabase/client';
@@ -18,6 +17,9 @@ import { useBruno } from '@/components/bruno/BrunoProvider';
 import { BrunoContextBanner } from '@/components/bruno/BrunoContextBanner';
 import { BrunoSuggestedActions } from '@/components/bruno/BrunoSuggestedActions';
 import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
+import { shouldShowBrunoStarterActions } from '@/lib/bruno/starter-actions';
+import { BrunoFaceMark } from '@/components/bruno/BrunoFaceMark';
+import { cn } from '@/lib/utils';
 
 import type { BrunoActionProposal } from '@/lib/bruno/tools/types';
 import { enrichTimeBlockProposal } from '@/lib/bruno/enrichTimeBlockProposal';
@@ -31,12 +33,19 @@ import {
   type IntegrationActionStatus,
 } from '../bruno/BrunoIntegrationActionCard';
 import type { BrunoDataParts } from '@/lib/bruno/types';
-import { BrunoActivityPanel } from '@/components/bruno/BrunoActivityPanel';
+import { BrunoThinkingIndicator } from '@/components/bruno/BrunoThinkingIndicator';
 import { BrunoNoteActions } from '@/components/bruno/BrunoNoteActions';
 import { BrunoChatLimitPaywall } from '@/components/bruno/BrunoChatLimitPaywall';
+import { BrunoClarificationCard } from '@/components/bruno/BrunoClarificationCard';
 import { useBrunoChatProgressState } from '@/hooks/useBrunoChatProgress';
+import { useBrunoAssistantMode } from '@/hooks/useBrunoAssistantMode';
+import { useBrunoThinkingLabel } from '@/hooks/useBrunoThinkingLabel';
 import { useSubscription } from '@/hooks/use-subscription';
-import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
+import type {
+  BrunoClarificationCard as BrunoClarificationCardData,
+  BrunoClarificationResponse,
+  BrunoRateLimitPayload,
+} from '@/lib/bruno/types';
 import {
   isRateLimitActive,
   parseBrunoRateLimitError,
@@ -44,20 +53,44 @@ import {
 
 type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
 
+const BRUNO_GREETING = 'How can I help you today?';
+const BRUNO_PLANNING_GREETING = 'How can I help you plan today?';
+
+function extractClarificationCardsFromMessage(
+  message: BrunoUIMessage
+): BrunoClarificationCardData[] {
+  const cards: BrunoClarificationCardData[] = [];
+  for (const part of message.parts ?? []) {
+    if (part.type === 'data-bruno-clarification-card' && 'data' in part) {
+      cards.push(part.data as BrunoClarificationCardData);
+    }
+  }
+  return cards;
+}
+
 interface BrunoChatSidebarProps {
   onFinish?: () => void;
   isProcessing?: boolean;
   initialMessage?: string;
   assignmentId?: string;
+  variant?: 'sidebar' | 'dock';
+  onMinimize?: () => void;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }
 
 export default function BrunoChatSidebar({
- 
-  onFinish, 
+  onFinish,
   isProcessing: isExternalProcessing = false,
-  initialMessage, 
-  assignmentId 
+  initialMessage,
+  assignmentId,
+  variant = 'sidebar',
+  onMinimize,
+  isFullScreen = false,
+  onToggleFullScreen,
 }: BrunoChatSidebarProps) {
+  const { assistantMode, togglePlanningMode, isPlanningMode } =
+    useBrunoAssistantMode();
   const [actionStatuses, setActionStatuses] = useState<Record<string, ExecutionStatus>>({});
   const [_executingActions, setExecutingActions] = useState<Record<string, boolean>>({});
   const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
@@ -123,6 +156,59 @@ export default function BrunoChatSidebar({
 
   function isTaskBreakdownIntent(text: string) {
     return /\b(break down|breakdown|smaller tasks|task list|turn .* into tasks|split .* into tasks|make .* realistic|realistic for tonight)\b/i.test(text);
+  }
+
+  function formatClarificationResponseForChat(
+    response: BrunoClarificationResponse
+  ) {
+    const isSkip = response.answers.every((answer) => answer.source === 'skip');
+    if (isSkip) {
+      return `Answer with reasonable assumptions for: "${response.originalPrompt}"`;
+    }
+
+    const answerLines = response.answers.map(
+      (answer) => `- ${answer.question}: ${answer.answer}`
+    );
+    return [
+      'Here is the context Bruno asked for:',
+      '',
+      `Original request: ${response.originalPrompt}`,
+      '',
+      ...answerLines,
+    ].join('\n');
+  }
+
+  function publishExecutedAction(proposal: BrunoActionProposal, result: unknown) {
+    const detail = {
+      actionType: proposal.type,
+      proposalId: proposal.id,
+      result,
+    };
+
+    window.dispatchEvent(
+      new CustomEvent('planevo:bruno-action-executed', { detail })
+    );
+
+    if (
+      proposal.type === 'CREATE_TIME_BLOCK' ||
+      proposal.type === 'DELETE_CALENDAR_EVENT' ||
+      proposal.type === 'UPDATE_DAILY_PLAN'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('planevo:calendar-events-changed', { detail })
+      );
+    }
+
+    if (
+      proposal.type === 'CREATE_TASK' ||
+      proposal.type === 'UPDATE_TASK' ||
+      proposal.type === 'RESCHEDULE_TASK' ||
+      proposal.type === 'DELETE_TASK'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('planevo:tasks-changed', { detail })
+      );
+    }
   }
 
   // Extracts Composio (Notion/Slack/Linear) tool calls from a message so we can
@@ -222,6 +308,7 @@ export default function BrunoChatSidebar({
 
       setActionStatuses((prev) => ({ ...prev, [proposal.id]: "success" }));
       setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
+      publishExecutedAction(proposal, result);
     } catch (error: any) {
       console.error("[Bruno] Failed to execute proposal", error);
       setActionStatuses((prev) => ({ ...prev, [proposal.id]: "error" }));
@@ -244,9 +331,9 @@ export default function BrunoChatSidebar({
     }
   };
   const { currentContext, closeBruno } = useBruno();
+  const isDock = variant === 'dock';
   const { isFree } = useSubscription();
   const supabase = createClient();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [rateLimitInfo, setRateLimitInfo] = useState<BrunoRateLimitPayload | null>(null);
   const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
@@ -303,7 +390,7 @@ export default function BrunoChatSidebar({
 
       const [{ data: tasks }, { data: events }] = await Promise.all([
         supabase.from('tasks').select('id, title, status').eq('user_id', user.id).neq('status', 'done').is('deleted_at', null).ilike('title', `%${mentionState.text}%`).limit(5),
-        supabase.from('calendar_events').select('id, title, start_time').eq('user_id', user.id).gte('start_time', new Date().toISOString()).is('deleted_at', null).ilike('title', `%${mentionState.text}%`).limit(5)
+        supabase.from('calendar_events').select('id, title, start_time').eq('user_id', user.id).gte('start_time', new Date().toISOString()).eq('is_deleted', false).ilike('title', `%${mentionState.text}%`).limit(5)
       ]);
 
       const formatted = [
@@ -356,18 +443,35 @@ export default function BrunoChatSidebar({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
-    messages: [
-      { 
-        id: 'init',
-        role: 'assistant', 
-        parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
-      } as BrunoUIMessage
-    ],
+    messages: initialMessage
+      ? [
+          {
+            id: 'init',
+            role: 'assistant',
+            parts: [{ type: 'text', text: initialMessage }],
+          } as BrunoUIMessage,
+        ]
+      : [],
     onError: handleRateLimitError,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
+      // #region agent log
+      fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:entry',message:'onFinish called',data:{messageRole:message?.role,messageId:message?.id,lastUserText:lastUserMessageRef.current?.slice(0,80),isBreakdownIntent:isTaskBreakdownIntent(lastUserMessageRef.current||'')},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       const textPart = message.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text;
+
+      const modeNoticePart = message.parts?.find(
+        (p: { type: string }) => p.type === 'data-bruno-assistant-mode-notice'
+      );
+      if (
+        modeNoticePart &&
+        'data' in modeNoticePart &&
+        modeNoticePart.data?.autoEscalated &&
+        modeNoticePart.data?.message
+      ) {
+        toast.info(modeNoticePart.data.message);
+      }
       
       if (currentConversationId && message.role === 'assistant' && textPart) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -388,6 +492,9 @@ export default function BrunoChatSidebar({
           const nativeProposals = extractProposalsFromMessage(message);
           if (nativeProposals.length === 0) {
             const textContent = textPart || '';
+            // #region agent log
+            fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:pre-fetch',message:'calling breakdown fallback',data:{userPromptLen:lastUserText?.length,assistantTextLen:textContent?.length},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
             const response = await fetch("/api/bruno/fallback/breakdown", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -397,7 +504,18 @@ export default function BrunoChatSidebar({
                 pageContext: currentContext, // Assuming currentContext is accessible here
               }),
             });
-            const result = await response.json();
+            const responseText = await response.text();
+            // #region agent log
+            fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:post-fetch',message:'breakdown fallback response',data:{status:response.status,ok:response.ok,contentType:response.headers.get('content-type'),bodyLen:responseText.length,bodyPreview:responseText.slice(0,200)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
+            let result: { success?: boolean; proposals?: BrunoActionProposal[] } = {};
+            try {
+              result = responseText ? JSON.parse(responseText) : {};
+            } catch (parseErr) {
+              // #region agent log
+              fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:parse-error',message:'JSON parse failed',data:{status:response.status,bodyLen:responseText.length,error:String(parseErr)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+              // #endregion
+            }
             if (response.ok && result.success) {
               setFallbackProposalsByMessageId((prev) => ({
                 ...prev,
@@ -443,13 +561,17 @@ export default function BrunoChatSidebar({
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([
-      { 
-        id: 'init',
-        role: 'assistant', 
-        parts: [{ type: 'text', text: initialMessage || "Hey! I've drafted your daily plan. Need to change anything? Just say the word." }]
-      } as BrunoUIMessage
-    ]);
+    setMessages(
+      initialMessage
+        ? [
+            {
+              id: 'init',
+              role: 'assistant',
+              parts: [{ type: 'text', text: initialMessage }],
+            } as BrunoUIMessage,
+          ]
+        : [],
+    );
     setShowHistory(false);
   };
 
@@ -487,19 +609,21 @@ export default function BrunoChatSidebar({
 
   const isChatGenerating = status === 'streaming' || status === 'submitted';
   const isProcessing = isExternalProcessing || isChatGenerating;
+  const activeClarificationCard = useMemo(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'assistant') return null;
+    return extractClarificationCardsFromMessage(lastMessage)[0] ?? null;
+  }, [messages]);
 
-  const {
-    progressSteps,
-    progressSummary,
-    isBrunoWorking,
-    isProgressExpanded,
-    toggleProgressExpanded,
-    resetProgress,
-  } = useBrunoChatProgressState({
+  const { isBrunoWorking, isBrunoFinalizing } = useBrunoChatProgressState({
     messages,
     status,
     isExternallyProcessing: isExternalProcessing,
-    resetSignal: currentConversationId,
+  });
+
+  const { prefix, verbText, verb, headerLabel } = useBrunoThinkingLabel({
+    isBrunoWorking,
+    isBrunoFinalizing,
   });
 
   useEffect(() => {
@@ -511,11 +635,14 @@ export default function BrunoChatSidebar({
     if (isAtBottom || isUserMessage || showHistory) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isExpanded, showHistory, isAtBottom]);
+  }, [messages, showHistory, isAtBottom]);
 
   // Update messages when initialMessage changes (context switch)
   useEffect(() => {
     if (initialMessage && !currentConversationId) {
+      // #region agent log
+      fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:initialMessage-effect',message:'resetting messages from initialMessage',data:{initialMessageLen:initialMessage?.length,assignmentId,chatStatus:status},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       setMessages([{ 
         id: 'init',
         role: 'assistant', 
@@ -524,7 +651,11 @@ export default function BrunoChatSidebar({
     }
   }, [initialMessage, assignmentId, setMessages, currentConversationId]);
 
-  const submitPrompt = async (prompt: string, event?: React.FormEvent) => {
+  const submitPrompt = async (
+    prompt: string,
+    event?: React.FormEvent,
+    options: { clarificationResponse?: BrunoClarificationResponse } = {}
+  ) => {
     event?.preventDefault();
     const trimmedPrompt = prompt.trim();
 
@@ -543,8 +674,6 @@ export default function BrunoChatSidebar({
     lastUserMessageRef.current = userMessage;
     setInput('');
     setMentionState({ active: false, text: '' });
-    resetProgress();
-
     let convId = currentConversationId;
 
     if (!convId) {
@@ -609,7 +738,12 @@ export default function BrunoChatSidebar({
     }
 
     sendMessage({ text: userMessage }, {
-      body: createBrunoChatRequestBody(convId, currentContext)
+      body: createBrunoChatRequestBody(
+        convId,
+        currentContext,
+        assistantMode,
+        options.clarificationResponse
+      )
     });
   };
 
@@ -617,93 +751,100 @@ export default function BrunoChatSidebar({
     void submitPrompt(input, event);
   };
 
+  const showStarterActions =
+    isPlanningMode &&
+    shouldShowBrunoStarterActions({
+      messages,
+      currentConversationId,
+      input,
+      showHistory,
+      isProcessing,
+      isRateLimited,
+    });
+
+  const composerPlaceholder = editingMessageId
+    ? 'Edit your message...'
+    : isRateLimited
+      ? 'Your free Bruno limit is reached for now…'
+      : isProcessing
+        ? 'Bruno is working...'
+        : isPlanningMode
+          ? BRUNO_PLANNING_GREETING
+          : BRUNO_GREETING;
+
+  const showEmptyGreeting =
+    messages.length === 0 && !showHistory && !isBrunoWorking && !isProcessing;
+
   return (
     <>
-      {/* Placeholder to prevent calendar grid collapse when expanded */}
-      {isExpanded && <div className="w-full h-[600px] hidden lg:block" />}
-      
-      {/* Zen Mode Backdrop */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-md"
-            onClick={() => setIsExpanded(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <div className={isExpanded ? "fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 pointer-events-none" : "relative w-full h-full"}>
-        <div className={`flex flex-col bg-[var(--color-settings-bg)] overflow-hidden pointer-events-auto transition-all duration-300 ease-out origin-center ${
-          isExpanded ? "w-full max-w-[95vw] lg:max-w-6xl h-[90vh] rounded-[32px] shadow-2xl border border-[var(--color-settings-border)]" : "w-full h-full rounded-none border-0 bg-transparent"
-        }`}>
+      <div className="relative flex h-full min-h-0 w-full flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--color-settings-bg)]">
           
           {/* Header */}
-          <div className="bg-[var(--color-settings-card)] flex items-center justify-between border-b border-[var(--color-settings-border)] px-4 py-3 md:px-6">
-            <div className="flex items-center gap-3">
-              <BrunoAvatar mood={isProcessing ? 'thinking' : 'happy'} size={isExpanded ? "md" : "sm"} />
-              <div>
-                <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-base md:text-lg" : "text-base"}`}>Bruno</h3>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`font-serif italic text-[var(--color-settings-brand)] ${isExpanded ? "text-sm md:text-base" : "text-sm"}`}>
-                    {isBrunoWorking && progressSummary
-                      ? progressSummary
-                      : isProcessing
-                        ? 'Working on your request'
-                        : 'Your academic guide'}
-                  </span>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/92 px-4 py-3 backdrop-blur-xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <BrunoFaceMark size={36} />
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <h3 className="truncate font-sans text-base font-bold text-[var(--color-settings-text)]">
+                    Bruno
+                  </h3>
                   <BrunoIntegrationChips />
                 </div>
+                {(isBrunoWorking || isProcessing) && (
+                  <p className="mt-0.5 truncate text-xs text-[var(--color-settings-text-muted)]">
+                    {isBrunoWorking
+                      ? headerLabel
+                      : 'Working on your request'}
+                  </p>
+                )}
               </div>
             </div>
 
-            {isExpanded ? (
-              <div className="flex gap-2 items-center">
-                <button 
-                  onClick={() => setShowHistory(!showHistory)} 
-                  className={`p-2.5 rounded-xl transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
-                  title="Past Chats"
-                >
-                  <ClockCounterClockwise weight="bold" className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => setIsExpanded(false)} 
-                  className="flex items-center gap-2 px-4 py-2 bg-[var(--color-settings-card-hover)] hover:bg-[var(--color-settings-border)] text-[var(--color-settings-text)] rounded-xl transition-colors font-sans text-sm font-medium"
-                >
-                  <CaretLeft weight="bold" /> Back to Calendar
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-1 items-center">
-                <button 
-                  onClick={() => setShowHistory(!showHistory)} 
-                  className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)]'}`}
-                  title="Past Chats"
-                >
-                  <ClockCounterClockwise weight="bold" className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => setIsExpanded(true)} 
-                  className="p-2 text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors rounded-lg hover:bg-[var(--color-settings-card-hover)]" 
-                  title="Enter Zen Mode"
-                >
-                  <ArrowsOutSimple weight="bold" className="w-5 h-5" />
-                </button>
-                <button 
-                  type="button"
-                  onClick={closeBruno} 
-                  className="p-2 text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors rounded-lg hover:bg-[var(--color-settings-card-hover)]" 
-                  title="Close Bruno"
-                >
-                  <X weight="bold" className="w-5 h-5" />
-                </button>
-              </div>
-            )}
-          </div>
+            <div className="hidden min-w-0 items-center justify-center md:flex">
+              <BrunoContextBanner />
+            </div>
 
-          <BrunoContextBanner />
+            <div className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => setShowHistory(!showHistory)}
+                className={`rounded-xl p-2.5 transition-colors ${showHistory ? 'bg-[var(--color-settings-brand)] text-white' : 'text-[var(--color-settings-text-muted)] hover:bg-[var(--color-settings-card-hover)] hover:text-[var(--color-settings-text)]'}`}
+                title="Past chats"
+                aria-label="Past chats"
+              >
+                <ClockCounterClockwise weight="bold" className="h-5 w-5" />
+              </button>
+              {onToggleFullScreen && (
+                <button
+                  type="button"
+                  onClick={onToggleFullScreen}
+                  className="rounded-xl p-2.5 text-[var(--color-settings-text-muted)] transition-colors hover:bg-[var(--color-settings-card-hover)] hover:text-[var(--color-settings-text)]"
+                  title={isFullScreen ? 'Exit full screen' : 'Full screen'}
+                  aria-label={isFullScreen ? 'Exit full screen' : 'Full screen'}
+                >
+                  {isFullScreen ? (
+                    <ArrowsInSimple weight="bold" className="h-5 w-5" />
+                  ) : (
+                    <ArrowsOutSimple weight="bold" className="h-5 w-5" />
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={isDock ? onMinimize : closeBruno}
+                className="rounded-xl p-2.5 text-[var(--color-settings-text-muted)] transition-colors hover:bg-[var(--color-settings-card-hover)] hover:text-[var(--color-settings-text)]"
+                title={isDock ? 'Minimize Bruno' : 'Close Bruno'}
+                aria-label={isDock ? 'Minimize Bruno' : 'Close Bruno'}
+              >
+                <X weight="bold" className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="col-span-2 md:hidden">
+              <BrunoContextBanner />
+            </div>
+          </div>
 
           {/* Context Limit Warning */}
           {messages.length > 20 && (
@@ -726,15 +867,15 @@ export default function BrunoChatSidebar({
                   exit={{ opacity: 0, y: -10 }}
                   className="absolute inset-0 z-50 bg-[var(--color-settings-bg)] flex flex-col"
                 >
-                  <div className={`flex items-center justify-between border-b border-[var(--color-settings-border)] ${isExpanded ? "p-6" : "p-4"}`}>
-                    <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isExpanded ? "text-lg" : "text-base"}`}>Recent Chats</h3>
+                  <div className={`flex items-center justify-between border-b border-[var(--color-settings-border)] ${isFullScreen ? "p-6" : "p-4"}`}>
+                    <h3 className={`font-sans font-bold text-[var(--color-settings-text)] ${isFullScreen ? "text-lg" : "text-base"}`}>Recent Chats</h3>
                     <button onClick={startNewConversation} className="bg-[var(--color-settings-card-hover)] text-[var(--color-settings-text)] px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-[var(--color-settings-border)]">
                       <Plus weight="bold" /> New Chat
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-2">
                     {conversations.length === 0 ? (
-                      <div className="text-center py-10 opacity-50 text-[#fdfbf7]">
+                      <div className="text-center py-10 opacity-50 text-[var(--color-ink-soft)]">
                         No Recent Chats
                       </div>
                     ) : (
@@ -760,7 +901,7 @@ export default function BrunoChatSidebar({
                       ))
                     )}
                   </div>
-                  <div className={`p-4 border-t border-[var(--color-settings-border)] ${isExpanded ? "px-6" : "px-4"}`}>
+                  <div className={`p-4 border-t border-[var(--color-settings-border)] ${isFullScreen ? "px-6" : "px-4"}`}>
                     <button 
                       onClick={() => setShowHistory(false)}
                       className="w-full py-2.5 text-center text-sm font-medium text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] transition-colors"
@@ -776,12 +917,22 @@ export default function BrunoChatSidebar({
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide bg-[var(--color-settings-bg)] relative px-4 py-4 md:px-6 md:py-5"
+              className="scrollbar-hide relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[var(--color-settings-bg)] px-4 py-6 md:px-8 md:py-8"
             >
-              {/* Subtle campfire glow at the bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[var(--color-settings-brand)]/5 to-transparent pointer-events-none" />
-              
-              <div className="mx-auto flex w-full max-w-[44rem] flex-col gap-5 relative z-10">
+              {showEmptyGreeting && (
+                <div className="flex min-h-[min(40vh,320px)] flex-col items-center justify-center gap-4 text-center">
+                  <BrunoFaceMark size={48} />
+                  <p className="font-serif text-xl text-[var(--color-settings-text)] md:text-2xl">
+                    {isPlanningMode ? BRUNO_PLANNING_GREETING : BRUNO_GREETING}
+                  </p>
+                </div>
+              )}
+
+              <div className={cn(
+                'relative z-10 mx-auto flex w-full flex-col gap-6',
+                isFullScreen ? 'max-w-[52rem]' : 'max-w-[48rem]',
+                showEmptyGreeting && 'hidden',
+              )}>
                 <AnimatePresence initial={false}>
                   {messages.map((message, i) => {
                     const textPart = message.parts?.find(p => p.type === 'text')?.text || '';
@@ -792,6 +943,7 @@ export default function BrunoChatSidebar({
                         part.type === 'data-bruno-pro-warning' ||
                         part.type === 'data-bruno-pro-cap'
                     ) || [];
+                    const clarificationCards = extractClarificationCardsFromMessage(message);
                     const truncatedPart = message.parts?.find(
                       (part) => part.type === 'data-bruno-truncated'
                     );
@@ -826,6 +978,7 @@ export default function BrunoChatSidebar({
                       integrationCalls.length > 0 ||
                       isPlanDraft ||
                       entitlementParts.length > 0 ||
+                      clarificationCards.length > 0 ||
                       Boolean(truncatedNotice);
 
                     if (message.role === 'assistant' && !hasVisibleAssistantContent) {
@@ -853,7 +1006,7 @@ export default function BrunoChatSidebar({
                           ))}
                         {/* If this is a plan draft, render the interactive card */}
                         {isPlanDraft ? (
-                          <div className="w-full max-w-[44rem] flex flex-col gap-3">
+                          <div className="flex w-full max-w-[52rem] flex-col gap-3">
                             <PlanDraftCard
                               planTitle={planDraftArgs.plan_title}
                               planObjective={planDraftArgs.plan_objective}
@@ -871,7 +1024,8 @@ export default function BrunoChatSidebar({
                                 sendMessage({ text: approvalMessage }, {
                                   body: createBrunoChatRequestBody(
                                     currentConversationId,
-                                    currentContext
+                                    currentContext,
+                                    assistantMode
                                   )
                                 });
                                 setTimeout(() => setIsCommittingPlan(false), 10000);
@@ -883,7 +1037,7 @@ export default function BrunoChatSidebar({
                             {(textPart || hasProposals) && (
                               <div className="w-full">
                                 {textPart && (
-                                  <div className="w-full rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 md:px-5 text-[15px] leading-7 text-[var(--color-settings-text)]">
+                                  <div className="w-full rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/50 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
                                     <div className="bruno-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{textPart}</ReactMarkdown></div>
                                   </div>
                                 )}
@@ -905,13 +1059,13 @@ export default function BrunoChatSidebar({
                                    <PencilSimple size={14} />
                                 </button>
                               )}
-                              <div className={`max-w-[min(80%,36rem)] rounded-2xl bg-[var(--color-settings-brand)]/20 px-4 py-2.5 text-[15px] leading-6 text-[var(--color-settings-text)] ${isEditing ? 'opacity-50' : ''}`}>
+                              <div className={`max-w-[min(82vw,34rem)] rounded-2xl border border-[var(--color-settings-brand)]/20 bg-[var(--color-settings-brand)]/18 px-4 py-2.5 text-[15px] leading-6 text-[var(--color-settings-text)] ${isEditing ? 'opacity-50' : ''}`}>
                                 <p>{textPart}</p>
                               </div>
                             </div>
                           ) : (
-                            <div className="mr-auto max-w-[min(90%,44rem)] relative group">
-                              <div className="rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/60 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
+                            <div className="group relative mr-auto max-w-[min(92%,48rem)]">
+                              <div className="rounded-2xl border border-[var(--color-settings-border)]/60 bg-[var(--color-settings-card)]/30 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
                                 <div className="w-full">
                                 <div className="bruno-markdown max-w-none text-[15px] text-[var(--color-settings-text)]">
                                   {integrationCalls.map((call) => (
@@ -923,7 +1077,9 @@ export default function BrunoChatSidebar({
                                       errorText={call.errorText}
                                     />
                                   ))}
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{displayText}</ReactMarkdown>
+                                  {displayText ? (
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{displayText}</ReactMarkdown>
+                                  ) : null}
                                 </div>
                                 {hasProposals && (
                                   <div className="mt-3">
@@ -937,22 +1093,25 @@ export default function BrunoChatSidebar({
                                     />
                                   </div>
                                 )}
-                                <BrunoNoteActions
-                                  content={truncatedNotice?.assistantText || displayText}
-                                  conversationId={currentConversationId}
-                                  truncated={truncatedNotice}
-                                  onContinue={() => {
-                                    sendMessage(
-                                      { text: 'continue' },
-                                      {
-                                        body: createBrunoChatRequestBody(
-                                          currentConversationId,
-                                          currentContext
-                                        ),
-                                      }
-                                    );
-                                  }}
-                                />
+                                {clarificationCards.length === 0 && (
+                                  <BrunoNoteActions
+                                    content={truncatedNotice?.assistantText || displayText}
+                                    conversationId={currentConversationId}
+                                    truncated={truncatedNotice}
+                                    onContinue={() => {
+                                      sendMessage(
+                                        { text: 'continue' },
+                                        {
+                                          body: createBrunoChatRequestBody(
+                                            currentConversationId,
+                                            currentContext,
+                                            assistantMode
+                                          ),
+                                        }
+                                      );
+                                    }}
+                                  />
+                                )}
                               </div>
                             </div>
                             {!isProcessing && displayText && (
@@ -980,12 +1139,10 @@ export default function BrunoChatSidebar({
                       transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
                       className="relative z-10"
                     >
-                      <BrunoActivityPanel
-                        steps={progressSteps}
-                        summary={progressSummary}
-                        isExpanded={isProgressExpanded}
-                        isWorking={isBrunoWorking}
-                        onToggle={toggleProgressExpanded}
+                      <BrunoThinkingIndicator
+                        prefix={prefix}
+                        verbText={verbText}
+                        verb={verb}
                       />
                     </motion.div>
                   )}
@@ -1025,15 +1182,12 @@ export default function BrunoChatSidebar({
 
           <form 
             onSubmit={handleSubmit} 
-            className="bg-[var(--color-settings-card)]/85 backdrop-blur-xl border-t border-[var(--color-settings-border)] px-4 py-3 md:px-6 md:py-4 relative z-20"
+            className="relative z-20 bg-[var(--color-settings-bg)] px-4 py-4 md:px-8 md:py-5"
           >
-            <div className="mx-auto w-full max-w-[44rem] relative">
-              <BrunoSuggestedActions
-                onSelectAction={(prompt) => {
-                  void submitPrompt(prompt);
-                }}
-              />
-              
+            <div className={cn(
+              'relative mx-auto w-full',
+              isFullScreen ? 'max-w-[52rem]' : 'max-w-[48rem]',
+            )}>
               {/* Mentions Dropdown */}
               <AnimatePresence>
                 {mentionState.active && suggestions.length > 0 && (
@@ -1069,6 +1223,56 @@ export default function BrunoChatSidebar({
               </AnimatePresence>
 
               <div className="relative">
+                <div className="mb-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={togglePlanningMode}
+                    title={
+                      isPlanningMode
+                        ? 'Planning mode on — click for general chat'
+                        : 'Switch to planning mode'
+                    }
+                    aria-pressed={isPlanningMode}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                      isPlanningMode
+                        ? 'border-[var(--color-settings-brand)] bg-[var(--color-settings-brand)]/15 text-[var(--color-settings-text)]'
+                        : 'border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/50 text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)]'
+                    )}
+                  >
+                    <CalendarBlank
+                      className={isFullScreen ? 'h-4 w-4' : 'h-3.5 w-3.5'}
+                      weight={isPlanningMode ? 'fill' : 'regular'}
+                    />
+                    Planning
+                  </button>
+                </div>
+                <AnimatePresence>
+                  {activeClarificationCard && !showHistory && (
+                    <motion.div
+                      key={activeClarificationCard.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                      transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                      className="mb-0"
+                    >
+                      <BrunoClarificationCard
+                        card={activeClarificationCard}
+                        variant="composer"
+                        disabled={isProcessing}
+                        onSubmit={(response) => {
+                          void submitPrompt(
+                            formatClarificationResponseForChat(response),
+                            undefined,
+                            { clarificationResponse: response }
+                          );
+                        }}
+                      />
+                      <div className="pointer-events-none mx-auto -mt-px h-3 w-9 rounded-b-2xl border-x border-b border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/92 shadow-[0_10px_18px_-18px_rgba(0,0,0,0.45)]" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -1083,15 +1287,7 @@ export default function BrunoChatSidebar({
                     }
                   }}
                   disabled={isExternalProcessing || isRateLimited}
-                  placeholder={
-                    editingMessageId
-                      ? 'Edit your message...'
-                      : isRateLimited
-                        ? 'Your free Bruno limit is reached for now…'
-                        : isProcessing
-                          ? 'Bruno is working...'
-                          : 'Ask Bruno anything...'
-                  }
+                  placeholder={composerPlaceholder}
                   onKeyDown={(e) => {
                     if (mentionState.active && suggestions.length > 0) {
                       if (e.key === 'ArrowDown') {
@@ -1129,37 +1325,38 @@ export default function BrunoChatSidebar({
                     }
                   }}
                   rows={Math.min(5, input.split('\n').length || 1)}
-                  className={`w-full bg-[var(--color-settings-bg)] border border-[var(--color-settings-border)] rounded-xl text-[var(--color-settings-text)] placeholder:text-[var(--color-settings-text-muted)] focus:outline-none focus:border-[var(--color-settings-brand)] transition-[border-color,box-shadow] focus:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.05)] resize-none ${
-                    isExpanded ? "py-4 pl-5 pr-14 text-[16px] min-h-[64px]" : "py-3 pl-4 pr-12 text-[14px] min-h-[52px]"
+                  className={`w-full resize-none rounded-3xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]/50 text-[var(--color-settings-text)] shadow-[0_2px_12px_-4px_rgba(0,0,0,0.08)] placeholder:text-[var(--color-settings-text-muted)] transition-[border-color,box-shadow] focus:border-[var(--color-settings-border)] focus:outline-none focus:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.1)] ${
+                    isFullScreen ? "min-h-[72px] py-4 pl-5 pr-14 text-[16px]" : "min-h-[64px] py-4 pl-5 pr-14 text-[15px]"
                   } max-h-[250px] leading-relaxed`}
                 />
                 {isChatGenerating ? (
                   <button
                     type="button"
                     onClick={() => stop()}
-                    className={`absolute rounded-lg transition-all cursor-pointer bg-red-500/80 hover:bg-red-500 text-white ${
-                      isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
-                    }`}
+                    className="absolute right-3 bottom-3 rounded-lg bg-red-500/80 p-2.5 text-white transition-all hover:bg-red-500"
                     title="Stop generation"
                   >
-                    <Stop weight="fill" className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
+                    <Stop weight="fill" className={isFullScreen ? "w-5 h-5" : "w-4 h-4"} />
                   </button>
                 ) : (
                   <button
                     type="submit"
                     disabled={!input.trim() || isProcessing || isRateLimited}
-                    className={`absolute bg-[var(--color-settings-brand)] hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] cursor-pointer ${
-                      isExpanded ? "right-3 bottom-3 p-2.5" : "right-2 bottom-2 p-2"
-                    }`}
+                    className="absolute right-3 bottom-3 rounded-lg bg-[var(--color-settings-brand)] p-2.5 text-white transition-all hover:opacity-90 disabled:bg-[var(--color-settings-card-hover)] disabled:text-[var(--color-settings-text-muted)] disabled:opacity-50"
                     title="Send message"
                   >
-                    <PaperPlaneTilt className={isExpanded ? "w-5 h-5" : "w-4 h-4"} />
+                    <PaperPlaneTilt className={isFullScreen ? "w-5 h-5" : "w-4 h-4"} />
                   </button>
                 )}
               </div>
-              <p className={`mt-2 font-mono tracking-widest uppercase text-[var(--color-settings-text-muted)] text-center ${isExpanded ? "text-xs" : "text-[10px]"}`}>
-                Shift + Enter for new line
-              </p>
+
+              {showStarterActions && (
+                <BrunoSuggestedActions
+                  onSelectAction={(prompt) => {
+                    void submitPrompt(prompt);
+                  }}
+                />
+              )}
             </div>
           </form>
         </div>

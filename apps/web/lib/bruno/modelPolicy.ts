@@ -24,6 +24,11 @@ export const BRUNO_NOTES_OUTPUT_TOKENS = {
   pro: 4500,
 } as const;
 
+export const BRUNO_DOCUMENTS_OUTPUT_TOKENS = {
+  free: 2200,
+  pro: 6500,
+} as const;
+
 export const MODEL_POLICY: Record<
   BrunoRouteDecision['mode'],
   BrunoModelPolicy
@@ -116,6 +121,17 @@ export const MODEL_POLICY: Record<
     temperature: 0.25,
     upgradeCardEligible: false,
   },
+  document_writing: {
+    tier: 'standard',
+    proLocked: false,
+    freeCreditsAllowed: false,
+    includeTasks: false,
+    includeCalendar: false,
+    includeCanvas: true,
+    maxOutputTokens: BRUNO_DOCUMENTS_OUTPUT_TOKENS.free,
+    temperature: 0.35,
+    upgradeCardEligible: false,
+  },
   project_breakdown: {
     tier: 'deep',
     proLocked: true,
@@ -128,15 +144,15 @@ export const MODEL_POLICY: Record<
     upgradeCardEligible: true,
   },
   coding_help: {
-    tier: 'deep',
-    proLocked: true,
-    freeCreditsAllowed: true,
+    tier: 'standard',
+    proLocked: false,
+    freeCreditsAllowed: false,
     includeTasks: false,
     includeCalendar: false,
     includeCanvas: false,
-    maxOutputTokens: 2000,
+    maxOutputTokens: 700,
     temperature: 0.2,
-    upgradeCardEligible: true,
+    upgradeCardEligible: false,
   },
   emotional_recovery: {
     tier: 'medium',
@@ -186,7 +202,15 @@ export function resolveBrunoGenerationPlan(input: {
 }): BrunoGenerationPlan {
   const policy = MODEL_POLICY[input.decision.mode];
 
-  if (input.decision.mode === 'notes') {
+  if (
+    input.decision.mode === 'notes' ||
+    input.decision.mode === 'document_writing'
+  ) {
+    const outputTokens =
+      input.decision.mode === 'notes'
+        ? BRUNO_NOTES_OUTPUT_TOKENS
+        : BRUNO_DOCUMENTS_OUTPUT_TOKENS;
+
     if (input.entitlement.isPro) {
       return {
         tier: 'deep',
@@ -199,7 +223,7 @@ export function resolveBrunoGenerationPlan(input: {
         policy: {
           ...policy,
           tier: 'deep',
-          maxOutputTokens: BRUNO_NOTES_OUTPUT_TOKENS.pro,
+          maxOutputTokens: outputTokens.pro,
         },
       };
     }
@@ -214,7 +238,7 @@ export function resolveBrunoGenerationPlan(input: {
       shouldShowProCap: false,
       policy: {
         ...policy,
-        maxOutputTokens: BRUNO_NOTES_OUTPUT_TOKENS.free,
+        maxOutputTokens: outputTokens.free,
       },
     };
   }

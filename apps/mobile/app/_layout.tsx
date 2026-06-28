@@ -51,14 +51,53 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const resolveAuthenticatedRoute = async (
+    userId: string,
+    userEmail: string | undefined,
+    inAuthGroup: boolean,
+    isBlockedRoute: boolean
+  ): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('plan_type')
+        .eq('id', userId)
+        .single();
+
+      if (error || !data) {
+        return inAuthGroup || isBlockedRoute ? '/(tabs)' : null;
+      }
+
+      const normalizedPlan = normalizePlanType(data.plan_type);
+      const customerInfo = await loginToRevenueCat(userId, userEmail);
+      const isRcPro = isPro(customerInfo);
+      const isPlanActive =
+        ['free', 'trialing', 'premium', 'student', 'admin'].includes(normalizedPlan) || isRcPro;
+
+      if (isPlanActive) {
+        identifyUser(userId, userEmail, normalizedPlan);
+      }
+
+      if (inAuthGroup || isBlockedRoute) {
+        return '/(tabs)';
+      }
+
+      if (!isPlanActive) {
+        return '/(tabs)';
+      }
+
+      return null;
+    } catch {
+      return inAuthGroup || isBlockedRoute ? '/(tabs)' : null;
+    }
+  };
+
   useEffect(() => {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'forgot-password';
     const isBlockedRoute = (segments[0] as string) === 'blocked';
-    const isOnboardingRoute = (segments[0] as string) === 'onboarding';
 
-    // If we've already done the initial load animation, just route immediately
     if (!showLoader) {
       if (!session && !inAuthGroup) {
         router.replace('/login');
@@ -69,47 +108,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         if (isVerifying.current) return;
         isVerifying.current = true;
 
-        const verifyProfile = async () => {
+        void (async () => {
           try {
-            const { data, error } = await supabase
-              .from('users')
-              .select('onboarding_complete, plan_type')
-              .eq('id', user.id)
-              .single();
-
-            if (error || !data) {
-              if (!isOnboardingRoute && !isBlockedRoute) router.replace('/onboarding' as any);
-              return;
+            const route = await resolveAuthenticatedRoute(
+              user.id,
+              user.email ?? undefined,
+              inAuthGroup,
+              isBlockedRoute
+            );
+            if (route) {
+              router.replace(route as never);
             }
-
-            const normalizedPlan = normalizePlanType(data.plan_type);
-            const customerInfo = await loginToRevenueCat(user.id, user.email ?? undefined);
-            const isRcPro = isPro(customerInfo);
-            
-            const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(normalizedPlan) || isRcPro;
-            const isReady = data.onboarding_complete && isPlanActive;
-
-            if (isReady) {
-              identifyUser(user.id, user.email ?? undefined, normalizedPlan);
-              if (inAuthGroup || isBlockedRoute || isOnboardingRoute) {
-                router.replace('/(tabs)');
-              }
-            } else if (!isOnboardingRoute && !isBlockedRoute) {
-              router.replace('/onboarding' as any);
-            }
-          } catch {
-            if (!isOnboardingRoute && !isBlockedRoute) router.replace('/onboarding' as any);
           } finally {
             isVerifying.current = false;
           }
-        };
-
-        verifyProfile();
+        })();
       }
       return;
     }
 
-    // INITIAL LOADER FLOW
     const finishAuth = (route: string | null) => {
       setTargetRoute(route);
       setLoaderMode('complete');
@@ -119,7 +136,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       finishAuth('/login');
       return;
     }
-    
+
     if (!session && inAuthGroup) {
       finishAuth(null);
       return;
@@ -129,51 +146,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       if (isVerifying.current) return;
       isVerifying.current = true;
 
-      const verifyProfile = async () => {
+      void (async () => {
         try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('onboarding_complete, plan_type')
-            .eq('id', user.id)
-            .single();
-
-          if (error || !data) {
-            if (!isOnboardingRoute && !isBlockedRoute) finishAuth('/onboarding');
-            else finishAuth(null);
-            return;
-          }
-
-          const normalizedPlan = normalizePlanType(data.plan_type);
-          const customerInfo = await loginToRevenueCat(user.id, user.email ?? undefined);
-          const isRcPro = isPro(customerInfo);
-          
-          const isPlanActive = ['free', 'trialing', 'premium', 'student', 'admin'].includes(normalizedPlan) || isRcPro;
-          const isReady = data.onboarding_complete && isPlanActive;
-
-          if (isReady) {
-            identifyUser(user.id, user.email ?? undefined, normalizedPlan);
-            if (inAuthGroup || isBlockedRoute || isOnboardingRoute) {
-              finishAuth('/(tabs)');
-            } else {
-              finishAuth(null);
-            }
-          } else if (!isOnboardingRoute && !isBlockedRoute) {
-            finishAuth('/onboarding');
-          } else {
-            finishAuth(null);
-          }
-        } catch {
-          if (!isOnboardingRoute && !isBlockedRoute) {
-            finishAuth('/onboarding');
-          } else {
-            finishAuth(null);
-          }
+          const route = await resolveAuthenticatedRoute(
+            user.id,
+            user.email ?? undefined,
+            inAuthGroup,
+            isBlockedRoute
+          );
+          finishAuth(route);
         } finally {
           isVerifying.current = false;
         }
-      };
-
-      verifyProfile();
+      })();
     }
   }, [session, loading, segments, user, showLoader, router]);
 
@@ -224,7 +209,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const handleAnimationFinished = () => {
     setShowLoader(false);
     if (targetRoute) {
-      router.replace(targetRoute as any);
+      router.replace(targetRoute as never);
     }
   };
 
@@ -302,7 +287,6 @@ function RootLayoutNav() {
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
             <Stack.Screen name="change-password" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
             <Stack.Screen name="blocked" options={{ headerShown: false }} />
             <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="canvas-connect" options={{ presentation: 'modal', title: 'Connect Canvas' }} />

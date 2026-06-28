@@ -8,6 +8,8 @@ import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import { useUserProfile } from '@/components/providers/UserProfileProvider';
+import { useSupabaseTableRealtime } from '@/hooks/useSupabaseTableRealtime';
 import EventDialog from '@/components/calendar/dialogs/EventDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import type { CalendarEvent } from '@/types/calendar';
@@ -18,8 +20,8 @@ import { DashboardHero } from '@/components/dashboard/home/DashboardHero';
 import { DashboardEmptyState } from '@/components/dashboard/home/DashboardEmptyState';
 import { DashboardHomePreview } from '@/components/dashboard/home/DashboardHomePreview';
 import { DashboardAlerts } from '@/components/dashboard/home/DashboardAlerts';
-import { BrunoInsightPanel } from '@/components/dashboard/home/BrunoInsightPanel';
 import { DashboardSkeleton } from '@/components/dashboard/home/DashboardSkeleton';
+import { DashboardInsightsRow } from '@/components/dashboard/v4/DashboardWidgetsRow';
 
 export default function DashboardPage() {
   useRegisterBrunoContext({
@@ -29,8 +31,17 @@ export default function DashboardPage() {
   });
 
   const router = useRouter();
+  const { userId } = useUserProfile();
   const data = useDashboardData();
-  const { toggleComplete } = useTaskActions(data.refresh);
+  useSupabaseTableRealtime({
+    userId,
+    tables: ['tasks', 'calendar_events'],
+    onChange: data.refresh,
+  });
+  const { toggleComplete } = useTaskActions({
+    onRefresh: data.refresh,
+    setTasks: data.setTasks,
+  });
   const { updateEvent, deleteEvent } = useCalendarEvents();
 
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
@@ -65,16 +76,16 @@ export default function DashboardPage() {
         connections={data.connections}
       />
 
-      <WeekStrip
-        selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
-        eventDates={eventDates}
-      />
-
       <DashboardHero
         mode={data.mode}
         nextAction={data.nextAction}
         upNextBlocks={data.upNextBlocks}
+      />
+
+      <WeekStrip
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        eventDates={eventDates}
       />
 
       <DashboardEmptyState
@@ -96,25 +107,20 @@ export default function DashboardPage() {
         onToggleComplete={toggleComplete}
       />
 
-      {data.priorityAlerts.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-          <DashboardAlerts
-            alerts={data.priorityAlerts}
-            onOverdueTaskClick={handleOverdueAlert}
-          />
-          <BrunoInsightPanel
-            insight={data.insight}
-            insightLoading={data.insightLoading}
-            openTaskCount={data.openTasks.length}
-          />
-        </div>
-      ) : (
-        <BrunoInsightPanel
-          insight={data.insight}
-          insightLoading={data.insightLoading}
-          openTaskCount={data.openTasks.length}
+      {data.priorityAlerts.length > 0 && (
+        <DashboardAlerts
+          alerts={data.priorityAlerts}
+          onOverdueTaskClick={handleOverdueAlert}
         />
       )}
+
+      <DashboardInsightsRow
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        parsedSchedule={data.parsedSchedule}
+        weekEvents={data.thisWeekEvents}
+        tasks={data.tasks}
+      />
 
       <EventDialog
         isOpen={!!selectedEventModal}

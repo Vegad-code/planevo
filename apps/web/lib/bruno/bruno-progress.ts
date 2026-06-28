@@ -40,6 +40,7 @@ const MODE_LABELS: Partial<Record<BrunoMode, string>> = {
   deadline_rescue: 'Deadline rescue',
   academic_tutoring: 'Academic tutoring',
   notes: 'Notes',
+  document_writing: 'Document writing',
   project_breakdown: 'Project breakdown',
   coding_help: 'Coding help',
   emotional_recovery: 'Support',

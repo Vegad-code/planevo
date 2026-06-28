@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedProfile } from '@/lib/auth/get-authenticated-profile';
+import { UserProfileProvider } from '@/components/providers/UserProfileProvider';
 import DashboardClientShell from './DashboardClientShell';
 
 export default async function DashboardLayout({
@@ -7,25 +7,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  const authenticated = await getAuthenticatedProfile();
 
-  if (userError || !user) {
-    redirect('/login');
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('onboarding_complete')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (profile && !profile.onboarding_complete) {
-    redirect('/onboarding');
-  }
-
-  return <DashboardClientShell>{children}</DashboardClientShell>;
+  return (
+    <UserProfileProvider initial={authenticated}>
+      <DashboardClientShell>{children}</DashboardClientShell>
+    </UserProfileProvider>
+  );
 }

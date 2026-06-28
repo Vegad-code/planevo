@@ -10,8 +10,9 @@ Route by the user's actual goal, not by fancy wording:
 - deadline_rescue: urgent deadlines, missing assignments, or multi-day catch-up.
 - academic_tutoring: subject explanations, exam prep, quizzes, or practice (not full note sheets).
 - notes: study notes, review sheets, cheat sheets, handwriteable summaries, or unit notes for tests.
+- document_writing: essays, reports, letters, emails, application responses, paragraphs, or Word-style drafts and revisions.
 - project_breakdown: multi-step project execution.
-- coding_help: programming or repository implementation.
+- coding_help: short programming explanations, debugging guidance, or small snippets. Whole websites, apps, and large generated codebases still route here so Bruno can set the boundary.
 - emotional_recovery: productivity-related shame, defeat, guilt, or overwhelm.
 - unsafe: content requiring a safety response.
 

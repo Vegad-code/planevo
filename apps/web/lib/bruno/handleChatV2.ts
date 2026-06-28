@@ -19,7 +19,7 @@ import type { BrunoPageContext } from '@/lib/bruno/types';
 import { posthogServer } from '@/lib/posthog-server';
 import { normalizePlanType, isPaidPlan } from '@/lib/auth/plan-types';
 import type { Json } from '@/types/database';
-import { buildBrunoSystemPrompt } from './brunoPrompts';
+import { buildBrunoSystemPrompt, buildGeneralSystemPrompt } from './brunoPrompts';
 import { extractLastUserMessageText } from '@/lib/bruno/enrichTimeBlockProposal';
 import { enrichBrunoProposal } from '@/lib/bruno/enrichProposalColor';
 import {
@@ -44,6 +44,8 @@ import {
   checkDeterministicBrunoSafety,
 } from './safety';
 import type {
+  BrunoAssistantMode,
+  BrunoClarificationResponse,
   BrunoDataParts,
   BrunoDataAccess,
   BrunoGenerationPlan,
@@ -67,18 +69,32 @@ import {
   getBrunoUpgradeCard,
 } from './upgradeCards';
 import {
+  buildStickyDocumentDecision,
   buildStickyNotesDecision,
+  shouldStickToDocumentMode,
   shouldStickToNotesMode,
 } from './conversationRouting';
 import {
+  checkBrunoDocumentsMonthlyQuota,
   checkBrunoNotesMonthlyQuota,
+  consumeBrunoDocumentsQuota,
   consumeBrunoNotesQuota,
 } from '@/lib/auth/rateLimit';
-import { getBrunoComposioTools } from '@/lib/integrations/composio/client';
+import { getBrunoComposioTools } from '@/lib/integrations/composio/bruno-tools';
 import { buildNotionToolHint } from '@/lib/integrations/composio/providerTools';
 import { BrunoProgressWriter } from './progressWriter';
 import { getBrunoReadTools } from './readTools';
+import {
+  didAutoEscalateToPlanning,
+  parseBrunoAssistantMode,
+  resolveEffectiveAssistantMode,
+  usesMinimalGeneralPrompt,
+} from './assistantMode';
 import { getBrunoNoteTools } from './noteTools';
+import {
+  generateBrunoClarificationCard,
+  shouldRequestClarification,
+} from './clarification';
 type ChatMessage = {
   id?: string;
   role: 'user' | 'assistant' | 'tool';
@@ -104,6 +120,8 @@ type HandleBrunoV2Input = {
   timeZone?: string;
   localTime?: string;
   pageContext?: BrunoPageContext;
+  assistantMode?: BrunoAssistantMode;
+  clarificationResponse?: BrunoClarificationResponse;
 };
 
 const proposeActionParams = jsonSchema({
@@ -277,7 +295,7 @@ function createContextLoaders(
         .from('calendar_events')
         .select('id, title, start_time, end_time, status')
         .eq('user_id', userId)
-        .is('deleted_at', null)
+        .eq('is_deleted', false)
         .gte('start_time', start.toISOString())
         .lt('start_time', end.toISOString())
         .order('start_time', { ascending: true })
@@ -488,6 +506,8 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
   let finalized = false;
   let routeMode: BrunoMode = 'basic_chat';
   let routeTier: string = 'standard';
+  let effectiveAssistantMode: BrunoAssistantMode = 'general';
+  const requestedAssistantMode = parseBrunoAssistantMode(input.assistantMode);
 
   const stream = createUIMessageStream<
     UIMessage<unknown, BrunoDataParts>
@@ -567,11 +587,23 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         message: latestMessage,
         lastMode,
       });
+      const stickyDocument = shouldStickToDocumentMode({
+        message: latestMessage,
+        lastMode,
+      });
 
       let routeResult: Awaited<ReturnType<typeof routeBrunoMessage>>;
       if (stickyNotes) {
         routeResult = {
           decision: buildStickyNotesDecision('notes refinement follow-up'),
+          routeSource: 'deterministic',
+          latencyMs: 0,
+        };
+      } else if (stickyDocument) {
+        routeResult = {
+          decision: buildStickyDocumentDecision(
+            'document writing refinement follow-up'
+          ),
           routeSource: 'deterministic',
           latencyMs: 0,
         };
@@ -616,11 +648,167 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         }
       }
 
+      if (routeResult.decision.mode === 'document_writing' && !isPro) {
+        const documentsQuota = await checkBrunoDocumentsMonthlyQuota(
+          input.user.id,
+          input.user.email
+        );
+        if (!documentsQuota.allowed) {
+          progress.markError('route', 'Document limit reached');
+          writeStaticText(
+            writer,
+            documentsQuota.message ??
+              "You've reached your free document-writing limit for this month."
+          );
+          await completeBrunoUsage(usageRepository, {
+            usageLogId: input.usageLogId,
+            model: null,
+            mode: 'document_writing',
+            tier: 'none',
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostCents: 0,
+            latencyMs: Math.round(performance.now() - startedAt),
+            status: 'completed',
+          }).catch(Sentry.captureException);
+          progress.markComplete();
+          return;
+        }
+      }
+
       routeMode = routeResult.decision.mode;
+      effectiveAssistantMode = resolveEffectiveAssistantMode({
+        assistantMode: requestedAssistantMode,
+        routeMode: routeResult.decision.mode,
+      });
+      const autoEscalated = didAutoEscalateToPlanning({
+        assistantMode: requestedAssistantMode,
+        effectiveAssistantMode,
+      });
+      const useMinimalPrompt = usesMinimalGeneralPrompt({
+        effectiveAssistantMode,
+        routeMode: routeResult.decision.mode,
+      });
+
+      if (autoEscalated) {
+        writer.write({
+          type: 'data-bruno-assistant-mode-notice',
+          data: {
+            type: 'bruno_assistant_mode_notice',
+            requestedMode: requestedAssistantMode,
+            effectiveMode: effectiveAssistantMode,
+            autoEscalated: true,
+            message: 'Switched to planning for this reply',
+          },
+        });
+      }
+
       progress.markRouteDone(
         routeResult.decision.mode,
         routeResult.decision.rationale
       );
+
+      if (
+        shouldRequestClarification({
+          message: latestMessage,
+          decision: routeResult.decision,
+          clarificationResponse: input.clarificationResponse,
+          env: process.env,
+        })
+      ) {
+        try {
+          const {
+            card,
+            usage,
+            model: clarificationModel,
+          } = await generateBrunoClarificationCard({
+            message: latestMessage,
+            routeMode: routeResult.decision.mode,
+            userName: input.profile?.name,
+            pageLabel: input.pageContext?.label,
+            localTime: input.localTime,
+            timeZone: input.timeZone,
+          }, {
+            onGenerationError: (error) => {
+              Sentry.captureException(error);
+              console.warn(
+                '[Bruno Clarification] Using fallback V2 questions after generation failed:',
+                error
+              );
+            },
+          });
+          const inputTokens = usage.inputTokens ?? 0;
+          const outputTokens = usage.outputTokens ?? 0;
+          const estimatedCostCents = estimateModelCostCents(
+            clarificationModel,
+            { inputTokens, outputTokens }
+          );
+          const latencyMs = Math.round(performance.now() - startedAt);
+
+          routeTier = 'standard';
+          writeStaticText(writer, card.intro);
+          writer.write({
+            type: 'data-bruno-clarification-card',
+            data: card,
+          });
+          progress.markComplete();
+
+          await Promise.allSettled([
+            completeBrunoUsage(usageRepository, {
+              usageLogId: input.usageLogId,
+              model: clarificationModel,
+              mode: routeResult.decision.mode,
+              tier: 'standard',
+              inputTokens,
+              outputTokens,
+              estimatedCostCents,
+              latencyMs,
+              status: 'completed',
+            }),
+            logBrunoRouteEvent(usageRepository, {
+              userId: input.user.id,
+              requestId: input.requestId,
+              conversationId: input.conversationId,
+              mode: routeResult.decision.mode,
+              confidence: routeResult.decision.confidence,
+              routeSource: routeResult.routeSource,
+              selectedTier: 'standard',
+              selectedModel: clarificationModel,
+              isPro,
+              usedDeepCredit: false,
+              upgradeCardShown: false,
+              safetyStatus: 'clear',
+              inputTokens,
+              outputTokens,
+              estimatedCostCents,
+              latencyMs,
+              rationale: `[clarification_requested;assistant=${requestedAssistantMode};effective=${effectiveAssistantMode};autoEscalated=${autoEscalated}] ${routeResult.decision.rationale}`,
+            }),
+          ]);
+
+          posthogServer.capture({
+            distinctId: input.user.id,
+            event: 'bruno_clarification_requested',
+            properties: {
+              mode: routeResult.decision.mode,
+              route_source: routeResult.routeSource,
+              selected_model: clarificationModel,
+              question_count: card.questions.length,
+              conversation_id: input.conversationId ?? null,
+              platform: input.isMobile ? 'mobile' : 'web',
+              assistant_mode: requestedAssistantMode,
+              effective_assistant_mode: effectiveAssistantMode,
+            },
+          });
+          return;
+        } catch (error) {
+          Sentry.captureException(error);
+          console.warn(
+            '[Bruno Clarification] Falling back to normal V2 generation:',
+            error
+          );
+        }
+      }
 
       let entitlement = await getBrunoEntitlement(usageRepository, {
         userId: input.user.id,
@@ -681,7 +869,14 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
 
       routeTier = generationPlan.tier;
 
-      const contextPolicy = generationPlan.policy;
+      const contextPolicy = useMinimalPrompt
+        ? {
+            ...generationPlan.policy,
+            includeTasks: false,
+            includeCalendar: false,
+            includeCanvas: false,
+          }
+        : generationPlan.policy;
       const contextParts: string[] = [];
       if (contextPolicy.includeTasks) contextParts.push('tasks');
       if (contextPolicy.includeCalendar) contextParts.push('calendar');
@@ -709,23 +904,33 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
           : undefined
       );
 
-      const context = await buildBrunoContext(
-        {
-          userId: input.user.id,
-          policy: generationPlan.policy,
-          assignmentId: input.assignmentId,
-          dataAccess,
-        },
-        createContextLoaders(input.assignmentId, dataAccess)
-      );
+      const context = useMinimalPrompt
+        ? {
+            taskContext: '',
+            calendarContext: '',
+            canvasContext: '',
+            integrationContext: '',
+          }
+        : await buildBrunoContext(
+            {
+              userId: input.user.id,
+              policy: contextPolicy,
+              assignmentId: input.assignmentId,
+              dataAccess,
+            },
+            createContextLoaders(input.assignmentId, dataAccess)
+          );
       progress.markContextDone(
         contextParts.length > 0
           ? `Loaded ${contextParts.join(', ')}`
           : undefined
       );
 
-      const memory = await getUserAIMemory(supabaseAdmin, input.user.id);
-      const memoryContext = buildMemoryContext(memory);
+      const memoryContext = useMinimalPrompt
+        ? ''
+        : buildMemoryContext(
+            await getUserAIMemory(supabaseAdmin, input.user.id)
+          );
 
       const proProviders = ['notion', 'slack', 'linear'];
       let connectedProviders: string[] = [];
@@ -743,14 +948,20 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       let dynamicMcpTools: Record<string, unknown> = {};
       let mcpContext = '';
       if (!dataAccess.integrations) {
-        mcpContext +=
-          'Access to Slack, Notion, and Linear is disabled in the user\'s privacy settings. You cannot view or write to them. If the user asks about integrations, tell them to enable access in Settings > Bruno Preferences.\n';
+        if (!useMinimalPrompt) {
+          mcpContext +=
+            'Access to Slack, Notion, and Linear is disabled in the user\'s privacy settings. You cannot view or write to them. If the user asks about integrations, tell them to enable access in Settings > Bruno Preferences.\n';
+        }
       } else if (!isPro) {
-        mcpContext +=
-          'Work integrations (Notion, Slack, Linear) are a Planevo Pro feature. If the user asks to use them, let them know these connect under Settings > Integrations on the Pro plan. Do not claim to perform external actions.\n';
+        if (!useMinimalPrompt) {
+          mcpContext +=
+            'Work integrations (Notion, Slack, Linear) are a Planevo Pro feature. If the user asks to use them, let them know these connect under Settings > Integrations on the Pro plan. Do not claim to perform external actions.\n';
+        }
       } else if (connectedProviders.length === 0) {
-        mcpContext +=
-          'The user is on Pro but has not connected any work tools yet. If they ask about Notion, Slack, or Linear, point them to Settings > Integrations to connect. Do not claim to perform external actions.\n';
+        if (!useMinimalPrompt) {
+          mcpContext +=
+            'The user is on Pro but has not connected any work tools yet. If they ask about Notion, Slack, or Linear, point them to Settings > Integrations to connect. Do not claim to perform external actions.\n';
+        }
       } else {
         progress.markIntegrationsActive(
           connectedProviders.join(', ')
@@ -762,26 +973,28 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
               connectedProviders as Array<'notion' | 'slack' | 'linear'>
             );
 
-            if (connectedProviders.includes('notion')) {
-              const { data: notionAccount } = await supabaseAdmin
-                .from('integration_accounts')
-                .select('metadata')
-                .eq('user_id', input.user.id)
-                .eq('provider', 'notion')
-                .maybeSingle();
-              const notionDbIds = Array.isArray(
-                (notionAccount?.metadata as Record<string, unknown> | null)
-                  ?.notion_database_ids
-              )
-                ? (
-                    (notionAccount?.metadata as Record<string, unknown>)
-                      .notion_database_ids as string[]
-                  ).map(String)
-                : [];
-              mcpContext += `${buildNotionToolHint(notionDbIds)}\n`;
-            }
+            if (!useMinimalPrompt) {
+              if (connectedProviders.includes('notion')) {
+                const { data: notionAccount } = await supabaseAdmin
+                  .from('integration_accounts')
+                  .select('metadata')
+                  .eq('user_id', input.user.id)
+                  .eq('provider', 'notion')
+                  .maybeSingle();
+                const notionDbIds = Array.isArray(
+                  (notionAccount?.metadata as Record<string, unknown> | null)
+                    ?.notion_database_ids
+                )
+                  ? (
+                      (notionAccount?.metadata as Record<string, unknown>)
+                        .notion_database_ids as string[]
+                    ).map(String)
+                  : [];
+                mcpContext += `${buildNotionToolHint(notionDbIds)}\n`;
+              }
 
-            mcpContext += `Connected work tools: ${connectedProviders.join(', ')}. You have access to tools via Composio for these apps. IMPORTANT: When a user asks you to perform an action on an external app (like creating a Notion page or sending a Slack message), you MUST use the Composio tools. DO NOT use the propose_action tool to create a local Planevo task for external app requests. Confirm with the user before sending messages or making destructive external changes.\n`;
+              mcpContext += `Connected work tools: ${connectedProviders.join(', ')}. You have access to tools via Composio for these apps. IMPORTANT: When a user asks you to perform an action on an external app (like creating a Notion page or sending a Slack message), you MUST use the Composio tools. DO NOT use the propose_action tool to create a local Planevo task for external app requests. Confirm with the user before sending messages or making destructive external changes.\n`;
+            }
           }
           progress.markIntegrationsDone(
             connectedProviders.join(', ')
@@ -792,22 +1005,24 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         }
       }
 
-      const systemPrompt = buildBrunoSystemPrompt({
-        mode: routeResult.decision.mode,
-        userName: input.profile?.name ?? 'User',
-        userPlan,
-        localTime: input.localTime ?? new Date().toLocaleString(),
-        timeZone: preferredTimeZone,
-        pageContext: buildPageContextBlock(input.pageContext),
-        memoryContext,
-        taskContext: context.taskContext,
-        calendarContext: context.calendarContext,
-        canvasContext: context.canvasContext,
-        integrationContext: context.integrationContext,
-        connectedProviders,
-        mcpContext: mcpContext.trim(),
-        dataAccess,
-      });
+      const systemPrompt = useMinimalPrompt
+        ? buildGeneralSystemPrompt({ dataAccess })
+        : buildBrunoSystemPrompt({
+            mode: routeResult.decision.mode,
+            userName: input.profile?.name ?? 'User',
+            userPlan,
+            localTime: input.localTime ?? new Date().toLocaleString(),
+            timeZone: preferredTimeZone,
+            pageContext: buildPageContextBlock(input.pageContext),
+            memoryContext,
+            taskContext: context.taskContext,
+            calendarContext: context.calendarContext,
+            canvasContext: context.canvasContext,
+            integrationContext: context.integrationContext,
+            connectedProviders,
+            mcpContext: mcpContext.trim(),
+            dataAccess,
+          });
 
       const readTools = getBrunoReadTools(input.user.id, dataAccess);
       const noteTools = getBrunoNoteTools(input.user.id);
@@ -924,7 +1139,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
             outputTokens,
             estimatedCostCents,
             latencyMs,
-            rationale: routeResult.decision.rationale,
+            rationale: `[assistant=${requestedAssistantMode};effective=${effectiveAssistantMode};autoEscalated=${autoEscalated}] ${routeResult.decision.rationale}`,
           }),
         ];
 
@@ -956,6 +1171,9 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
             estimated_cost_cents: estimatedCostCents,
             latency_ms: latencyMs,
             status,
+            assistant_mode: requestedAssistantMode,
+            effective_assistant_mode: effectiveAssistantMode,
+            auto_escalated: autoEscalated,
           },
         });
       };
@@ -983,6 +1201,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
 
       const hasIntegrationTools = Object.keys(dynamicMcpTools).length > 0;
       const isNotesMode = routeResult.decision.mode === 'notes';
+      const isDocumentMode = routeResult.decision.mode === 'document_writing';
 
       const generationOptions = {
         model: openai(model),
@@ -1028,6 +1247,9 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
           if (isNotesMode && finishReason !== 'error') {
             await consumeBrunoNotesQuota(input.user.id, input.requestId);
           }
+          if (isDocumentMode && finishReason !== 'error') {
+            await consumeBrunoDocumentsQuota(input.user.id, input.requestId);
+          }
 
           await finalize(
             finishReason === 'error' ? 'failed' : 'completed',
@@ -1055,6 +1277,8 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       'x-bruno-mode': routeMode,
       'x-bruno-tier': routeTier,
       'x-bruno-pro-limit': String(BRUNO_PRO_MONTHLY_DEEP_LIMIT),
+      'x-bruno-assistant-mode': effectiveAssistantMode,
+      'x-bruno-assistant-requested': requestedAssistantMode,
     },
   });
 }

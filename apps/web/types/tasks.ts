@@ -13,6 +13,9 @@ export interface Task {
   best_time_of_day?: BestTimeOfDay | null;
   color?: string | null;
   energy_level_required?: EnergyLevel | null;
+  parent_task_id?: string | null;
+  recurrence_pattern?: string | null;
+  notes?: string | null;
   due_date?: string | null;
   external_url?: string | null;
   source?: 'canvas' | 'google_calendar' | 'manual' | 'ai_suggested';

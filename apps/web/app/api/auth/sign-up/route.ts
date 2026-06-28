@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   const origin = new URL(request.url).origin;
-  const nextPath = parsed.data.nextPath?.startsWith('/') ? parsed.data.nextPath : '/onboarding';
+  const nextPath = parsed.data.nextPath?.startsWith('/') ? parsed.data.nextPath : '/dashboard';
   const referralQuery = parsed.data.referralCode
     ? `&ref=${encodeURIComponent(parsed.data.referralCode)}`
     : '';

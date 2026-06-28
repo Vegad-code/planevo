@@ -1,5 +1,6 @@
 export type BrunoContextSource =
   | 'sidebar'
+  | 'dock'
   | 'dashboard'
   | 'daily-plan'
   | 'tasks'
@@ -34,6 +35,7 @@ export type BrunoMode =
   | 'deadline_rescue'
   | 'academic_tutoring'
   | 'notes'
+  | 'document_writing'
   | 'project_breakdown'
   | 'coding_help'
   | 'emotional_recovery'
@@ -127,6 +129,42 @@ export type BrunoTruncatedNotice = {
   canContinue: boolean;
 };
 
+export type BrunoClarificationOption = {
+  id: string;
+  label: string;
+  description?: string;
+};
+
+export type BrunoClarificationQuestion = {
+  id: string;
+  question: string;
+  options: BrunoClarificationOption[];
+  allowOther: true;
+};
+
+export type BrunoClarificationCard = {
+  type: 'bruno_clarification_card';
+  id: string;
+  intro: string;
+  originalPrompt: string;
+  questions: BrunoClarificationQuestion[];
+};
+
+export type BrunoClarificationAnswer = {
+  questionId: string;
+  question: string;
+  answer: string;
+  source: 'option' | 'other' | 'skip';
+};
+
+export type BrunoClarificationResponse = {
+  cardId: string;
+  originalPrompt: string;
+  answers: BrunoClarificationAnswer[];
+};
+
+export type BrunoAssistantMode = 'general' | 'planning';
+
 import type { PlanType } from '@/lib/auth/plan-types';
 
 export type BrunoRateLimitLimitType = 'daily' | 'hourly';
@@ -169,10 +207,22 @@ export function parseBrunoDataAccess(
 
 import type { BrunoProgressPayload } from './bruno-progress';
 
+export type BrunoAssistantModeNotice = {
+  type: 'bruno_assistant_mode_notice';
+  requestedMode: BrunoAssistantMode;
+  effectiveMode: BrunoAssistantMode;
+  autoEscalated: boolean;
+  message: string;
+};
+
 export type BrunoDataParts = {
   'bruno-upgrade-card': BrunoUpgradeCard;
   'bruno-pro-warning': BrunoProWarningNotice;
   'bruno-pro-cap': BrunoProCapNotice;
   'bruno-progress': BrunoProgressPayload;
   'bruno-truncated': BrunoTruncatedNotice;
+  'bruno-clarification-card': BrunoClarificationCard;
+  'bruno-assistant-mode-notice': BrunoAssistantModeNotice;
 };
+
+export type { BrunoActionTypeV3 } from './tools/schemas';

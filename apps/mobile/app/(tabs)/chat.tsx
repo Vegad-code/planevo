@@ -1,10 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@/lib/streaming-polyfills';
 import { useChat } from '@ai-sdk/react';
-import { createBrunoChatTransport } from '@/lib/bruno/chat-transport';
+import {
+  createBrunoChatRequestBody,
+  createBrunoChatTransport,
+} from '@/lib/bruno/chat-transport';
 import { deriveBrunoProgressState } from '@/lib/bruno/brunoProgressState';
-import type { BrunoUIMessage } from '@/lib/bruno/types';
-import { BrunoActivityPanel } from '@/components/bruno/BrunoActivityPanel';
+import { useBrunoThinkingLabel } from '@/hooks/useBrunoThinkingLabel';
+import type {
+  BrunoClarificationCard as BrunoClarificationCardData,
+  BrunoClarificationResponse,
+  BrunoRateLimitPayload,
+  BrunoUIMessage,
+} from '@/lib/bruno/types';
+import { BrunoThinkingIndicator } from '@/components/bruno/BrunoThinkingIndicator';
+import { BrunoClarificationCard } from '@/components/bruno/BrunoClarificationCard';
 import {
   View,
   Text,
@@ -23,7 +33,7 @@ import { useNetworkState } from '@/hooks/useNetworkState';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { Send, Bot, UserIcon, History, Plus, Square, Edit2, X, Trash } from 'lucide-react-native';
+import { Send, Bot, UserIcon, History, Plus, Square, Edit2, X, Trash, CalendarDays } from 'lucide-react-native';
 import PlanDraftCard, { type PlanDraftItemData } from '../../components/bruno/PlanDraftCard';
 import PlanPreviewModal from '../../components/bruno/PlanPreviewModal';
 import BrunoEntitlementNotice, {
@@ -31,11 +41,11 @@ import BrunoEntitlementNotice, {
 } from '../../components/bruno/BrunoEntitlementNotice';
 import { BrunoChatLimitModal } from '@/components/bruno/BrunoChatLimitModal';
 import { presentPlanevoProPaywall } from '@/lib/revenuecat';
-import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
 import {
   isRateLimitActive,
   parseBrunoRateLimitError,
 } from '@/lib/bruno/rate-limit-client';
+import { useBrunoAssistantMode } from '@/hooks/useBrunoAssistantMode';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 interface ChatMessage {
@@ -43,12 +53,13 @@ interface ChatMessage {
   role: 'user' | 'bruno';
   content: string;
   timestamp: Date;
-  toolCalls?: Array<{ toolName: string; args?: Record<string, unknown> }>;
+  toolCalls?: { toolName: string; args?: Record<string, unknown> }[];
   metadata?: MobileBrunoMetadata;
+  clarificationCards?: BrunoClarificationCardData[];
 }
 
 const WELCOME_TEXT =
-  "Hey! I'm Bruno, your planning co-pilot. Ask me to reschedule a task, break down an assignment, or just chat about your day.";
+  "Hey! Ask me anything — or turn on Planning mode when you want help with tasks, schedules, and your week.";
 
 const WELCOME_UI_MESSAGE: BrunoUIMessage = {
   id: 'welcome',
@@ -92,7 +103,41 @@ function extractToolCallsFromMessage(message: BrunoUIMessage) {
     });
 }
 
+function extractClarificationCardsFromMessage(
+  message: BrunoUIMessage
+): BrunoClarificationCardData[] {
+  const parts = message.parts ?? [];
+  return parts
+    .filter((part) => part.type === 'data-bruno-clarification-card')
+    .map((part) =>
+      part.type === 'data-bruno-clarification-card' ? part.data : null
+    )
+    .filter((card): card is BrunoClarificationCardData => Boolean(card));
+}
+
+function formatClarificationResponseForChat(
+  response: BrunoClarificationResponse
+) {
+  const isSkip = response.answers.every((answer) => answer.source === 'skip');
+  if (isSkip) {
+    return `Answer with reasonable assumptions for: "${response.originalPrompt}"`;
+  }
+
+  const answerLines = response.answers.map(
+    (answer) => `- ${answer.question}: ${answer.answer}`
+  );
+  return [
+    'Here is the context Bruno asked for:',
+    '',
+    `Original request: ${response.originalPrompt}`,
+    '',
+    ...answerLines,
+  ].join('\n');
+}
+
 export default function BrunoChatScreen() {
+  const { assistantMode, togglePlanningMode, isPlanningMode } =
+    useBrunoAssistantMode();
   const router = useRouter();
   const { prompt: promptParam } = useLocalSearchParams<{ prompt?: string }>();
   const { colors, isDark } = useTheme();
@@ -104,7 +149,10 @@ export default function BrunoChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const currentConversationIdRef = useRef<string | null>(null);
   const userRef = useRef(user);
-  userRef.current = user;
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const {
     messages: uiMessages,
@@ -156,7 +204,6 @@ export default function BrunoChatScreen() {
   const isRateLimited = isRateLimitActive(rateLimitInfo);
 
   const sending = status === 'streaming' || status === 'submitted';
-  const [isProgressExpanded, setIsProgressExpanded] = useState(true);
 
   const displayMessages: ChatMessage[] = useMemo(
     () =>
@@ -168,6 +215,7 @@ export default function BrunoChatScreen() {
           content: messageText(message),
           timestamp: new Date(),
           toolCalls: extractToolCallsFromMessage(message),
+          clarificationCards: extractClarificationCardsFromMessage(message),
         })),
     [uiMessages]
   );
@@ -176,6 +224,11 @@ export default function BrunoChatScreen() {
     () => deriveBrunoProgressState({ messages: uiMessages, chatStatus: status }),
     [uiMessages, status]
   );
+
+  const { prefix, verbText, verb, headerLabel } = useBrunoThinkingLabel({
+    isBrunoWorking: progressState.isBrunoWorking,
+    isBrunoFinalizing: progressState.isBrunoFinalizing,
+  });
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -204,7 +257,7 @@ export default function BrunoChatScreen() {
       }
       const [{ data: tasks }, { data: events }] = await Promise.all([
         supabase.from('tasks').select('id, title, status').eq('user_id', user.id).neq('status', 'done').is('deleted_at', null).ilike('title', `%${mentionState.text}%`).limit(5),
-        supabase.from('calendar_events').select('id, title, start_time').eq('user_id', user.id).gte('start_time', new Date().toISOString()).is('deleted_at', null).ilike('title', `%${mentionState.text}%`).limit(5)
+        supabase.from('calendar_events').select('id, title, start_time').eq('user_id', user.id).gte('start_time', new Date().toISOString()).eq('is_deleted', false).ilike('title', `%${mentionState.text}%`).limit(5)
       ]);
 
       const formatted = [
@@ -280,7 +333,7 @@ export default function BrunoChatScreen() {
            }
         });
     }
-  }, [user, initialMessagesLoaded, currentConversationId]);
+  }, [user, initialMessagesLoaded, currentConversationId, setUiMessages]);
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
@@ -288,7 +341,6 @@ export default function BrunoChatScreen() {
     setUiMessages([WELCOME_UI_MESSAGE]);
     setShowHistory(false);
     setInitialMessagesLoaded(true);
-    setIsProgressExpanded(true);
   };
 
   const loadConversation = async (id: string) => {
@@ -338,22 +390,27 @@ export default function BrunoChatScreen() {
     stop();
   };
 
-  const sendMessage = useCallback(async () => {
+  const submitUserMessage = useCallback(async (
+    messageContent: string,
+    options: {
+      clarificationResponse?: BrunoClarificationResponse;
+      bypassMentionGuard?: boolean;
+    } = {}
+  ) => {
     if (isOffline) {
       Alert.alert('Offline', 'Cannot send messages while offline.');
       return;
     }
-    if (!inputText.trim() || sending || isRateLimited) return;
+    if (!messageContent.trim() || sending || isRateLimited) return;
 
-    if (mentionState.active && suggestions.length > 0) {
+    if (!options.bypassMentionGuard && mentionState.active && suggestions.length > 0) {
       // User is actively picking a mention, so don't submit chat
       return;
     }
 
-    const userMessageContent = inputText.trim();
+    const userMessageContent = messageContent.trim();
     setInputText('');
     setMentionState({ active: false, text: '' });
-    setIsProgressExpanded(true);
 
     let convId = currentConversationId;
     if (!convId && user) {
@@ -419,11 +476,11 @@ export default function BrunoChatScreen() {
       sendChatMessage(
         { text: userMessageContent },
         {
-          body: {
+          body: createBrunoChatRequestBody({
             conversationId: convId,
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            localTime: new Date().toLocaleString(),
-          },
+            assistantMode,
+            clarificationResponse: options.clarificationResponse,
+          }),
         }
       );
     } catch (err: unknown) {
@@ -432,7 +489,6 @@ export default function BrunoChatScreen() {
       Alert.alert('Bruno Error', message);
     }
   }, [
-    inputText,
     sending,
     user,
     uiMessages,
@@ -444,8 +500,13 @@ export default function BrunoChatScreen() {
     suggestions,
     sendChatMessage,
     setUiMessages,
+    assistantMode,
     isRateLimited,
   ]);
+
+  const sendMessage = useCallback(async () => {
+    await submitUserMessage(inputText);
+  }, [inputText, submitUserMessage]);
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
@@ -483,6 +544,30 @@ export default function BrunoChatScreen() {
             <Text style={[styles.messageText, { color: isUser ? '#fff' : colors.text }]}>
               {item.content}
             </Text>
+
+            {!isUser && item.clarificationCards && item.clarificationCards.length > 0 && (
+              <View style={styles.clarificationStack}>
+                {item.clarificationCards.map((card) => (
+                  <BrunoClarificationCard
+                    key={card.id}
+                    card={card}
+                    disabled={sending}
+                    isDark={isDark}
+                    textColor={colors.text}
+                    mutedColor={colors.textMuted}
+                    onSubmit={(response) => {
+                      void submitUserMessage(
+                        formatClarificationResponseForChat(response),
+                        {
+                          clarificationResponse: response,
+                          bypassMentionGuard: true,
+                        }
+                      );
+                    }}
+                  />
+                ))}
+              </View>
+            )}
             
             {/* Render Tool Calls */}
             {!isUser && item.toolCalls && item.toolCalls.length > 0 && (
@@ -563,8 +648,8 @@ export default function BrunoChatScreen() {
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Bruno</Text>
             <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-              {progressState.isBrunoWorking && progressState.progressSummary
-                ? progressState.progressSummary.toUpperCase()
+              {progressState.isBrunoWorking
+                ? headerLabel.toUpperCase()
                 : 'YOUR PLANNING CO-PILOT'}
             </Text>
           </View>
@@ -717,21 +802,12 @@ export default function BrunoChatScreen() {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={
             progressState.isBrunoWorking ? (
-              <BrunoActivityPanel
-                steps={progressState.progressSteps}
-                summary={progressState.progressSummary}
-                isExpanded={isProgressExpanded}
-                isWorking={progressState.isBrunoWorking}
-                onToggle={() => setIsProgressExpanded((expanded) => !expanded)}
-                colors={{
-                  text: colors.text,
-                  textMuted: colors.textMuted,
-                  card: isDark ? Colors.surface[800] : '#fff',
-                  border: colors.separator,
-                  brand: Colors.brand[500],
-                  sage: Colors.success,
-                  rose: Colors.error,
-                }}
+              <BrunoThinkingIndicator
+                prefix={prefix}
+                verbText={verbText}
+                verb={verb}
+                color={colors.textMuted}
+                brandColor={Colors.brand[500]}
               />
             ) : null
           }
@@ -760,6 +836,30 @@ export default function BrunoChatScreen() {
         )}
 
         <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: colors.separator }]}>
+          <TouchableOpacity
+            style={[
+              styles.planningToggle,
+              {
+                borderColor: isPlanningMode ? Colors.brand[500] : colors.separator,
+                backgroundColor: isPlanningMode
+                  ? `${Colors.brand[500]}22`
+                  : isDark
+                    ? Colors.surface[700]
+                    : Colors.surface[100],
+              },
+            ]}
+            onPress={togglePlanningMode}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isPlanningMode }}
+            accessibilityLabel={
+              isPlanningMode ? 'Planning mode on' : 'Switch to planning mode'
+            }
+          >
+            <CalendarDays
+              size={16}
+              color={isPlanningMode ? Colors.brand[500] : colors.textMuted}
+            />
+          </TouchableOpacity>
           <TextInput
             style={[styles.textInput, { color: colors.text, backgroundColor: isDark ? Colors.surface[700] : Colors.surface[100] }]}
             placeholder={
@@ -767,7 +867,9 @@ export default function BrunoChatScreen() {
                 ? 'Edit your message...'
                 : isRateLimited
                   ? 'Your free Bruno limit is reached for now…'
-                  : 'Ask Bruno anything...'
+                  : isPlanningMode
+                    ? 'How can I help you plan today?'
+                    : 'Ask anything...'
             }
             placeholderTextColor={colors.textMuted}
             value={inputText}
@@ -819,7 +921,9 @@ export default function BrunoChatScreen() {
             setRateLimitInfo(null);
             setIsPaywallDismissed(false);
           }}
-          onUpgrade={presentPlanevoProPaywall}
+          onUpgrade={async () => {
+            await presentPlanevoProPaywall();
+          }}
         />
       ) : null}
     </SafeAreaView>
@@ -867,6 +971,10 @@ const styles = StyleSheet.create({
   messageHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   messageRole: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   messageText: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
+  clarificationStack: {
+    marginTop: 12,
+    gap: 10,
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -874,6 +982,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
+  },
+  planningToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
   textInput: {
     flex: 1,

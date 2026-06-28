@@ -92,8 +92,10 @@ export function useBruno() {
 export function useRegisterBrunoContext(context: BrunoPageContext) {
   const { setCurrentContext } = useBruno();
   const { label, page, payload, source } = context;
+  const payloadSignature = JSON.stringify(payload ?? null);
 
   useEffect(() => {
     setCurrentContext({ label, page, payload, source });
-  }, [label, page, payload, setCurrentContext, source]);
+    // payload content tracked via payloadSignature to avoid infinite loops from inline object literals
+  }, [label, page, payloadSignature, setCurrentContext, source]);
 }

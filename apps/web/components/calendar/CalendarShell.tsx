@@ -232,12 +232,8 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
       []
     );
 
-    const dayEndHour = preferences.day_end_hour ?? 24;
-    const minTime = new Date(1970, 1, 1, preferences.day_start_hour || 0, 0, 0);
-    const maxTime =
-      dayEndHour >= 24
-        ? new Date(1970, 1, 1, 23, 59, 59)
-        : new Date(1970, 1, 1, dayEndHour, 59, 59);
+    const minTime = new Date(1970, 1, 1, 0, 0, 0);
+    const maxTime = new Date(1970, 1, 1, 23, 59, 59);
 
     const dragFromOutsideItem = useCallback(() => {
       if (!draggedTask) return undefined;

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, type ComponentType } from 'react';
 import Link from 'next/link';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   CaretLeft,
   CaretRight,
@@ -118,37 +119,37 @@ export default function CalendarToolbar({
 
   return (
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2.5">
-      <div className="flex items-center gap-1 bg-[var(--color-cream-2)] p-1 rounded-xl border border-[var(--color-line)]">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onToday}
+          className="text-sm font-medium px-3 py-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink)] hover:bg-[var(--color-cream-2)] transition-colors cursor-pointer"
+        >
+          Today
+        </button>
         <button
           type="button"
           onClick={() => onNavigate('prev')}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] transition-colors cursor-pointer"
           aria-label="Previous"
         >
           <CaretLeft className="w-4 h-4" />
         </button>
         <button
           type="button"
-          onClick={onToday}
-          className="text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer"
-        >
-          Today
-        </button>
-        <button
-          type="button"
           onClick={() => onNavigate('next')}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-cream)] text-[var(--color-ink)] transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg hover:bg-[var(--color-cream-2)] text-[var(--color-ink)] transition-colors cursor-pointer"
           aria-label="Next"
         >
           <CaretRight className="w-4 h-4" />
         </button>
       </div>
 
-      <span className="hidden sm:inline text-xs font-mono text-[var(--color-ink-muted)] truncate max-w-[200px] md:max-w-none">
+      <h2 className="text-base sm:text-lg font-medium text-[var(--color-ink)] truncate min-w-0 flex-1">
         {getRangeLabel(selectedDate, activeView)}
-      </span>
+      </h2>
 
-      <div className="flex-1" />
+      <NotificationBell className="shrink-0" />
 
       <div className="flex bg-[var(--color-cream-2)] p-1 rounded-xl border border-[var(--color-line)]">
         {VIEW_OPTIONS.map(({ id, label }) => (

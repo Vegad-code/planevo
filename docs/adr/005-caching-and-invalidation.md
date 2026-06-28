@@ -15,6 +15,8 @@ Planevo mixes Next.js App Router caching, client fetches, and Postgres as source
 3. **Rate limits:** `ip_rate_limit_buckets` and `ai_usage_logs` are DB-backed; purge via data-retention cron — not application memory.
 4. **Static assets:** Vercel CDN defaults; no custom edge cache for authenticated HTML.
 5. **OpenAI / Composio responses:** Do not cache LLM outputs across users; per-request only.
+6. **Client cache (TanStack Query):** Shared query keys for `tasks`, `profile`, and `calendar-events` in the dashboard shell (`staleTime` ~2 min). Invalidate via `planevo:tasks-changed` / `planevo:calendar-events-changed` custom events or `queryClient.invalidateQueries`.
+7. **Optimistic UI:** Task mutations patch local state / query cache first; daily plan blocks use `useOptimistic`; notification inbox updates locally before PATCH. Supabase realtime refetch is debounced and skipped while `planevo:optimistic-mutation-*` guard is active.
 
 ## Consequences
 

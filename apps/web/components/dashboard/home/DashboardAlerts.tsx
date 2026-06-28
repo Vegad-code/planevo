@@ -21,7 +21,7 @@ export function DashboardAlerts({ alerts, onOverdueTaskClick }: DashboardAlertsP
   if (alerts.length === 0) return null;
 
   return (
-    <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line shadow-sm">
+    <div className="glass-card rounded-[22px] p-6">
       <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] mb-4">
         PRIORITY
       </div>

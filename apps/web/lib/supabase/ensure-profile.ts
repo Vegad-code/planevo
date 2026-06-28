@@ -26,6 +26,7 @@ export async function ensureUserProfile(supabase: SupabaseClient) {
       email: user.email!,
       name: user.user_metadata?.full_name || user.user_metadata?.name || null,
       avatar_url: user.user_metadata?.avatar_url || null,
+      onboarding_complete: true,
     }).select('id, email, name, avatar_url, onboarding_complete, plan_type').single();
 
     if (insertError) {

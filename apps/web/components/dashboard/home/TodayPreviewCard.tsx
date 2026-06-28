@@ -70,7 +70,7 @@ export function TodayPreviewCard({
   const dateLabel = isSelectedToday ? 'Today' : format(selectedDate, 'EEEE');
 
   return (
-    <div className="bg-(--color-paper) rounded-[22px] p-6 border border-line shadow-sm min-w-0 h-full flex flex-col">
+    <div className="glass-card rounded-[22px] p-6 min-w-0 h-full flex flex-col">
       <div className="flex items-end justify-between mb-4">
         <div>
           <div className="font-mono text-[11px] text-(--color-ink-soft) tracking-[0.16em] mb-1.5">
@@ -101,7 +101,7 @@ export function TodayPreviewCard({
             onClick={() => router.push('/dashboard/daily-plan')}
             className="bg-(--color-honey) text-(--color-ink) px-5 py-2.5 rounded-full text-sm font-medium hover:bg-(--color-honey-soft) transition-colors cursor-pointer"
           >
-            {mode === 'needs_plan' ? 'Generate your plan' : 'Open daily plan'}
+            {mode === 'needs_plan' ? 'Open your plan' : 'Open daily plan'}
           </button>
         </div>
       ) : (
