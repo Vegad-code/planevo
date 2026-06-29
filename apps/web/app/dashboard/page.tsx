@@ -76,16 +76,16 @@ export default function DashboardPage() {
         connections={data.connections}
       />
 
-      <DashboardHero
-        mode={data.mode}
-        nextAction={data.nextAction}
-        upNextBlocks={data.upNextBlocks}
-      />
-
       <WeekStrip
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         eventDates={eventDates}
+      />
+
+      <DashboardHero
+        mode={data.mode}
+        nextAction={data.nextAction}
+        upNextBlocks={data.upNextBlocks}
       />
 
       <DashboardEmptyState
