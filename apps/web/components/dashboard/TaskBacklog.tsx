@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
@@ -16,6 +16,9 @@ import { type Task } from '@/types/tasks';
 import type { CalendarEvent } from '@/types/calendar';
 import ScheduleTaskPopover from '@/components/calendar/ScheduleTaskPopover';
 import { Input } from '@/components/ui/input';
+import { parseTaskInput } from '@/lib/taskParser';
+import { ParseChips } from '@/components/nlp/ParseChips';
+import { useSmartSchedulingPreference } from '@/hooks/useSmartSchedulingPreference';
 
 interface TaskBacklogProps {
   variant?: 'standalone' | 'embedded';
@@ -142,6 +145,17 @@ export default function TaskBacklog({
   const [schedulingTask, setSchedulingTask] = useState<Task | null>(null);
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [addingTask, setAddingTask] = useState(false);
+  const [parseRefDate] = useState(() => new Date());
+  const { smartSchedulingEnabled } = useSmartSchedulingPreference();
+  const quickAddParsed = useMemo(
+    () =>
+      quickAddTitle.trim() && smartSchedulingEnabled
+        ? parseTaskInput(quickAddTitle, parseRefDate, {
+            smartSchedulingEnabled,
+          })
+        : null,
+    [quickAddTitle, smartSchedulingEnabled, parseRefDate]
+  );
   const supabase = createClient();
   const embedded = variant === 'embedded';
 
@@ -218,8 +232,13 @@ export default function TaskBacklog({
   };
 
   const handleQuickAdd = async () => {
-    const title = quickAddTitle.trim();
-    if (!title || addingTask) return;
+    const rawTitle = quickAddTitle.trim();
+    if (!rawTitle || addingTask) return;
+
+    const parsed = parseTaskInput(rawTitle, parseRefDate, {
+      smartSchedulingEnabled,
+    });
+    const title = parsed.title || rawTitle;
 
     setAddingTask(true);
     try {
@@ -231,12 +250,15 @@ export default function TaskBacklog({
         .insert({
           user_id: user.id,
           title,
-          estimated_minutes: 30,
+          estimated_minutes: parsed.estimatedMinutes ?? 30,
+          due_date: parsed.isBacklog ? null : parsed.dueDate ?? null,
+          priority: parsed.priority ?? 'medium',
           status: 'todo',
           completed: false,
-          priority: 'medium',
           energy_level_required: 'medium',
           best_time_of_day: 'anytime',
+          is_recurring: parsed.isRecurring ?? false,
+          recurrence_pattern: parsed.recurrencePattern ?? null,
         })
         .select('*')
         .single();
@@ -281,7 +303,7 @@ export default function TaskBacklog({
             <Input
               value={quickAddTitle}
               onChange={(e) => setQuickAddTitle(e.target.value)}
-              placeholder="Add task…"
+              placeholder="Add task… e.g. essay due Friday for 2h"
               className="h-8 text-sm font-mono"
               disabled={addingTask}
             />
@@ -294,6 +316,9 @@ export default function TaskBacklog({
               <Plus className="w-4 h-4" />
             </button>
           </form>
+          {quickAddParsed && quickAddParsed.chips && quickAddParsed.chips.length > 0 && (
+            <ParseChips chips={quickAddParsed.chips} className="mt-2" />
+          )}
         </div>
       )}
 

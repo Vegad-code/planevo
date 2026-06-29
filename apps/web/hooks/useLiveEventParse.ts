@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { addMinutes, format, isValid } from 'date-fns';
 import {
   parseEventInput,
   type ParsedEventInput,
 } from '@/lib/calendar/parseEventInput';
+import { useLiveNaturalParse } from '@/hooks/useLiveNaturalParse';
 
 function toDateInputValue(date: Date): string {
   return format(date, 'yyyy-MM-dd');
@@ -34,6 +35,7 @@ export interface UseLiveEventParseOptions {
   refDate: Date;
   debounceMs?: number;
   enabled: boolean;
+  smartSchedulingEnabled?: boolean;
   callbacks: LiveEventParseCallbacks;
 }
 
@@ -42,70 +44,56 @@ export function useLiveEventParse({
   refDate,
   debounceMs = 250,
   enabled,
+  smartSchedulingEnabled = true,
   callbacks,
 }: UseLiveEventParseOptions) {
-  const [debouncedTitle, setDebouncedTitle] = useState(rawTitle);
-  const [manualFieldsTouched, setManualFieldsTouched] = useState(false);
-  const titleAtManualEditRef = useRef(rawTitle);
-  const lastAppliedKeyRef = useRef('');
   const callbacksRef = useRef(callbacks);
 
   useEffect(() => {
     callbacksRef.current = callbacks;
   }, [callbacks]);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const timer = setTimeout(() => setDebouncedTitle(rawTitle), debounceMs);
-    return () => clearTimeout(timer);
-  }, [rawTitle, debounceMs, enabled]);
-
-  useEffect(() => {
-    if (manualFieldsTouched && rawTitle !== titleAtManualEditRef.current) {
-      setManualFieldsTouched(false);
-    }
-  }, [rawTitle, manualFieldsTouched]);
-
-  const parsed = useMemo(
-    () => (enabled ? parseEventInput(debouncedTitle, refDate) : null),
-    [debouncedTitle, refDate, enabled]
+  const parse = useMemo(
+    () => (title: string) =>
+      title.trim()
+        ? parseEventInput(title, refDate)
+        : null,
+    [refDate]
   );
 
-  useEffect(() => {
-    if (!enabled || !parsed || manualFieldsTouched) return;
+  const applyParsed = useMemo(
+    () => (parsed: ParsedEventInput) => {
+      const { setDateStr, setStartTimeStr, setEndTimeStr, getStartDate } =
+        callbacksRef.current;
 
-    const applyKey = JSON.stringify({
-      title: debouncedTitle,
-      start: parsed.startAt?.toISOString(),
-      mins: parsed.estimatedMinutes,
-    });
-    if (applyKey === lastAppliedKeyRef.current) return;
-    lastAppliedKeyRef.current = applyKey;
-
-    const { setDateStr, setStartTimeStr, setEndTimeStr, getStartDate } =
-      callbacksRef.current;
-
-    if (parsed.startAt && isValid(parsed.startAt)) {
-      const startAt = roundToQuarterHour(parsed.startAt);
-      setDateStr(toDateInputValue(startAt));
-      setStartTimeStr(toTimeInputValue(startAt));
-      const durationMins = parsed.estimatedMinutes ?? 60;
-      setEndTimeStr(toTimeInputValue(addMinutes(startAt, durationMins)));
-      return;
-    }
-
-    if (parsed.estimatedMinutes) {
-      const start = getStartDate();
-      if (isValid(start)) {
-        setEndTimeStr(toTimeInputValue(addMinutes(start, parsed.estimatedMinutes)));
+      if (parsed.startAt && isValid(parsed.startAt)) {
+        const startAt = roundToQuarterHour(parsed.startAt);
+        setDateStr(toDateInputValue(startAt));
+        setStartTimeStr(toTimeInputValue(startAt));
+        const durationMins = parsed.estimatedMinutes ?? 60;
+        setEndTimeStr(toTimeInputValue(addMinutes(startAt, durationMins)));
+        return;
       }
-    }
-  }, [parsed, enabled, manualFieldsTouched, debouncedTitle, refDate]);
 
-  const markManualFieldEdit = () => {
-    setManualFieldsTouched(true);
-    titleAtManualEditRef.current = rawTitle;
-  };
+      if (parsed.estimatedMinutes) {
+        const start = getStartDate();
+        if (isValid(start)) {
+          setEndTimeStr(
+            toTimeInputValue(addMinutes(start, parsed.estimatedMinutes))
+          );
+        }
+      }
+    },
+    []
+  );
+
+  const { parsed, markManualFieldEdit } = useLiveNaturalParse({
+    rawTitle,
+    debounceMs,
+    enabled: enabled && smartSchedulingEnabled,
+    parse,
+    applyParsed,
+  });
 
   return {
     parsed: parsed as ParsedEventInput | null,

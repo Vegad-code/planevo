@@ -25,6 +25,7 @@ import {
   getEventColor,
   getContrastText,
 } from '@/lib/calendar/eventColors';
+import { ParseChips } from '@/components/nlp/ParseChips';
 import { parseEventInput } from '@/lib/calendar/parseEventInput';
 import { useLiveEventParse } from '@/hooks/useLiveEventParse';
 import { MOTION } from '@/lib/calendar/motion';
@@ -432,16 +433,7 @@ export default function CalendarComposerContent({
           autoFocus
         />
         {isCreate && chips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {chips.map((chip) => (
-              <span
-                key={chip}
-                className="px-2 py-0.5 rounded-full text-xs bg-[var(--color-honey-soft)] text-[var(--color-honey-deep)] transition-opacity duration-200"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
+          <ParseChips chips={chips} className="mt-2" />
         )}
         {isCreate && (
           <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">

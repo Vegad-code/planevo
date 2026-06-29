@@ -5,6 +5,7 @@ import { CalendarViewForm } from '@/components/settings/CalendarViewForm';
 import { PlanningStyleForm } from '@/components/settings/PlanningStyleForm';
 import { BreakPreferencesForm } from '@/components/settings/BreakPreferencesForm';
 import { FocusWindowsForm } from '@/components/settings/FocusWindowsForm';
+import { SmartSchedulingForm } from '@/components/settings/SmartSchedulingForm';
 
 export const metadata = {
   title: 'Calendar & Planning - Planevo Settings',
@@ -94,6 +95,7 @@ export default async function CalendarSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        <SmartSchedulingForm />
         <CalendarViewForm initialData={safeCalPrefs} />
         <PlanningStyleForm initialData={memory.planning_style} />
         <BreakPreferencesForm initialData={memory.break_preference} />

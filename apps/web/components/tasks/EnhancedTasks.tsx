@@ -21,6 +21,13 @@ import { parseTaskInput } from '@/lib/taskParser';
 import { useTasksQuery } from '@/hooks/useTasksQuery';
 import { useTaskOptimisticEvents } from '@/hooks/useTaskOptimisticEvents';
 import { useSupabaseTableRealtime } from '@/hooks/useSupabaseTableRealtime';
+import { NaturalLanguageInput } from '@/components/nlp/NaturalLanguageInput';
+import { useLiveTaskParse } from '@/hooks/useLiveTaskParse';
+import { useSmartSchedulingPreference } from '@/hooks/useSmartSchedulingPreference';
+import { showTaskCreatedUndoToast } from '@/lib/nlp/taskCreatedToast';
+import { logNlpCorrection } from '@/lib/nlp/logNlpCorrection';
+import { NLP_SUBMIT_LABEL } from '@/lib/nlp/copy';
+import { GlassSheet } from '@/components/ui/glass-sheet';
 
 export default function EnhancedTasks() {
   const { tasks, loading, refresh, setTasks, userId } = useTasksQuery();
@@ -53,6 +60,8 @@ export default function EnhancedTasks() {
   const [showExtraOptions, setShowExtraOptions] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState('daily');
+  const [parseRefDate, setParseRefDate] = useState(() => new Date());
+  const { smartSchedulingEnabled } = useSmartSchedulingPreference();
 
   // Hide Completed tasks toggle
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -78,6 +87,28 @@ export default function EnhancedTasks() {
     breakDownTask,
     startFresh
   } = useTaskActions({ onRefresh: handleRefresh, setTasks });
+
+  useLiveTaskParse({
+    rawTitle: taskInput,
+    refDate: parseRefDate,
+    enabled: showAddModal && smartSchedulingEnabled,
+    smartSchedulingEnabled,
+    callbacks: {
+      setDueDatePill: () => undefined,
+      setDuration: (mins) => setOverrideTime(mins),
+      setPriority: (priority) => {
+        if (priority) setOverridePriority(priority);
+      },
+      setIsRecurring: setIsRecurring,
+      setRecurrencePattern: setRecurrencePattern,
+    },
+  });
+
+  useEffect(() => {
+    if (showAddModal) {
+      setParseRefDate(new Date());
+    }
+  }, [showAddModal]);
 
   // User stats
   const stats = useMemo(() => calculateUserStats(tasks), [tasks]);
@@ -148,22 +179,54 @@ export default function EnhancedTasks() {
     e.preventDefault();
     if (!taskInput.trim()) return;
 
-    const parsed = parseTaskInput(taskInput);
+    const parsed = parseTaskInput(taskInput, parseRefDate, {
+      smartSchedulingEnabled,
+    });
+    const finalTitle = parsed.title || taskInput.trim();
+
+    if (
+      (overrideDueDate && overrideDueDate !== parsed.dueDate?.slice(0, 10)) ||
+      (overrideTime != null && overrideTime !== parsed.estimatedMinutes) ||
+      (overridePriority && overridePriority !== parsed.priority)
+    ) {
+      void logNlpCorrection({
+        raw: taskInput,
+        parsed: {
+          dueDate: parsed.dueDate,
+          estimatedMinutes: parsed.estimatedMinutes,
+          priority: parsed.priority,
+        },
+        override: {
+          dueDate: overrideDueDate,
+          estimatedMinutes: overrideTime,
+          priority: overridePriority,
+        },
+      });
+    }
 
     const result = await addTask({
-      title: parsed.title,
+      title: finalTitle,
       estimated_minutes: overrideTime ?? parsed.estimatedMinutes ?? 30,
       best_time_of_day: 'anytime',
       energy_level_required: 'medium',
-      due_date: overrideDueDate || parsed.dueDate || undefined,
+      due_date: parsed.isBacklog
+        ? undefined
+        : overrideDueDate || parsed.dueDate || undefined,
       priority: overridePriority ?? parsed.priority ?? 'medium',
-      is_recurring: isRecurring,
-      recurrence_pattern: isRecurring ? recurrencePattern : undefined,
+      is_recurring: isRecurring || parsed.isRecurring || false,
+      recurrence_pattern: isRecurring || parsed.isRecurring
+        ? recurrencePattern || parsed.recurrencePattern
+        : undefined,
     });
 
     if (result.error) {
       showToast.error('Task Action Failed', result.error);
     } else {
+      if (result.task) {
+        showTaskCreatedUndoToast(result.task, async (taskId) => {
+          await deleteTask(taskId, finalTitle);
+        });
+      }
       setTaskInput('');
       setOverridePriority(null);
       setOverrideDueDate(null);
@@ -490,24 +553,29 @@ export default function EnhancedTasks() {
         taskTitle={rescheduleTask?.title || ''}
       />
 
-      {/* Simplified Add Task Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-32 px-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-            className="relative w-full max-w-2xl bg-[var(--color-settings-card)] border border-[var(--color-line)] rounded-[22px] p-4 z-10 shadow-2xl">
+      <GlassSheet
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        position="center"
+        panelClassName="max-w-2xl"
+      >
             <form onSubmit={handleAddTask} className="flex flex-col">
-              <input
-                type="text"
-                value={taskInput}
-                onChange={e => setTaskInput(e.target.value)}
-                placeholder="Finish biology reading tomorrow at 4pm #Personal ~30m"
-                required autoFocus
-                className="w-full px-4 pt-4 pb-6 bg-transparent text-lg font-medium text-[var(--color-ink)] placeholder-[var(--color-ink-faint)] focus:outline-none"
-              />
+              <div className="pt-1">
+                <NaturalLanguageInput
+                  value={taskInput}
+                  onChange={setTaskInput}
+                  refDate={parseRefDate}
+                  enabled={smartSchedulingEnabled}
+                  smartSchedulingEnabled={smartSchedulingEnabled}
+                  showChips
+                  showHint
+                  ghostExample
+                  autoFocus
+                />
+              </div>
 
               {/* Extra Options Toggle & Hints Row */}
-              <div className="flex items-center gap-2 px-4 pb-4">
+              <div className="flex items-center gap-2 pt-4 pb-4">
                 <button type="button" onClick={() => setShowExtraOptions(!showExtraOptions)} className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] flex items-center gap-1.5 bg-[var(--color-paper)] border border-[var(--color-line)] rounded-md px-2 py-1 transition-colors cursor-pointer">
                   <Plus size={14} weight="bold" />
                   <span className="text-xs font-medium">Options</span>
@@ -541,18 +609,16 @@ export default function EnhancedTasks() {
               </AnimatePresence>
 
               {/* Action Buttons Row */}
-              <div className="flex items-center justify-end gap-2 px-4 pt-4 border-t border-[var(--color-line)]">
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-[var(--glass-border)]">
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-xs font-medium text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] transition-colors cursor-pointer">
                   Cancel
                 </button>
                 <button type="submit" disabled={saving || !taskInput.trim()} className="px-6 py-2 bg-[var(--color-ink)] hover:bg-[var(--color-ink-soft)] text-[var(--color-paper)] rounded-full text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer">
-                  {saving ? 'Adding...' : 'Add Task'}
+                  {saving ? 'Adding...' : NLP_SUBMIT_LABEL}
                 </button>
               </div>
             </form>
-          </motion.div>
-        </div>
-      )}
+      </GlassSheet>
     </div>
   );
 }

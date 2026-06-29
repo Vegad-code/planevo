@@ -8,17 +8,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
 } from 'react-native';
 import Animated, {
   ZoomIn,
   ZoomOut,
   FadeIn,
-  FadeOut
+  FadeOut,
 } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
 import { ChevronDown, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
+import { GlassSurface } from '@/components/ui/GlassSurface';
+import {
+  NLP_EMPTY_HINT,
+  NLP_PLACEHOLDER,
+  NLP_SUBMIT_LABEL,
+  getGhostExample,
+} from '@/lib/copy';
 
 interface QuickCaptureModalProps {
   isVisible: boolean;
@@ -34,6 +41,7 @@ export default function QuickCaptureModal({ isVisible, onClose, onSubmit }: Quic
   const [explicitDuration, setExplicitDuration] = useState('');
   const [explicitDate, setExplicitDate] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const ghostExample = getGhostExample();
 
   useEffect(() => {
     if (isVisible) {
@@ -50,7 +58,7 @@ export default function QuickCaptureModal({ isVisible, onClose, onSubmit }: Quic
 
   const handleSubmit = () => {
     if (!title.trim()) return;
-    
+
     onSubmit(title.trim(), explicitDate, explicitDuration, explicitPriority);
     onClose();
   };
@@ -60,111 +68,184 @@ export default function QuickCaptureModal({ isVisible, onClose, onSubmit }: Quic
     setExplicitPriority(cycle[(cycle.indexOf(explicitPriority) + 1) % cycle.length]);
   };
 
-
-
-
-
   return (
     <>
       {isVisible && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]} pointerEvents="auto">
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
           >
-        <TouchableWithoutFeedback onPress={onClose}>
-          <Animated.View 
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut.duration(200)}
-            style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} 
-          />
-        </TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={onClose}>
+              <Animated.View
+                entering={FadeIn.duration(200)}
+                exiting={FadeOut.duration(200)}
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)',
+                  },
+                ]}
+              />
+            </TouchableWithoutFeedback>
 
-        <Animated.View 
-          entering={ZoomIn.springify().damping(24).stiffness(250)}
-          exiting={ZoomOut.duration(200)}
-          style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.separator }]}
-        >
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, { color: colors.text }]}
-            placeholder="What's on your mind?"
-            placeholderTextColor={colors.textMuted}
-            value={title}
-            onChangeText={setTitle}
-            onSubmitEditing={handleSubmit}
-            autoCapitalize="sentences"
-            autoCorrect
-          />
+            <Animated.View
+              entering={ZoomIn.springify().damping(32).stiffness(320)}
+              exiting={ZoomOut.duration(200)}
+              style={styles.modalWrapper}
+            >
+              <GlassSurface style={styles.modalContent}>
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder={NLP_PLACEHOLDER}
+                  placeholderTextColor={colors.textMuted}
+                  value={title}
+                  onChangeText={setTitle}
+                  onSubmitEditing={handleSubmit}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                />
 
-          {showOptions && (
-            <Animated.View entering={FadeIn.duration(150)}>
-              <View style={styles.optionsSection}>
-                <View style={styles.fieldRow}>
-                  <View style={styles.fieldCol}>
-                    <Text style={styles.fieldLabel}>PRIORITY</Text>
-                    <TouchableOpacity style={[styles.formInput, { borderColor: colors.separator, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]} onPress={handlePriorityCycle}>
-                      <Text style={[styles.formInputText, { color: explicitPriority === 'Auto/Parse' ? colors.textMuted : colors.text }]}>{explicitPriority}</Text>
-                      <ChevronDown size={16} color={colors.textMuted} />
+                {!title.trim() && (
+                  <View style={styles.hintBlock}>
+                    <Text style={[styles.hintText, { color: colors.textMuted }]}>
+                      {NLP_EMPTY_HINT}
+                    </Text>
+                    <Text style={[styles.ghostText, { color: colors.textMuted }]}>
+                      {ghostExample}
+                    </Text>
+                  </View>
+                )}
+
+                {showOptions && (
+                  <Animated.View entering={FadeIn.duration(150)}>
+                    <View style={styles.optionsSection}>
+                      <View style={styles.fieldRow}>
+                        <View style={styles.fieldCol}>
+                          <Text style={styles.fieldLabel}>PRIORITY</Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.formInput,
+                              {
+                                borderColor: colors.separator,
+                                backgroundColor: isDark
+                                  ? 'rgba(255,255,255,0.03)'
+                                  : 'rgba(0,0,0,0.02)',
+                              },
+                            ]}
+                            onPress={handlePriorityCycle}
+                          >
+                            <Text
+                              style={[
+                                styles.formInputText,
+                                {
+                                  color:
+                                    explicitPriority === 'Auto/Parse'
+                                      ? colors.textMuted
+                                      : colors.text,
+                                },
+                              ]}
+                            >
+                              {explicitPriority}
+                            </Text>
+                            <ChevronDown size={16} color={colors.textMuted} />
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.fieldCol}>
+                          <Text style={styles.fieldLabel}>EST. TIME (MIN)</Text>
+                          <View
+                            style={[
+                              styles.formInput,
+                              {
+                                borderColor: colors.separator,
+                                backgroundColor: isDark
+                                  ? 'rgba(255,255,255,0.03)'
+                                  : 'rgba(0,0,0,0.02)',
+                              },
+                            ]}
+                          >
+                            <TextInput
+                              style={[
+                                styles.formInputText,
+                                { color: colors.text, flex: 1, padding: 0 },
+                              ]}
+                              placeholder="Auto"
+                              placeholderTextColor={colors.textMuted}
+                              keyboardType="numeric"
+                              value={explicitDuration}
+                              onChangeText={setExplicitDuration}
+                            />
+                            <Clock size={16} color={colors.textMuted} />
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.fieldRow}>
+                        <View style={styles.fieldCol}>
+                          <Text style={styles.fieldLabel}>EXPLICIT DUE DATE</Text>
+                          <View
+                            style={[
+                              styles.formInput,
+                              {
+                                borderColor: colors.separator,
+                                backgroundColor: isDark
+                                  ? 'rgba(255,255,255,0.03)'
+                                  : 'rgba(0,0,0,0.02)',
+                              },
+                            ]}
+                          >
+                            <TextInput
+                              style={[
+                                styles.formInputText,
+                                { color: colors.text, flex: 1, padding: 0 },
+                              ]}
+                              placeholder="mm/dd/yyyy"
+                              placeholderTextColor={colors.textMuted}
+                              value={explicitDate}
+                              onChangeText={setExplicitDate}
+                            />
+                            <CalendarIcon size={16} color={colors.textMuted} />
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  </Animated.View>
+                )}
+
+                <View style={[styles.footer, { borderTopColor: colors.separator }]}>
+                  <TouchableOpacity
+                    onPress={() => setShowOptions(!showOptions)}
+                    style={styles.toggleButton}
+                  >
+                    <Text style={[styles.toggleText, { color: colors.textMuted }]}>
+                      {showOptions ? '- Hide Options' : '+ Options'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.footerActions}>
+                    <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
+                      <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleSubmit}
+                      style={[
+                        styles.submitButton,
+                        {
+                          backgroundColor: title.trim()
+                            ? Colors.brand[500]
+                            : colors.separator,
+                        },
+                      ]}
+                      disabled={!title.trim()}
+                    >
+                      <Text style={styles.submitText}>{NLP_SUBMIT_LABEL}</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.fieldCol}>
-                    <Text style={styles.fieldLabel}>EST. TIME (MIN)</Text>
-                    <View style={[styles.formInput, { borderColor: colors.separator, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
-                      <TextInput 
-                        style={[styles.formInputText, { color: colors.text, flex: 1, padding: 0 }]} 
-                        placeholder="Auto/Parse" 
-                        placeholderTextColor={colors.textMuted}
-                        keyboardType="numeric"
-                        value={explicitDuration}
-                        onChangeText={setExplicitDuration}
-                      />
-                      <Clock size={16} color={colors.textMuted} />
-                    </View>
-                  </View>
                 </View>
-                
-                <View style={styles.fieldRow}>
-                  <View style={styles.fieldCol}>
-                    <Text style={styles.fieldLabel}>EXPLICIT DUE DATE</Text>
-                    <View style={[styles.formInput, { borderColor: colors.separator, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
-                      <TextInput 
-                        style={[styles.formInputText, { color: colors.text, flex: 1, padding: 0 }]} 
-                        placeholder="mm/dd/yyyy" 
-                        placeholderTextColor={colors.textMuted}
-                        value={explicitDate}
-                        onChangeText={setExplicitDate}
-                      />
-                      <CalendarIcon size={16} color={colors.textMuted} />
-                    </View>
-                  </View>
-                </View>
-              </View>
+              </GlassSurface>
             </Animated.View>
-          )}
-
-          <View style={[styles.footer, { borderTopColor: colors.separator }]}>
-            <TouchableOpacity onPress={() => setShowOptions(!showOptions)} style={styles.toggleButton}>
-              <Text style={[styles.toggleText, { color: colors.textMuted }]}>
-                {showOptions ? '- Hide Options' : '+ Options'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.footerActions}>
-              <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-                <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={handleSubmit} 
-                style={[styles.submitButton, { backgroundColor: title.trim() ? Colors.brand[500] : colors.separator }]}
-                disabled={!title.trim()}
-              >
-                <Text style={styles.submitText}>Add Task</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
         </View>
       )}
     </>
@@ -177,10 +258,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
+  modalWrapper: {
+    width: '100%',
+  },
   modalContent: {
-    borderRadius: 24,
-    borderWidth: 1,
+    borderRadius: 28,
     padding: 24,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.15,
@@ -191,7 +275,20 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     minHeight: 44,
+  },
+  hintBlock: {
+    marginTop: 8,
     marginBottom: 16,
+    gap: 4,
+  },
+  hintText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  ghostText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    opacity: 0.85,
   },
   optionsSection: {
     gap: 16,

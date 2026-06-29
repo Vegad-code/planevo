@@ -30,6 +30,7 @@
     "@notionhq/client": "^5.22.0",
     "@phosphor-icons/react": "^2.1.10",
     "@planevo/notes-core": "*",
+    "@planevo/nlp-core": "*",
     "@planevo/theme": "*",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-dialog": "^1.1.15",

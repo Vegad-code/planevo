@@ -456,9 +456,6 @@ export default function BrunoChatSidebar({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
       const message = event.message || event;
-      // #region agent log
-      fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:entry',message:'onFinish called',data:{messageRole:message?.role,messageId:message?.id,lastUserText:lastUserMessageRef.current?.slice(0,80),isBreakdownIntent:isTaskBreakdownIntent(lastUserMessageRef.current||'')},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       const textPart = message.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text;
 
       const modeNoticePart = message.parts?.find(
@@ -492,9 +489,6 @@ export default function BrunoChatSidebar({
           const nativeProposals = extractProposalsFromMessage(message);
           if (nativeProposals.length === 0) {
             const textContent = textPart || '';
-            // #region agent log
-            fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:pre-fetch',message:'calling breakdown fallback',data:{userPromptLen:lastUserText?.length,assistantTextLen:textContent?.length},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-            // #endregion
             const response = await fetch("/api/bruno/fallback/breakdown", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -505,16 +499,13 @@ export default function BrunoChatSidebar({
               }),
             });
             const responseText = await response.text();
-            // #region agent log
-            fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:post-fetch',message:'breakdown fallback response',data:{status:response.status,ok:response.ok,contentType:response.headers.get('content-type'),bodyLen:responseText.length,bodyPreview:responseText.slice(0,200)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-            // #endregion
             let result: { success?: boolean; proposals?: BrunoActionProposal[] } = {};
-            try {
-              result = responseText ? JSON.parse(responseText) : {};
-            } catch (parseErr) {
-              // #region agent log
-              fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:onFinish:breakdown:parse-error',message:'JSON parse failed',data:{status:response.status,bodyLen:responseText.length,error:String(parseErr)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-              // #endregion
+            if (responseText) {
+              try {
+                result = JSON.parse(responseText);
+              } catch {
+                // Empty or non-JSON body from server error — skip fallback proposals
+              }
             }
             if (response.ok && result.success) {
               setFallbackProposalsByMessageId((prev) => ({
@@ -640,9 +631,6 @@ export default function BrunoChatSidebar({
   // Update messages when initialMessage changes (context switch)
   useEffect(() => {
     if (initialMessage && !currentConversationId) {
-      // #region agent log
-      fetch('http://127.0.0.1:7448/ingest/f1ed0e51-9957-4543-9501-c6ebb0ae9435',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cc6dd5'},body:JSON.stringify({sessionId:'cc6dd5',location:'BrunoChatSidebar.tsx:initialMessage-effect',message:'resetting messages from initialMessage',data:{initialMessageLen:initialMessage?.length,assignmentId,chatStatus:status},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
       setMessages([{ 
         id: 'init',
         role: 'assistant', 

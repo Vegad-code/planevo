@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseEventInput } from '../parseEventInput';
+import { parseTaskInput } from '../../taskParser';
 
 const REF = new Date(2026, 5, 24, 10, 0, 0); // Wed Jun 24 2026 10:00
 
@@ -40,6 +41,14 @@ describe('parseEventInput', () => {
     expect(result.startAt!.getHours()).toBe(15);
   });
 
+  it('parses work meeting at 3 tmr for 40min', () => {
+    const result = parseEventInput('work meeting at 3 tmr for 40min', REF);
+    expect(result.title).toBe('work meeting');
+    expect(result.estimatedMinutes).toBe(40);
+    expect(result.startAt!.getDate()).toBe(25);
+    expect(result.startAt!.getHours()).toBe(15);
+  });
+
   it('parses for 2h with today time', () => {
     const result = parseEventInput('Deep work for 2h today at 4', REF);
     expect(result.title).toBe('Deep work');
@@ -68,5 +77,48 @@ describe('parseEventInput', () => {
     expect(result.priority).toBe('high');
     expect(result.source).toBe('Canvas');
     expect(result.startAt!.getHours()).toBe(15);
+  });
+
+  it('parses p1 priority alias', () => {
+    const result = parseEventInput('Submit report p1 tomorrow', REF);
+    expect(result.priority).toBe('critical');
+  });
+
+  it('parses recurrence every monday', () => {
+    const result = parseEventInput('Water plants every monday', REF);
+    expect(result.recurrencePattern).toBe('FREQ=WEEKLY;BYDAY=MO');
+    expect(result.chips).toContain('Every monday');
+  });
+});
+
+describe('parseTaskInput', () => {
+  it('maps essay due friday to date-only due', () => {
+    const result = parseTaskInput('Essay due Friday #high', REF);
+    expect(result.title).toBe('Essay');
+    expect(result.priority).toBe('high');
+    expect(result.dueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.dueDateOnly).toBe(true);
+  });
+
+  it('maps work meeting at 3 tmr for 40min', () => {
+    const result = parseTaskInput('work meeting at 3 tmr for 40min', REF);
+    expect(result.title).toBe('work meeting');
+    expect(result.estimatedMinutes).toBe(40);
+    expect(result.dueDate).toContain('T');
+  });
+
+  it('maps study session for 90 without date', () => {
+    const result = parseTaskInput('Study session for 90', REF);
+    expect(result.title).toBe('Study session');
+    expect(result.estimatedMinutes).toBe(90);
+    expect(result.dueDate).toBeUndefined();
+  });
+
+  it('respects smart scheduling disabled', () => {
+    const result = parseTaskInput('tomorrow at 3pm', REF, {
+      smartSchedulingEnabled: false,
+    });
+    expect(result.title).toBe('tomorrow at 3pm');
+    expect(result.dueDate).toBeUndefined();
   });
 });
