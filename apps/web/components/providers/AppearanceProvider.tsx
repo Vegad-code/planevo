@@ -129,6 +129,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     DEFAULT_APPEARANCE.sidebarStyle,
   );
   const [userId, setUserId] = useState<string | null>(null);
+  const themeSyncedForUserRef = React.useRef<string | null>(null);
 
   const { theme, setTheme, resolvedTheme } = useTheme();
   const supabase = useMemo(() => createClient(), []);
@@ -249,8 +250,12 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
               savedSidebarStyle,
             );
           }
-          if (appearance.theme && appearance.theme !== theme) {
-            setTheme(appearance.theme);
+          if (appearance.theme) {
+            const shouldSyncTheme = themeSyncedForUserRef.current !== activeUserId;
+            if (shouldSyncTheme) {
+              themeSyncedForUserRef.current = activeUserId;
+              setTheme(appearance.theme);
+            }
           }
         }
       } catch {
@@ -266,7 +271,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       });
       setIsReady(true);
     },
-    [commitAppearance, setTheme, supabase, theme],
+    [commitAppearance, setTheme, supabase],
   );
 
   useEffect(() => {
@@ -281,6 +286,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       setUserId(activeUserId);
 
       if (event === 'SIGNED_OUT') {
+        themeSyncedForUserRef.current = null;
         clearLegacyAppearanceStorage();
         commitAppearance(DEFAULT_APPEARANCE);
         setIsReady(true);
