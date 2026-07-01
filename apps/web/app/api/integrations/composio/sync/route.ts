@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[composio-sync] route error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Sync failed' },
+      { error: 'Sync failed' },
       { status: 500 }
     );
   }

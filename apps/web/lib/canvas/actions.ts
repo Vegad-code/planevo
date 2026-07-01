@@ -8,20 +8,24 @@ import { encryptToken, decryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
 import { resilientFetch } from '@/lib/http/resilient-fetch';
 import { evaluatePostSyncNotifications } from '@/lib/notifications/post-sync-notify';
+import { isAllowedCanvasUrl } from '@/lib/canvas/url-validation';
 
 /**
  * Server-side proxy for Canvas API calls to avoid CORS issues.
  */
 export async function testCanvasConnectionAction(url: string, token: string): Promise<boolean> {
   try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return false;
+
+    if (!isAllowedCanvasUrl(url)) return false;
+
     let cleanToken = '';
     if (token && token.startsWith('••••')) {
-      const { success, data } = await getCanvasCredentialsAction(true); // pass true to get unmasked token
-      if (success && data?.canvasToken) {
-        cleanToken = data.canvasToken.trim();
-      } else {
-        return false;
-      }
+      const decrypted = await getDecryptedCanvasToken(user.id);
+      if (!decrypted) return false;
+      cleanToken = decrypted.trim();
     } else {
       cleanToken = decryptToken(token).trim();
     }
@@ -275,11 +279,11 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
     return { success: true };
   } catch (err: any) {
     console.error('Error saving Canvas credentials:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: 'Failed to save Canvas credentials' };
   }
 }
 
-export async function getCanvasCredentialsAction(returnUnmasked = false): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
+export async function getCanvasCredentialsAction(): Promise<{ success: boolean; data?: { canvasUrl: string; canvasToken: string }; error?: string }> {
   try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -295,11 +299,9 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
     const decryptedToken = encryptedToken
       ? decryptToken(encryptedToken)
       : '';
-    let displayToken = decryptedToken;
-    
-    if (!returnUnmasked && decryptedToken) {
-      displayToken = decryptedToken.length > 4 ? `••••${decryptedToken.slice(-4)}` : '••••';
-    }
+    const displayToken = decryptedToken
+      ? (decryptedToken.length > 4 ? `••••${decryptedToken.slice(-4)}` : '••••')
+      : '';
 
     return {
       success: true,
@@ -310,8 +312,19 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
     };
   } catch (err: any) {
     console.error('Error getting Canvas credentials:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: 'Failed to load Canvas credentials' };
   }
+}
+
+/**
+ * Internal helper to retrieve the decrypted Canvas token.
+ * NOT exported as a server action — only callable server-side.
+ */
+async function getDecryptedCanvasToken(userId: string): Promise<string | null> {
+  const account = await getIntegrationAccount(userId, 'canvas');
+  const encryptedToken = account?.access_token_encrypted;
+  if (!encryptedToken) return null;
+  return decryptToken(encryptedToken);
 }
 
 export async function disconnectCanvasAction(deleteData: boolean = false): Promise<{ success: boolean; error?: string }> {

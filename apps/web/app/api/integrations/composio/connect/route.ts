@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ redirectUrl: connection.redirectUrl });
   } catch (err: unknown) {
     console.error('Error initiating Composio connection:', err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to initiate connection' }, { status: 500 });
   }
 }

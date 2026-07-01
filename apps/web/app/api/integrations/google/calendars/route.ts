@@ -25,18 +25,18 @@ export async function GET(request: NextRequest) {
     const err = error as Error;
     console.error('Fetch Calendars Error:', err);
 
-    const status =
+    const isClientError =
       err.message === 'User not connected to Google Calendar' ||
       err.message.includes('Failed to refresh Google token') ||
-      err.message.includes('invalid_grant')
-        ? 400
-        : 500;
+      err.message.includes('invalid_grant');
 
     return NextResponse.json(
       {
-        error: err.message || 'Failed to fetch Google calendars',
+        error: isClientError
+          ? 'Google Calendar connection issue. Please reconnect.'
+          : 'Failed to fetch Google calendars',
       },
-      { status }
+      { status: isClientError ? 400 : 500 }
     );
   }
 }

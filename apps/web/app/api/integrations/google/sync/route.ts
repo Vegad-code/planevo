@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     console.error('Google Sync Error:', err);
     return NextResponse.json(
       {
-        error: err.message || 'Failed to synchronize calendar',
+        error: 'Failed to synchronize calendar',
       },
       { status: 500 }
     );
