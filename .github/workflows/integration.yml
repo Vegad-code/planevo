@@ -5,10 +5,6 @@ on:
     - cron: '0 4 * * 1'
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: planevo
-
 jobs:
   supabase-integration:
     name: Supabase local — RLS and RPCs
@@ -23,7 +19,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: planevo/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: supabase/setup-cli@v1
         with:
