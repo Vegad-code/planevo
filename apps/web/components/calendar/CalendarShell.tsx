@@ -6,22 +6,23 @@ import React, {
   useState,
   useImperativeHandle,
   forwardRef,
+  useRef,
   type ReactNode,
 } from 'react';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
-import { format, parse, startOfWeek, getDay, isToday } from 'date-fns';
+import { format, parse, startOfWeek, getDay, isToday, startOfMonth } from 'date-fns';
+import { useCalendarKeyboardShortcuts } from '@/hooks/useCalendarKeyboardShortcuts';
 import { enUS } from 'date-fns/locale/en-US';
 import { createRbcHeaderComponent } from './CalendarHeader';
 import CalendarToolbar, { WEEK_STARTS_ON } from './CalendarToolbar';
 import RbcEventBlock from './RbcEventBlock';
-import ScheduleView from './views/ScheduleView';
+import ScheduleView, { type ScheduleViewHandle } from './views/ScheduleView';
 import YearView from './views/YearView';
 import type { CalendarEvent, CalendarPreferences, CalendarView, ComposerAnchor } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
 import type { ProIntegrationProvider } from '@/lib/integrations/types';
 import { getEventColor } from '@/lib/calendar/eventColors';
-import { Plus } from '@phosphor-icons/react';
 
 const locales = { 'en-US': enUS };
 
@@ -37,6 +38,7 @@ const DnDCalendar = withDragAndDrop(Calendar);
 
 export interface CalendarShellHandle {
   scrollToNow: () => void;
+  goToToday: () => void;
 }
 
 interface CalendarShellProps {
@@ -68,9 +70,10 @@ interface CalendarShellProps {
   onStartFresh: () => void;
   isProcessing: boolean;
   onNavigate: (direction: 'prev' | 'next') => void;
-  onToday: () => void;
   onOpenShortcuts: () => void;
   onCreate: () => void;
+  onJumpToWeekday: (dayIndex: number) => void;
+  onEscape: () => void;
 }
 
 const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
@@ -103,19 +106,54 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
       onStartFresh,
       isProcessing,
       onNavigate,
-      onToday,
       onOpenShortcuts,
       onCreate,
+      onJumpToWeekday,
+      onEscape,
     },
     ref
   ) {
     const [scrollToTime, setScrollToTime] = useState(() => new Date());
+    const scheduleViewRef = useRef<ScheduleViewHandle>(null);
+    const calendarRootRef = useRef<HTMLDivElement>(null);
 
     const scrollToNow = useCallback(() => {
+      if (activeView === 'list') {
+        scheduleViewRef.current?.scrollToToday();
+        return;
+      }
       setScrollToTime(new Date());
-    }, []);
+    }, [activeView]);
 
-    useImperativeHandle(ref, () => ({ scrollToNow }), [scrollToNow]);
+    const goToToday = useCallback(() => {
+      const now = new Date();
+      onDateChange(activeView === 'list' ? startOfMonth(now) : now);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToNow();
+        });
+      });
+    }, [activeView, onDateChange, scrollToNow]);
+
+    useImperativeHandle(ref, () => ({ scrollToNow, goToToday }), [scrollToNow, goToToday]);
+
+    useCalendarKeyboardShortcuts({
+      onToday: goToToday,
+      onNavigate,
+      onViewChange,
+      onNewEvent: onCreate,
+      onToggleBacklog,
+      onJumpToWeekday,
+      onOpenShortcuts,
+      onEscape,
+    });
+
+    const handleCalendarPointerDown = useCallback((e: React.PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      calendarRootRef.current?.focus({ preventScroll: true });
+    }, []);
 
     const rbcEvents = useMemo(
       () =>
@@ -180,9 +218,17 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
       onDateChange(newDate);
     };
 
+    const handleDayActivate = useCallback(
+      (date: Date) => {
+        onDateChange(date);
+        onViewChange('day');
+      },
+      [onDateChange, onViewChange]
+    );
+
     const headerComponent = useMemo(
-      () => createRbcHeaderComponent(selectedDate, onDateChange),
-      [selectedDate, onDateChange]
+      () => createRbcHeaderComponent(selectedDate, handleDayActivate),
+      [selectedDate, handleDayActivate]
     );
 
     const eventComponent = useMemo(
@@ -261,15 +307,18 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
       (activeView === 'day' || activeView === 'week') && isToday(selectedDate);
 
     return (
-      <div className="flex flex-col h-full w-full bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] overflow-hidden shadow-sm transition-all">
+      <div
+        ref={calendarRootRef}
+        tabIndex={-1}
+        data-calendar-root
+        onPointerDownCapture={handleCalendarPointerDown}
+        className="flex flex-col h-full w-full bg-[var(--color-paper)] border border-[var(--color-line)] rounded-[22px] overflow-hidden shadow-sm transition-all outline-none"
+      >
         <CalendarToolbar
           selectedDate={selectedDate}
           activeView={activeView}
           onNavigate={onNavigate}
-          onToday={() => {
-            onToday();
-            scrollToNow();
-          }}
+          onToday={goToToday}
           onViewChange={onViewChange}
           connectedProviders={connectedProviders}
           hiddenLayers={hiddenLayers}
@@ -290,10 +339,12 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
           <div className="flex-1 relative min-h-0 p-2 min-w-0 flex flex-col">
             {activeView === 'list' && onEventClick && (
               <ScheduleView
+                ref={scheduleViewRef}
                 events={events}
-                selectedDate={selectedDate}
+                scheduleWindowStart={selectedDate}
                 timeFormat={preferences.time_format}
                 onEventClick={onEventClick}
+                onDayClick={handleDayActivate}
               />
             )}
 
@@ -315,7 +366,8 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
               date={selectedDate}
               view={rbcView}
               onNavigate={handleNavigate}
-              getDrilldownView={() => null}
+              getDrilldownView={() => Views.DAY}
+              onDrillDown={handleDayActivate}
               onRangeChange={(range: Date[] | { start: Date; end: Date }) => {
                 if (!onRangeChange) return;
                 if (Array.isArray(range)) {
@@ -367,15 +419,6 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
             </div>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={() => onCreateEvent?.()}
-          className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)] text-[var(--color-cream)] shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
-          aria-label="Add new event"
-        >
-          <Plus className="w-6 h-6" />
-        </button>
       </div>
     );
   }

@@ -1,5 +1,7 @@
 # Composio setup (Notion, Slack, Linear)
 
+> **Flag-gated Pro integrations** — enabled via `NEXT_PUBLIC_ENABLE_NOTION_INTEGRATION`, `NEXT_PUBLIC_ENABLE_SLACK_INTEGRATION`, `NEXT_PUBLIC_ENABLE_LINEAR_INTEGRATION` in [`lib/featureFlags.ts`](../lib/featureFlags.ts). Not part of v1 core marketing; do not promise in landing copy unless flags are on.
+
 Planevo connects Notion, Slack, and Linear through [Composio](https://platform.composio.dev).
 
 ## One-time dashboard configuration

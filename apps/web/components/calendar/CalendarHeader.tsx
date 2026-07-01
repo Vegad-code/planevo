@@ -7,18 +7,18 @@ interface RbcHeaderProps {
   date: Date;
   label: string;
   selectedDate: Date;
-  onDateChange: (date: Date) => void;
+  onDayActivate: (date: Date) => void;
 }
 
 export function RbcDayHeader({
   date,
   selectedDate,
-  onDateChange,
+  onDayActivate,
 }: RbcHeaderProps) {
   const selected = isSameDay(date, selectedDate);
   const today = isToday(date);
 
-  const handleActivate = () => onDateChange(date);
+  const handleActivate = () => onDayActivate(date);
 
   return (
     <div
@@ -56,7 +56,7 @@ export function RbcDayHeader({
 
 export function createRbcHeaderComponent(
   selectedDate: Date,
-  onDateChange: (date: Date) => void
+  onDayActivate: (date: Date) => void
 ) {
   return function CalendarRbcHeader({ date }: { date: Date; label: string }) {
     return (
@@ -64,7 +64,7 @@ export function createRbcHeaderComponent(
         date={date}
         label=""
         selectedDate={selectedDate}
-        onDateChange={onDateChange}
+        onDayActivate={onDayActivate}
       />
     );
   };

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";import { Toaster } from "sonner";
+import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
@@ -72,7 +73,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppearanceProvider>
-            <Toaster richColors position="bottom-right" />
+            <Toaster />
             <PostHogProvider>{children}</PostHogProvider>
           </AppearanceProvider>
         </ThemeProvider>

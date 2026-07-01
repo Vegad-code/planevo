@@ -1,5 +1,7 @@
 # Bruno Page Context and Suggested Actions Implementation Plan
 
+> **Historical execution plan — June 2026.** Superseded by shipped global Bruno + page context where implemented. See [`CLAUDE.md`](../../CLAUDE.md).
+
 **Goal:** Make the global Bruno panel aware of the active dashboard page and offer useful one-click prompts for that context.
 
 **Architecture:** Dashboard pages register typed metadata with the existing `BrunoProvider`. The shell renders a context banner, while `BrunoChatSidebar` sends the same metadata with every request and routes typed or suggested prompts through one submit function. The API validates the metadata and adds a clearly delimited page-context block to Bruno's system prompt.

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, type ComponentType } from 'react';
-import Link from 'next/link';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   CaretLeft,
@@ -17,6 +16,7 @@ import { SlackIcon, NotionIcon, LinearIcon } from '@/components/icons/BrandIcons
 import type { ProIntegrationProvider } from '@/lib/integrations/types';
 import type { CalendarView } from '@/types/calendar';
 import { formatDistanceToNow } from 'date-fns';
+import { getScheduleWindowRange } from '@/components/calendar/views/ScheduleView';
 
 const WEEK_STARTS_ON = 0 as const;
 
@@ -66,8 +66,14 @@ function getRangeLabel(selectedDate: Date, activeView: CalendarView): string {
     }
     case 'month':
       return format(selectedDate, 'MMMM yyyy');
-    case 'list':
-      return format(selectedDate, 'MMM d, yyyy');
+    case 'list': {
+      const { start, end } = getScheduleWindowRange(selectedDate);
+      const sameYear = start.getFullYear() === end.getFullYear();
+      if (sameYear) {
+        return `${format(start, 'MMM')} – ${format(end, 'MMM yyyy')}`;
+      }
+      return `${format(start, 'MMM yyyy')} – ${format(end, 'MMM yyyy')}`;
+    }
     case 'year':
       return format(selectedDate, 'yyyy');
     default:
@@ -118,7 +124,7 @@ export default function CalendarToolbar({
   const showStaleDot = googleConnected && isGoogleStale(googleLastSyncedAt);
 
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2.5">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2">
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -157,7 +163,7 @@ export default function CalendarToolbar({
             key={id}
             type="button"
             onClick={() => onViewChange(id)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               activeView === id
                 ? 'text-[var(--color-cream)] bg-[var(--color-ink)] shadow-sm'
                 : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
@@ -172,19 +178,19 @@ export default function CalendarToolbar({
         type="button"
         onClick={onCreate}
         title="Create event (N)"
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-cream)] text-xs font-mono font-bold uppercase tracking-wider transition-colors hover:bg-[var(--color-ink-2)]"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-cream)] text-xs font-medium transition-colors hover:bg-[var(--color-ink-2)]"
       >
         <Plus className="w-4 h-4" weight="bold" />
-        <span className="hidden sm:inline">Create</span>
+        <span className="hidden sm:inline">Event</span>
       </button>
 
       <button
         type="button"
         onClick={onToggleBacklog}
         title="Toggle backlog (B)"
-        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
           backlogOpen
-            ? 'bg-[var(--color-ink)] text-[var(--color-cream)] border-[var(--color-ink)]'
+            ? 'border-[var(--color-ink)] bg-[var(--color-cream-2)] text-[var(--color-ink)]'
             : 'bg-[var(--color-cream-2)] text-[var(--color-ink-muted)] border-[var(--color-line)] hover:text-[var(--color-ink)]'
         }`}
       >
@@ -256,31 +262,22 @@ export default function CalendarToolbar({
             <p className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">
               Google Calendar
             </p>
-            {googleConnected ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onSyncGoogle();
-                  setMenuOpen(false);
-                }}
-                disabled={isProcessing}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--color-cream-2)] transition-colors disabled:opacity-50"
-              >
-                <ArrowsCounterClockwise
-                  className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`}
-                />
-                <span className="flex-1 text-left">Sync Google Calendar</span>
-              </button>
-            ) : (
-              <Link
-                href="/dashboard/settings/integrations"
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--color-cream-2)] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                <ArrowsCounterClockwise className="w-4 h-4" />
-                <span>Connect Google Calendar</span>
-              </Link>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                onSyncGoogle();
+                setMenuOpen(false);
+              }}
+              disabled={isProcessing}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--color-cream-2)] transition-colors disabled:opacity-50"
+            >
+              <ArrowsCounterClockwise
+                className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`}
+              />
+              <span className="flex-1 text-left">
+                {googleConnected ? 'Sync Google Calendar' : 'Connect Google Calendar'}
+              </span>
+            </button>
             {googleConnected && googleLastSyncedAt && (
               <p className="px-3 pb-2 text-[10px] font-mono text-[var(--color-ink-muted)]">
                 Last synced {formatDistanceToNow(new Date(googleLastSyncedAt))} ago

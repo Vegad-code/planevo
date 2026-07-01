@@ -1,5 +1,7 @@
 # Planevo V2 Visual System Redesign Implementation Plan
 
+> **Historical — June 2026.** References legacy brutalist UI as current; superseded by warm editorial system in [`design_handoff_planevo_redesign/README.md`](../../design_handoff_planevo_redesign/README.md). Product positioning: [`apps/web/STRATEGY.md`](../../apps/web/STRATEGY.md).
+
 > **For Codex:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task by task.
 
 **Goal:** Redesign Planevo mobile and web into a premium, calm, modern student command center without changing product behavior, backend contracts, or Bruno's confirmation-based action model.

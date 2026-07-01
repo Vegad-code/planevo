@@ -1,6 +1,8 @@
 # Planevo V3 — Comprehensive Ecosystem Redesign Master Plan
 
 > **Status:** PLANNING/DISCOVERY  
+> **Positioning guardrails (2026-06):** Day + availability first; quiet automation; **Adaptive Day Rollover**; no AI-first or shame-free marketing; Goals/Habits vaulted. See [`apps/web/STRATEGY.md`](../../apps/web/STRATEGY.md).
+
 > **Created:** 2026-06-15  
 > **Owner:** Planevo Design System Team  
 > **Scope:** Web App · Mobile App (iOS/Android) · Landing Page  
@@ -557,7 +559,7 @@ import { Tabs } from 'expo-router/unstable-native-tabs';
 2. DEMO — Interactive daily plan simulation (keep, enhance with glass treatment)
 3. SOCIAL PROOF — Real user quotes (ADD — currently missing)
 4. THREE MOVES — Connect / Plan / Ask Bruno (keep, refine cards)
-5. BRUNO LETTER — "I'll never shame you" (keep — strongest section)
+5. BRUNO LETTER — adaptive day recovery tone (e.g. "When the day falls apart, we rebuild around what's left") — see design handoff
 6. COMPARISON — Planevo vs. traditional planners (ADD)
 7. PRICING — Single tier (keep, redesign card per Reference 2)
 8. FAQ — Common questions (ADD)

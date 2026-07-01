@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
 import { resilientFetch } from '@/lib/http/resilient-fetch';
+import type { Json } from '@/types/database';
 
 function isEncryptedIntegrationToken(value: string): boolean {
   const parts = value.split(':');
@@ -103,6 +104,211 @@ export async function refreshGoogleToken(refreshToken: string) {
   return data.access_token;
 }
 
+const GOOGLE_SYNC_PAST_DAYS = 90;
+const GOOGLE_SYNC_FUTURE_DAYS = 365;
+const GOOGLE_EVENTS_PAGE_SIZE = 250;
+
+interface GoogleCalendarListItem {
+  id: string;
+  summary?: string;
+  summaryOverride?: string;
+  primary?: boolean;
+  selected?: boolean;
+  hidden?: boolean;
+}
+
+async function listGoogleCalendars(accessToken: string): Promise<GoogleCalendarListItem[]> {
+  const response = await resilientFetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250',
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch Google calendar list');
+  }
+
+  const data = (await response.json()) as { items?: GoogleCalendarListItem[] };
+  return data.items ?? [];
+}
+
+export async function persistGoogleCalendarSources(
+  userId: string,
+  accountId: string,
+  calendarIds: string[],
+  nameById?: Map<string, string>
+) {
+  const supabase = await createClient();
+
+  if (calendarIds.length === 0) return;
+
+  const { data: existingSources } = await supabase
+    .from('integration_sources')
+    .select('external_id')
+    .eq('account_id', accountId)
+    .eq('source_type', 'calendar');
+
+  const selectedSet = new Set(calendarIds);
+  const staleIds =
+    existingSources
+      ?.map((source) => source.external_id)
+      .filter((id) => !selectedSet.has(id)) ?? [];
+
+  if (staleIds.length > 0) {
+    await supabase
+      .from('integration_sources')
+      .update({ sync_enabled: false })
+      .eq('account_id', accountId)
+      .eq('source_type', 'calendar')
+      .in('external_id', staleIds);
+  }
+
+  const sourcesToUpsert = calendarIds.map((id) => ({
+    account_id: accountId,
+    user_id: userId,
+    source_type: 'calendar',
+    external_id: id,
+    name: nameById?.get(id) || (id === 'primary' ? 'Primary Calendar' : 'Google Calendar'),
+    sync_enabled: true,
+  }));
+
+  await supabase
+    .from('integration_sources')
+    .upsert(sourcesToUpsert, { onConflict: 'account_id,external_id' });
+}
+
+async function resolveCalendarsToSync(
+  userId: string,
+  accountId: string,
+  accessToken: string
+): Promise<string[]> {
+  const supabase = await createClient();
+
+  const { data: userPrefs } = await supabase
+    .from('users')
+    .select('scheduling_preferences, google_calendar_id')
+    .eq('id', userId)
+    .single();
+
+  const prefs = (userPrefs?.scheduling_preferences as Record<string, unknown> | null) || {};
+  const prefSelected = Array.isArray(prefs.google_selected_calendars)
+    ? (prefs.google_selected_calendars as string[]).filter(Boolean)
+    : [];
+
+  if (prefSelected.length > 0) {
+    await persistGoogleCalendarSources(userId, accountId, prefSelected);
+    return prefSelected;
+  }
+
+  const calendars = await listGoogleCalendars(accessToken);
+  const selectedInGoogle = calendars
+    .filter((cal) => cal.selected !== false && cal.hidden !== true)
+    .map((cal) => cal.id);
+
+  const defaultIds =
+    selectedInGoogle.length > 0
+      ? selectedInGoogle
+      : calendars.filter((cal) => cal.primary).map((cal) => cal.id);
+
+  const idsToSync =
+    defaultIds.length > 0 ? defaultIds : [userPrefs?.google_calendar_id || 'primary'];
+
+  const nameById = new Map(
+    calendars.map((cal) => [cal.id, cal.summaryOverride || cal.summary || cal.id])
+  );
+  await persistGoogleCalendarSources(userId, accountId, idsToSync, nameById);
+
+  await supabase
+    .from('users')
+    .update({
+      scheduling_preferences: {
+        ...prefs,
+        google_selected_calendars: idsToSync,
+      } as Json,
+    })
+    .eq('id', userId);
+
+  return idsToSync;
+}
+
+async function fetchGoogleEventsForCalendar(
+  accessToken: string,
+  calendarId: string,
+  timeMin: string,
+  timeMax: string
+): Promise<Array<Record<string, unknown>>> {
+  const allItems: Array<Record<string, unknown>> = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      timeMin,
+      timeMax,
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: String(GOOGLE_EVENTS_PAGE_SIZE),
+      showDeleted: 'false',
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
+    const response = await resilientFetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `Failed to fetch Google events for calendar ${calendarId}: ${response.status} ${body}`
+      );
+    }
+
+    const data = (await response.json()) as {
+      items?: Array<Record<string, unknown>>;
+      nextPageToken?: string;
+    };
+
+    if (Array.isArray(data.items)) {
+      for (const item of data.items) {
+        if (item.status === 'cancelled') continue;
+        allItems.push(item);
+      }
+    }
+
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allItems;
+}
+
+export async function saveGoogleCalendarSelection(userId: string, selectedCalendarIds: string[]) {
+  const account = await getIntegrationAccount(userId, 'google_calendar');
+  if (!account) {
+    throw new Error('Google Calendar is not connected');
+  }
+
+  const supabase = await createClient();
+  const { data: userData, error: fetchError } = await supabase
+    .from('users')
+    .select('scheduling_preferences')
+    .eq('id', userId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const preferences =
+    (userData.scheduling_preferences as Record<string, unknown> | null) || {};
+  preferences.google_selected_calendars = selectedCalendarIds;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ scheduling_preferences: preferences as Json })
+    .eq('id', userId);
+
+  if (updateError) throw updateError;
+
+  await persistGoogleCalendarSources(userId, account.id, selectedCalendarIds);
+}
+
 export async function syncGoogleCalendar(userId: string, force = false) {
   const supabase = await createClient();
 
@@ -123,66 +329,41 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     const decryptedToken = decryptToken(encryptedToken);
     const accessToken = await refreshGoogleToken(decryptedToken);
 
-    // 3. Determine which calendars to sync
-    const { data: sources } = await supabase
-      .from('integration_sources')
-      .select('external_id')
-      .eq('account_id', accountId)
-      .eq('source_type', 'calendar')
-      .eq('sync_enabled', true);
+    const calendarsToSync = await resolveCalendarsToSync(userId, accountId, accessToken);
 
-    let calendarsToSync: string[] = sources?.map(s => s.external_id) || [];
+    const timeMin = new Date(
+      Date.now() - GOOGLE_SYNC_PAST_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const timeMax = new Date(
+      Date.now() + GOOGLE_SYNC_FUTURE_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
 
-    if (calendarsToSync.length === 0) {
-      // Fallback to legacy preferences
-      const { data: userPrefs } = await supabase.from('users').select('scheduling_preferences, google_calendar_id').eq('id', userId).single();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const prefs = userPrefs?.scheduling_preferences as Record<string, any> || {};
-      calendarsToSync = prefs.google_selected_calendars || [];
-      if (calendarsToSync.length === 0) {
-        calendarsToSync = [userPrefs?.google_calendar_id || 'primary'];
-      }
-      
-      // Backfill sources
-      const sourcesToInsert = calendarsToSync.map(id => ({
-        account_id: accountId,
-        user_id: userId,
-        source_type: 'calendar',
-        external_id: id,
-        name: id === 'primary' ? 'Primary Calendar' : 'Google Calendar',
-        sync_enabled: true
-      }));
-      await supabase.from('integration_sources').insert(sourcesToInsert).select('id');
-    }
-
-    // 4. Fetch events (last 30 days to next 60 days) for each selected calendar
-    const timeMin = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const timeMax = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
-    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let allEventsData: any[] = [];
+    const fetchErrors: string[] = [];
 
     for (const calendarId of calendarsToSync) {
-      const eventsResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-
-      if (eventsResponse.ok) {
-        const eventsData = await eventsResponse.json();
-        if (eventsData.items) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const taggedItems = eventsData.items.map((item: any) => ({
-            ...item,
-            _calendarId: calendarId
-          }));
-          allEventsData = [...allEventsData, ...taggedItems];
-        }
-      } else {
-        console.warn(`Failed to fetch Google events for calendar ${calendarId}`);
+      try {
+        const items = await fetchGoogleEventsForCalendar(
+          accessToken,
+          calendarId,
+          timeMin,
+          timeMax
+        );
+        const taggedItems = items.map((item) => ({
+          ...item,
+          _calendarId: calendarId,
+        }));
+        allEventsData = [...allEventsData, ...taggedItems];
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown fetch error';
+        console.warn(message);
+        fetchErrors.push(message);
       }
+    }
+
+    if (allEventsData.length === 0 && fetchErrors.length === calendarsToSync.length) {
+      throw new Error(fetchErrors[0] || 'Failed to fetch Google Calendar events');
     }
 
     // 5. Transform to calendar_events format
@@ -205,6 +386,8 @@ export async function syncGoogleCalendar(userId: string, force = false) {
         energy_level: null,
         is_completed: false,
         is_deleted: false,
+        is_ai_suggested: false,
+        status: 'confirmed',
         metadata: { google_calendar_id: item._calendarId }
       };
     });
@@ -216,8 +399,22 @@ export async function syncGoogleCalendar(userId: string, force = false) {
     const events = Array.from(uniqueEventsMap.values());
 
     if (events.length === 0) {
-      await supabaseAdmin.from('integration_accounts').update({ last_synced_at: new Date().toISOString() }).eq('id', accountId).eq('user_id', userId);
-      if (syncRunId) await supabase.from('integration_sync_runs').update({ status: 'success', finished_at: new Date().toISOString() }).eq('id', syncRunId);
+      const now = new Date().toISOString();
+      await supabaseAdmin
+        .from('integration_accounts')
+        .update({ last_synced_at: now, status: 'connected', last_error: null })
+        .eq('id', accountId)
+        .eq('user_id', userId);
+      await supabase
+        .from('users')
+        .update({ google_calendar_last_synced_at: now, google_calendar_connected: true })
+        .eq('id', userId);
+      if (syncRunId) {
+        await supabase
+          .from('integration_sync_runs')
+          .update({ status: 'success', finished_at: now })
+          .eq('id', syncRunId);
+      }
       return 0;
     }
 
@@ -343,7 +540,15 @@ export async function syncGoogleCalendar(userId: string, force = false) {
 
     // Record successful sync
     const now = new Date().toISOString();
-    await supabaseAdmin.from('integration_accounts').update({ last_synced_at: now, status: 'connected', last_error: null }).eq('id', accountId).eq('user_id', userId);
+    await supabaseAdmin
+      .from('integration_accounts')
+      .update({ last_synced_at: now, status: 'connected', last_error: null })
+      .eq('id', accountId)
+      .eq('user_id', userId);
+    await supabase
+      .from('users')
+      .update({ google_calendar_last_synced_at: now, google_calendar_connected: true })
+      .eq('id', userId);
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
         status: 'success', 

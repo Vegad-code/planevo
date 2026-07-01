@@ -1,76 +1,92 @@
-# 🦉 Planevo
+# Planevo Web App
 
-Planevo is a proactive, AI-powered productivity assistant designed to help users manage tasks, focus, and energy without the guilt of traditional to-do lists.
+Availability-aware daily planner for students and high-performers. The web app is the primary Planevo surface: it syncs Canvas and Google Calendar, builds a **Daily Plan** from real open time, and **adaptively reshuffles** when the day changes.
 
-## 🚀 Current Progress (Phase One)
-- [x] **Brutalist Design System**: High-contrast, tactile UI with no rounded corners or gradients.
-- [x] **Smart Auth**: Google Sign-In and email authentication via Supabase.
-- [x] **Tasks 2.0**:
-  - [x] AI Priority sorting (using GPT-4o-mini).
-  - [x] Task breakdown into actionable steps.
-  - [x] Shame-free rescheduling (no "past due" badges).
-  - [x] Garden of Done (visual history).
-- [x] **Dashboard**: Real-time stats, Bruno greetings, and quick actions.
-- [x] **AI Scheduling**: Basic daily plan generation based on active tasks.
-
-## 🎯 Phase Two: Proactive Assistance (Next Steps)
-The goal of Phase Two is to move from a reactive task list to a proactive "Pilot" that manages the user's focus and energy.
-
-### 1. ⏱️ AI Focus Mode
-- Implement a focus timer (Pomodoro-style but flexible).
-- **Bruno Nudges**: AI check-ins during focus sessions to prevent distractions.
-- Integration with the "Tasks" list to select a current focus item.
-
-### 2. 📅 Google Calendar Sync (Full Integration)
-- Fetch real-time calendar events via OAuth.
-- Bruno should "look" at the calendar and schedule tasks in the empty gaps.
-- Proactive alerts: "You have a gap between 2pm and 4pm, want to knock out [Task X]?"
-
-### 3. 🔄 Adaptive Rescheduling
-- Background job or trigger that detects "yesterday's unfinished business."
-- Automatically reorganizes today's schedule without user intervention (with a "Start Fresh" greeting).
-
-### 4. 📈 Habit & Goal Tracking
-- **Habits**: Daily repetitive tasks with streak tracking.
-- **Goals**: Long-term milestones that Bruno helps deconstruct over weeks/months.
-
-### 5. 🦉 Bruno Personalities
-- Expand `BrunoAvatar` and `BrunoBubble` to have distinct personalities based on user preference (e.g., "Tough Love," "Zen Master," "Hyper Productive").
+Product positioning lives in [`STRATEGY.md`](STRATEGY.md). Engineering context in [`../../CLAUDE.md`](../../CLAUDE.md).
 
 ---
 
-## 🛠️ Development
+## Current product surfaces
 
-### Environment Variables
-Ensure you have the following in `.env.local`:
+| Route | Purpose |
+|-------|---------|
+| `/dashboard` | Home: week strip, schedule preview, connection status |
+| `/dashboard/daily-plan` | Primary day experience — today's time blocks |
+| `/dashboard/tasks` | Task backlog; adaptive reschedule UX |
+| `/dashboard/calendar` | Full calendar view |
+| `/dashboard/notes` | Notes + flashcards |
+| `/dashboard/deep-work` | Focus timer tied to calendar blocks |
+| `/dashboard/settings/*` | Profile, integrations, calendar & planning, Bruno, appearance, billing |
+
+**Bruno** opens as a global dock on dashboard routes (`/dashboard/chat` redirects to dashboard).
+
+---
+
+## Core technical concepts
+
+### Availability
+
+Availability is not a separate module. It is inferred from:
+
+- Occupied time in `calendar_events` (manual, Google, Canvas, suggested blocks)
+- **Preferred / avoided focus windows** in `user_ai_memory`
+- **Work hours** and planning style in settings
+
+`findGaps()` in `lib/calendar.ts` computes free slots; the daily plan generator fills them.
+
+### Daily Plan
+
+Canonical schedule source: **`calendar_events`** (not the `schedules` snapshot table). AI-suggested blocks start as `pending`; user accept → `accepted`.
+
+See `lib/plan/day-plan.ts`, `lib/ai/generate-daily-plan.ts`.
+
+### Adaptive Day Rollover
+
+On app open (or via API), unfinished tasks roll into today without punitive overdue badges. Marketing name: **Adaptive Day Rollover**. Implementation: `/api/schedule/rollover`, reschedule modal in tasks UI.
+
+---
+
+## Vaulted — not in the product
+
+These exist in schema or `_archive/` but are **feature-flagged off** and not in nav:
+
+- Goals / Projects (`PROJECTS`)
+- Habits (`HABITS`)
+- Garden of Done (`GARDEN_OF_DONE`)
+- Focus Mode (`FOCUS_MODE`)
+- Goal Architect AI routes (`AI_ARCHITECT`, `AI_DECOMPOSE`, etc.)
+
+See [`lib/featureFlags.ts`](lib/featureFlags.ts).
+
+---
+
+## Development
+
+### Environment variables
+
+Required in `.env.local`:
+
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
 - `RESEND_API_KEY`
-- `EMAIL_FROM` (preferred) or `WEEKLY_REVIEW_FROM` (legacy alias)
+- `EMAIL_FROM` (or `WEEKLY_REVIEW_FROM`)
 - `CRON_SECRET`
 - `NEXT_PUBLIC_APP_URL`
 
-### Post-deploy: email notifications
-
-After deploying to Vercel, follow the **Post-Deploy Checklist (Emails)** in
-[`docs/NOTIFICATIONS_AUDIT.md`](docs/NOTIFICATIONS_AUDIT.md). That covers env
-vars, Supabase migrations, cron verification, and smoke-testing so automated
-emails are fully operational.
-
-Apply notification migrations through
-`lib/supabase/migration_v20_upcoming_reminders.sql` (and earlier notification
-migrations if not already applied).
-
 ### Commands
+
 ```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run lint     # Run ESLint
+npm run dev        # http://localhost:3000
+npm run check      # lint + typecheck + test + build
+npm run test:e2e   # Playwright
 ```
+
+Post-deploy email setup: [`docs/NOTIFICATIONS_AUDIT.md`](docs/NOTIFICATIONS_AUDIT.md).
 
 ---
 
-## 🤖 Handoff Note for Claude Code
-When continuing work, focus on the **AI Focus Mode** first. The state for the focus timer should probably be persistent (or at least handled in a shared context/store like Zustand if needed). Check `app/dashboard/focus` for the current placeholder.
+## Design reference
+
+Landing and app visual system: [`../../design_handoff_planevo_redesign/README.md`](../../design_handoff_planevo_redesign/README.md).

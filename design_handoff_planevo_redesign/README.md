@@ -2,7 +2,9 @@
 
 ## Overview
 
-This package contains a full visual redesign for **Planevo**, the AI co-pilot for students and high-performers (per `apps/web/STRATEGY.md`). It replaces the existing brutalist visual system with a **warm, editorial, anti-shame** aesthetic that matches the product's actual promise ("no shame, no red badges, warm co-pilot").
+This package contains a full visual redesign for **Planevo**, an availability-aware daily planner for students and high-performers (per [`apps/web/STRATEGY.md`](../apps/web/STRATEGY.md)). It replaces the legacy brutalist visual system with a **warm, editorial, availability-first** aesthetic.
+
+The product builds each day around **real calendar gaps and focus windows**, then **adaptively reshuffles** when the day changes. Automation stays in the background — not "AI planner" marketing.
 
 The redesign covers three surfaces:
 
@@ -10,7 +12,14 @@ The redesign covers three surfaces:
 2. **App pages** — dashboard, daily plan, tasks, calendar, settings (logged-in product)
 3. **Onboarding flow** — 8-screen sign-up to first-plan flow, with animated mascot
 
-**Mascot pivot:** Ollie (owl) → **Bruno (bear)**. All references to "Ollie" and "PlanPilot" in the old codebase should be replaced.
+**Mascot:** **Bruno (bear)**. Ollie/PlanPilot renames are complete in production code; do not reintroduce old branding.
+
+### Positioning guardrails (read before writing copy)
+
+- **Do:** day, availability, open time, adaptive reshuffle, Daily Plan, Adaptive Day Rollover
+- **Do not:** "AI planner" / "AI co-pilot" as headline; shame-free / guilt-free as brand identity
+- **Do not:** Goals, Habits, Garden of Done, or Goal Architect in marketing — **vaulted**, not shipped
+- **Bruno:** warm companion who proposes changes; user confirms — not the product category
 
 ---
 
@@ -20,7 +29,7 @@ The files in this bundle are **design references created in HTML/JSX prototypes*
 
 The goal is to **recreate these designs in the existing Planevo Next.js codebase** (`apps/web/`) using its established patterns:
 
-- Next.js 14 App Router with React Server Components where appropriate
+- Next.js 16 App Router with React Server Components where appropriate
 - Tailwind CSS for styling (replace the inline-style objects in the prototypes)
 - TypeScript (`.tsx`) instead of `.jsx`
 - The existing component organization under `apps/web/components/`
@@ -158,12 +167,12 @@ const mono = Geist_Mono({
 
 1. **Nav** — sticky on cream, brand on left, link cluster center, "Sign in" + dark pill CTA "Start free →" on right
 2. **Hero card** — **dark ink card with 32px radius** containing:
-   - Left: eyebrow pill ("Live now · Trusted by 2,400+ students & builders"), 108px serif headline "Plans that *bend.* Never break.", subhead, honey CTA "Start your 14 days free →" + ghost link "Watch the 60-second tour", mono trust line
+   - Left: eyebrow pill ("Introducing Planevo · Plans around your real day"), serif headline "Plans that *bend.* Never break.", subhead (Canvas + calendar + to-dos → one Daily Plan; Bruno reshuffles when life intervenes), honey CTA "Start your 14 days free →" + ghost link "Watch the 60-second tour", mono trust line
    - Right: A **real-looking Daily Plan widget** (paper card with 5 time-blocked rows, one struck-through-and-moved, one "NEW" highlighted) + a **Bruno speech bubble overlay** explaining the reshuffle
 3. **Trust strip** — "Quietly planning days at" + university names in alternating italic/roman serif
-4. **Magic moment section** — "No-Shame Rollover · The Bruno Difference". Headline "When plans slip, *we keep going.*" Two-column **before/after** card (paper bg) showing the same day's calendar before (with `CONFLICT`/`BLOCKED` red rose badges) and 38 seconds later (with `+ ADDED` and `MOVED` honey badges). Big circular `→` divider between them.
+4. **Magic moment section** — "Adaptive Day Rollover · When the day changes". Headline "When plans slip, *we adapt.*" Two-column **before/after** card (paper bg) showing the same day's calendar before (with `CONFLICT`/`BLOCKED` red rose badges) and 38 seconds later (with `+ ADDED` and `MOVED` honey badges). Big circular `→` divider between them.
 5. **Three pillars** — Connect / Plan / Chat. Each pillar is a paper card with mono "— 01" index, serif title with italic accent, body, then a **mini live preview** of the surface (sync source list / mini timeline / mini chat with input mock).
-6. **Letter from Bruno** — full-bleed `bruno-deep` brown card. Left: 220×260 Bruno portrait (belly-colored frame). Right: eyebrow ("A note from Bruno" in honey), 56px serif "I'll never *shame you* for a hard week.", two paragraphs, italic "— Bruno" signature in honey.
+6. **Letter from Bruno** — full-bleed `bruno-deep` brown card. Left: 220×260 Bruno portrait (belly-colored frame). Right: eyebrow ("A note from Bruno" in honey), 56px serif "When the day falls apart, *we rebuild around what's left.*", two paragraphs on availability and adaptive reshuffle, italic "— Bruno" signature in honey.
 7. **Pricing** — paper card, 64px serif "Everything Bruno does. *$9.99 a month.*" + 2-column perks list. Right side: dark ink "price tag" card with `.EDU SAVES 50%` honey tag, $9.99 amount in 76px serif, honey CTA, $4.99 .edu note.
 8. **Final CTA** — centered, 140px serif "Let Bruno *plan it.*"
 9. **Footer** — 4-column (brand + tagline / Product / For you / Company) with copyright + status line
@@ -280,14 +289,14 @@ const mono = Geist_Mono({
 
 ### Critical: The flow is reduced from 16 → 8 screens
 
-The old onboarding (16 steps with fear-mongering copy like "208 hours lost", "drowning", "panic mode") **must be retired**. Per strategy §9, onboarding completes in **<90 seconds** with **warm, anti-shame tone**.
+The old onboarding (16 steps with fear-mongering copy like "208 hours lost", "drowning", "panic mode") **must be retired**. Per strategy §9, onboarding completes in **<90 seconds** with **warm, day-pattern self-ID tone** (not shame-recovery framing).
 
 ### Screen list
 
 | # | Name | Lever | Key copy |
 | --- | --- | --- | --- |
 | 1 | Welcome | Self-identification | "Hi, I'm *Bruno.* Want me to plan your week?" — Google + email signup |
-| 2 | Identity | Anti-shame multi-select | "Which of these sound *familiar?*" — 5 soft self-identification options |
+| 2 | Identity | Day-pattern self-ID | "Which of these sound *familiar?*" — options about shifting schedules, packed weeks, replanning friction (not guilt/shame framing) |
 | 3 | Name | Personalization | "What should I *call* you?" — single input with live Bruno greeting |
 | 4 | Energy | Personalization | "When does your brain *actually* work?" — Morning/Afternoon/Night/Varies |
 | 5 | Canvas | Wow moment | "Let me read your *Canvas.*" — connect form + explicit permission scopes |
@@ -437,8 +446,8 @@ Same pattern as Canvas. Bruno is `thinking` mood. Bottom bruno-deep speech bubbl
 
 Per the new design system, **delete or feature-flag-off**:
 
-- All references to "Ollie" the owl mascot — replace with Bruno
-- All references to "PlanPilot" branding (still in onboarding nav from old build)
+- All references to "Ollie" the owl mascot — already replaced with Bruno in production
+- All references to "PlanPilot" branding — already removed
 - `OllieAvatar` and `OllieBubble` components — replace with `Bruno` + `BrunoBubble`
 - The brutalist style elements: chunky `border-2 border-surface-900 shadow-[Npx_Npx_0_0_var(--surface-900)]` boxes, all-caps `tracking-widest font-black` body copy, the rotation hover transforms
 - The 16-step onboarding flow with fear-based copy ("208 hours lost", "drowning", "panic mode") — replace with the 8-screen flow

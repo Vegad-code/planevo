@@ -12,7 +12,7 @@ const SHORTCUTS = [
   { keys: ['T'], description: 'Go to today and scroll to current time' },
   { keys: ['←', '→'], description: 'Previous / next period' },
   { keys: ['D', 'W', 'M', 'L', 'Y'], description: 'Day / Week / Month / Schedule / Year view' },
-  { keys: ['N', 'C'], description: 'Create new event' },
+  { keys: ['N', 'C'], description: 'Create new event (toolbar or click a time slot)' },
   { keys: ['B'], description: 'Toggle task backlog panel' },
   { keys: ['1', '–', '7'], description: 'Jump to Sun–Sat of current week' },
   { keys: ['?'], description: 'Show this help' },

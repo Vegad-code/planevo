@@ -1,5 +1,7 @@
 # Planevo V3 UI/UX Scale Redesign Plan: "Liquid Precision"
 
+> **PLANNING/DISCOVERY — June 2026.** See positioning guardrails in [`2026-06-15-planevo-v3-comprehensive-redesign-plan.md`](2026-06-15-planevo-v3-comprehensive-redesign-plan.md) and [`apps/web/STRATEGY.md`](../../apps/web/STRATEGY.md).
+
 **Goal:** Execute a comprehensive, ecosystem-wide redesign of the Planevo Web App, Mobile App, and Landing Page. The objective is to elevate the product to a premium, highly trustworthy, and visually cohesive standard inspired by top-tier modern applications.
 
 ---

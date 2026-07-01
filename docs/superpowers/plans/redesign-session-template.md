@@ -1,15 +1,13 @@
 # Planevo V3 Redesign — Chat Session Init Template
 
+> **Historical template.** Master plan: [`2026-06-15-planevo-v3-comprehensive-redesign-plan.md`](2026-06-15-planevo-v3-comprehensive-redesign-plan.md). Product SSOT: [`apps/web/STRATEGY.md`](../../apps/web/STRATEGY.md).
+
 Copy and paste the text below into the first prompt of any new chat session to onboard the agent onto the current phase of the redesign.
 
 ***
 
 ```markdown
-We are executing the Planevo V3 Comprehensive Ecosystem Redesign. To prevent context drift and stay highly focused, you are restricted to working ONLY on the phase specified below. 
-
-### Core Instructions
-1. READ the master plan document first:
-   /Users/jabbo/M1plan/planevo/docs/superpowers/plans/2026-06-15-planevo-v3-comprehensive-redesign-plan.mdWe are executing the Planevo V3 Comprehensive Ecosystem Redesign. To prevent context drift and stay highly focused, you are restricted to working ONLY on the phase specified below. 
+We are executing the Planevo V3 Comprehensive Ecosystem Redesign. To prevent context drift and stay highly focused, you are restricted to working ONLY on the phase specified below.
 
 ### Core Instructions
 1. READ the master plan document first:

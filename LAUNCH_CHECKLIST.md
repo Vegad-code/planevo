@@ -1,5 +1,7 @@
 # Planevo Launch Checklist & Architectural Decisions
 
+> **v1 product:** Daily Plan, availability-aware scheduling, Adaptive Day Rollover, Canvas + Google sync, Bruno chat. Goals/Habits/Focus are **vaulted** — do not list in launch copy.
+
 ## Canonical Plan Source Decision (Day 1)
 - `calendar_events` is the canonical source for all scheduled blocks.
 - `schedules` table becomes snapshot/history only — no live UI reads from it.
@@ -24,4 +26,4 @@
 - [ ] Legal pages (Privacy, Terms, Cookies) are fully written, not stubs.
 - [ ] Public copy correctly matches v1 features and does not promise unfinished features.
 - [ ] Analytics (PostHog/Sentry) can accurately measure activation and retention.
-  - [ ] Uncomment the development environment opt-out check in [posthog.ts](file:///c:/Users/jabbo/M1plan/planevo/apps/web/lib/posthog.ts) to disable local tracking in production/staging.
+  - [ ] Uncomment the development environment opt-out check in [posthog.ts](apps/web/lib/posthog.ts) to disable local tracking in production/staging.

@@ -1,5 +1,7 @@
 # Bruno Global Copilot Foundation Implementation Plan
 
+> **Historical execution plan — June 2026.** Global Bruno shell is largely shipped. See [`PLANEVO_BRUNO_GLOBAL_COPILOT_REBUILD_BLUEPRINT.md`](../../PLANEVO_BRUNO_GLOBAL_COPILOT_REBUILD_BLUEPRINT.md) and [`CLAUDE.md`](../../CLAUDE.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Planevo's route-based and Calendar-local Bruno entry points with one typed, globally mounted Bruno shell available throughout the dashboard.

@@ -1,36 +1,56 @@
-# Planevo: Evolutionary Roadmap
+# Planevo: Product Roadmap
 
-This document tracks the long-term vision for Planevo, moving from a smart task list to a fully autonomous AI Executive Assistant.
+> **Status:** Living document aligned with [`apps/web/STRATEGY.md`](STRATEGY.md).  
+> **Positioning:** Availability-aware daily planner — not AI-first, not goals/habits product.
 
-## Phase 2: Proactive Pilot (CURRENT)
-**Focus:** Stability and Core AI Utilities.
-- [x] Google Calendar Integration (OAuth + Sync).
-- [x] AI Daily Plans (Energy-aware scheduling).
-- [x] No-Shame Rollover (Adaptive rescheduling).
-- [x] Middleware Stability (Invalid token handling).
-- [x] Industrial Brutalist UI Refinement.
+---
 
-## Phase 3: Personalization & Monetization (NEXT)
-**Focus:** Business Model and User Retention.
-- [ ] **Singular Premium Plan Implementation:**
-    - **Planevo Premium ($9.99/mo):** Unlimited AI Scheduling + Calendar Sync + Persona-specific focus protection.
-    - **Annual Discount ($79/yr):** 34% savings to reward long-term focus.
-    - **Student Discount ($4.99/mo):** Verified .edu access to keep it accessible for learners.
-- [ ] **The Feedback Loop:**
-    - Add Accept/Reject buttons to all AI suggestions.
-    - Log "Correction Data" to Supabase for future training.
-- [ ] **Habit Automation:** AI suggestions for forming new habits based on schedule gaps.
+## Shipped (v1 core)
 
-## Phase 4: The AI Executive Assistant (ELITE)
-**Focus:** Agentic Interaction.
-- [ ] **Bruno Command:** A chat interface that can *execute* actions (Function Calling).
-    - "Bruno, move my meetings."
-    - "Bruno, plan my week around my energy."
-- [ ] **Memory System:** Bruno remembers past focus struggles and proactively suggests adjustments.
-- [ ] **Goal Architect:** Deconstruct massive goals into multi-week scheduled sub-tasks.
+- Google Calendar integration (OAuth + sync)
+- Daily Plan built from calendar gaps, tasks, and focus windows
+- **Adaptive Day Rollover** — day recovery when schedules slip
+- Bruno Chat with propose → confirm → execute tools
+- Canvas LMS sync, task backlog, notes
+- Stripe billing ($9.99/mo, $79/yr, $4.99 .edu)
+- Mobile companion (Expo) — Plan, Calendar, Tasks, Notes, Bruno
+- Warm editorial visual system (honey/cream tokens)
 
-## Phase 5: Custom AI Brain (SCALE)
-**Focus:** Cost Optimization and Brand Identity.
-- [ ] **Stage 2 Training:** Fine-tune a smaller model (Llama-3 or GPT-4o-mini) on the "Correction Data" collected in Phase 3.
-- [ ] **Bruno's Voice:** Refine the personality to be consistently supportive, shame-free, and professional.
-- [ ] **Self-Hosting:** Move to private inference to slash API costs by 80%.
+---
+
+## Near-term (retention + polish)
+
+- Landing page copy aligned with availability positioning (Open Design)
+- Onboarding flow per STRATEGY §9 (<90 seconds)
+- Weekly review email (not dashboard widget)
+- Push notifications for daily plan readiness
+- iOS lock-screen "next action" widget
+- Appearance prefs sync web ↔ mobile via Supabase profile
+
+---
+
+## Future (only after v1 metrics hit STRATEGY §11)
+
+- Deeper **availability intelligence** — smarter gap detection, energy-aware block placement
+- Study-group / body-doubling tier (different audience, not feature gates)
+- B2B / schools (contact sales)
+
+---
+
+## Vaulted — not on roadmap unless users explicitly ask
+
+These remain in codebase behind feature flags; **do not market or plan as next releases:**
+
+- Goals / Projects / Goal Architect
+- Habits + streak tracking
+- Garden of Done
+- Focus Mode (standalone)
+- Academic Search, Command Center, Omnibox
+
+See [`apps/web/lib/featureFlags.ts`](apps/web/lib/featureFlags.ts).
+
+---
+
+## Explicit non-goals (next 6 months)
+
+Per STRATEGY §12: no team features, no Notion-style workspace, no tiered pricing, no shame-recovery or AI-first marketing, no goals/habits in launch copy.

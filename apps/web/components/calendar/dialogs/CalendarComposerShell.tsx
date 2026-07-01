@@ -57,6 +57,7 @@ export default function CalendarComposerShell({
           align="start"
           collisionPadding={16}
           className="z-[100] w-[min(95vw,400px)] p-0 border-[var(--color-line)] bg-[var(--color-paper)] shadow-2xl rounded-2xl overflow-hidden"
+          data-calendar-shortcuts-ignore
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           {content}
@@ -70,6 +71,7 @@ export default function CalendarComposerShell({
       <DialogContent
         hideOverlay
         className="p-0 overflow-hidden w-[95vw] sm:max-w-[400px] bg-[var(--color-paper)] border-[var(--color-line)] shadow-2xl rounded-2xl max-h-[90vh] gap-0 [&>button]:hidden"
+        data-calendar-shortcuts-ignore
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="sr-only">

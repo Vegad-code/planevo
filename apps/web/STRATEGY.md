@@ -8,9 +8,14 @@
 
 ## 1. The One-Sentence Pitch
 
-**For busy students and high-performers whose lives move faster than their calendars, Planevo is the AI co-pilot that automatically protects your focus and reschedules your tasks without friction. Unlike generic planners, we’re built for people who want to spend their energy doing the work, not planning it.**
+**For students and high-performers whose calendars change faster than they can replan, Planevo builds each day around your real availability — then quietly adapts when life gets in the way.**
 
 Use this verbatim on the homepage hero, the App Store description, and every pitch deck.
+
+**Positioning guardrails:**
+- Lead with **day + availability**, not "AI planner" or "AI co-pilot."
+- Automation (scheduling, gap-filling, reshuffle) is **how** the product works — never the headline.
+- Do **not** market as a shame-recovery or guilt-free planner.
 
 ---
 
@@ -18,12 +23,12 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 
 ### Our user (the ICP)
 - **The Modern Student:** Using Canvas/Blackboard, feeling overwhelmed by deadlines and seeking a way to stay on top of coursework without the stress.
-- **The Professional Builder:** Early-career professionals, creators, or knbearedge workers who want an AI agent to handle the logistics of their day (rescheduling, task prioritization) so they can stay in deep work.
+- **The Professional Builder:** Early-career professionals, creators, or knowledge workers who want their day rebuilt around real open time (rescheduling, task prioritization) so they can stay in deep work.
 - **The Complexity Juggler:** Anyone whose schedule changes faster than they can keep up with.
 
 ### Who we are NOT for (yet)
 - Enterprise teams (B2B SaaS) → we focus on individual productivity first.
-- Knbearedge-base / second-brain users → we are a scheduler, not an archive.
+- Knowledge-base / second-brain users → we are a day scheduler built around availability, not an archive.
 - High-school students → too price-sensitive, focus is on higher-ed and professional markets.
 
 **Rule:** if a feature request comes from someone outside the ICP, we politely log it and move on.
@@ -37,7 +42,7 @@ Use this verbatim on the homepage hero, the App Store description, and every pit
 That is the single sentence we are paid to solve. Everything in the product must trace back to it.
 
 ### Our promise
-*"Planevo takes the friction out of planning. Bruno handles the logistics so you can focus on the work."*
+*"Planevo reads your calendar, tasks, and focus windows — builds a realistic day in your open time — and adapts the plan when your day changes. You stay in the work; the logistics stay in the background."*
 
 ---
 
@@ -48,13 +53,14 @@ We lead with painkillers. Vitamins exist only as retention hooks.
 | Type | Feature | Status |
 |------|---------|--------|
 | 🩹 Painkiller | Task Source Sync (Canvas, Tasks, etc.) | Keep — core |
-| 🩹 Painkiller | No-Shame Rollover | Keep — core (the magic moment) |
-| 🩹 Painkiller | Daily Plan (energy-aware) | Keep — core |
+| 🩹 Painkiller | Adaptive Day Rollover | Keep — core (the magic moment) |
+| 🩹 Painkiller | Daily Plan (availability-aware day builder) | Keep — core |
 | 🩹 Painkiller | Bruno Chat (with task/calendar tools) | Keep — core |
-| 💊 Vitamin | Garden of Done | Defer — flag off |
+| 🗄️ Vaulted | Goals / Projects | Vaulted — flag off, UI in `_archive/` |
+| 🗄️ Vaulted | Habits page | Vaulted — flag off |
+| 🗄️ Vaulted | Goal Architect / Decompose / Breakdown / Prioritize | Vaulted — not on near-term roadmap |
+| 💊 Vitamin | Garden of Done | Vaulted — flag off |
 | 💊 Vitamin | Weekly Review | Keep, but as **email**, not dashboard widget |
-| 💊 Vitamin | Habits page | Defer — flag off |
-| 💊 Vitamin | Goal Architect / Decompose / Breakdown / Prioritize | Defer — collapse into Bruno Chat tools |
 | 💊 Vitamin | AcademicSearch | Defer — flag off |
 | 💊 Vitamin | Focus Mode | Defer — flag off |
 | 💊 Vitamin | n8n webhook integration | Defer — flag off |
@@ -68,14 +74,16 @@ We ship exactly these and nothing more:
 
 1. **Onboarding wizard** (psychological, see §9)
 2. **Connect Task Source (Canvas/Tasks) + Connect Google Calendar**
-3. **Daily Plan** — one AI surface that schedules today
-4. **No-Shame Rollover** — automatic on app open
+3. **Daily Plan** — builds today from real calendar gaps, tasks, and focus windows
+4. **Adaptive Day Rollover** — automatic on app open; unfinished work moves into today's available slots
 5. **Bruno Chat** — single endpoint with function calls (move task, reschedule, create task, mark done)
-6. **Settings** — energy preference, focus windows, subscription
-7. **Mobile app** (Expo) — same Daily Plan + Rollover + Chat
+6. **Settings** — energy preference, focus windows, work hours, subscription
+7. **Mobile app** (Expo) — same Daily Plan + Adaptive Day Rollover + Chat
 8. **Stripe billing** — single tier, single price, 14-day trial
 
-**Everything else stays in the codebase but is feature-flagged off** until 20 paying users explicitly ask for it.
+**Vaulted (not in product, not marketed):** Goals/Projects, Habits, Garden of Done, Focus Mode, Goal Architect AI routes. Schema and `_archive/` code may remain; these stay feature-flagged off until explicitly revived.
+
+**Other vitamins** stay in the codebase but are feature-flagged off until 20 paying users explicitly ask for them.
 
 ---
 
@@ -142,7 +150,7 @@ Every screen is engineered around a specific psychological lever.
 |---|--------|-------|------|
 | 1 | Identity match (pre-signup) | Self-identification | *"Be honest — does this sound like you?"* with 4 ADHD-coded checkboxes |
 | 2 | Reveal | Belonging | *"You're exactly who Planevo is for. Let's prove it in 60 seconds."* |
-| 3 | The Promise | Loss-aversion + safety | *"Planevo won't shame you when life slips. Bruno just reorganizes tomorrow."* |
+| 3 | The Promise | Loss-aversion + adaptability | *"When your day slips, Planevo rebuilds around what's still possible."* |
 | 4 | Connect Data Source | Wow moment | Live-pull their tasks → *"You have 4 things to do this week. We'll never let you miss one."* |
 | 5 | Energy preference | Personalization | *"When does your brain actually work?"* Morning / Afternoon / Night / Chaotic |
 | 6 | First Daily Plan | Sunk cost | Real schedule generated from their real task data |
@@ -161,7 +169,7 @@ Every screen is engineered around a specific psychological lever.
 We do **not** spend on paid ads until D7 retention > 30% and trial→paid > 25%.
 
 **Free channels we will own first:**
-- **TikTok / Reels** — short videos showing the "Bruno Magic" (automatic rescheduling when plans change)
+- **TikTok / Reels** — short videos showing adaptive day reshuffle when plans change (availability filling in real time)
 - **Reddit** — r/productivity, r/college, r/GetMotivated (genuine, not spammy)
 - **University / Professional Orgs** — outreach, free codes for verified members
 - **Coaches / Therapists** — affiliate / referral program
@@ -195,6 +203,8 @@ We will explicitly NOT do these in the next 6 months, no matter how tempting:
 - ❌ Bring back a free-forever plan
 - ❌ Localize to non-English (until North America wedge is dominated)
 - ❌ Build integrations beyond primary sources (for now)
+- ❌ Market as AI-first ("AI planner," "AI co-pilot" as headline) or shame-recovery planner
+- ❌ Market Goals, Habits, or Garden of Done as current or coming-soon features
 
 ---
 
@@ -274,6 +284,8 @@ This section grows over time. Every strategic decision and its date is logged so
 | 2026-01 | Added §16 "Painkiller Visibility Rule" to this doc | Permanent guardrail so the same mistake doesn't repeat in Blocks C–G. |
 | 2026-05-08 | Implemented "Immersive Dashboard" + Personalized Greetings | Increases "Warm Co-pilot" brand feel; `max-w-full` when sidebar collapsed supports high-density focus without violating minimalism. |
 | 2026-05-08 | Transitioned to Radix UI Tabs for Sync/Plan/Focus workflow | Standardized the 3-pillar dashboard structure (Sync -> Plan -> Focus) per §4. |
+| 2026-06 | Reposition: availability + adaptive day (not shame-free / AI-first brand) | Product identity is day- and availability-centric; quiet automation; Goals/Projects vaulted |
+| 2026-06 | Renamed "No-Shame Rollover" → **Adaptive Day Rollover** in product/marketing copy | Emphasizes adaptive nature of the product, not guilt-recovery framing |
 
 ---
 
@@ -303,7 +315,7 @@ This rule exists because Block B initially over-trimmed the dashboard and made D
 - Removing/refactoring UI → if you'd hide a painkiller below a fold, scroll, or extra click, stop and find another way
 - Onboarding (Block C) → first-run flow must walk users through ALL painkiller surfaces in <90 seconds
 
-**Vitamins ≠ Painkillers.** Vitamins like Garden of Done, Habits, Focus Mode CAN and SHOULD stay archived behind feature flags. Don't conflate the two.
+**Vitamins ≠ Painkillers.** Vitamins like Garden of Done, Habits, Focus Mode CAN and SHOULD stay archived behind feature flags. **Vaulted features (Goals/Projects, Habits, Goal Architect) are not vitamins to ship soon** — treat them as removed from the product surface. Don't conflate the two.
 
 ---
 
@@ -317,4 +329,4 @@ We balance minimalism with utility through these rules:
 
 ---
 
-*Last updated: 2026-05-08. Next review: after the first 100 paying users.*
+*Last updated: 2026-06-29. Next review: after the first 100 paying users.*

@@ -442,7 +442,8 @@ export function useCalendarEvents() {
           }
         }
       }
-      toast.success('Event deleted', {
+      toast.success('Event removed', {
+        description: 'Undo to restore it to your calendar.',
         action: {
           label: 'Undo',
           onClick: async () => {

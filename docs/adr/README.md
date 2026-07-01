@@ -10,3 +10,9 @@ This directory contains formal ADRs for Planevo. Each record captures context, d
 | [004](./004-integration-token-encryption.md) | Integration token encryption at rest |
 
 API contracts are published in [../openapi.yaml](../openapi.yaml). Runtime Zod contracts are exported from [`apps/web/lib/api/openapi-schemas.ts`](../../apps/web/lib/api/openapi-schemas.ts).
+
+## Build guides (not yet ADRs)
+
+| Guide | Title |
+|-------|-------|
+| [BRUNO_MULTIMODAL_IMPLEMENTATION_GUIDE.md](../BRUNO_MULTIMODAL_IMPLEMENTATION_GUIDE.md) | Bruno uploads (PDF/image), voice dictation, Gemini ingest + GPT chat — full build reference |

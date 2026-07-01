@@ -11,15 +11,19 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { CalendarEvent, ComposerState, CalendarComposerDraft, ComposerAnchor, CalendarView } from '@/types/calendar';
 import type { Task } from '@/types/tasks';
-import { format, startOfWeek, addDays, addMinutes, setHours, setMinutes, startOfDay } from 'date-fns';
+import { format, startOfWeek, addDays, addMinutes, setHours, setMinutes, startOfDay, isToday, addMonths, startOfMonth } from 'date-fns';
 import { useRegisterBrunoContext, useBruno } from '@/components/bruno/BrunoProvider';
 import { useProIntegrations } from '@/hooks/useProIntegrations';
 import CalendarShortcutHelp from '@/components/calendar/CalendarShortcutHelp';
-import { useCalendarKeyboardShortcuts } from '@/hooks/useCalendarKeyboardShortcuts';
 import { resolveTaskIdForSchedule } from '@/lib/calendar/scheduleTask';
 import { findNextFreeSlot } from '@/lib/calendar/findNextFreeSlot';
 import { WEEK_STARTS_ON } from '@/components/calendar/CalendarToolbar';
 import { ensureUserProfile } from '@/lib/supabase/ensure-profile';
+import {
+  hasStoredCalendarNav,
+  readStoredCalendarNav,
+  writeStoredCalendarNav,
+} from '@/lib/calendar/navigation-state';
 
 export default function CalendarPage() {
   const {
@@ -35,7 +39,7 @@ export default function CalendarPage() {
   } = useCalendarEvents();
   const { preferences, loading: prefsLoading } = useCalendarPreferences();
 
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [activeView, setActiveView] = useState<CalendarView>('week');
   const [viewInitialized, setViewInitialized] = useState(false);
   const [composer, setComposer] = useState<ComposerState>({ mode: 'closed' });
@@ -56,11 +60,12 @@ export default function CalendarPage() {
   >([]);
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  const [backlogOpen, setBacklogOpen] = useState(true);
+  const [backlogOpen, setBacklogOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [backlogRefreshKey, setBacklogRefreshKey] = useState(0);
 
   const shellRef = useRef<CalendarShellHandle>(null);
+  const initialScrollDone = useRef(false);
   const supabase = createClient();
   const { openBruno } = useBruno();
   const { connectedProviders } = useProIntegrations();
@@ -68,18 +73,43 @@ export default function CalendarPage() {
   const loading = prefsLoading;
 
   useEffect(() => {
+    const stored = readStoredCalendarNav();
+    if (!stored) return;
+
+    const parsed = new Date(stored.selectedDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      setSelectedDate(parsed);
+    }
+    setActiveView(stored.activeView);
+    if (stored.backlogOpen !== undefined) {
+      setBacklogOpen(stored.backlogOpen);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!prefsLoading && !viewInitialized) {
-      setActiveView(preferences.default_view);
+      if (!hasStoredCalendarNav()) {
+        setActiveView(preferences.default_view);
+      }
       setViewInitialized(true);
     }
   }, [prefsLoading, preferences.default_view, viewInitialized]);
 
   useEffect(() => {
-    if (!loading && (activeView === 'day' || activeView === 'week')) {
+    writeStoredCalendarNav({
+      selectedDate: selectedDate.toISOString(),
+      activeView,
+      backlogOpen,
+    });
+  }, [selectedDate, activeView, backlogOpen]);
+
+  useEffect(() => {
+    if (initialScrollDone.current || loading) return;
+    if ((activeView === 'day' || activeView === 'week') && isToday(selectedDate)) {
       shellRef.current?.scrollToNow();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll once after initial load
-  }, [loading]);
+    initialScrollDone.current = true;
+  }, [loading, activeView, selectedDate]);
 
   const contextLabel = useMemo(() => {
     if (activeView === 'week') {
@@ -119,26 +149,26 @@ export default function CalendarPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: accounts } = await supabase
-        .from('integration_accounts_public' as 'integration_accounts')
-        .select('provider, status, last_synced_at')
-        .eq('user_id', user.id);
+      const [{ data: accounts }, { data: profile }] = await Promise.all([
+        supabase
+          .from('integration_accounts_public' as 'integration_accounts')
+          .select('provider, status, last_synced_at')
+          .eq('user_id', user.id),
+        supabase
+          .from('users')
+          .select('google_calendar_connected, google_calendar_last_synced_at')
+          .eq('id', user.id)
+          .single(),
+      ]);
 
       const googleAccount = accounts?.find((a) => a.provider === 'google_calendar');
-      if (googleAccount?.status === 'connected') {
-        setGoogleConnected(true);
-        setGoogleLastSyncedAt(googleAccount.last_synced_at || null);
-      }
+      const isGoogleConnected =
+        googleAccount?.status === 'connected' || profile?.google_calendar_connected === true;
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('google_calendar_last_synced_at')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.google_calendar_last_synced_at) {
-        setGoogleLastSyncedAt(profile.google_calendar_last_synced_at);
-      }
+      setGoogleConnected(isGoogleConnected);
+      setGoogleLastSyncedAt(
+        googleAccount?.last_synced_at || profile?.google_calendar_last_synced_at || null
+      );
     }
     checkGoogleConnection();
   }, [supabase]);
@@ -165,12 +195,6 @@ export default function CalendarPage() {
     }
     loadBacklogCount();
   }, [supabase, events, backlogRefreshKey]);
-
-  useEffect(() => {
-    if (backlogCount > 0 && window.innerWidth >= 1024) {
-      setBacklogOpen(true);
-    }
-  }, [backlogCount]);
 
   useEffect(() => {
     async function loadWorkItems() {
@@ -316,16 +340,18 @@ export default function CalendarPage() {
           });
           break;
         case 'list':
-          setSelectedDate((prev) => addDays(prev, delta));
+          setSelectedDate((prev) => addMonths(prev, delta));
           break;
       }
     },
     [activeView]
   );
 
-  const handleToday = useCallback(() => {
-    setSelectedDate(new Date());
-    shellRef.current?.scrollToNow();
+  const handleViewChange = useCallback((view: CalendarView) => {
+    if (view === 'list') {
+      setSelectedDate(startOfMonth(new Date()));
+    }
+    setActiveView(view);
   }, []);
 
   const handleJumpToWeekday = useCallback((dayIndex: number) => {
@@ -333,19 +359,10 @@ export default function CalendarPage() {
     setSelectedDate(addDays(weekStart, dayIndex));
   }, [selectedDate]);
 
-  useCalendarKeyboardShortcuts({
-    onToday: handleToday,
-    onNavigate: navigateDate,
-    onViewChange: setActiveView,
-    onNewEvent: () => handleCreateEvent(),
-    onToggleBacklog: () => setBacklogOpen((o) => !o),
-    onJumpToWeekday: handleJumpToWeekday,
-    onOpenShortcuts: () => setShortcutsOpen(true),
-    onEscape: () => {
-      setShortcutsOpen(false);
-      setComposer({ mode: 'closed' });
-    },
-  });
+  const handleEscape = useCallback(() => {
+    setShortcutsOpen(false);
+    setComposer({ mode: 'closed' });
+  }, []);
 
   const handleEventClick = (event: CalendarEvent) => {
     if (event.metadata?.readOnly) {
@@ -382,38 +399,136 @@ export default function CalendarPage() {
     await updateEvent(id, updates);
   };
 
-  const handleReExtractGoogle = async () => {
-    setIsProcessing(true);
-    const toastId = toast.loading('Syncing Google Calendar...', { id: 're-extract' });
-    try {
-      const response = await fetch('/api/integrations/google/sync?force=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+  const handleAskBruno = useCallback(
+    (task: Task) => {
+      openBruno({
+        source: 'calendar',
+        page: '/dashboard/calendar',
+        label: 'Calendar - Schedule task',
+        payload: {
+          prompt: `Find the best time slot today or this week for my task "${task.title}" (${task.estimated_minutes || 30} minutes).`,
+        },
       });
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => '');
-        let message = 'Failed to sync Google Calendar';
-        try {
-          const parsed = JSON.parse(errBody) as { error?: string };
-          if (parsed.error) message = parsed.error;
-        } catch {
-          // keep default
-        }
-        throw new Error(message);
-      }
-      const data = await response.json();
-      toast.success(data.message || 'Google Calendar synced', { id: toastId });
-      setGoogleLastSyncedAt(new Date().toISOString());
-      loadEvents();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sync failed';
-      console.error(err);
-      toast.error(`Sync failed: ${message}`, { id: toastId });
-    } finally {
-      setIsProcessing(false);
+    },
+    [openBruno]
+  );
+
+  const handleRangeChange = useCallback(
+    (start: Date, end: Date) => {
+      loadEvents(start, end);
+    },
+    [loadEvents]
+  );
+
+  const getVisibleCalendarRange = useCallback((): [Date, Date] => {
+    if (activeView === 'day') {
+      const start = startOfDay(selectedDate);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      return [start, end];
     }
-  };
+
+    if (activeView === 'list') {
+      const start = startOfDay(new Date());
+      const end = addDays(start, 365);
+      end.setHours(23, 59, 59, 999);
+      return [start, end];
+    }
+
+    if (activeView === 'week') {
+      const start = startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON });
+      const end = addDays(start, 7);
+      end.setMilliseconds(end.getMilliseconds() - 1);
+      return [start, end];
+    }
+
+    if (activeView === 'year') {
+      return [
+        new Date(selectedDate.getFullYear(), 0, 1),
+        new Date(selectedDate.getFullYear(), 11, 31, 23, 59, 59, 999),
+      ];
+    }
+
+    return [
+      new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
+      new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      ),
+    ];
+  }, [activeView, selectedDate]);
+
+  const loadVisibleCalendar = useCallback(
+    (silent = true) => {
+      const [start, end] = getVisibleCalendarRange();
+      void loadEvents(start, end, silent);
+    },
+    [getVisibleCalendarRange, loadEvents]
+  );
+
+  const googleAutoSyncStarted = useRef(false);
+
+  const handleReExtractGoogle = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      setIsProcessing(true);
+      const toastId = silent
+        ? undefined
+        : toast.loading('Syncing Google Calendar...', { id: 're-extract' });
+      try {
+        const response = await fetch('/api/integrations/google/sync?force=true', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '');
+          let message = 'Failed to sync Google Calendar';
+          try {
+            const parsed = JSON.parse(errBody) as { error?: string };
+            if (parsed.error) message = parsed.error;
+          } catch {
+            // keep default
+          }
+          throw new Error(message);
+        }
+        const data = await response.json();
+        if (!silent) {
+          toast.success(data.message || 'Google Calendar synced', { id: toastId });
+        }
+        setGoogleConnected(true);
+        setGoogleLastSyncedAt(new Date().toISOString());
+        loadVisibleCalendar(true);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Sync failed';
+        console.error(err);
+        if (!silent) {
+          toast.error(`Sync failed: ${message}`, { id: toastId });
+        }
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [loadVisibleCalendar]
+  );
+
+  useEffect(() => {
+    if (!googleConnected || googleAutoSyncStarted.current) return;
+
+    const hoursSinceSync = googleLastSyncedAt
+      ? (Date.now() - new Date(googleLastSyncedAt).getTime()) / (1000 * 60 * 60)
+      : Number.POSITIVE_INFINITY;
+
+    if (hoursSinceSync < 1) return;
+
+    googleAutoSyncStarted.current = true;
+    void handleReExtractGoogle({ silent: true });
+  }, [googleConnected, googleLastSyncedAt, handleReExtractGoogle]);
 
   const handleTaskDrop = async (task: Task, time: Date) => {
     const {
@@ -456,71 +571,6 @@ export default function CalendarPage() {
       });
     }
   };
-
-  const handleAskBruno = useCallback(
-    (task: Task) => {
-      openBruno({
-        source: 'calendar',
-        page: '/dashboard/calendar',
-        label: 'Calendar - Schedule task',
-        payload: {
-          prompt: `Find the best time slot today or this week for my task "${task.title}" (${task.estimated_minutes || 30} minutes).`,
-        },
-      });
-    },
-    [openBruno]
-  );
-
-  const handleRangeChange = useCallback(
-    (start: Date, end: Date) => {
-      loadEvents(start, end);
-    },
-    [loadEvents]
-  );
-
-  const getVisibleCalendarRange = useCallback((): [Date, Date] => {
-    if (activeView === 'day' || activeView === 'list') {
-      const start = startOfDay(selectedDate);
-      const end = new Date(start);
-      end.setHours(23, 59, 59, 999);
-      return [start, end];
-    }
-
-    if (activeView === 'week') {
-      const start = startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON });
-      const end = addDays(start, 7);
-      end.setMilliseconds(end.getMilliseconds() - 1);
-      return [start, end];
-    }
-
-    if (activeView === 'year') {
-      return [
-        new Date(selectedDate.getFullYear(), 0, 1),
-        new Date(selectedDate.getFullYear(), 11, 31, 23, 59, 59, 999),
-      ];
-    }
-
-    return [
-      new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
-      new Date(
-        selectedDate.getFullYear(),
-        selectedDate.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999
-      ),
-    ];
-  }, [activeView, selectedDate]);
-
-  const loadVisibleCalendar = useCallback(
-    (silent = true) => {
-      const [start, end] = getVisibleCalendarRange();
-      void loadEvents(start, end, silent);
-    },
-    [getVisibleCalendarRange, loadEvents]
-  );
 
   useEffect(() => {
     const handleBrunoCalendarChange = () => {
@@ -653,7 +703,7 @@ export default function CalendarPage() {
           selectedDate={selectedDate}
           activeView={activeView}
           onDateChange={setSelectedDate}
-          onViewChange={setActiveView}
+          onViewChange={handleViewChange}
           onEventClick={handleEventClick}
           onEventComplete={handleEventComplete}
           onCreateEvent={handleCreateEvent}
@@ -675,9 +725,10 @@ export default function CalendarPage() {
           onStartFresh={handleStartFresh}
           isProcessing={isProcessing}
           onNavigate={navigateDate}
-          onToday={handleToday}
           onOpenShortcuts={() => setShortcutsOpen(true)}
           onCreate={() => handleCreateEvent()}
+          onJumpToWeekday={handleJumpToWeekday}
+          onEscape={handleEscape}
           backlogPanel={
             <TaskBacklog
               key={backlogRefreshKey}

@@ -203,8 +203,8 @@ Examples:
 Preferred handling:
 - Medium policy.
 - Use task/calendar context.
-- Give a no-shame recovery plan.
-- This is a core Planevo emotional value moment.
+- Give an adaptive day recovery plan.
+- This is a core Planevo value moment (Adaptive Day Rollover).
 
 Pro gate:
 - Usually no.
@@ -294,7 +294,7 @@ Examples:
 Preferred handling:
 - Medium policy.
 - Do not over-gate.
-- Keep response emotionally intelligent, shame-free, and action-oriented.
+- Keep response emotionally intelligent, supportive, and action-oriented.
 - Avoid generic wellness filler.
 - If self-harm/crisis language appears, trigger safety path.
 
@@ -1277,7 +1277,7 @@ Create:
 `apps/web/lib/bruno/brunoPrompts.ts`
 
 Base prompt should always include:
-- Bruno is Planevo's shame-free planning assistant.
+- Bruno is Planevo's adaptive daily planning assistant.
 - Bruno should be useful, direct, and emotionally safe.
 - Bruno should avoid generic productivity filler.
 - Bruno should prefer concrete next actions.
@@ -1297,7 +1297,7 @@ Respond with:
 2. The smallest immediate next action.
 3. A realistic catch-up sequence.
 4. What to defer, shrink, or skip.
-5. A no-shame recovery tone.
+5. A supportive, adaptive recovery tone.
 
 Do not lecture the user.
 Do not over-plan every minute unless the user asks.
@@ -1330,7 +1330,7 @@ export const EMOTIONAL_RECOVERY_PROMPT = `
 EMOTIONAL RECOVERY MODE:
 The user may feel ashamed, overwhelmed, stuck, or defeated.
 Respond with calm, practical support.
-Use a no-shame tone.
+Use a supportive, non-punitive tone.
 Move the user toward one tiny concrete action.
 Avoid generic wellness clichés.
 Do not diagnose the user.

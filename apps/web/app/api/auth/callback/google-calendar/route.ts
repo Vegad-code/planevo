@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { encryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -94,6 +95,12 @@ export async function GET(request: Request) {
         .from('users')
         .update({ google_calendar_connected: true })
         .eq('id', user.id);
+
+      try {
+        await syncGoogleCalendar(user.id, true);
+      } catch (syncError) {
+        console.error('Initial Google Calendar sync after connect failed:', syncError);
+      }
 
       return new NextResponse(popupHtml(null), { headers: { 'Content-Type': 'text/html' } });
     }

@@ -55,6 +55,9 @@ interface Subtask {
 
 const DURATION_PRESETS = [30, 60, 120] as const;
 
+/** Nested pickers must sit above the composer shell (z-[100]). */
+const COMPOSER_PICKER_Z = 'z-[150]';
+
 const composerCheckboxClass =
   '!size-[18px] !rounded-[6px] !border !border-[var(--color-line-strong)] !bg-[var(--color-paper)] !shadow-none transition-colors hover:!border-[var(--color-honey)]/60 data-[state=checked]:!bg-[var(--color-honey)] data-[state=checked]:!border-[var(--color-honey)] data-[state=checked]:!text-white focus-visible:!ring-2 focus-visible:!ring-[var(--color-honey)]/30 focus-visible:!ring-offset-1 [&_svg]:!size-3';
 
@@ -429,6 +432,7 @@ export default function CalendarComposerContent({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={isCreate ? 'What are you planning?' : 'Event title'}
+          data-calendar-shortcuts-ignore
           className="w-full bg-transparent border-none text-xl font-semibold tracking-tight text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)]/40 placeholder:font-normal focus:outline-none caret-[var(--color-honey)]"
           autoFocus
         />
@@ -467,7 +471,7 @@ export default function CalendarComposerContent({
       <div className="flex flex-col gap-0.5 px-3 py-2 overflow-y-auto flex-1 min-h-0 transition-colors duration-200">
         {!backlogOnly && (
           <>
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal>
               <PopoverTrigger asChild>
                 <button
                   type="button"
@@ -480,8 +484,12 @@ export default function CalendarComposerContent({
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-auto p-0 border-[var(--color-line)] bg-[var(--color-paper)]"
+                className={cn(
+                  COMPOSER_PICKER_Z,
+                  'w-auto p-0 border-[var(--color-line)] bg-[var(--color-paper)] shadow-lg'
+                )}
                 align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
               >
                 <Calendar
                   mode="single"
@@ -513,7 +521,7 @@ export default function CalendarComposerContent({
                       {formatTimeLabel(startTimeStr || effectiveStartTime, use12h)}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-[var(--color-paper)] border-[var(--color-line)]">
+                  <SelectContent className={cn(COMPOSER_PICKER_Z, 'max-h-56 bg-[var(--color-paper)] border-[var(--color-line)]')}>
                     {timeOptions.map((opt) => (
                       <SelectItem key={`start-${opt.value}`} value={opt.value}>
                         {opt.label}
@@ -534,7 +542,7 @@ export default function CalendarComposerContent({
                       {formatTimeLabel(endTimeStr || effectiveEndTime, use12h)}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-[var(--color-paper)] border-[var(--color-line)]">
+                  <SelectContent className={cn(COMPOSER_PICKER_Z, 'max-h-56 bg-[var(--color-paper)] border-[var(--color-line)]')}>
                     {timeOptions.map((opt) => (
                       <SelectItem key={`end-${opt.value}`} value={opt.value}>
                         {opt.label}

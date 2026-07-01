@@ -1,5 +1,8 @@
 \# Planevo Production Readiness Implementation Plan
 
+> **Historical / execution log — June 2026.** Many tasks may be complete; verify against current build.  
+> **Landing copy:** shame-free strings noted in this plan are **superseded** by [`apps/web/STRATEGY.md`](../../apps/web/STRATEGY.md) and [`design_handoff_planevo_redesign/README.md`](../../design_handoff_planevo_redesign/README.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make Planevo safe to deploy by getting the web app build/test/check pipeline green, hardening launch-critical backend flows, replacing public launch stubs, and verifying the mobile app against the production web API.

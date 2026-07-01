@@ -4,8 +4,8 @@ This document serves as the official execution tracker for the Settings and Anti
 
 ## Reference Documents
 Always reference back to these core documents during execution:
-- [Diagnostic & Plan Document](file:///c:/Users/jabbo/M1plan/planevo/docs/SETTINGS_DIAGNOSTIC_AND_ANTIGRAVITY_PLAN.md)
-- [Implementation Plan Artifact](file:///C:/Users/jabbo/.gemini/antigravity-ide/brain/1bfc9b0e-fadd-4a89-b9e3-e92d82b09eff/implementation_plan.md)
+- [Diagnostic & Plan Document](../SETTINGS_DIAGNOSTIC_AND_ANTIGRAVITY_PLAN.md)
+- [Product SSOT](../apps/web/STRATEGY.md)
 
 ## Global Engineering Rules (Applies to all phases)
 - **Migrations & Schema:**

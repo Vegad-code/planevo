@@ -1,5 +1,7 @@
 # Planevo Settings Diagnostic And AntiGravity Implementation Plan
 
+> **Partially superseded (June 2026):** Appearance rebuild documented in [`apps/web/APPEARANCE_AUDIT.md`](../apps/web/APPEARANCE_AUDIT.md). Calendar & Planning settings map to the **availability model** (focus windows, work hours) in [`apps/web/STRATEGY.md`](../apps/web/STRATEGY.md). Re-audit remaining settings tabs before treating completion % as current.
+
 Date: 2026-05-31
 Scope: diagnostic and product/engineering handoff only. No app code should be changed by this document
 
@@ -325,7 +327,7 @@ The page is empty, but the backend already has a useful `user_ai_memory` model. 
    - Warm
    - Direct
    - Coach
-   - Gentle/no-shame
+   - Gentle/adaptive
    - High-accountability
 
 2. Response Length

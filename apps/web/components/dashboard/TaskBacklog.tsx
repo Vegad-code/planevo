@@ -10,7 +10,6 @@ import {
   ArrowRight,
   DotsSixVertical,
   ArrowSquareOut,
-  Plus,
 } from '@phosphor-icons/react';
 import { type Task } from '@/types/tasks';
 import type { CalendarEvent } from '@/types/calendar';
@@ -292,9 +291,19 @@ export default function TaskBacklog({
                 {unscheduledCount}
               </span>
             )}
+            {visibleTasks.length > 0 && (
+              <button
+                type="button"
+                onClick={handleScheduleAll}
+                disabled={isProcessing}
+                className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-cream-2)] text-[var(--color-ink)] text-[10px] font-medium transition-colors hover:bg-[var(--color-cream)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                {isProcessing ? 'Scheduling...' : `Schedule All (${unscheduledCount})`}
+              </button>
+            )}
           </div>
           <form
-            className="flex gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
               void handleQuickAdd();
@@ -303,22 +312,28 @@ export default function TaskBacklog({
             <Input
               value={quickAddTitle}
               onChange={(e) => setQuickAddTitle(e.target.value)}
-              placeholder="Add task… e.g. essay due Friday for 2h"
+              placeholder="Add task… ↵ to add"
               className="h-8 text-sm font-mono"
               disabled={addingTask}
             />
-            <button
-              type="submit"
-              disabled={!quickAddTitle.trim() || addingTask}
-              className="shrink-0 p-2 rounded-lg bg-[var(--color-ink)] text-[var(--color-cream)] disabled:opacity-40"
-              aria-label="Add task"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
           </form>
           {quickAddParsed && quickAddParsed.chips && quickAddParsed.chips.length > 0 && (
             <ParseChips chips={quickAddParsed.chips} className="mt-2" />
           )}
+        </div>
+      )}
+
+      {!embedded && visibleTasks.length > 0 && (
+        <div className="px-4 pt-4 pb-0 shrink-0">
+          <button
+            type="button"
+            onClick={handleScheduleAll}
+            disabled={isProcessing}
+            className="w-full flex items-center justify-center gap-2 py-2 border border-[var(--color-line)] bg-[var(--color-cream-2)] text-[var(--color-ink)] rounded-xl text-[11px] font-medium transition-colors hover:bg-[var(--color-cream)] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Clock className="w-4 h-4" />
+            {isProcessing ? 'Scheduling...' : `Schedule All (${unscheduledCount})`}
+          </button>
         </div>
       )}
 
@@ -364,19 +379,6 @@ export default function TaskBacklog({
         />
       )}
 
-      {visibleTasks.length > 0 && (
-        <div className={`shrink-0 ${embedded ? 'p-3 pt-0' : 'p-4 pt-0'}`}>
-          <button
-            type="button"
-            onClick={handleScheduleAll}
-            disabled={isProcessing}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)] text-[var(--color-paper)] rounded-[16px] font-mono text-[11px] tracking-wide transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Clock className="w-4 h-4" />
-            {isProcessing ? 'Scheduling...' : `Schedule All (${unscheduledCount})`}
-          </button>
-        </div>
-      )}
     </>
   );
 

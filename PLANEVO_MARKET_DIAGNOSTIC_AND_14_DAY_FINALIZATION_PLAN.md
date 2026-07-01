@@ -1,5 +1,9 @@
 # Planevo Market Diagnostic And 14-Day Finalization Plan
 
+> **Historical document — May 2026.** Scores, commands, and positioning in this file are point-in-time.  
+> **Current product truth:** [`apps/web/STRATEGY.md`](apps/web/STRATEGY.md), [`README.md`](README.md).  
+> Positioning has since shifted to **availability-aware daily planning** and **Adaptive Day Rollover** (not shame-free / AI-first brand).
+
 Date: 2026-05-23
 Repo audited: `planevo`
 Primary app: `apps/web`
@@ -7,7 +11,7 @@ Mobile app: `apps/mobile`
 
 ## Executive Verdict
 
-Planevo has a strong wedge: a shame-free AI daily planner for students and high performers, with Canvas, Google Calendar, manual tasks, Bruno Chat, daily planning, billing, push scaffolding, and a mobile shell already present.
+Planevo has a strong wedge: an availability-aware daily planner for students and high performers, with Canvas, Google Calendar, manual tasks, Bruno Chat, daily planning, billing, push scaffolding, and a mobile shell already present.
 
 It is not launch-ready yet. The app can compile, but the product is still below the reliability and trust bar set by Motion, Reclaim, Sunsama, Akiflow, Todoist, TickTick, and Morgen. The biggest issue is not "missing more features." The root issue is that Planevo's core promise is split across overlapping data paths, partially wired UI, stale schema, inconsistent plan types, unfinished mobile behavior, and weak verification.
 
@@ -91,7 +95,7 @@ Minimum v1 bar for Planevo:
 - Fast capture: user can add a task in under 5 seconds.
 - Trustworthy scheduling: no duplicates, no scheduling over hard calendar blocks, no accidental "complete" state.
 - Calendar clarity: users understand what Planevo reads, what it writes, and what stays private.
-- Recovery loop: missed work rolls forward without shame and without losing context.
+- Recovery loop: missed work rolls forward via **Adaptive Day Rollover** without losing context.
 - Mobile utility: the phone experience must show next action, daily plan, notifications, and chat reliably.
 - Pricing honesty: sell only working features.
 - Privacy confidence: school tokens, calendar tokens, billing, and AI data flows must be clear and secure.
@@ -100,7 +104,7 @@ Minimum v1 bar for Planevo:
 
 Planevo already has:
 
-- A clear emotional angle: shame-free recovery instead of guilt-based planning.
+- A clear product angle: **adaptive day recovery** when schedules slip (historical doc also referenced shame-free framing — superseded).
 - A student wedge through Canvas.
 - Google Calendar OAuth and sync scaffolding.
 - AI daily plan endpoint with schema validation.
@@ -576,8 +580,8 @@ Should not add in the next two weeks:
 - Study groups.
 - Notion, Slack, Monday.
 - More AI endpoints.
-- Habits page.
-- Goal architect page.
+- Habits page — **vaulted**.
+- Goal architect page — **vaulted**.
 - Full project management.
 - Complex themes/personas.
 - Free forever tier.
@@ -923,7 +927,7 @@ Tasks:
   - Canvas
   - Google Calendar read
   - Daily Plan
-  - No-Shame Rollover
+  - Adaptive Day Rollover
   - Bruno Chat
   - Mobile if actually shipped
 - Remove "coming soon" from pricing.

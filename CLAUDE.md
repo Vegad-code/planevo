@@ -1,6 +1,10 @@
 # Planevo Developer Guidelines (CLAUDE.md)
 
-Planevo is a student-first AI planner that integrates Canvas LMS assignments, Google Calendar, and manual tasks into a cohesive daily plan. The core companion is **Bruno**, an emotionally intelligent, psychologically sophisticated planning assistant.
+Planevo is a student-first **daily planner built around availability**. It integrates Canvas LMS assignments, Google Calendar, and manual tasks into a cohesive **Daily Plan** — time blocks placed in real calendar gaps, then adaptively reshuffled when the day changes. Scheduling automation runs quietly in the background; do not describe the product as "AI-first."
+
+**Bruno** is the in-app companion (bear-themed) who proposes schedule and task changes; users confirm before mutations.
+
+Product positioning: [`apps/web/STRATEGY.md`](apps/web/STRATEGY.md).
 
 ## Tech Stack
 
@@ -89,6 +93,20 @@ Planevo is a student-first AI planner that integrates Canvas LMS assignments, Go
 
 ---
 
+## How availability works
+
+There is no standalone "availability" feature. Availability is computed from:
+
+1. **Calendar occupancy** — existing `calendar_events` (Google, Canvas, manual, accepted blocks)
+2. **Focus windows** — `preferred_focus_windows` and `avoided_focus_windows` in `user_ai_memory`
+3. **Work hours / planning style** — max planned minutes, day bounds from `users.scheduling_preferences` and settings
+
+**Pipeline:** `getBrunoMasterContext()` → `findGaps()` (`lib/calendar.ts`) → `generateDailyPlan()` → insert pending AI blocks into `calendar_events` → user accepts on Daily Plan.
+
+**Adaptive Day Rollover:** `/api/schedule/rollover` moves overdue incomplete tasks to today and increments `rescheduled_count` without punitive overdue UX.
+
+---
+
 ## Engineering Conventions
 
 ### TypeScript & Linting
@@ -122,10 +140,25 @@ Bruno is a bear-themed planning partner designed for high performers and student
   - `create_calendar_block`, `move_calendar_block`
   - `accept_block`, `reject_block`
   - `break_down_task`
-- **Scope Limits**: Do not claim integrations that are not fully built (e.g., Slack, Notion, Monday, GitHub, N8N) are supported in AI prompts.
+- **Scope Limits**: Composio integrations (Notion, Slack, Linear) are **flag-gated Pro** (`featureFlags.ts`). Do not claim they are v1 core or always available. N8N and other integrations behind flags are not shipped for general users.
+
+---
+
+## Vaulted features (not in product)
+
+Per `apps/web/lib/featureFlags.ts`, these are off by default — UI in `app/_archive/` where applicable:
+
+- Goals / Projects (`PROJECTS`)
+- Habits (`HABITS`)
+- Garden of Done (`GARDEN_OF_DONE`)
+- Focus Mode (`FOCUS_MODE`)
+- Goal Architect / AI decompose routes (`AI_ARCHITECT`, `AI_DECOMPOSE`, `AI_BREAKDOWN`, etc.)
+- Academic Search, Command Center, Omnibox, n8n
+
+Do not add nav entries or marketing copy for vaulted features.
 
 ---
 
 ## Development Phases & Guidelines
 
-For major modifications, refer to [SETTINGS_IMPLEMENTATION_TASKS.md](file:///c:/Users/jabbo/M1plan/planevo/docs/SETTINGS_IMPLEMENTATION_TASKS.md) and the 14-day finalization roadmap. Avoid expanding product scope beyond the student-first planner wedge (Canvas + Google read-only + Daily plan + Bruno chat + Mobile companion).
+For major modifications, refer to [docs/SETTINGS_IMPLEMENTATION_TASKS.md](docs/SETTINGS_IMPLEMENTATION_TASKS.md). Avoid expanding product scope beyond the v1 wedge: Canvas + Google Calendar + Daily Plan + Adaptive Day Rollover + Bruno chat + mobile companion.

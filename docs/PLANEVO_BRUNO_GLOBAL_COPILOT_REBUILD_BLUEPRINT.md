@@ -1,5 +1,7 @@
 # Planevo Bruno Global Copilot — Full Rebuild Blueprint for Codex `/goal`
 
+> **Status: Partially shipped (June 2026).** Global Bruno dock, propose→confirm→execute, and page context may be live. Treat uncompleted checklist items as historical. Current engineering SSOT: [`CLAUDE.md`](../../CLAUDE.md).
+
 ## Read This First
 
 This document is a full rebuild blueprint for recreating the Bruno web-app integration from the ground up after reverting the GitHub repo to an earlier commit.

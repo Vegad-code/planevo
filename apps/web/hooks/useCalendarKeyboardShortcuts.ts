@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 
 import type { CalendarView } from '@/types/calendar';
 
@@ -15,93 +15,131 @@ interface CalendarShortcutHandlers {
   onEscape: () => void;
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
+interface UseCalendarKeyboardShortcutsOptions {
+  enabled?: boolean;
+}
+
+function shouldIgnoreShortcuts(): boolean {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement)) return false;
+
+  const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if (target.isContentEditable) return true;
+  if (el.isContentEditable) return true;
+  if (el.closest('[data-calendar-shortcuts-ignore]')) return true;
+  if (el.closest('[data-bruno-chat]')) return true;
+
   return false;
 }
 
-export function useCalendarKeyboardShortcuts(handlers: CalendarShortcutHandlers) {
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTypingTarget(e.target)) return;
+function isTodayKey(e: KeyboardEvent): boolean {
+  return e.key === 't' || e.key === 'T' || e.code === 'KeyT';
+}
 
+export function useCalendarKeyboardShortcuts(
+  handlers: CalendarShortcutHandlers,
+  options?: UseCalendarKeyboardShortcutsOptions
+) {
+  const enabled = options?.enabled ?? true;
+  const handlersRef = useRef(handlers);
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.isComposing) return;
+      if (shouldIgnoreShortcuts()) return;
+
+      const h = handlersRef.current;
       const key = e.key;
 
+      if (isTodayKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        h.onToday();
+        return;
+      }
+
       switch (key) {
-        case 't':
-        case 'T':
-          e.preventDefault();
-          handlers.onToday();
-          break;
         case 'ArrowLeft':
           e.preventDefault();
-          handlers.onNavigate('prev');
+          e.stopPropagation();
+          h.onNavigate('prev');
           break;
         case 'ArrowRight':
           e.preventDefault();
-          handlers.onNavigate('next');
+          e.stopPropagation();
+          h.onNavigate('next');
           break;
         case 'd':
         case 'D':
           e.preventDefault();
-          handlers.onViewChange('day');
+          e.stopPropagation();
+          h.onViewChange('day');
           break;
         case 'w':
         case 'W':
           e.preventDefault();
-          handlers.onViewChange('week');
+          e.stopPropagation();
+          h.onViewChange('week');
           break;
         case 'm':
         case 'M':
           e.preventDefault();
-          handlers.onViewChange('month');
+          e.stopPropagation();
+          h.onViewChange('month');
           break;
         case 'l':
         case 'L':
           e.preventDefault();
-          handlers.onViewChange('list');
+          e.stopPropagation();
+          h.onViewChange('list');
           break;
         case 'y':
         case 'Y':
           e.preventDefault();
-          handlers.onViewChange('year');
+          e.stopPropagation();
+          h.onViewChange('year');
           break;
         case 'n':
         case 'N':
         case 'c':
         case 'C':
           e.preventDefault();
-          handlers.onNewEvent();
+          e.stopPropagation();
+          h.onNewEvent();
           break;
         case 'b':
         case 'B':
           e.preventDefault();
-          handlers.onToggleBacklog();
+          e.stopPropagation();
+          h.onToggleBacklog();
           break;
         case '?':
           e.preventDefault();
-          handlers.onOpenShortcuts();
+          e.stopPropagation();
+          h.onOpenShortcuts();
           break;
         case 'Escape':
-          handlers.onEscape();
+          h.onEscape();
           break;
         default:
           if (key >= '1' && key <= '7') {
             e.preventDefault();
-            handlers.onJumpToWeekday(parseInt(key, 10) - 1);
+            e.stopPropagation();
+            h.onJumpToWeekday(parseInt(key, 10) - 1);
           }
           break;
       }
-    },
-    [handlers]
-  );
+    };
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [enabled]);
 }

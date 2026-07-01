@@ -106,6 +106,18 @@
   --color-sidebar-bg: var(--color-ink);
   --color-sidebar-text: var(--color-paper);
 
+  /* Toast notifications (Sonner) */
+  --toast-bg: rgba(255, 255, 255, 0.94);
+  --toast-border: rgba(26, 20, 13, 0.08);
+  --toast-text: var(--color-settings-text);
+  --toast-text-muted: var(--color-settings-text-muted);
+  --toast-brand: var(--color-settings-brand);
+  --toast-success: var(--color-sage);
+  --toast-error: var(--color-rose);
+  --toast-info: var(--color-blue);
+  --toast-warning: var(--color-honey-deep);
+  --toast-shadow: 0 16px 48px rgba(26, 20, 13, 0.1), 0 0 0 1px rgba(26, 20, 13, 0.04);
+  --toast-radius: 1rem;
 
   /* Entrance animation (was referenced in 20+ components but never defined) */
   --animate-fade-in: fade-in 0.5s ease both;
@@ -164,6 +176,10 @@ html.dark {
   --color-note-sky: #1e2a38;
   --color-note-green: #243020;
   --color-note-cream: #1c1a16;
+
+  --toast-bg: rgba(18, 18, 20, 0.92);
+  --toast-border: rgba(250, 250, 250, 0.08);
+  --toast-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(250, 250, 250, 0.06);
 }
 
 html.sepia {
@@ -303,6 +319,46 @@ html.reduce-motion *::after {
   scroll-behavior: auto !important;
 }
 
+/* Sonner toast — type accents + frosted surface */
+[data-sonner-toaster] {
+  --width: 22rem;
+  font-family: var(--font-sans);
+}
+
+[data-sonner-toast] {
+  --toast-accent: var(--toast-brand);
+}
+
+[data-sonner-toast][data-type="success"] {
+  --toast-accent: var(--toast-success);
+}
+
+[data-sonner-toast][data-type="error"] {
+  --toast-accent: var(--toast-error);
+}
+
+[data-sonner-toast][data-type="info"] {
+  --toast-accent: var(--toast-info);
+}
+
+[data-sonner-toast][data-type="warning"] {
+  --toast-accent: var(--toast-warning);
+}
+
+[data-sonner-toast][data-styled="true"] {
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: var(--toast-accent);
+}
+
+[data-sonner-toast]:not([data-type="loading"]) [data-icon] {
+  display: none;
+  width: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
 @import 'react-big-calendar/lib/css/react-big-calendar.css';
 @import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
@@ -379,6 +435,12 @@ html.reduce-motion *::after {
 }
 .rbc-month-view .rbc-day-bg.rbc-today {
   background-color: color-mix(in srgb, var(--color-honey) 12%, var(--color-paper)) !important;
+}
+.rbc-off-range-bg {
+  background: var(--color-paper) !important;
+}
+.rbc-off-range {
+  color: var(--color-ink);
 }
 .rbc-day-bg + .rbc-day-bg, .rbc-month-row + .rbc-month-row, .rbc-time-content > * + * > * {
   border-color: var(--color-line) !important;
