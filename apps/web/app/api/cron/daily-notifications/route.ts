@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
-import { isCronAuthorized, getCronConfigStatus } from '@/lib/notifications/cron-auth';
+import { withCron } from '@/lib/api/route-helpers';
+import { getCronConfigStatus } from '@/lib/notifications/cron-auth';
 import { runDailyNotificationSweep } from '@/lib/notifications/daily-sweep';
 import { runWeeklyReviewSweep } from '@/lib/notifications/weekly-review';
-import { Database } from '@/types/database';
 
 /**
  * GET /api/cron/daily-notifications
@@ -15,22 +14,7 @@ import { Database } from '@/types/database';
  *
  * On Sundays, also runs the weekly review sweep during the 14:00 UTC invocation.
  */
-export async function GET(request: NextRequest) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json({ error: 'Supabase admin credentials are not configured' }, { status: 500 });
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
+export const GET = withCron(async ({ supabase }) => {
   try {
     const result = await runDailyNotificationSweep(supabase);
     const now = new Date();
@@ -52,4 +36,4 @@ export async function GET(request: NextRequest) {
     console.error('[cron/daily-notifications] Fatal error:', error);
     return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
-}
+});

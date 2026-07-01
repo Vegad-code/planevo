@@ -1,25 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { NextResponse } from 'next/server';
+
+import { withAuthClient } from '@/lib/api/route-helpers';
 import {
   dismissNotification,
   markNotificationRead,
 } from '@/lib/notifications/inbox';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!isAllowedOriginOrBearer(request)) {
-    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-  }
-
-  const auth = await createAuthenticatedSupabaseClient(request);
-  if (auth.error || !auth.supabase || !auth.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const PATCH = withAuthClient(async ({ supabase, user, request, params }) => {
+  const { id } = await params as { id: string };
   let body: { read?: boolean; dismiss?: boolean };
   try {
     body = (await request.json()) as { read?: boolean; dismiss?: boolean };
@@ -29,11 +17,11 @@ export async function PATCH(
 
   try {
     if (body.dismiss) {
-      const ok = await dismissNotification(auth.supabase, auth.user.id, id);
+      const ok = await dismissNotification(supabase, user.id, id);
       return NextResponse.json({ success: ok });
     }
     if (body.read) {
-      const ok = await markNotificationRead(auth.supabase, auth.user.id, id);
+      const ok = await markNotificationRead(supabase, user.id, id);
       return NextResponse.json({ success: ok });
     }
     return NextResponse.json({ error: 'No action specified' }, { status: 400 });
@@ -41,4 +29,4 @@ export async function PATCH(
     console.error('[notifications/id]', err);
     return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
   }
-}
+});

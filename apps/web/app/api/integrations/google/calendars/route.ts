@@ -1,20 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth/get-user';
+import { NextResponse } from 'next/server';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { fetchGoogleCalendars } from '@/lib/integrations/google-calendar';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async ({ user }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const { user, error: authError } = await getAuthenticatedUser(request);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const calendars = await fetchGoogleCalendars(user.id);
 
     return NextResponse.json({
@@ -39,4 +29,4 @@ export async function GET(request: NextRequest) {
       { status }
     );
   }
-}
+});

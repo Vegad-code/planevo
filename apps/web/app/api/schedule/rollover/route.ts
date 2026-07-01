@@ -1,25 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { NextResponse } from 'next/server';
+
+import { withAuthClient } from '@/lib/api/route-helpers';
 import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 /**
  * Adaptive Rescheduling (Step 4 of Phase Two)
  * Moves all incomplete tasks with a past due_date to 'today' without shame.
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthClient(async ({ supabase, request }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const auth = await createAuthenticatedSupabaseClient(request);
-    if (auth.error || !auth.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { supabase } = auth;
-
     const body = await request.json().catch(() => ({}));
     const parsed = parseJsonBody(emptyStrictBodySchema, body);
     if (!parsed.success) {
@@ -64,4 +53,4 @@ export async function POST(request: NextRequest) {
     console.error('Rollover Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
