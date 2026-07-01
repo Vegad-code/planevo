@@ -74,7 +74,7 @@ export function BrunoActionProposalCard({
 
       <View style={styles.actions}>
         <TouchableOpacity
-          disabled={!canConfirm || executionStatus === 'executing'}
+          disabled={executionStatus !== 'idle'}
           onPress={() => onConfirm(proposal)}
           style={[styles.confirmBtn, !canConfirm && styles.disabledBtn]}
         >

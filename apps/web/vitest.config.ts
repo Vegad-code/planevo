@@ -19,6 +19,8 @@ export default defineConfig({
         'lib/auth/owner-emails.ts',
         'lib/crypto.ts',
         'lib/api/schemas.ts',
+        'lib/api/route-helpers.ts',
+        'lib/canvas/url-validation.ts',
       ],
       thresholds: {
         lines: 70,
