@@ -16,11 +16,11 @@ export const POST = withAuth(async ({ user, request }) => {
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Save Calendars Error:', err);
+    const message = error instanceof Error ? error.message : 'Failed to save Google calendars';
+    console.error('Save Calendars Error:', error);
     return NextResponse.json(
       {
-        error: err.message || 'Failed to save Google calendars',
+        error: message,
       },
       { status: 500 }
     );

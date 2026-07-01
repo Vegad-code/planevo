@@ -31,6 +31,7 @@ export const POST = withAuthClient(async ({ supabase, request }) => {
     }
 
     let movedCount = 0;
+    const updateErrors: string[] = [];
     for (const task of overdueTasks) {
       const { error: updateError } = await supabase
         .from('tasks')
@@ -41,7 +42,12 @@ export const POST = withAuthClient(async ({ supabase, request }) => {
         })
         .eq('id', task.id);
 
-      if (!updateError) movedCount++;
+      if (updateError) {
+        console.error(`[rollover] Failed to move task ${task.id} ("${task.title}"):`, updateError.message);
+        updateErrors.push(task.id);
+      } else {
+        movedCount++;
+      }
     }
 
     return NextResponse.json({
@@ -49,8 +55,8 @@ export const POST = withAuthClient(async ({ supabase, request }) => {
       message: `Bruno moved ${movedCount} tasks to your schedule today. No sweat! 🌿`,
     });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Rollover Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Rollover failed';
+    console.error('Rollover Error:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 });

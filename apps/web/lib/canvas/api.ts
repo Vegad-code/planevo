@@ -33,7 +33,7 @@ export async function testCanvasConnection(url: string, token: string): Promise<
     });
     return response.ok;
   } catch (error) {
-    console.error('Canvas connection test failed:', error);
+    console.warn('[Canvas] Connection test failed:', error instanceof Error ? error.message : error);
     return false;
   }
 }
@@ -53,7 +53,7 @@ export async function fetchCanvasCourses(url: string, token: string): Promise<Ca
     if (!response.ok) throw new Error('Failed to fetch courses');
     return await response.json();
   } catch (error) {
-    console.error('Error fetching Canvas courses:', error);
+    console.error('[Canvas] Error fetching courses:', error instanceof Error ? error.message : error);
     return [];
   }
 }
@@ -89,7 +89,7 @@ export async function fetchCanvasUpcoming(url: string, token: string): Promise<C
         };
       });
   } catch (error) {
-    console.error('Error fetching Canvas assignments:', error);
+    console.error('[Canvas] Error fetching assignments:', error instanceof Error ? error.message : error);
     return [];
   }
 }

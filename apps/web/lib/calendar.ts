@@ -55,7 +55,9 @@ export async function getCalendarEvents(timeMin?: string, timeMax?: string): Pro
     const data = await response.json();
     return { events: data.items || [], error: null };
   } catch (err) {
-    return { events: [], error: err };
+    const message = err instanceof Error ? err.message : 'Calendar fetch failed';
+    console.error('[getCalendarEvents] Google Calendar API error:', message);
+    return { events: [], error: message };
   }
 }
 

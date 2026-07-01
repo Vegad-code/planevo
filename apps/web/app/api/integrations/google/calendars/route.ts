@@ -12,19 +12,19 @@ export const GET = withAuth(async ({ user }) => {
       calendars,
     });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Fetch Calendars Error:', err);
+    const message = error instanceof Error ? error.message : 'Failed to fetch Google calendars';
+    console.error('Fetch Calendars Error:', error);
 
     const status =
-      err.message === 'User not connected to Google Calendar' ||
-      err.message.includes('Failed to refresh Google token') ||
-      err.message.includes('invalid_grant')
+      message === 'User not connected to Google Calendar' ||
+      message.includes('Failed to refresh Google token') ||
+      message.includes('invalid_grant')
         ? 400
         : 500;
 
     return NextResponse.json(
       {
-        error: err.message || 'Failed to fetch Google calendars',
+        error: message,
       },
       { status }
     );

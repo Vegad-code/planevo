@@ -280,7 +280,7 @@ export function useDashboardData() {
         setSchedule(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error('[useDashboardData] Failed to load dashboard data:', err);
     } finally {
       setLoading(false);
     }

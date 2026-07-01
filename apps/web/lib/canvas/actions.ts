@@ -273,9 +273,10 @@ export async function saveCanvasCredentialsAction(url: string, token: string): P
     });
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error saving Canvas credentials:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -308,9 +309,10 @@ export async function getCanvasCredentialsAction(returnUnmasked = false): Promis
         canvasToken: displayToken
       }
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error getting Canvas credentials:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -341,9 +343,10 @@ export async function disconnectCanvasAction(deleteData: boolean = false): Promi
       .eq('provider', 'canvas');
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error disconnecting Canvas:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -478,15 +481,16 @@ export async function syncCanvasIntegrationAction(force = false): Promise<number
     }
 
     return upcoming.length;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
         status: 'failed', 
         finished_at: new Date().toISOString(),
-        error_message: err.message
+        error_message: message
       }).eq('id', syncRunId);
     }
-    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId).eq('user_id', userId);
+    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: message }).eq('id', accountId).eq('user_id', userId);
     throw err;
   }
 }
