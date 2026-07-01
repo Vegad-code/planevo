@@ -64,7 +64,8 @@ export function decryptToken(encryptedString: string): string {
 
     return decrypted;
   } catch (error) {
-    console.error('Failed to decrypt token:', error);
-    throw new Error('Failed to decrypt token');
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('Failed to decrypt token:', detail);
+    throw new Error(`Failed to decrypt token: ${detail}`);
   }
 }

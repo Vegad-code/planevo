@@ -48,7 +48,7 @@ export async function fetchCanvasUpcoming(url: string, token: string): Promise<C
       });
 
   } catch (error) {
-    console.error('Error fetching Canvas data:', error);
+    console.error('[Canvas] Error fetching planner items:', error instanceof Error ? error.message : error);
     return [];
   }
 }
@@ -63,7 +63,8 @@ export async function validateCanvasConnection(url: string, token: string): Prom
       }
     });
     return response.ok;
-  } catch {
+  } catch (err) {
+    console.warn('[Canvas] Connection validation failed:', err instanceof Error ? err.message : err);
     return false;
   }
 }

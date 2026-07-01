@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { updateUserAIMemory } from '@/lib/ai/memory';
-import { calendarPreferencesSchema, planningStyleSchema, parseJsonBody } from '@/lib/api/schemas';
+import { calendarPreferencesSchema, parseJsonBody } from '@/lib/api/schemas';
 
 export async function updateCalendarPreferencesAction(data: unknown) {
   const parsed = parseJsonBody(calendarPreferencesSchema, data);
@@ -39,10 +39,10 @@ export async function updateCalendarPreferencesAction(data: unknown) {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error updating calendar preferences:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -91,10 +91,10 @@ export async function updatePlanningStyleAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error updating planning style:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -131,10 +131,10 @@ export async function updateBreakPreferencesAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error updating break preferences:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }
 
@@ -163,9 +163,9 @@ export async function updateFocusWindowsAction(data: {
     revalidatePath('/dashboard/settings/calendar');
     
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error updating focus windows:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }

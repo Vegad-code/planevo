@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
       count,
     });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Google Sync Error:', err);
+    const message = error instanceof Error ? error.message : 'Failed to synchronize calendar';
+    console.error('Google Sync Error:', error);
     return NextResponse.json(
       {
-        error: err.message || 'Failed to synchronize calendar',
+        error: message,
       },
       { status: 500 }
     );
