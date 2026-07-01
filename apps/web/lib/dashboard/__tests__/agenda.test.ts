@@ -146,10 +146,13 @@ describe('filterAgendaByDate', () => {
   });
 
   it('includes items matching the given date', () => {
-    const targetDate = new Date('2025-07-01');
-    const events = [makeCalendarEvent({ start_time: '2025-07-01T14:00:00Z' })];
+    // Derive the target from the event's own instant so the local day of the
+    // filter window always matches the item's local day, regardless of the
+    // runner's timezone (filterAgendaByDate builds its window from local time).
+    const eventStart = '2025-07-01T14:00:00Z';
+    const events = [makeCalendarEvent({ start_time: eventStart })];
     const items = buildAgendaItems(events, [], []);
-    const result = filterAgendaByDate(items, targetDate);
+    const result = filterAgendaByDate(items, new Date(eventStart));
     expect(result).toHaveLength(1);
   });
 });
