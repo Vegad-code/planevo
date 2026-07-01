@@ -90,6 +90,6 @@ describe('Daily Plan API', () => {
     const data = await res.json();
 
     expect(res.status).toBe(500);
-    expect(data.error).toBe('AI API failure');
+    expect(data.error).toBe('Daily plan generation failed');
   });
 });

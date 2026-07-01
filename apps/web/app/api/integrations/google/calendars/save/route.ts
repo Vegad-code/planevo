@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     console.error('Save Calendars Error:', err);
     return NextResponse.json(
       {
-        error: err.message || 'Failed to save Google calendars',
+        error: 'Failed to save Google calendars',
       },
       { status: 500 }
     );

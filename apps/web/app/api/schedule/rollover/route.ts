@@ -62,6 +62,6 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const err = error as Error;
     console.error('Rollover Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Rollover failed' }, { status: 500 });
   }
 }

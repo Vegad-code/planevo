@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
       provider,
       ...verification,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Verification failed' },
+      { error: 'Verification failed' },
       { status: 500 }
     );
   }

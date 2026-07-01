@@ -66,9 +66,9 @@ export async function GET(request: NextRequest) {
         configured: prefs.configured,
       },
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load Slack settings' },
+      { error: 'Failed to load Slack settings' },
       { status: 500 }
     );
   }
@@ -107,9 +107,9 @@ export async function POST(request: NextRequest) {
       includeStarred,
       includeDms,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save Slack settings' },
+      { error: 'Failed to save Slack settings' },
       { status: 500 }
     );
   }
