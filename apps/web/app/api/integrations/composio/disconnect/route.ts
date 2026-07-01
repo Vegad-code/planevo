@@ -59,7 +59,6 @@ export const POST = withAuth(async ({ user, request }) => {
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     console.error('Error deleting Composio connection:', err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to disconnect integration' }, { status: 500 });
   }
 });

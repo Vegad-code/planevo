@@ -30,11 +30,10 @@ export const POST = withAuth(async ({ user, request }) => {
       count,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to synchronize calendar';
     console.error('Google Sync Error:', error);
     return NextResponse.json(
       {
-        error: message,
+        error: 'Failed to synchronize calendar',
       },
       { status: 500 }
     );

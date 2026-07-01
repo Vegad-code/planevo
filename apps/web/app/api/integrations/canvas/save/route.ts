@@ -1,30 +1,32 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 
 import { withAuth } from '@/lib/api/route-helpers';
 import { encryptToken } from '@/lib/crypto';
 import { upsertIntegrationAccount } from '@/lib/integrations/accounts';
-
-const bodySchema = z.object({
-  url: z.string().min(1),
-  token: z.string().min(1),
-});
+import { canvasSaveCredentialsSchema } from '@/lib/api/schemas';
+import { assertCanvasUrlSafe } from '@/lib/canvas/url-validation';
 
 export const POST = withAuth(async ({ user, request }) => {
   try {
-    const parsed = bodySchema.safeParse(await request.json());
+    const parsed = canvasSaveCredentialsSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
     const { url, token } = parsed.data;
+
+    const safe = await assertCanvasUrlSafe(url);
+    if (!safe.ok) {
+      return NextResponse.json({ error: 'Invalid Canvas URL' }, { status: 400 });
+    }
+
     const encryptedToken = encryptToken(token.trim());
 
     await upsertIntegrationAccount({
       userId: user.id,
       provider: 'canvas',
       accessTokenEncrypted: encryptedToken,
-      metadata: { canvas_url: url.trim() },
+      metadata: { canvas_url: safe.url },
       status: 'connected',
     });
 
@@ -32,7 +34,7 @@ export const POST = withAuth(async ({ user, request }) => {
   } catch (err) {
     console.error('[Canvas save]', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save Canvas credentials' },
+      { error: 'Failed to save Canvas credentials' },
       { status: 500 }
     );
   }

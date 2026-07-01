@@ -55,8 +55,7 @@ export const POST = withAuthClient(async ({ supabase, request }) => {
       message: `Bruno moved ${movedCount} tasks to your schedule today. No sweat! 🌿`,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Rollover failed';
     console.error('Rollover Error:', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Rollover failed' }, { status: 500 });
   }
 });

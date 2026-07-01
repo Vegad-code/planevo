@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
           ? teamsResult.error ?? projectsResult.error
           : undefined,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load Linear settings' },
+      { error: 'Failed to load Linear settings' },
       { status: 500 }
     );
   }
@@ -123,8 +123,9 @@ export async function POST(request: NextRequest) {
       assigneeFilter,
     });
   } catch (err) {
+    console.error('Error saving Linear settings:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save Linear settings' },
+      { error: 'Failed to save Linear settings' },
       { status: 500 }
     );
   }
