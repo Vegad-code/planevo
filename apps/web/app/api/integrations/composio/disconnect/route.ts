@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth/get-user';
+import { NextResponse } from 'next/server';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { getComposioClient } from '@/lib/integrations/composio/client';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 import { reconcileProAccounts } from '@/lib/integrations/summary';
 import { composioDisconnectBodySchema, parseJsonBody } from '@/lib/api/schemas';
 import { createLogger } from '@/lib/logger';
@@ -9,17 +9,8 @@ import { logSecurityAudit } from '@/lib/security-audit';
 
 const log = createLogger({ route: '/api/integrations/composio/disconnect' });
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async ({ user, request }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const { user, error } = await getAuthenticatedUser(request);
-    if (error || !user) {
-      return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 });
-    }
-
     if (!process.env.COMPOSIO_API_KEY) {
       return NextResponse.json({ error: 'Composio API key missing' }, { status: 500 });
     }
@@ -71,4 +62,4 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+});

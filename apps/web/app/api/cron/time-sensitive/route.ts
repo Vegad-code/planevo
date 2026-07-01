@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
+import { withCron } from '@/lib/api/route-helpers';
 import { forEachUserBatch } from '@/lib/cron/batch-users';
-import { isCronAuthorized, getCronConfigStatus } from '@/lib/notifications/cron-auth';
+import { getCronConfigStatus } from '@/lib/notifications/cron-auth';
 import { dispatchPushCandidates } from '@/lib/notifications/post-sync-notify';
 import {
   normalizeNotificationPreferences,
@@ -10,7 +10,6 @@ import {
 } from '@/lib/notifications/preferences';
 import { collectTimeSensitivePushCandidates } from '@/lib/notifications/time-sensitive-sweep';
 import type { PushCandidate } from '@/lib/notifications/push-dispatch';
-import { Database } from '@/types/database';
 
 type TimeSensitiveBatchUser = {
   id: string;
@@ -25,22 +24,7 @@ type TimeSensitiveBatchUser = {
  * Optional hourly sweep for calendar events starting within the hour.
  * Requires Vercel Pro or an external scheduler if used hourly.
  */
-export async function GET(request: NextRequest) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json({ error: 'Supabase admin credentials are not configured' }, { status: 500 });
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
+export const GET = withCron(async ({ supabase }) => {
   try {
     const now = new Date();
     const candidates: PushCandidate[] = [];
@@ -102,4 +86,4 @@ export async function GET(request: NextRequest) {
     console.error('[cron/time-sensitive] Fatal error:', error);
     return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
-}
+});

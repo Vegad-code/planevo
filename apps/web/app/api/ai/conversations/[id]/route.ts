@@ -1,28 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthenticatedUser } from '@/lib/auth/get-user';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { deleteConversation } from '@/lib/bruno/deleteConversation';
 
 const paramsSchema = z.object({
   id: z.string().uuid(),
 });
 
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async ({ user, params }) => {
   try {
-    if (!isAllowedOriginOrBearer(req)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const { user, error: authError } = await getAuthenticatedUser(req);
-    if (authError || !user) {
-      return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
-    }
-
-    const rawParams = await context.params;
+    const rawParams = await params;
     const parsedParams = paramsSchema.safeParse(rawParams);
     if (!parsedParams.success) {
       return NextResponse.json({ error: 'Invalid conversation id' }, { status: 400 });
@@ -39,4 +27,4 @@ export async function DELETE(
     console.error('[Delete Conversation] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-}
+});
