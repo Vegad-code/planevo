@@ -50,6 +50,7 @@ import {
   isRateLimitActive,
   parseBrunoRateLimitError,
 } from '@/lib/bruno/rate-limit-client';
+import { readBrunoExecuteActionResponse } from '@/lib/bruno/executeResponse';
 
 type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
 
@@ -106,22 +107,114 @@ export default function BrunoChatSidebar({
     return hash.toString(16);
   }
 
-  function extractProposalsFromMessage(message: any): BrunoActionProposal[] {
-    const parts = message.parts || [];
-    const tools = parts.filter((p: any) => 
-      p.type === 'tool-propose_action' || 
-      (p.type === 'tool-invocation' && p.toolInvocation?.toolName === 'propose_action')
-    );
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+  }
+
+  function normalizeProposal(value: unknown): BrunoActionProposal | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    const proposal = value as Record<string, unknown>;
+    if (typeof proposal.type !== 'string' || typeof proposal.title !== 'string') {
+      return null;
+    }
+
+    return {
+      id:
+        typeof proposal.id === 'string'
+          ? proposal.id
+          : `proposal-${stableHash(JSON.stringify(proposal))}`,
+      type: proposal.type as BrunoActionProposal['type'],
+      title: proposal.title,
+      description:
+        typeof proposal.description === 'string'
+          ? proposal.description
+          : proposal.title,
+      status: 'pending_confirmation',
+      riskLevel:
+        proposal.riskLevel === 'medium' || proposal.riskLevel === 'high'
+          ? proposal.riskLevel
+          : 'low',
+      requiresConfirmation:
+        typeof proposal.requiresConfirmation === 'boolean'
+          ? proposal.requiresConfirmation
+          : true,
+      payload:
+        proposal.payload &&
+        typeof proposal.payload === 'object' &&
+        !Array.isArray(proposal.payload)
+          ? (proposal.payload as Record<string, unknown>)
+          : {},
+      createdAt:
+        typeof proposal.createdAt === 'string'
+          ? proposal.createdAt
+          : new Date().toISOString(),
+    };
+  }
+
+  function extractProposalsFromMessage(message: { parts?: unknown[] }, lastUserText?: string): BrunoActionProposal[] {
+    const parts = Array.isArray(message.parts) ? message.parts : [];
+    const nativeProposals = parts.flatMap((part) => {
+      if (!isRecord(part) || part.type !== 'data-bruno-action-proposals') {
+        return [];
+      }
+      const data = part.data as { proposals?: unknown[] } | undefined;
+      if (!Array.isArray(data?.proposals)) return [];
+      return data.proposals
+        .map(normalizeProposal)
+        .filter((proposal): proposal is BrunoActionProposal => Boolean(proposal));
+    });
+
+    const tools = parts.filter((part): part is Record<string, unknown> => {
+      if (!isRecord(part)) return false;
+      const toolInvocation = isRecord(part.toolInvocation)
+        ? part.toolInvocation
+        : null;
+      return (
+        part.type === 'tool-propose_action' ||
+        part.type === 'tool-propose_plan' ||
+        (part.type === 'tool-invocation' &&
+          (toolInvocation?.toolName === 'propose_action' ||
+            toolInvocation?.toolName === 'propose_plan'))
+      );
+    });
 
     const prepared = tools.map((part: Record<string, unknown>) => {
-      const rawArgs = (part.input ?? part.args ?? (part.toolInvocation as Record<string, unknown> | undefined)?.args ?? (part.toolInvocation as Record<string, unknown> | undefined)?.input ?? {}) as Record<string, unknown>;
+      const toolInvocation = part.toolInvocation as Record<string, unknown> | undefined;
+      const toolOutput =
+        part.output ??
+        part.result ??
+        toolInvocation?.result ??
+        toolInvocation?.output;
+      const outputRecord =
+        toolOutput && typeof toolOutput === 'object' && !Array.isArray(toolOutput)
+          ? (toolOutput as Record<string, unknown>)
+          : null;
+      // Prefer the server-shaped proposal from the tool output when present
+      // (propose_plan returns one — its raw args are {summary, steps}, not a
+      // proposal). Fall back to the raw tool args for propose_action.
+      const serverProposal =
+        outputRecord?.proposal &&
+        typeof outputRecord.proposal === 'object' &&
+        !Array.isArray(outputRecord.proposal)
+          ? (outputRecord.proposal as Record<string, unknown>)
+          : null;
+      const rawArgs =
+        serverProposal ??
+        ((part.input ?? part.args ?? toolInvocation?.args ?? toolInvocation?.input ?? {}) as Record<string, unknown>);
+      const argsWithServerId =
+        typeof outputRecord?.proposalId === 'string'
+          ? { ...rawArgs, id: outputRecord.proposalId }
+          : rawArgs;
       const args =
-        rawArgs.type === 'CREATE_TIME_BLOCK'
-          ? enrichTimeBlockProposal(rawArgs, {
-              texts: lastUserMessageRef.current ? [lastUserMessageRef.current] : [],
+        argsWithServerId.type === 'CREATE_TIME_BLOCK'
+          ? enrichTimeBlockProposal(argsWithServerId, {
+              texts: lastUserText ? [lastUserText] : [],
               timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             })
-          : rawArgs;
+          : argsWithServerId;
       return { part, args };
     });
 
@@ -133,25 +226,55 @@ export default function BrunoChatSidebar({
             ? args.payload
             : {},
       }))
-    );
+    ) as Record<string, unknown>[];
 
-    return prepared.map(({ part, args }: { part: Record<string, unknown>; args: Record<string, unknown> }, index: number) => {
+    const toolProposals: BrunoActionProposal[] = prepared.map(({ part, args }: { part: Record<string, unknown>; args: Record<string, unknown> }, index: number) => {
       const enriched = colorizedArgs[index] ?? args;
       const toolInvocation = part.toolInvocation as Record<string, unknown> | undefined;
-      const id = enriched.id ?? part.toolCallId ?? toolInvocation?.toolCallId ?? `proposal-${stableHash(JSON.stringify(enriched))}`;
+      const toolCallId =
+        typeof part.toolCallId === 'string'
+          ? part.toolCallId
+          : typeof toolInvocation?.toolCallId === 'string'
+            ? toolInvocation.toolCallId
+            : null;
+      const id =
+        typeof enriched.id === 'string'
+          ? enriched.id
+          : toolCallId ?? `proposal-${stableHash(JSON.stringify(enriched))}`;
       
       return {
         id,
-        type: enriched.type,
-        title: enriched.title,
-        description: enriched.description,
+        type: enriched.type as BrunoActionProposal['type'],
+        title:
+          typeof enriched.title === 'string'
+            ? enriched.title
+            : 'Proposed action',
+        description:
+          typeof enriched.description === 'string'
+            ? enriched.description
+            : 'Confirm this proposed change',
         status: "pending_confirmation",
-        riskLevel: enriched.riskLevel ?? "low",
-        requiresConfirmation: enriched.requiresConfirmation ?? true,
-        payload: enriched.payload ?? {},
-        createdAt: enriched.createdAt ?? new Date().toISOString(),
+        riskLevel:
+          enriched.riskLevel === 'medium' || enriched.riskLevel === 'high'
+            ? enriched.riskLevel
+            : 'low',
+        requiresConfirmation:
+          typeof enriched.requiresConfirmation === 'boolean'
+            ? enriched.requiresConfirmation
+            : true,
+        payload: isRecord(enriched.payload) ? enriched.payload : {},
+        createdAt:
+          typeof enriched.createdAt === 'string'
+            ? enriched.createdAt
+            : new Date().toISOString(),
       };
     });
+
+    const byId = new Map<string, BrunoActionProposal>();
+    for (const proposal of [...nativeProposals, ...toolProposals]) {
+      if (!byId.has(proposal.id)) byId.set(proposal.id, proposal);
+    }
+    return [...byId.values()];
   }
 
   function isTaskBreakdownIntent(text: string) {
@@ -191,6 +314,7 @@ export default function BrunoChatSidebar({
 
     if (
       proposal.type === 'CREATE_TIME_BLOCK' ||
+      proposal.type === 'UPDATE_CALENDAR_EVENT' ||
       proposal.type === 'DELETE_CALENDAR_EVENT' ||
       proposal.type === 'UPDATE_DAILY_PLAN'
     ) {
@@ -272,15 +396,16 @@ export default function BrunoChatSidebar({
     return calls;
   }
 
-  const handleConfirmProposal = async (proposal: BrunoActionProposal) => {
+  const executeProposal = async (
+    proposal: BrunoActionProposal
+  ): Promise<{ ok: boolean; error?: string }> => {
     let alreadyProcessing = false;
     setExecutingActions(prev => {
       if (prev[proposal.id]) alreadyProcessing = true;
       return { ...prev, [proposal.id]: true };
     });
     
-    // We also can't read actionStatuses directly synchronously, but it's okay because we lock executingActions.
-    if (alreadyProcessing) return;
+    if (alreadyProcessing) return { ok: false, error: 'already_processing' };
 
     setActionStatuses((prev) => ({ ...prev, [proposal.id]: "executing" }));
 
@@ -293,6 +418,7 @@ export default function BrunoChatSidebar({
         payload: proposal.payload,
         userPrompt: lastUserMessageRef.current || undefined,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        conversationId: currentConversationId || undefined,
       };
       const response = await fetch("/api/bruno/actions/execute", {
         method: "POST",
@@ -300,7 +426,7 @@ export default function BrunoChatSidebar({
         body: JSON.stringify(executeBody),
       });
 
-      const result = await response.json();
+      const result = await readBrunoExecuteActionResponse(response);
 
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Could not execute action");
@@ -309,16 +435,25 @@ export default function BrunoChatSidebar({
       setActionStatuses((prev) => ({ ...prev, [proposal.id]: "success" }));
       setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
       publishExecutedAction(proposal, result);
+      return { ok: true };
     } catch (error: any) {
-      console.error("[Bruno] Failed to execute proposal", error);
+      const message = error.message ?? "Couldn't create task. Try again.";
+      if (!message.includes('Google Calendar write permission')) {
+        console.error("[Bruno] Failed to execute proposal", error);
+      }
       setActionStatuses((prev) => ({ ...prev, [proposal.id]: "error" }));
       setActionErrors((prev) => ({
         ...prev,
-        [proposal.id]: error.message ?? "Couldn't create task. Try again.",
+        [proposal.id]: message,
       }));
+      return { ok: false, error: message };
     } finally {
       setExecutingActions((prev) => ({ ...prev, [proposal.id]: false }));
     }
+  };
+
+  const handleConfirmProposal = async (proposal: BrunoActionProposal) => {
+    await executeProposal(proposal);
   };
 
   const handleCancelProposal = (proposal: BrunoActionProposal) => {
@@ -326,8 +461,22 @@ export default function BrunoChatSidebar({
   };
 
   const handleConfirmAll = async (proposals: BrunoActionProposal[]) => {
-    for (const proposal of proposals) {
-      await handleConfirmProposal(proposal);
+    if (isConfirmingAll) return;
+    setIsConfirmingAll(true);
+    try {
+      for (const proposal of proposals) {
+        const result = await executeProposal(proposal);
+        if (
+          !result.ok &&
+          (result.error?.includes('Google Calendar write permission') ||
+            result.error?.includes('Event not found') ||
+            result.error?.includes('already executed'))
+        ) {
+          break;
+        }
+      }
+    } finally {
+      setIsConfirmingAll(false);
     }
   };
   const { currentContext, closeBruno } = useBruno();
@@ -374,6 +523,7 @@ export default function BrunoChatSidebar({
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const isDeletingConversationRef = useRef(false);
   const [isCommittingPlan, setIsCommittingPlan] = useState(false);
+  const [isConfirmingAll, setIsConfirmingAll] = useState(false);
 
   const [mentionState, setMentionState] = useState<{ active: boolean, text: string }>({ active: false, text: '' });
   const [suggestions, setSuggestions] = useState<{id: string, title: string, type: 'task'|'event', subtitle?: string}[]>([]);
@@ -430,13 +580,29 @@ export default function BrunoChatSidebar({
         setIsPaywallDismissed(false);
       }
     },
-    [isFree]
+    [isFree, setRateLimitInfo, setIsPaywallDismissed]
   );
 
   const handleRateLimitExpired = useCallback(() => {
     setRateLimitInfo(null);
     setIsPaywallDismissed(false);
-  }, []);
+  }, [setRateLimitInfo, setIsPaywallDismissed]);
+
+  const handleChatError = useCallback(
+    (chatError: unknown) => {
+      handleRateLimitError(chatError);
+      const message =
+        chatError instanceof Error
+          ? chatError.message
+          : typeof chatError === 'string'
+            ? chatError
+            : 'Bruno could not finish that reply. Please try again.';
+      if (!parseBrunoRateLimitError(chatError)) {
+        toast.error(message);
+      }
+    },
+    [handleRateLimitError]
+  );
 
   const { messages, setMessages, sendMessage, status, stop, error, clearError } =
     useChat<BrunoUIMessage>({
@@ -452,9 +618,10 @@ export default function BrunoChatSidebar({
           } as BrunoUIMessage,
         ]
       : [],
-    onError: handleRateLimitError,
+    onError: handleChatError,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onFinish: async (event: any) => {
+      try {
       const message = event.message || event;
       const textPart = message.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text;
 
@@ -470,23 +637,16 @@ export default function BrunoChatSidebar({
         toast.info(modeNoticePart.data.message);
       }
       
-      if (currentConversationId && message.role === 'assistant' && textPart) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('bruno_messages').insert({
-            conversation_id: currentConversationId,
-            message_type: 'assistant',
-            content: textPart,
-            user_id: user.id
-          });
-          await supabase.from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
-        }
+      // Assistant-turn persistence (with full parts) is server-side now, in
+      // the chat stream's onFinish. Only conversation metadata stays here.
+      if (currentConversationId && message.role === 'assistant') {
+        await supabase.from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
       }
       
       if (message.role === 'assistant') {
         const lastUserText = lastUserMessageRef.current;
         if (isTaskBreakdownIntent(lastUserText)) {
-          const nativeProposals = extractProposalsFromMessage(message);
+          const nativeProposals = extractProposalsFromMessage(message, lastUserMessageRef.current || undefined);
           if (nativeProposals.length === 0) {
             const textContent = textPart || '';
             const response = await fetch("/api/bruno/fallback/breakdown", {
@@ -518,23 +678,38 @@ export default function BrunoChatSidebar({
       }
       
       if (onFinish) onFinish();
+      setIsCommittingPlan(false);
+      } catch (finishError) {
+        console.error('[BrunoChatSidebar] onFinish failed:', finishError);
+        setIsCommittingPlan(false);
+      }
     }
   });
 
   useEffect(() => {
     if (error) {
-      handleRateLimitError(error);
+      handleChatError(error);
     }
-  }, [error, handleRateLimitError]);
+  }, [error, handleChatError]);
 
   const isRateLimited = isFree && isRateLimitActive(rateLimitInfo);
+  // Render-safe last user text (refs must not be read during render).
+  const lastUserTextForRender = (() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role !== 'user') continue;
+      const text = candidate.parts?.find((part) => part.type === 'text');
+      if (text && 'text' in text && typeof text.text === 'string') return text.text;
+    }
+    return undefined;
+  })();
   const loadConversation = async (id: string) => {
     setCurrentConversationId(id);
     setShowHistory(false);
 
     const { data } = await supabase
       .from('bruno_messages')
-      .select('id, content, message_type, created_at')
+      .select('id, content, message_type, parts, created_at')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true });
 
@@ -543,7 +718,12 @@ export default function BrunoChatSidebar({
       setMessages(data.map((m: any) => ({
         id: m.id,
         role: m.message_type === 'user' ? 'user' : 'assistant',
-        parts: [{ type: 'text', text: m.content }],
+        // Rehydrate full parts (tool calls, proposals, data cards) when the
+        // server stored them; legacy rows fall back to text-only.
+        parts:
+          m.message_type !== 'user' && Array.isArray(m.parts) && m.parts.length > 0
+            ? m.parts
+            : [{ type: 'text', text: m.content }],
         createdAt: new Date(m.created_at)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)));
@@ -700,10 +880,23 @@ export default function BrunoChatSidebar({
       if (editIndex !== -1) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const editedMsg = messages[editIndex] as any;
-        const timestamp = editedMsg.createdAt 
-           ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString()) 
+        let timestamp = editedMsg.createdAt
+           ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString())
            : new Date().toISOString();
-           
+
+        // For messages loaded from the DB, anchor the cutoff to the server
+        // row's created_at — the client clock can drift and delete too much
+        // or too little.
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingMessageId)) {
+          const { data: editedRow } = await supabase
+            .from('bruno_messages')
+            .select('created_at')
+            .eq('id', editingMessageId)
+            .eq('conversation_id', convId)
+            .maybeSingle();
+          if (editedRow?.created_at) timestamp = editedRow.created_at;
+        }
+
         await supabase.from('bruno_messages').delete()
           .eq('conversation_id', convId)
           .gte('created_at', timestamp);
@@ -713,17 +906,8 @@ export default function BrunoChatSidebar({
       setEditingMessageId(null);
     }
 
-    if (convId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('bruno_messages').insert({
-          conversation_id: convId,
-          message_type: 'user',
-          content: userMessage,
-          user_id: user.id
-        });
-      }
-    }
+    // User-turn persistence is server-side now (chat route persists it with
+    // dedup); writing it here too would create duplicate rows.
 
     sendMessage({ text: userMessage }, {
       body: createBrunoChatRequestBody(
@@ -939,6 +1123,13 @@ export default function BrunoChatSidebar({
                       truncatedPart?.type === 'data-bruno-truncated'
                         ? truncatedPart.data
                         : null;
+                    const streamErrorPart = message.parts?.find(
+                      (part) => part.type === 'data-bruno-stream-error'
+                    );
+                    const streamErrorNotice =
+                      streamErrorPart?.type === 'data-bruno-stream-error'
+                        ? streamErrorPart.data
+                        : null;
                     const isEditing = editingMessageId === message.id;
 
                     // Check if any tool invocation is a propose_plan_draft
@@ -951,14 +1142,18 @@ export default function BrunoChatSidebar({
                     const planDraftArgs = planDraftInvocation?.toolInvocation?.args;
                     const isPlanDraft = !!planDraftArgs?.plan_title;
                     
-                    const nativeProposals = extractProposalsFromMessage(message);
+                    const nativeProposals = extractProposalsFromMessage(message, lastUserTextForRender);
                     const fallbackProposals = fallbackProposalsByMessageId[message.id] ?? [];
                     const proposals = nativeProposals.length > 0 ? nativeProposals : fallbackProposals;
                     const hasProposals = proposals.length > 0;
                     const integrationCalls = extractIntegrationToolCalls(message);
-                    const displayText = hasProposals && textPart.length < 50
-                      ? "I've drafted a plan based on your request. Confirm the tasks you want me to add."
-                      : textPart;
+                    const displayText =
+                      hasProposals &&
+                      textPart.length < 50 &&
+                      !/\bprepared\b/i.test(textPart) &&
+                      !/\bdidn't find\b/i.test(textPart)
+                        ? "I've drafted a plan based on your request. Confirm the tasks you want me to add."
+                        : textPart;
 
                     const hasVisibleAssistantContent =
                       Boolean(displayText) ||
@@ -967,9 +1162,17 @@ export default function BrunoChatSidebar({
                       isPlanDraft ||
                       entitlementParts.length > 0 ||
                       clarificationCards.length > 0 ||
-                      Boolean(truncatedNotice);
+                      Boolean(truncatedNotice) ||
+                      Boolean(streamErrorNotice);
 
-                    if (message.role === 'assistant' && !hasVisibleAssistantContent) {
+                    const isLastMessage = i === messages.length - 1;
+                    const showEmptyReplyFallback =
+                      message.role === 'assistant' &&
+                      !hasVisibleAssistantContent &&
+                      isLastMessage &&
+                      !isBrunoWorking;
+
+                    if (message.role === 'assistant' && !hasVisibleAssistantContent && !showEmptyReplyFallback) {
                       return null;
                     }
                     
@@ -1016,7 +1219,6 @@ export default function BrunoChatSidebar({
                                     assistantMode
                                   )
                                 });
-                                setTimeout(() => setIsCommittingPlan(false), 10000);
                               }}
                               onRequestEdit={(feedback) => {
                                 setInput(feedback);
@@ -1067,6 +1269,15 @@ export default function BrunoChatSidebar({
                                   ))}
                                   {displayText ? (
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>{displayText}</ReactMarkdown>
+                                  ) : showEmptyReplyFallback ? (
+                                    <p className="text-[var(--color-settings-text-muted)]">
+                                      Bruno finished but didn&apos;t return a visible reply. Try sending your request again or be more specific.
+                                    </p>
+                                  ) : null}
+                                  {streamErrorNotice ? (
+                                    <div className="mt-3 rounded-lg border border-[var(--color-rose)]/25 bg-[var(--color-rose)]/10 px-3 py-2 text-sm text-[var(--color-rose)]">
+                                      {streamErrorNotice.message}
+                                    </div>
                                   ) : null}
                                 </div>
                                 {hasProposals && (
@@ -1078,6 +1289,7 @@ export default function BrunoChatSidebar({
                                       onConfirm={handleConfirmProposal}
                                       onCancel={handleCancelProposal}
                                       onConfirmAll={handleConfirmAll}
+                                      isConfirmingAll={isConfirmingAll}
                                     />
                                   </div>
                                 )}

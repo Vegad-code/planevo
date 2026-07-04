@@ -6,9 +6,10 @@ import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
 
 function NoteDetailContent({ noteId }: { noteId: string }) {
   useRegisterBrunoContext({
-    source: 'dashboard',
+    source: 'notes',
     page: `/dashboard/notes/${noteId}`,
     label: 'Note',
+    payload: { noteId },
   });
   return <NoteDetailView noteId={noteId} />;
 }

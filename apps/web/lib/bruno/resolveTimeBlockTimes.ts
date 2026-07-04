@@ -1,7 +1,5 @@
-import {
-  inferEventDateTimeFromText,
-  parseIsoDateTimeToUtcIso,
-} from "@/lib/bruno/inferEventDateTime";
+import { parseIsoDateTimeToUtcIso } from "@/lib/bruno/inferEventDateTime";
+import { inferFlexibleEventDateTime } from "@/lib/bruno/dates";
 
 type TimeBlockPayload = {
   startTime?: string;
@@ -73,7 +71,7 @@ export function resolveTimeBlockTimes(
       options.description ?? "",
     ].filter(Boolean);
 
-    const inferred = inferEventDateTimeFromText(
+    const inferred = inferFlexibleEventDateTime(
       hintTexts.join(" "),
       timeZone,
       options.referenceDate ?? new Date(),
@@ -98,7 +96,7 @@ export function resolveTimeBlockTimes(
     options.description ?? "",
   ].filter(Boolean);
 
-  const inferred = inferEventDateTimeFromText(
+  const inferred = inferFlexibleEventDateTime(
     hintTexts.join(" "),
     timeZone,
     options.referenceDate ?? new Date(),

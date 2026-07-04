@@ -1,14 +1,26 @@
 import React from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { BrunoClarificationCard } from '@/components/bruno/BrunoClarificationCard';
 import type { BrunoClarificationCard as BrunoClarificationCardData } from '@/lib/bruno/types';
 
-jest.mock('@/components/ui/GlassSurface', () => ({
-  GlassSurface: ({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) => (
-    <View style={style}>{children}</View>
-  ),
+jest.mock('react-native/Libraries/StyleSheet/StyleSheet', () => ({
+  create: (styles: unknown) => styles,
+  flatten: (style: unknown) => style,
 }));
+
+jest.mock('react-native/Libraries/StyleSheet/StyleSheetExports', () => ({
+  create: (styles: unknown) => styles,
+  flatten: (style: unknown) => style,
+}));
+
+jest.mock('@/components/ui/GlassSurface', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require('react');
+  return {
+    GlassSurface: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+  };
+});
 
 const card: BrunoClarificationCardData = {
   type: 'bruno_clarification_card',

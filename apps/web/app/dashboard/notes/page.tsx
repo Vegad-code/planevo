@@ -5,7 +5,7 @@ import { useRegisterBrunoContext } from '@/components/bruno/BrunoProvider';
 
 export default function NotesPage() {
   useRegisterBrunoContext({
-    source: 'dashboard',
+    source: 'notes',
     page: '/dashboard/notes',
     label: 'Notes',
   });

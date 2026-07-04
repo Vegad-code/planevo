@@ -87,7 +87,7 @@ Limit to around 5-7 blocks for a realistic day. Be sure to include breaks.`;
         Authorization: `Bearer ${openAiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.4-mini',
         messages: [
           { role: 'system', content: BRUNO_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },

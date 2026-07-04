@@ -6,6 +6,7 @@ import {
   isV3ExecutableAction,
 } from "@/lib/bruno/tools/actionLabels";
 import { isValidProposalColor } from "@/lib/bruno/proposalColors";
+import { cn } from "@/lib/utils";
 
 export type ExecutionStatus = "idle" | "executing" | "success" | "error" | "cancelled";
 
@@ -16,6 +17,7 @@ export type BrunoActionProposalCardProps = {
   onConfirm?: (proposal: BrunoActionProposal) => void | Promise<void>;
   onCancel?: (proposal: BrunoActionProposal) => void;
   compact?: boolean;
+  disabled?: boolean;
 };
 
 export function BrunoActionProposalCard({
@@ -25,11 +27,12 @@ export function BrunoActionProposalCard({
   onConfirm,
   onCancel,
   compact = false,
+  disabled = false,
 }: BrunoActionProposalCardProps) {
   const isExecutable = isV3ExecutableAction(proposal.type);
   const isConfirmableType = isExecutable;
   const canConfirm =
-    isExecutable && isConfirmableType && executionStatus === "idle";
+    isExecutable && isConfirmableType && executionStatus === "idle" && !disabled;
 
   const labels = getProposalActionLabels(proposal.type);
 
@@ -58,24 +61,29 @@ export function BrunoActionProposalCard({
   const executingLabel = labels.executingLabel;
 
   return (
-    <div className={compact ? "rounded-xl border border-white/10 p-3 bg-[#111113]" : "rounded-2xl border border-white/10 p-5 bg-[#111113]"}>
+    <div
+      className={cn(
+        "rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)]",
+        compact ? "p-3" : "p-5"
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex gap-3 min-w-0">
+        <div className="flex min-w-0 gap-3">
           {proposalColor && (
             <span
-              className="mt-1 size-3 shrink-0 rounded-full border border-white/20"
+              className="mt-1 size-3 shrink-0 rounded-full border border-[var(--color-settings-border)]"
               style={{ backgroundColor: proposalColor }}
               aria-hidden
             />
           )}
           <div className="min-w-0">
-          <div className="font-semibold text-white">{proposal.title}</div>
-          <div className="mt-1 text-sm text-white/60">{proposal.description}</div>
+          <div className="font-semibold text-[var(--color-settings-text)]">{proposal.title}</div>
+          <div className="mt-1 text-sm text-[var(--color-settings-text-muted)]">{proposal.description}</div>
           
           {compact && (estimatedMinutes || priority || startTimeLabel) && (
             <div className="mt-2 flex gap-2">
               {startTimeLabel && (
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                <span className="rounded-full bg-[var(--color-settings-bg)] px-2 py-0.5 text-[10px] text-[var(--color-settings-text-muted)]">
                   {new Date(startTimeLabel).toLocaleString(undefined, {
                     month: "short",
                     day: "numeric",
@@ -85,17 +93,17 @@ export function BrunoActionProposalCard({
                 </span>
               )}
               {estimatedMinutes && (
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                <span className="rounded-full bg-[var(--color-settings-bg)] px-2 py-0.5 text-[10px] text-[var(--color-settings-text-muted)]">
                   {estimatedMinutes}m
                 </span>
               )}
               {priority && (
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50 capitalize">
+                <span className="rounded-full bg-[var(--color-settings-bg)] px-2 py-0.5 text-[10px] capitalize text-[var(--color-settings-text-muted)]">
                   {priority}
                 </span>
               )}
               {colorCategory && (
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50 capitalize">
+                <span className="rounded-full bg-[var(--color-settings-bg)] px-2 py-0.5 text-[10px] capitalize text-[var(--color-settings-text-muted)]">
                   {colorCategory}
                 </span>
               )}
@@ -103,19 +111,19 @@ export function BrunoActionProposalCard({
           )}
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase text-emerald-400">
+        <span className="shrink-0 rounded-full border border-[var(--color-sage)]/30 bg-[var(--color-sage)]/10 px-2 py-1 text-[10px] uppercase text-[var(--color-sage)]">
           {proposal.riskLevel} risk
         </span>
       </div>
 
       {executionStatus === "success" ? (
-        <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+        <div className="mt-3 rounded-lg border border-[var(--color-sage)]/25 bg-[var(--color-sage)]/10 px-3 py-2 text-sm text-[var(--color-sage)]">
           {successLabel}
         </div>
       ) : null}
 
       {executionStatus === "error" ? (
-        <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <div className="mt-3 rounded-lg border border-[var(--color-rose)]/25 bg-[var(--color-rose)]/10 px-3 py-2 text-sm text-[var(--color-rose)]">
           {executionError ?? errorLabel}
         </div>
       ) : null}
@@ -125,7 +133,7 @@ export function BrunoActionProposalCard({
           type="button"
           disabled={!canConfirm}
           onClick={() => onConfirm?.(proposal)}
-          className="rounded-lg bg-[#d99043] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50 transition-colors hover:bg-[#c48139]"
+          className="rounded-lg bg-[var(--color-honey)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-honey)]/90 disabled:opacity-50"
         >
           {executionStatus === "executing"
             ? executingLabel
@@ -140,15 +148,16 @@ export function BrunoActionProposalCard({
 
         <button
           type="button"
+          disabled={disabled && executionStatus !== "success"}
           onClick={() => onCancel?.(proposal)}
-          className="rounded-lg bg-white/[0.06] px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/[0.1]"
+          className="rounded-lg bg-[var(--color-settings-bg)] px-3 py-2 text-sm text-[var(--color-settings-text-muted)] transition-colors hover:bg-[var(--color-settings-card-hover)] hover:text-[var(--color-settings-text)] disabled:opacity-50"
         >
           {executionStatus === "success" ? "Dismiss" : "Cancel"}
         </button>
       </div>
 
       {!compact && proposal.requiresConfirmation ? (
-        <div className="mt-3 border-t border-white/10 pt-3 text-xs text-white/50">
+        <div className="mt-3 border-t border-[var(--color-settings-border)] pt-3 text-xs text-[var(--color-settings-text-muted)]">
           Requires your confirmation to execute.
         </div>
       ) : null}

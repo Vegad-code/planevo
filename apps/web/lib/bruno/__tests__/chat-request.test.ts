@@ -14,6 +14,8 @@ describe('createBrunoChatRequestBody', () => {
       diagnostics: true,
       conversationId: 'conversation-1',
       assistantMode: 'planning',
+      timeZone: expect.any(String),
+      localTime: expect.any(String),
       pageContext: {
         source: 'calendar',
         page: '/dashboard/calendar',
@@ -48,7 +50,21 @@ describe('createBrunoChatRequestBody', () => {
       diagnostics: true,
       conversationId: 'conversation-1',
       assistantMode: 'general',
+      timeZone: expect.any(String),
+      localTime: expect.any(String),
       clarificationResponse,
+    });
+  });
+
+  it('uses explicit scheduling context when provided', () => {
+    expect(
+      createBrunoChatRequestBody('conversation-1', null, 'general', undefined, {
+        localTime: '7/2/2026, 9:00:00 AM',
+        timeZone: 'America/New_York',
+      })
+    ).toMatchObject({
+      localTime: '7/2/2026, 9:00:00 AM',
+      timeZone: 'America/New_York',
     });
   });
 });

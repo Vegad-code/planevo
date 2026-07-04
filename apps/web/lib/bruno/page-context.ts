@@ -15,10 +15,12 @@ export const pageContextSchema = z
     source: z
       .enum([
         'sidebar',
+        'dock',
         'dashboard',
         'daily-plan',
         'tasks',
         'calendar',
+        'notes',
         'settings',
         'unknown',
       ])

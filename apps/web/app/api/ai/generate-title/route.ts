@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     // Generate a concise title
     const { text: generatedTitle } = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5.4-nano'),
       system: 'You are an assistant that generates very short, concise titles for chat conversations. Return ONLY the title (2 to 5 words). Do not use quotation marks, punctuation, or filler words.',
       prompt: `Generate a title for a chat starting with this message:\n\n"${message}"`,
     });

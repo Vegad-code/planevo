@@ -19,6 +19,12 @@ export interface DayPlanBlock {
   linkedTaskId: string | null;
   source: string | null;
   externalUrl?: string;
+  confidence?: number;
+  confidenceFactors: string[];
+  sourceIds: string[];
+  constraintsUsed: string[];
+  plannerVersion?: string;
+  blockKind?: string;
 }
 
 export interface DayPlanSnapshot {
@@ -60,6 +66,19 @@ export function calendarRowToDayBlock(row: CalendarEventRow): DayPlanBlock {
   const startTime = new Date(row.start_time);
   const endTime = row.end_time ? new Date(row.end_time) : new Date(startTime.getTime() + 30 * 60_000);
   const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+  const confidence =
+    typeof metadata.confidence === 'number' && Number.isFinite(metadata.confidence)
+      ? metadata.confidence
+      : undefined;
+  const confidenceFactors = Array.isArray(metadata.confidenceFactors)
+    ? metadata.confidenceFactors.filter((value): value is string => typeof value === 'string')
+    : [];
+  const sourceIds = Array.isArray(metadata.sourceIds)
+    ? metadata.sourceIds.filter((value): value is string => typeof value === 'string')
+    : [];
+  const constraintsUsed = Array.isArray(metadata.constraintsUsed)
+    ? metadata.constraintsUsed.filter((value): value is string => typeof value === 'string')
+    : [];
 
   return {
     id: row.id,
@@ -77,6 +96,12 @@ export function calendarRowToDayBlock(row: CalendarEventRow): DayPlanBlock {
     linkedTaskId: row.linked_task_id,
     source: row.source,
     externalUrl: row.location ?? undefined,
+    confidence,
+    confidenceFactors,
+    sourceIds,
+    constraintsUsed,
+    plannerVersion: typeof metadata.plannerVersion === 'string' ? metadata.plannerVersion : undefined,
+    blockKind: typeof metadata.blockKind === 'string' ? metadata.blockKind : undefined,
   };
 }
 

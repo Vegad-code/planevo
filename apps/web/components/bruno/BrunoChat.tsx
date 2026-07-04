@@ -159,18 +159,10 @@ export default function BrunoChat() {
       const message = (event as any).message || event;
       const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
       
-      // Persist Bruno's final response to Supabase when the stream completes
+      // Assistant-turn persistence is server-side now (chat stream onFinish);
+      // only conversation metadata stays client-side.
       if (currentConversationId && message.role === 'assistant' && textPart) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await (supabase as any).from('bruno_messages').insert({
-            conversation_id: currentConversationId,
-            message_type: 'assistant',
-            content: textPart,
-            user_id: user.id
-          });
-          await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
-        }
+        await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
       }
     }
   });
@@ -266,7 +258,7 @@ export default function BrunoChat() {
 
     const { data } = await supabase
       .from('bruno_messages')
-      .select('id, content, message_type, created_at')
+      .select('id, content, message_type, parts, created_at')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true });
 
@@ -274,7 +266,10 @@ export default function BrunoChat() {
       setMessages(data.map((m) => ({
         id: m.id,
         role: m.message_type === 'user' ? 'user' : 'assistant',
-        parts: [{ type: 'text', text: m.content }],
+        parts:
+          m.message_type !== 'user' && Array.isArray(m.parts) && m.parts.length > 0
+            ? m.parts
+            : [{ type: 'text', text: m.content }],
         createdAt: new Date(m.created_at)
       } as UIMessage)));
     }
@@ -333,18 +328,8 @@ export default function BrunoChat() {
         setEditingMessageId(null);
       }
 
-      // Save user message to Supabase
-      if (convId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await (supabase as any).from('bruno_messages').insert({
-            conversation_id: convId,
-            message_type: 'user',
-            content: userMessage,
-            user_id: user.id
-          });
-        }
-      }
+      // User-turn persistence is server-side now (chat route persists it
+      // with dedup); writing it here too would create duplicate rows.
 
       // Trigger the stream
       setIsAtBottom(true);

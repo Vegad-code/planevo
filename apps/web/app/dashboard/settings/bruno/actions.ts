@@ -171,7 +171,7 @@ export async function parseLLMImportAction(rawText: string) {
     }
 
     const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5.4-nano'),
       schema: llmImportSchema,
       prompt: `Extract settings and preferences from the user's raw pasted instructions and map them to the schema.
       

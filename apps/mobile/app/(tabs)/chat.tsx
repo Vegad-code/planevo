@@ -5,6 +5,11 @@ import {
   createBrunoChatRequestBody,
   createBrunoChatTransport,
 } from '@/lib/bruno/chat-transport';
+import {
+  extractProposalsFromMessage,
+  type ExtractedProposal,
+} from '@/lib/bruno/extractProposals';
+import { executeBrunoActionProposal } from '@/lib/bruno/executeActionProposal';
 import { deriveBrunoProgressState } from '@/lib/bruno/brunoProgressState';
 import { useBrunoThinkingLabel } from '@/hooks/useBrunoThinkingLabel';
 import type {
@@ -15,6 +20,11 @@ import type {
 } from '@/lib/bruno/types';
 import { BrunoThinkingIndicator } from '@/components/bruno/BrunoThinkingIndicator';
 import { BrunoClarificationCard } from '@/components/bruno/BrunoClarificationCard';
+import {
+  BrunoActionProposalCard,
+  type MobileActionProposal,
+  type MobileExecutionStatus,
+} from '@/components/bruno/BrunoActionProposalCard';
 import {
   View,
   Text,
@@ -56,6 +66,7 @@ interface ChatMessage {
   toolCalls?: { toolName: string; args?: Record<string, unknown> }[];
   metadata?: MobileBrunoMetadata;
   clarificationCards?: BrunoClarificationCardData[];
+  actionProposals?: ExtractedProposal[];
 }
 
 const WELCOME_TEXT =
@@ -135,6 +146,23 @@ function formatClarificationResponseForChat(
   ].join('\n');
 }
 
+function findUserPromptBeforeMessage(
+  messages: BrunoUIMessage[],
+  assistantMessageId: string
+): string | undefined {
+  const messageIndex = messages.findIndex((message) => message.id === assistantMessageId);
+  const searchMessages = messageIndex === -1 ? messages : messages.slice(0, messageIndex);
+
+  for (let index = searchMessages.length - 1; index >= 0; index -= 1) {
+    const message = searchMessages[index];
+    if (message.role === 'user') {
+      return messageText(message) || undefined;
+    }
+  }
+
+  return undefined;
+}
+
 export default function BrunoChatScreen() {
   const { assistantMode, togglePlanningMode, isPlanningMode } =
     useBrunoAssistantMode();
@@ -173,20 +201,18 @@ export default function BrunoChatScreen() {
       }
     },
     onFinish: async ({ message }) => {
-      const textPart = messageText(message);
+      // Assistant-turn persistence is server-side now (the chat route stores
+      // the full message with parts); inserting here would duplicate rows.
       const activeUser = userRef.current;
       if (
         currentConversationIdRef.current &&
         message.role === 'assistant' &&
-        textPart &&
         activeUser
       ) {
-        await supabase.from('bruno_messages').insert({
-          conversation_id: currentConversationIdRef.current,
-          user_id: activeUser.id,
-          content: textPart,
-          message_type: 'assistant',
-        });
+        await supabase
+          .from('chat_conversations')
+          .update({ last_active: new Date().toISOString() })
+          .eq('id', currentConversationIdRef.current);
       }
     },
   });
@@ -216,6 +242,7 @@ export default function BrunoChatScreen() {
           timestamp: new Date(),
           toolCalls: extractToolCallsFromMessage(message),
           clarificationCards: extractClarificationCardsFromMessage(message),
+          actionProposals: extractProposalsFromMessage(message),
         })),
     [uiMessages]
   );
@@ -242,6 +269,8 @@ export default function BrunoChatScreen() {
 
   const [previewPlanData, setPreviewPlanData] = useState<any>(null);
   const [isCommittingPlan, setIsCommittingPlan] = useState(false);
+  const [actionStatuses, setActionStatuses] = useState<Record<string, MobileExecutionStatus>>({});
+  const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     if (typeof promptParam === 'string' && promptParam.trim()) {
@@ -508,6 +537,45 @@ export default function BrunoChatScreen() {
     await submitUserMessage(inputText);
   }, [inputText, submitUserMessage]);
 
+  const handleConfirmProposal = useCallback(
+    async (proposal: MobileActionProposal, assistantMessageId: string) => {
+      setActionStatuses((prev) => ({ ...prev, [proposal.id]: 'executing' }));
+      setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) {
+          throw new Error('Sign in again to confirm this action.');
+        }
+
+        const result = await executeBrunoActionProposal({
+          proposal,
+          accessToken: token,
+          userPrompt: findUserPromptBeforeMessage(uiMessages, assistantMessageId),
+        });
+
+        if (!result.success) {
+          throw new Error(result.error ?? 'Could not execute action');
+        }
+
+        setActionStatuses((prev) => ({ ...prev, [proposal.id]: 'success' }));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not execute action';
+        console.error('[Bruno] Failed to execute proposal', error);
+        setActionStatuses((prev) => ({ ...prev, [proposal.id]: 'error' }));
+        setActionErrors((prev) => ({ ...prev, [proposal.id]: message }));
+      }
+    },
+    [uiMessages]
+  );
+
+  const handleCancelProposal = useCallback((proposal: MobileActionProposal) => {
+    setActionStatuses((prev) => ({ ...prev, [proposal.id]: 'cancelled' }));
+    setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
+  }, []);
+
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const isEditing = editingMessageId === item.id;
@@ -568,11 +636,39 @@ export default function BrunoChatScreen() {
                 ))}
               </View>
             )}
+
+            {!isUser && item.actionProposals && item.actionProposals.length > 0 && (
+              <View style={styles.actionProposalStack}>
+                {item.actionProposals.map((proposal) => {
+                  const executionStatus = actionStatuses[proposal.id] ?? 'idle';
+                  if (executionStatus === 'cancelled') {
+                    return null;
+                  }
+
+                  return (
+                    <BrunoActionProposalCard
+                      key={proposal.id}
+                      proposal={proposal}
+                      executionStatus={executionStatus}
+                      executionError={actionErrors[proposal.id]}
+                      onConfirm={(selectedProposal) =>
+                        handleConfirmProposal(selectedProposal, item.id)
+                      }
+                      onCancel={handleCancelProposal}
+                      isDark={isDark}
+                    />
+                  );
+                })}
+              </View>
+            )}
             
             {/* Render Tool Calls */}
             {!isUser && item.toolCalls && item.toolCalls.length > 0 && (
               <View style={{ marginTop: 12, gap: 8 }}>
                 {item.toolCalls.map((tc, idx) => {
+                  if (tc.toolName === 'propose_action') {
+                    return null;
+                  }
                   if (tc.toolName === 'propose_plan_draft' && tc.args) {
                     const planTitle =
                       typeof tc.args.plan_title === 'string' ? tc.args.plan_title : 'Plan draft';
@@ -972,6 +1068,10 @@ const styles = StyleSheet.create({
   messageRole: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   messageText: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
   clarificationStack: {
+    marginTop: 12,
+    gap: 10,
+  },
+  actionProposalStack: {
     marginTop: 12,
     gap: 10,
   },

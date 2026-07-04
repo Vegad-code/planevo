@@ -117,7 +117,11 @@ export async function runFullSync(userId: string) {
   };
 
   try {
-    results.google = await syncGoogleCalendar(userId);
+    const googleSync = await syncGoogleCalendar(userId);
+    results.google = googleSync.count;
+    if (googleSync.partial) {
+      results.errors.push(...googleSync.warnings.map((w) => `Google Sync: ${w}`));
+    }
   } catch (err: unknown) {
     results.errors.push(`Google Sync: ${err instanceof Error ? err.message : String(err)}`);
   }

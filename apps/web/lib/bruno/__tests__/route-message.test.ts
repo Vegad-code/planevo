@@ -69,7 +69,7 @@ describe('routeBrunoMessage', () => {
     expect(classify).toHaveBeenCalledOnce();
   });
 
-  it('fails safe to basic chat when the classifier throws', async () => {
+  it('keeps workspace context available when the classifier throws', async () => {
     const result = await routeBrunoMessage(
       { message: 'Can you help me figure out what matters here?' },
       {
@@ -79,6 +79,9 @@ describe('routeBrunoMessage', () => {
 
     expect(result.routeSource).toBe('fallback');
     expect(result.decision.mode).toBe('basic_chat');
+    expect(result.decision.needsTaskContext).toBe(true);
+    expect(result.decision.needsCalendarContext).toBe(true);
+    expect(result.decision.needsCanvasContext).toBe(true);
   });
 });
 

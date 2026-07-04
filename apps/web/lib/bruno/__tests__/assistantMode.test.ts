@@ -84,5 +84,12 @@ describe('usesMinimalGeneralPrompt', () => {
         routeMode: 'academic_tutoring',
       })
     ).toBe(false);
+    expect(
+      usesMinimalGeneralPrompt({
+        effectiveAssistantMode: 'general',
+        routeMode: 'basic_chat',
+        routeHasContextSignal: true,
+      })
+    ).toBe(false);
   });
 });

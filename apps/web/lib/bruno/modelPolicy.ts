@@ -5,11 +5,14 @@ import type {
   BrunoRouteDecision,
 } from './types';
 
+// nano is built for classification/routing — never run a tool loop on it.
+// gpt-4o-mini (2024, no reasoning, pre-GPT-5 tool calling) must not come back
+// on any action-capable tier.
 export const BRUNO_MODELS = {
   ROUTER: process.env.BRUNO_ROUTER_MODEL ?? 'gpt-5.4-nano',
-  STANDARD: process.env.BRUNO_STANDARD_MODEL ?? 'gpt-4o-mini',
-  MEDIUM: process.env.BRUNO_MEDIUM_MODEL ?? 'gpt-5.4-nano',
-  DEEP: process.env.BRUNO_DEEP_MODEL ?? 'gpt-5.4-mini',
+  STANDARD: process.env.BRUNO_STANDARD_MODEL ?? 'gpt-5.4-mini',
+  MEDIUM: process.env.BRUNO_MEDIUM_MODEL ?? 'gpt-5.4-mini',
+  DEEP: process.env.BRUNO_DEEP_MODEL ?? 'gpt-5.4',
 } as const;
 
 export const BRUNO_PRO_MONTHLY_DEEP_LIMIT = 150;
@@ -38,10 +41,10 @@ export const MODEL_POLICY: Record<
     proLocked: false,
     freeCreditsAllowed: false,
     includeTasks: true,
-    includeCalendar: false,
+    includeCalendar: true,
     includeCanvas: false,
-    maxOutputTokens: 400,
-    temperature: 0.2,
+    maxOutputTokens: 4000,
+    temperature: 0.1,
     upgradeCardEligible: false,
   },
   basic_chat: {
@@ -51,7 +54,7 @@ export const MODEL_POLICY: Record<
     includeTasks: false,
     includeCalendar: false,
     includeCanvas: false,
-    maxOutputTokens: 500,
+    maxOutputTokens: 2000,
     temperature: 0.6,
     upgradeCardEligible: false,
   },
@@ -62,7 +65,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: false,
     includeCanvas: false,
-    maxOutputTokens: 700,
+    maxOutputTokens: 3000,
     temperature: 0.35,
     upgradeCardEligible: false,
   },
@@ -73,7 +76,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: true,
     includeCanvas: false,
-    maxOutputTokens: 900,
+    maxOutputTokens: 4000,
     temperature: 0.35,
     upgradeCardEligible: false,
   },
@@ -84,7 +87,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: true,
     includeCanvas: false,
-    maxOutputTokens: 1000,
+    maxOutputTokens: 4000,
     temperature: 0.35,
     upgradeCardEligible: true,
   },
@@ -95,7 +98,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: true,
     includeCanvas: true,
-    maxOutputTokens: 1600,
+    maxOutputTokens: 4000,
     temperature: 0.25,
     upgradeCardEligible: true,
   },
@@ -139,7 +142,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: true,
     includeCanvas: true,
-    maxOutputTokens: 1800,
+    maxOutputTokens: 4000,
     temperature: 0.3,
     upgradeCardEligible: true,
   },
@@ -150,7 +153,7 @@ export const MODEL_POLICY: Record<
     includeTasks: false,
     includeCalendar: false,
     includeCanvas: false,
-    maxOutputTokens: 700,
+    maxOutputTokens: 1500,
     temperature: 0.2,
     upgradeCardEligible: false,
   },
@@ -161,7 +164,7 @@ export const MODEL_POLICY: Record<
     includeTasks: true,
     includeCalendar: true,
     includeCanvas: false,
-    maxOutputTokens: 900,
+    maxOutputTokens: 1500,
     temperature: 0.45,
     upgradeCardEligible: false,
   },
@@ -298,7 +301,7 @@ export function resolveBrunoGenerationPlan(input: {
       shouldShowProCap: true,
       policy: {
         ...policy,
-        maxOutputTokens: Math.min(policy.maxOutputTokens, 800),
+        maxOutputTokens: Math.min(policy.maxOutputTokens, 2000),
         includeCanvas: false,
       },
     };
@@ -346,8 +349,23 @@ export function resolveBrunoGenerationPlan(input: {
     shouldShowProCap: false,
     policy: {
       ...policy,
-      maxOutputTokens: Math.min(policy.maxOutputTokens, 800),
+      maxOutputTokens: Math.min(policy.maxOutputTokens, 2000),
       includeCanvas: false,
     },
+  };
+}
+
+export function applyRouteContextSignalsToPolicy(
+  policy: BrunoModelPolicy,
+  decision: Pick<
+    BrunoRouteDecision,
+    'needsCalendarContext' | 'needsTaskContext' | 'needsCanvasContext'
+  >
+): BrunoModelPolicy {
+  return {
+    ...policy,
+    includeTasks: policy.includeTasks || decision.needsTaskContext,
+    includeCalendar: policy.includeCalendar || decision.needsCalendarContext,
+    includeCanvas: policy.includeCanvas || decision.needsCanvasContext,
   };
 }

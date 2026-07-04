@@ -11,6 +11,8 @@ export function getProposalActionLabels(type: string) {
   switch (type) {
     case 'CREATE_TIME_BLOCK':
       return { confirmLabel: 'Add to calendar', executingLabel: 'Adding...', successLabel: 'Event added to calendar', errorLabel: "Couldn't add event. Try again." };
+    case 'UPDATE_CALENDAR_EVENT':
+      return { confirmLabel: 'Update event', executingLabel: 'Updating...', successLabel: 'Event updated', errorLabel: "Couldn't update event. Try again." };
     case 'CREATE_NOTE':
     case 'UPDATE_NOTE':
     case 'APPEND_TO_NOTE':
@@ -26,6 +28,8 @@ export function getProposalActionLabels(type: string) {
       return { confirmLabel: 'Update task', executingLabel: 'Updating...', successLabel: 'Task updated', errorLabel: "Couldn't update task. Try again." };
     case 'UPDATE_DAILY_PLAN':
       return { confirmLabel: 'Update plan', executingLabel: 'Updating...', successLabel: 'Daily plan updated', errorLabel: "Couldn't update plan. Try again." };
+    case 'APPLY_PLAN':
+      return { confirmLabel: 'Apply plan', executingLabel: 'Applying plan...', successLabel: 'Plan applied', errorLabel: "Couldn't apply the full plan. Check which steps completed." };
     default:
       return { confirmLabel: 'Confirm', executingLabel: 'Creating...', successLabel: 'Task created', errorLabel: "Couldn't create task. Try again." };
   }
@@ -33,7 +37,7 @@ export function getProposalActionLabels(type: string) {
 
 export function getPostExecuteRefreshTargets(type: string) {
   return {
-    refreshDashboard: ['CREATE_TASK', 'UPDATE_TASK', 'RESCHEDULE_TASK', 'DELETE_TASK', 'CREATE_TIME_BLOCK', 'DELETE_CALENDAR_EVENT', 'UPDATE_DAILY_PLAN'].includes(type),
-    emitNoteUpdated: ['CREATE_NOTE', 'UPDATE_NOTE', 'APPEND_TO_NOTE', 'ARCHIVE_NOTE'].includes(type),
+    refreshDashboard: ['CREATE_TASK', 'UPDATE_TASK', 'RESCHEDULE_TASK', 'DELETE_TASK', 'CREATE_TIME_BLOCK', 'UPDATE_CALENDAR_EVENT', 'DELETE_CALENDAR_EVENT', 'UPDATE_DAILY_PLAN', 'APPLY_PLAN'].includes(type),
+    emitNoteUpdated: ['CREATE_NOTE', 'UPDATE_NOTE', 'APPEND_TO_NOTE', 'ARCHIVE_NOTE', 'APPLY_PLAN'].includes(type),
   };
 }

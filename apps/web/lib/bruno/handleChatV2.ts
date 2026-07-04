@@ -29,6 +29,7 @@ import {
 import { estimateModelCostCents } from './costEstimator';
 import { moderateBrunoMessage } from './moderation';
 import {
+  applyRouteContextSignalsToPolicy,
   BRUNO_MODELS,
   resolveBrunoGenerationPlan,
   BRUNO_PRO_MONTHLY_DEEP_LIMIT,
@@ -84,6 +85,7 @@ import { getBrunoComposioTools } from '@/lib/integrations/composio/bruno-tools';
 import { buildNotionToolHint } from '@/lib/integrations/composio/providerTools';
 import { BrunoProgressWriter } from './progressWriter';
 import { getBrunoReadTools } from './readTools';
+import { getBrunoV3ReadTools } from './tools/readTools';
 import {
   didAutoEscalateToPlanning,
   parseBrunoAssistantMode,
@@ -95,6 +97,8 @@ import {
   generateBrunoClarificationCard,
   shouldRequestClarification,
 } from './clarification';
+import { runBrunoAppActionWorkflow } from './appActionWorkflow';
+import { persistBrunoProposalArgs } from './proposalPersistence';
 type ChatMessage = {
   id?: string;
   role: 'user' | 'assistant' | 'tool';
@@ -134,9 +138,16 @@ const proposeActionParams = jsonSchema({
         'UPDATE_TASK',
         'RESCHEDULE_TASK',
         'CREATE_TIME_BLOCK',
+        'UPDATE_CALENDAR_EVENT',
         'UPDATE_DAILY_PLAN',
         'EXPLAIN_PLAN',
         'NO_ACTION',
+        'CREATE_NOTE',
+        'UPDATE_NOTE',
+        'APPEND_TO_NOTE',
+        'ARCHIVE_NOTE',
+        'DELETE_CALENDAR_EVENT',
+        'DELETE_TASK',
       ],
     },
     title: { type: 'string', minLength: 1, maxLength: 120 },
@@ -150,11 +161,20 @@ const proposeActionParams = jsonSchema({
         notes: { type: 'string' },
         estimatedMinutes: { type: 'number' },
         priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+        status: { type: 'string', enum: ['todo', 'in_progress', 'done', 'missed'] },
+        completed: { type: 'boolean', description: 'Set true to mark a task done, false to reopen it' },
+        completedAt: { type: 'string', description: 'ISO 8601 completion timestamp when marking a task done' },
         dueDate: { type: 'string' },
         startTime: { type: 'string', description: 'ISO 8601 start time for CREATE_TIME_BLOCK' },
         endTime: { type: 'string', description: 'ISO 8601 end time for CREATE_TIME_BLOCK' },
         durationMinutes: { type: 'number', description: 'Duration in minutes when endTime is omitted' },
         location: { type: 'string' },
+        eventId: { type: 'string', description: 'UUID of an existing calendar event for UPDATE_CALENDAR_EVENT or DELETE_CALENDAR_EVENT' },
+        taskId: { type: 'string', description: 'UUID of an existing task for UPDATE_TASK, RESCHEDULE_TASK, or DELETE_TASK' },
+        noteId: { type: 'string' },
+        noteTitle: { type: 'string' },
+        contentMarkdown: { type: 'string' },
+        appendMarkdown: { type: 'string' },
         color: { type: 'string', description: 'Hex color e.g. #039BE5 for calendar display' },
         colorCategory: {
           type: 'string',
@@ -169,26 +189,72 @@ const proposeActionParams = jsonSchema({
   required: ['type', 'title', 'description'],
 });
 
-function normalizeMessages(messages: ChatMessage[]): UIMessage[] {
-  return messages
-    .filter(
-      (message): message is ChatMessage & {
-        role: 'user' | 'assistant';
-      } => message.role === 'user' || message.role === 'assistant'
-    )
-    .map((message, index) => ({
-      id: message.id ?? `message-${index}`,
-      role: message.role,
-      parts: Array.isArray(message.parts)
-        ? (message.parts as UIMessage['parts'])
-        : [
-            {
-              type: 'text' as const,
-              text: typeof message.content === 'string' ? message.content : '',
-            },
-          ],
-    }));
-}
+import {
+  resolveBrunoReferenceDate,
+  resolveBrunoTimeZone,
+} from '@/lib/bruno/schedulingContext';
+import {
+  persistBrunoAssistantTurn,
+  persistBrunoUserTurn,
+  resolveAuthoritativeChatMessages,
+} from '@/lib/bruno/serverChatHistory';
+import {
+  applyPlanStepSchema,
+  coerceProposedActionInput,
+  DESTRUCTIVE_ACTION_TYPES,
+  proposedActionSchema,
+  type BrunoActionTypeV3,
+} from '@/lib/bruno/tools/schemas';
+
+const proposePlanParams = jsonSchema({
+  type: 'object' as const,
+  properties: {
+    summary: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 2000,
+      description: 'One or two sentences describing the whole plan for the user.',
+    },
+    steps: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      items: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: [
+              'CREATE_TASK',
+              'UPDATE_TASK',
+              'RESCHEDULE_TASK',
+              'CREATE_TIME_BLOCK',
+              'UPDATE_CALENDAR_EVENT',
+              'UPDATE_DAILY_PLAN',
+              'CREATE_NOTE',
+              'UPDATE_NOTE',
+              'APPEND_TO_NOTE',
+              'ARCHIVE_NOTE',
+              'DELETE_CALENDAR_EVENT',
+              'DELETE_TASK',
+            ],
+          },
+          title: { type: 'string', minLength: 1, maxLength: 120 },
+          description: { type: 'string', maxLength: 500 },
+          ref: {
+            type: 'string',
+            maxLength: 60,
+            description:
+              'Optional name for this step so later steps can reference the created entity via taskIdRef/eventIdRef/noteIdRef/linkedTaskIdRef in their payload.',
+          },
+          payload: { type: 'object', additionalProperties: true },
+        },
+        required: ['type', 'title'],
+      },
+    },
+  },
+  required: ['summary', 'steps'],
+});
 
 function writeStaticText(
   writer: Pick<
@@ -446,6 +512,21 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
     );
   }
 
+  const preferences =
+    typeof input.profile?.scheduling_preferences === 'object' &&
+    input.profile.scheduling_preferences !== null
+      ? (input.profile.scheduling_preferences as Record<string, unknown>)
+      : {};
+  const preferredTimeZone = resolveBrunoTimeZone({
+    clientTimeZone: input.timeZone,
+    profilePreferences: preferences,
+  });
+  const referenceDate = resolveBrunoReferenceDate({
+    localTime: input.localTime,
+    pageContext: input.pageContext,
+  });
+  const dataAccess = parseBrunoDataAccess(preferences);
+
   const logSafetyResponse = async (
     status: 'crisis' | 'unsafe',
     response: string
@@ -582,6 +663,21 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
 
       progress.markSafetyDone();
 
+      // Server-authoritative persistence of the user turn (Phase A): the
+      // server owns both sides of the transcript so history survives client
+      // races, reloads, and future approval-resume flows.
+      if (input.conversationId) {
+        try {
+          await persistBrunoUserTurn(supabaseAdmin, {
+            userId: input.user.id,
+            conversationId: input.conversationId,
+            text: latestMessage,
+          });
+        } catch (persistError) {
+          Sentry.captureException(persistError);
+        }
+      }
+
       const lastMode = await loadLastConversationMode(input.conversationId);
       const stickyNotes = shouldStickToNotesMode({
         message: latestMessage,
@@ -685,9 +781,14 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         assistantMode: requestedAssistantMode,
         effectiveAssistantMode,
       });
+      const routeHasContextSignal =
+        routeResult.decision.needsTaskContext ||
+        routeResult.decision.needsCalendarContext ||
+        routeResult.decision.needsCanvasContext;
       const useMinimalPrompt = usesMinimalGeneralPrompt({
         effectiveAssistantMode,
         routeMode: routeResult.decision.mode,
+        routeHasContextSignal,
       });
 
       if (autoEscalated) {
@@ -707,6 +808,103 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         routeResult.decision.mode,
         routeResult.decision.rationale
       );
+
+      if (
+        routeResult.decision.mode === 'app_action' &&
+        (dataAccess.calendar || dataAccess.tasks)
+      ) {
+        try {
+          const workflowResult = await runBrunoAppActionWorkflow({
+            userId: input.user.id,
+            message: latestMessage,
+            timeZone: preferredTimeZone,
+            supabase: supabaseAdmin,
+            dataAccess,
+            referenceDate: resolveBrunoReferenceDate({
+              localTime: input.localTime,
+              pageContext: input.pageContext,
+            }),
+          });
+
+          // Only short-circuit the model when the deterministic workflow
+          // produced concrete proposals. Ambiguity text ("which event did you
+          // mean?") must fall through to the agent loop — the regex parser
+          // cannot understand the user's clarifying reply, so treating it as
+          // handled dead-ends the conversation.
+          if (workflowResult.handled && workflowResult.proposals.length > 0) {
+            routeTier = 'standard';
+            const assistantText =
+              workflowResult.text ||
+              'I prepared the calendar changes for confirmation.';
+            writeStaticText(writer, assistantText);
+
+            if (workflowResult.proposals.length > 0) {
+              writer.write({
+                type: 'data-bruno-action-proposals',
+                data: {
+                  type: 'bruno_action_proposals',
+                  source: 'deterministic_app_action_workflow',
+                  proposals: workflowResult.proposals,
+                },
+              });
+            }
+
+            progress.markComplete();
+            const latencyMs = Math.round(performance.now() - startedAt);
+            await Promise.allSettled([
+              completeBrunoUsage(usageRepository, {
+                usageLogId: input.usageLogId,
+                model: null,
+                mode: routeResult.decision.mode,
+                tier: 'standard',
+                inputTokens: 0,
+                outputTokens: 0,
+                estimatedCostCents: 0,
+                latencyMs,
+                status: 'completed',
+              }),
+              logBrunoRouteEvent(usageRepository, {
+                userId: input.user.id,
+                requestId: input.requestId,
+                conversationId: input.conversationId,
+                mode: routeResult.decision.mode,
+                confidence: routeResult.decision.confidence,
+                routeSource: routeResult.routeSource,
+                selectedTier: 'standard',
+                selectedModel: null,
+                isPro,
+                usedDeepCredit: false,
+                upgradeCardShown: false,
+                safetyStatus: 'clear',
+                inputTokens: 0,
+                outputTokens: 0,
+                estimatedCostCents: 0,
+                latencyMs,
+                rationale: `[deterministic_app_action_workflow;assistant=${requestedAssistantMode};effective=${effectiveAssistantMode};autoEscalated=${autoEscalated}] ${routeResult.decision.rationale}`,
+              }),
+            ]);
+
+            posthogServer.capture({
+              distinctId: input.user.id,
+              event: 'bruno_app_action_workflow_completed',
+              properties: {
+                mode: routeResult.decision.mode,
+                route_source: routeResult.routeSource,
+                proposal_count: workflowResult.proposals.length,
+                conversation_id: input.conversationId ?? null,
+                platform: input.isMobile ? 'mobile' : 'web',
+              },
+            });
+            return;
+          }
+        } catch (error) {
+          Sentry.captureException(error);
+          console.warn(
+            '[Bruno App Action Workflow] Falling back to model generation:',
+            error
+          );
+        }
+      }
 
       if (
         shouldRequestClarification({
@@ -876,7 +1074,10 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
             includeCalendar: false,
             includeCanvas: false,
           }
-        : generationPlan.policy;
+        : applyRouteContextSignalsToPolicy(
+            generationPlan.policy,
+            routeResult.decision
+          );
       const contextParts: string[] = [];
       if (contextPolicy.includeTasks) contextParts.push('tasks');
       if (contextPolicy.includeCalendar) contextParts.push('calendar');
@@ -884,23 +1085,6 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       progress.markContextLoading(
         contextParts.length > 0
           ? `Loading ${contextParts.join(', ')}`
-          : undefined
-      );
-
-      const preferences =
-        typeof input.profile?.scheduling_preferences === 'object' &&
-        input.profile.scheduling_preferences !== null
-          ? input.profile.scheduling_preferences
-          : {};
-      const preferredTimeZone =
-        'timezone' in preferences &&
-        typeof preferences.timezone === 'string'
-          ? preferences.timezone
-          : input.timeZone ?? 'UTC';
-
-      const dataAccess = parseBrunoDataAccess(
-        typeof preferences === 'object' && preferences !== null
-          ? (preferences as Record<string, unknown>)
           : undefined
       );
 
@@ -1013,6 +1197,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
             userPlan,
             localTime: input.localTime ?? new Date().toLocaleString(),
             timeZone: preferredTimeZone,
+            referenceDateIso: referenceDate.toISOString(),
             pageContext: buildPageContextBlock(input.pageContext),
             memoryContext,
             taskContext: context.taskContext,
@@ -1024,38 +1209,140 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
             dataAccess,
           });
 
-      const readTools = getBrunoReadTools(input.user.id, dataAccess);
+      const v1ReadTools = getBrunoReadTools(input.user.id, dataAccess);
+      const {
+        search_tasks: _searchTasks,
+        search_calendar_events: _searchCalendar,
+        ...v1ReadToolsWithoutDuplicates
+      } = v1ReadTools;
+      const readTools = {
+        ...getBrunoV3ReadTools(input.user.id, dataAccess, preferredTimeZone),
+        ...v1ReadToolsWithoutDuplicates,
+      };
       const noteTools = getBrunoNoteTools(input.user.id);
       const lastUserMessageText = extractLastUserMessageText(
         input.messages as Parameters<typeof extractLastUserMessageText>[0]
       );
+      const proposeReferenceDate = referenceDate;
 
       const tools = {
         propose_action: tool({
           description:
-            'Create a proposal card for a Planevo action. ONLY use this when the user has explicitly requested an action inside Planevo (like creating a local task, updating schedule, etc). DO NOT use this for external tools or integrations (Notion, Slack, Linear, etc) - use their respective Composio tools directly instead. This never mutates data directly and must wait for user confirmation. When proposing multiple CREATE_TASK or CREATE_TIME_BLOCK actions in one response, assign each a distinct payload.colorCategory (study, exercise, break, admin, work, creative, social, health) or payload.color so they are visually distinct on the calendar.',
+            'Create a proposal card for a Planevo action (task, calendar, plan, or note change). Use it whenever the user asks for any in-app change, however they phrase it — the user confirms the card before anything mutates, so prefer proposing a reasonable interpretation over holding back. DO NOT use for external integrations (Notion, Slack, Linear) — use Composio tools instead. This never mutates data directly. For existing calendar moves/edits/deletes, call get_calendar_events or search_calendar_events first and include payload.eventId. For task updates/reschedules/completion, include payload.taskId from get_tasks or search_tasks. To mark a task done, use UPDATE_TASK with payload.status="done" and payload.completed=true. For bulk moves ("move everything on Thursday"), call read tools for the source day, then call this tool once per event or task — never combine multiple items into one proposal. When proposing multiple CREATE_TASK or CREATE_TIME_BLOCK actions, assign each a distinct payload.colorCategory.',
           inputSchema: proposeActionParams,
           execute: async (proposal: unknown) => {
-            const argsObj =
-              typeof proposal === 'object' && proposal !== null
-                ? (proposal as Record<string, unknown>)
-                : { value: String(proposal) };
-            const enrichedArgs = await enrichBrunoProposal(argsObj, {
-              userId: input.user.id,
-              supabase: supabaseAdmin,
-              texts: lastUserMessageText ? [lastUserMessageText] : [],
-              timeZone: preferredTimeZone,
-            });
-            const { error } = await supabaseAdmin.from('bruno_tool_logs').insert({
-              user_id: input.user.id,
-              tool_name: 'propose_action',
-              arguments: enrichedArgs as Json,
-              result: { success: true },
-            });
-            if (error) Sentry.captureException(error);
+            const enrichedArgs = await enrichBrunoProposal(
+              coerceProposedActionInput(proposal),
+              {
+                userId: input.user.id,
+                supabase: supabaseAdmin,
+                texts: lastUserMessageText ? [lastUserMessageText] : [],
+                timeZone: preferredTimeZone,
+                referenceDate: proposeReferenceDate,
+              }
+            );
+            const parsed = proposedActionSchema.safeParse(enrichedArgs);
+            if (!parsed.success) {
+              return {
+                success: false,
+                error: `Invalid proposal: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
+              };
+            }
+            const { proposalId } = await persistBrunoProposalArgs(
+              supabaseAdmin,
+              input.user.id,
+              parsed.data,
+              'llm_propose_action'
+            );
             return {
               success: true,
+              proposalId,
               message: 'Proposal recorded. Waiting for user confirmation.',
+            };
+          },
+        }),
+        propose_plan: tool({
+          description:
+            'Create ONE plan card covering an ordered multi-step change (3+ related actions), confirmed by the user in a single tap — e.g. "plan my week", "clear my afternoon and move everything to tomorrow", a project breakdown with scheduled blocks. Read current state with read tools first, then list every step with real IDs. Steps run in order; give a step a "ref" name and reference the entity it creates in a later step via payload.taskIdRef / eventIdRef / noteIdRef / linkedTaskIdRef. For a single change, use propose_action instead. This never mutates data directly.',
+          inputSchema: proposePlanParams,
+          execute: async (planInput: unknown) => {
+            const planRecord =
+              typeof planInput === 'object' && planInput !== null
+                ? (planInput as Record<string, unknown>)
+                : {};
+            const summary =
+              typeof planRecord.summary === 'string' && planRecord.summary.trim()
+                ? planRecord.summary.trim()
+                : 'Apply this plan';
+            const rawSteps = Array.isArray(planRecord.steps)
+              ? planRecord.steps
+              : [];
+
+            const enrichedSteps: Array<Record<string, unknown>> = [];
+            const stepErrors: string[] = [];
+            for (const [index, rawStep] of rawSteps.entries()) {
+              const enriched = await enrichBrunoProposal(
+                coerceProposedActionInput(rawStep),
+                {
+                  userId: input.user.id,
+                  supabase: supabaseAdmin,
+                  texts: lastUserMessageText ? [lastUserMessageText] : [],
+                  timeZone: preferredTimeZone,
+                  referenceDate: proposeReferenceDate,
+                }
+              );
+              const ref =
+                typeof (rawStep as Record<string, unknown>)?.ref === 'string'
+                  ? (rawStep as Record<string, unknown>).ref
+                  : undefined;
+              const parsedStep = applyPlanStepSchema.safeParse({
+                ...enriched,
+                ref,
+              });
+              if (!parsedStep.success) {
+                stepErrors.push(
+                  `Step ${index + 1} (${String((rawStep as Record<string, unknown>)?.title ?? 'untitled')}): ${parsedStep.error.issues.map((issue) => issue.message).slice(0, 2).join('; ')}`
+                );
+                continue;
+              }
+              enrichedSteps.push(parsedStep.data);
+            }
+
+            if (stepErrors.length > 0) {
+              return {
+                success: false,
+                error: `Invalid plan steps — fix and retry: ${stepErrors.join(' | ')}`,
+              };
+            }
+            if (enrichedSteps.length === 0) {
+              return { success: false, error: 'The plan has no valid steps.' };
+            }
+
+            const hasDestructiveStep = enrichedSteps.some((step) =>
+              DESTRUCTIVE_ACTION_TYPES.has(step.type as BrunoActionTypeV3)
+            );
+            const planArgs = {
+              type: 'APPLY_PLAN',
+              title: summary.length > 120 ? `${summary.slice(0, 117)}...` : summary,
+              description: summary,
+              riskLevel: hasDestructiveStep ? 'high' : 'medium',
+              requiresConfirmation: true,
+              payload: {
+                planSummary: summary,
+                steps: enrichedSteps,
+              },
+            };
+            const { proposalId } = await persistBrunoProposalArgs(
+              supabaseAdmin,
+              input.user.id,
+              planArgs,
+              'llm_propose_plan'
+            );
+            return {
+              success: true,
+              proposalId,
+              proposal: { ...planArgs, id: proposalId },
+              message: `Plan with ${enrichedSteps.length} steps recorded. Waiting for user confirmation.`,
             };
           },
         }),
@@ -1063,8 +1350,33 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         ...dynamicMcpTools,
       };
 
-      const normalizedMessages = normalizeMessages(input.messages);
-      const modelMessages = await convertToModelMessages(normalizedMessages);
+      let normalizedMessages: Awaited<
+        ReturnType<typeof resolveAuthoritativeChatMessages>
+      >;
+      try {
+        normalizedMessages = await resolveAuthoritativeChatMessages(
+          supabaseAdmin,
+          input.user.id,
+          input.conversationId,
+          input.messages
+        );
+      } catch (historyError) {
+        console.warn(
+          '[Bruno] Server chat history unavailable, using client user turns:',
+          historyError
+        );
+        normalizedMessages = await resolveAuthoritativeChatMessages(
+          supabaseAdmin,
+          input.user.id,
+          undefined,
+          input.messages
+        );
+      }
+      const modelMessages = await convertToModelMessages(normalizedMessages, {
+        // Rehydrated history may contain tool parts; never let an incomplete
+        // historical tool call break the conversion.
+        ignoreIncompleteToolCalls: true,
+      });
       const upgradeCard =
         flags.upgradeCardsEnabled && generationPlan.shouldShowUpgradeCard
           ? getBrunoUpgradeCard(routeResult.decision.mode)
@@ -1199,18 +1511,37 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
 
       progress.markGenerating();
 
-      const hasIntegrationTools = Object.keys(dynamicMcpTools).length > 0;
       const isNotesMode = routeResult.decision.mode === 'notes';
       const isDocumentMode = routeResult.decision.mode === 'document_writing';
+      // A flat, generous step budget: multi-item requests (read + N proposals)
+      // must never silently truncate because the router picked the wrong mode.
+      const toolStepLimit = 25;
+      // Reasoning effort is the quality knob for gpt-5.x models: 'medium' for
+      // planning-heavy work, 'low' for everything else (latency-sensitive).
+      const reasoningEffort =
+        generationPlan.tier === 'deep' ||
+        routeResult.decision.mode === 'daily_planning' ||
+        routeResult.decision.mode === 'schedule_repair'
+          ? ('medium' as const)
+          : ('low' as const);
 
       const generationOptions = {
-        model: openai(model),
+        // Responses API so reasoning items persist across tool-call steps —
+        // required for gpt-5.x models to keep plan state through the loop.
+        model: model.startsWith('gpt-5')
+          ? openai.responses(model)
+          : openai(model),
+        providerOptions: model.startsWith('gpt-5')
+          ? { openai: { reasoningEffort } }
+          : undefined,
         system: systemPrompt,
         messages: modelMessages,
+        // Notes mode keeps propose_action so mixed requests ("save this note
+        // and add a review task") can act on both halves.
         tools: isNotesMode
-          ? { ...readTools, ...noteTools, ...dynamicMcpTools }
+          ? { ...tools, ...noteTools }
           : tools,
-        stopWhen: stepCountIs(hasIntegrationTools ? 10 : 5),
+        stopWhen: stepCountIs(toolStepLimit),
         maxOutputTokens: generationPlan.policy.maxOutputTokens,
         ...getModelCallSettings(model, generationPlan.policy.temperature),
       };
@@ -1218,12 +1549,16 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       const result = streamText({
         ...generationOptions,
         onFinish: async ({ totalUsage, finishReason, text, steps }) => {
-          if (!text?.trim() && (steps?.length ?? 0) > 0) {
+          if (!text?.trim()) {
+            const hasToolSteps = (steps?.length ?? 0) > 0;
             writeStaticText(
               writer,
-              "I connected to your tools but couldn't finish a summary in time. Try a narrower ask—for example, \"List my urgent Notion tasks only\"—and I'll pick up from there."
+              hasToolSteps
+                ? "I connected to your tools but couldn't finish a summary in time. Try a narrower ask—for example, \"List my urgent Notion tasks only\"—and I'll pick up from there."
+                : "I couldn't produce a reply for that request. Please try rephrasing or ask for one specific change at a time."
             );
             progress.markError('generate', 'No text response');
+            progress.markComplete();
           } else if (finishReason === 'length' && text?.trim()) {
             writer.write({
               type: 'data-bruno-truncated',
@@ -1259,15 +1594,48 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         onError: async ({ error }) => {
           Sentry.captureException(error);
           progress.markError('generate');
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Bruno hit an error. Please try again.';
+          writeStaticText(writer, message);
+          writer.write({
+            type: 'data-bruno-stream-error',
+            data: {
+              type: 'bruno_stream_error',
+              message,
+            },
+          });
           await finalize('failed', {});
         },
         onAbort: async () => {
           progress.markError('generate', 'Stopped');
+          writer.write({
+            type: 'data-bruno-stream-error',
+            data: {
+              type: 'bruno_stream_error',
+              message: 'Bruno stopped before finishing this reply.',
+            },
+          });
           await finalize('failed', {});
         },
       });
 
       writer.merge(result.toUIMessageStream());
+    },
+    onFinish: async ({ responseMessage, isAborted }) => {
+      // Persist the assistant turn with full parts (tool calls, proposals,
+      // data cards) so conversations rehydrate faithfully after reload.
+      if (!input.conversationId || isAborted) return;
+      try {
+        await persistBrunoAssistantTurn(supabaseAdmin, {
+          userId: input.user.id,
+          conversationId: input.conversationId,
+          message: responseMessage,
+        });
+      } catch (persistError) {
+        Sentry.captureException(persistError);
+      }
     },
   });
 

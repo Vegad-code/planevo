@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { GraduationCap, CalendarBlank, Kanban, CheckCircle, PlugsConnected, LockKey, X, MagnifyingGlass, Notebook, Hash } from '@phosphor-icons/react';
 import { testCanvasConnectionAction, saveCanvasCredentialsAction, disconnectCanvasAction } from '@/lib/canvas/actions';
 import { disconnectGoogleCalendarAction } from '@/lib/integrations/google-calendar';
+import { GOOGLE_CALENDAR_OAUTH_SCOPES } from '@/lib/integrations/google-oauth-scopes';
 import { INTEGRATION_REGISTRY, IntegrationDefinition } from '@/lib/integrations/registry';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -439,7 +440,7 @@ export default function Integrations() {
                           provider: 'google',
                           options: {
                             redirectTo,
-                            scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+                            scopes: GOOGLE_CALENDAR_OAUTH_SCOPES,
                             queryParams: {
                               access_type: 'offline',
                               prompt: 'consent'

@@ -17,6 +17,39 @@ jest.mock('@/lib/supabase', () => ({
   },
 }));
 
+jest.mock('expo-notifications', () => ({
+  AndroidImportance: { HIGH: 4 },
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(async () => ({
+    granted: false,
+    status: 'undetermined',
+  })),
+  requestPermissionsAsync: jest.fn(async () => ({
+    granted: false,
+    status: 'denied',
+  })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExpoPushToken[test]' })),
+  setNotificationChannelAsync: jest.fn(),
+  cancelAllScheduledNotificationsAsync: jest.fn(),
+}));
+
+jest.mock('expo-device', () => ({
+  isDevice: false,
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: {
+      extra: {
+        eas: {
+          projectId: 'test-project',
+        },
+      },
+    },
+  },
+}));
+
 describe('globalStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();

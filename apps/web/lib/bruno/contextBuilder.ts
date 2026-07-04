@@ -58,6 +58,13 @@ export type BrunoContextLoaders = {
   loadIntegrations?: (userId: string) => Promise<BrunoIntegrationContext>;
 };
 
+function sanitizeUserContent(value: string, maxLength = 500): string {
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/```/g, "'''")
+    .slice(0, maxLength);
+}
+
 export async function buildBrunoContext(
   input: {
     userId: string;
@@ -89,7 +96,7 @@ export async function buildBrunoContext(
       .slice(0, 100)
       .map(
         (task) =>
-          `- [${task.status}] "${task.title}" (ID: ${task.id}, Due: ${
+          `- [${sanitizeUserContent(task.status, 80)}] "${sanitizeUserContent(task.title)}" (ID: ${task.id}, Due: ${
             task.dueDate ?? 'No due date'
           }, Priority: ${task.priority ?? 'normal'}, Duration: ${
             task.estimatedMinutes ?? 30
@@ -100,7 +107,7 @@ export async function buildBrunoContext(
       .slice(0, 100)
       .map(
         (event) =>
-          `- [${event.status ?? 'scheduled'}] "${event.title}" (ID: ${
+          `- [${sanitizeUserContent(event.status ?? 'scheduled', 80)}] "${sanitizeUserContent(event.title)}" (ID: ${
             event.id
           }, ${event.startTime} to ${event.endTime})`
       )
@@ -110,11 +117,11 @@ export async function buildBrunoContext(
       .map(
         (assignment) =>
           [
-            `- "${assignment.name}"`,
-            `Course: ${assignment.courseName ?? 'Canvas Course'}`,
+            `- "${sanitizeUserContent(assignment.name)}"`,
+            `Course: ${sanitizeUserContent(assignment.courseName ?? 'Canvas Course', 200)}`,
             `Due: ${assignment.dueAt ?? 'No due date'}`,
             assignment.description
-              ? `Details: ${assignment.description.slice(0, 1000)}`
+              ? `Details: ${sanitizeUserContent(assignment.description, 1000)}`
               : null,
             assignment.htmlUrl ? `URL: ${assignment.htmlUrl}` : null,
           ]
@@ -143,8 +150,8 @@ function buildIntegrationContext(integrations: BrunoIntegrationContext): string 
     .slice(0, 30)
     .map(
       (item) =>
-        `- [${item.provider}] "${item.title}"${
-          item.status ? ` (Status: ${item.status})` : ''
+        `- [${item.provider}] "${sanitizeUserContent(item.title)}"${
+          item.status ? ` (Status: ${sanitizeUserContent(item.status, 80)})` : ''
         }${item.dueDate ? ` (Due: ${item.dueDate})` : ''}${
           item.url ? ` (URL: ${item.url})` : ''
         }`

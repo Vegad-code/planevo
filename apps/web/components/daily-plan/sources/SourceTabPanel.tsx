@@ -9,6 +9,7 @@ import type { SourceListItem, SourceProvider } from '@/lib/plan/source-items';
 import { SOURCE_PROVIDER_LABELS } from '@/lib/plan/source-items';
 import { refreshSourceAction } from '@/lib/plan/refresh-sources-action';
 import { SourceList } from './SourceList';
+import { SmoothSurface } from '../SmoothSurface';
 
 interface SourceTabPanelProps {
   provider: SourceProvider;
@@ -47,59 +48,79 @@ export function SourceTabPanel({
 
   if (!connected) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 px-6 text-center rounded-2xl border border-dashed border-line bg-paper/50">
-        <div className="w-12 h-12 rounded-full bg-(--color-honey)/20 flex items-center justify-center">
-          <Plugs weight="bold" className="w-6 h-6 text-(--color-honey-deep)" />
+      <SmoothSurface
+        cornerRadius={28}
+        cornerSmoothing={0.88}
+        className="border border-dashed border-line bg-[var(--color-surface-raised)]"
+      >
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-honey-soft)] text-[var(--color-honey-deep)] dark:bg-[var(--color-surface-muted)]">
+            <Plugs weight="bold" className="h-6 w-6" />
+          </div>
+          <div className="max-w-sm">
+            <p className="m-0 text-lg font-semibold text-ink">
+              {label} is not connected
+            </p>
+            <p className="m-0 mt-2 text-sm leading-6 text-[var(--color-ink-soft)]">
+              Connect {label} in settings to see synced items here.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/settings/integrations"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-paper transition hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+          >
+            Connect in settings
+          </Link>
         </div>
-        <div className="max-w-sm">
-          <p className="font-serif text-lg text-ink m-0">{label} isn&apos;t connected</p>
-          <p className="font-sans text-sm text-(--color-ink-soft) mt-2 mb-0 leading-relaxed">
-            Connect {label} in settings to see synced items here.
-          </p>
-        </div>
-        <Link
-          href="/dashboard/settings/integrations"
-          className="inline-flex items-center justify-center rounded-full bg-ink text-paper px-5 py-2.5 text-sm font-medium hover:scale-105 transition-transform"
-        >
-          Connect in settings
-        </Link>
-      </div>
+      </SmoothSurface>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 px-6 text-center rounded-2xl border border-dashed border-line bg-paper/50">
-        <p className="font-serif text-lg text-ink m-0">Nothing synced yet</p>
-        <p className="font-sans text-sm text-(--color-ink-soft) max-w-sm mb-0 leading-relaxed">
-          Bruno will pull items from {label} on the next sync. You can refresh now to check.
-        </p>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-5 py-2.5 text-sm font-medium text-ink hover:bg-(--color-honey)/10 transition-colors disabled:opacity-60"
-        >
-          <ArrowsClockwise weight="bold" className={cnSpin(busy)} />
-          Refresh
-        </button>
-      </div>
+      <SmoothSurface
+        cornerRadius={28}
+        cornerSmoothing={0.88}
+        className="border border-dashed border-line bg-[var(--color-surface-raised)]"
+      >
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+          <p className="m-0 text-lg font-semibold text-ink">
+            Nothing synced yet
+          </p>
+          <p className="m-0 max-w-sm text-sm leading-6 text-[var(--color-ink-soft)]">
+            Bruno will pull items from {label} on the next sync. You can refresh
+            now to check.
+          </p>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={busy}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-transparent px-5 text-sm font-semibold text-ink transition hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:opacity-60"
+          >
+            <ArrowsClockwise weight="bold" className={cnSpin(busy)} />
+            Refresh
+          </button>
+        </div>
+      </SmoothSurface>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-[11px] tracking-[0.14em] text-(--color-ink-soft) uppercase m-0">
+      <div className="flex items-center justify-between gap-3">
+        <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
           {items.length} item{items.length === 1 ? '' : 's'}
         </p>
         <button
           type="button"
           onClick={handleRefresh}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 font-sans text-[13px] text-(--color-ink-soft) hover:text-ink transition-colors disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-[var(--color-ink-soft)] transition hover:bg-[var(--color-surface-muted)] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:opacity-60"
         >
-          <ArrowsClockwise weight="bold" className={cnSpin(busy, 'w-3.5 h-3.5')} />
+          <ArrowsClockwise
+            weight="bold"
+            className={cnSpin(busy, 'w-3.5 h-3.5')}
+          />
           Refresh
         </button>
       </div>

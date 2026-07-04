@@ -2,7 +2,10 @@
 
 import { useCallback, useState } from 'react';
 import type { DayPlanSnapshot } from '@/lib/plan/day-plan';
-import type { DayPlanSourcesData, SourceListItem } from '@/lib/plan/source-items';
+import type {
+  DayPlanSourcesData,
+  SourceListItem,
+} from '@/lib/plan/source-items';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { DayTimeline } from './DayTimeline';
@@ -43,11 +46,17 @@ interface TabConfig {
   connected?: boolean;
 }
 
-function tabLabel(config: TabConfig): string {
-  if (config.count && config.count > 0) {
-    return `${config.label} · ${config.count}`;
-  }
-  return config.label;
+function TabLabel({ config }: { config: TabConfig }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span>{config.label}</span>
+      {config.count && config.count > 0 ? (
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-current/10 px-1.5 text-[11px] font-semibold">
+          {config.count}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 export function DailyPlanTabs({
@@ -69,7 +78,7 @@ export function DailyPlanTabs({
   const [detailOpen, setDetailOpen] = useState(false);
 
   const tabs: TabConfig[] = [
-    { id: 'plan', label: 'Your Plan' },
+    { id: 'plan', label: 'Plan' },
     {
       id: 'canvas',
       label: 'Canvas',
@@ -107,7 +116,7 @@ export function DailyPlanTabs({
       onSelectedItemChange(item);
       setDetailOpen(true);
     },
-    [onSelectedItemChange]
+    [onSelectedItemChange],
   );
 
   const handleDetailOpenChange = useCallback(
@@ -117,7 +126,7 @@ export function DailyPlanTabs({
         onSelectedItemChange(null);
       }
     },
-    [onSelectedItemChange]
+    [onSelectedItemChange],
   );
 
   const handleAskBruno = useCallback(
@@ -126,7 +135,7 @@ export function DailyPlanTabs({
       onSelectedItemChange(null);
       onAskBrunoAboutItem(item);
     },
-    [onAskBrunoAboutItem, onSelectedItemChange]
+    [onAskBrunoAboutItem, onSelectedItemChange],
   );
 
   return (
@@ -136,22 +145,20 @@ export function DailyPlanTabs({
         onValueChange={(value) => onActiveTabChange(value as DailyPlanTabId)}
         className="w-full"
       >
-        <div className="overflow-x-auto -mx-1 px-1 pb-1 scrollbar-none">
-          <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-1 p-1">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 scrollbar-none">
+          <TabsList className="inline-flex h-auto min-h-12 w-max min-w-full justify-start gap-1 rounded-full border border-line bg-[var(--color-surface-raised)] p-1 text-[var(--color-ink-soft)] shadow-[0_10px_30px_rgba(26,20,13,0.05)]">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
                 className={cn(
-                  'shrink-0 px-3 py-2 text-[13px]',
-                  tab.id !== 'plan' &&
-                    tab.connected &&
-                    tab.count &&
-                    tab.count > 0 &&
-                    'data-[state=inactive]:text-ink'
+                  'min-h-10 shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--color-ink-soft)] shadow-none transition',
+                  'hover:bg-[var(--color-surface-muted)] hover:text-ink',
+                  'data-[state=active]:bg-ink data-[state=active]:text-paper data-[state=active]:shadow-none',
+                  tab.id !== 'plan' && tab.connected === false && 'opacity-55',
                 )}
               >
-                {tabLabel(tab)}
+                <TabLabel config={tab} />
               </TabsTrigger>
             ))}
           </TabsList>
@@ -178,7 +185,10 @@ export function DailyPlanTabs({
           />
         </TabsContent>
 
-        <TabsContent value="calendar" className="mt-6 focus-visible:outline-none">
+        <TabsContent
+          value="calendar"
+          className="mt-6 focus-visible:outline-none"
+        >
           <SourceTabPanel
             provider="google_calendar"
             connected={sources.connections.google}

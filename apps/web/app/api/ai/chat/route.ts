@@ -22,6 +22,15 @@ import {
   pageContextSchema,
 } from '@/lib/bruno/page-context';
 import { handleBrunoChatV2 } from '@/lib/bruno/handleChatV2';
+import { BRUNO_MODELS } from '@/lib/bruno/modelPolicy';
+import {
+  persistBrunoAssistantTurn,
+  persistBrunoUserTurn,
+} from '@/lib/bruno/serverChatHistory';
+import {
+  resolveBrunoReferenceDate,
+  resolveBrunoTimeZone,
+} from '@/lib/bruno/schedulingContext';
 import {
   BRUNO_DETECTOR_EVASION_RESPONSE,
   detectDocumentWritingIntent,
@@ -56,6 +65,7 @@ import { enrichBrunoProposal } from '@/lib/bruno/enrichProposalColor';
 import { getBrunoRoutingFlags } from '@/lib/bruno/runtime';
 import { BrunoProgressWriter } from '@/lib/bruno/progressWriter';
 import { parseBrunoDataAccess } from '@/lib/bruno/types';
+import { runBrunoAppActionWorkflow } from '@/lib/bruno/appActionWorkflow';
 import type { BrunoDataParts } from '@/lib/bruno/types';
 import type { UIMessage, UIMessageStreamWriter } from 'ai';
 
@@ -107,9 +117,24 @@ function staticUiResponse(text: string, headers?: HeadersInit) {
 const proposeActionParams = jsonSchema({
   type: 'object' as const,
   properties: {
-    type: { 
-      type: 'string', 
-      enum: ['CREATE_TASK', 'UPDATE_TASK', 'RESCHEDULE_TASK', 'CREATE_TIME_BLOCK', 'UPDATE_DAILY_PLAN', 'EXPLAIN_PLAN', 'NO_ACTION'] 
+    type: {
+      type: 'string',
+      enum: [
+        'CREATE_TASK',
+        'UPDATE_TASK',
+        'RESCHEDULE_TASK',
+        'CREATE_TIME_BLOCK',
+        'UPDATE_CALENDAR_EVENT',
+        'UPDATE_DAILY_PLAN',
+        'EXPLAIN_PLAN',
+        'NO_ACTION',
+        'CREATE_NOTE',
+        'UPDATE_NOTE',
+        'APPEND_TO_NOTE',
+        'ARCHIVE_NOTE',
+        'DELETE_CALENDAR_EVENT',
+        'DELETE_TASK',
+      ],
     },
     title: { type: 'string', minLength: 1, maxLength: 120 },
     description: { type: 'string', minLength: 1, maxLength: 500 },
@@ -122,11 +147,20 @@ const proposeActionParams = jsonSchema({
         notes: { type: 'string' },
         estimatedMinutes: { type: 'number' },
         priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+        status: { type: 'string', enum: ['todo', 'in_progress', 'done', 'missed'] },
+        completed: { type: 'boolean', description: 'Set true to mark a task done, false to reopen it' },
+        completedAt: { type: 'string', description: 'ISO 8601 completion timestamp when marking a task done' },
         dueDate: { type: 'string' },
         startTime: { type: 'string', description: 'ISO 8601 start time for CREATE_TIME_BLOCK' },
         endTime: { type: 'string', description: 'ISO 8601 end time for CREATE_TIME_BLOCK' },
         durationMinutes: { type: 'number', description: 'Duration in minutes when endTime is omitted' },
         location: { type: 'string' },
+        eventId: { type: 'string', description: 'UUID of an existing calendar event for UPDATE_CALENDAR_EVENT or DELETE_CALENDAR_EVENT' },
+        taskId: { type: 'string', description: 'UUID of an existing task for UPDATE_TASK, RESCHEDULE_TASK, or DELETE_TASK' },
+        noteId: { type: 'string' },
+        noteTitle: { type: 'string' },
+        contentMarkdown: { type: 'string' },
+        appendMarkdown: { type: 'string' },
         color: { type: 'string', description: 'Hex color e.g. #039BE5 for calendar display' },
         colorCategory: {
           type: 'string',
@@ -406,10 +440,83 @@ export async function POST(request: NextRequest) {
       assistantMode: requestedAssistantMode,
       routeMode: v1RouteResult.decision.mode,
     });
+    const routeHasContextSignal =
+      v1RouteResult.decision.needsTaskContext ||
+      v1RouteResult.decision.needsCalendarContext ||
+      v1RouteResult.decision.needsCanvasContext;
     const useMinimalPrompt = usesMinimalGeneralPrompt({
       effectiveAssistantMode,
       routeMode: v1RouteResult.decision.mode,
+      routeHasContextSignal,
     });
+    const resolvedTimeZone = resolveBrunoTimeZone({
+      clientTimeZone: timeZone,
+      profilePreferences: prefs,
+    });
+    const referenceDate = resolveBrunoReferenceDate({ localTime, pageContext });
+
+    if (
+      v1RouteResult.decision.mode === 'app_action' &&
+      (dataAccess.calendar || dataAccess.tasks)
+    ) {
+      try {
+        const workflowResult = await runBrunoAppActionWorkflow({
+          userId: user.id,
+          message: latestUserText,
+          timeZone: resolvedTimeZone,
+          supabase: supabaseAdmin,
+          referenceDate,
+        });
+
+        if (workflowResult.handled) {
+          const stream = createUIMessageStream<UIMessage<unknown, BrunoDataParts>>({
+            execute: ({ writer }) => {
+              const progress = new BrunoProgressWriter(writer);
+              progress.markReadDone();
+              progress.markSafetyDone();
+              progress.markRouteDone(
+                v1RouteResult.decision.mode,
+                'Deterministic app action workflow'
+              );
+              writeStaticText(
+                writer,
+                workflowResult.text ||
+                  'I prepared the calendar changes for confirmation.'
+              );
+              if (workflowResult.proposals.length > 0) {
+                writer.write({
+                  type: 'data-bruno-action-proposals',
+                  data: {
+                    type: 'bruno_action_proposals',
+                    source: 'deterministic_app_action_workflow',
+                    proposals: workflowResult.proposals,
+                  },
+                });
+              }
+              progress.markComplete();
+            },
+          });
+
+          return createUIMessageStreamResponse({
+            stream,
+            headers: {
+              'Server-Timing': buildServerTimingHeader(
+                latencyTimer.complete(performance.now() - startAt)
+              ),
+              'x-bruno-assistant-mode': effectiveAssistantMode,
+              'x-bruno-assistant-requested': requestedAssistantMode,
+              'x-bruno-mode': 'app_action',
+            },
+          });
+        }
+      } catch (error) {
+        Sentry.captureException(error);
+        console.warn(
+          '[Bruno App Action Workflow] Falling back to legacy chat:',
+          error
+        );
+      }
+    }
 
     if (
       shouldRequestClarification({
@@ -655,10 +762,11 @@ BRUNO ACTION SAFETY RULES
 5. Never say "I created", "I moved", "I changed", or "I rescheduled" unless the app reports execution success.
 6. Use "I recommend", "I can prepare", "Here is a proposed change", or "Confirm the tasks you want me to add."
 7. For assignment/project breakdowns, call propose_action once for each task using type CREATE_TASK. Assign each task a distinct payload.colorCategory (study, exercise, break, admin, work, creative, social, health) so they appear color-coded on the calendar.
-8. For calendar event or schedule block requests, call propose_action with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when scheduling multiple blocks.
-9. Do not respond with only a long plain-text task list for breakdown requests.
-10. If proposal cards exist, keep visible text short.
-11. DO NOT use propose_action preemptively when asking the user for their choice or offering options. Wait for their explicit response first.
+8. For new calendar blocks, call propose_action with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when scheduling multiple blocks.
+9. For existing calendar event moves, edits, or deletes, use read tools first and include the real payload.eventId. Use UPDATE_CALENDAR_EVENT for moves/edits and DELETE_CALENDAR_EVENT for deletes.
+10. Do not respond with only a long plain-text task list for breakdown requests.
+11. If proposal cards exist, keep visible text short.
+12. DO NOT use propose_action preemptively when asking the user for their choice or offering options. Wait for their explicit response first.
 
 RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
 1. Use markdown headers (## and ###) to create clear sections. NEVER dump content as a flat wall of text.
@@ -692,9 +800,6 @@ RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
     };
 
     const readTools = getBrunoReadTools(user.id, dataAccess);
-    const resolvedTimeZone =
-      timeZone ||
-      (typeof prefs.timezone === 'string' ? prefs.timezone : 'UTC');
     const lastUserMessageText = extractLastUserMessageText(
       messages as Parameters<typeof extractLastUserMessageText>[0]
     );
@@ -705,7 +810,9 @@ RESPONSE FORMATTING RULES (CRITICAL — follow these in EVERY response):
 ONLY use this when the user has explicitly requested an action or made a clear choice. DO NOT use this preemptively when you are still asking the user clarifying questions or offering options.
 This tool is proposal-only. It does not create, update, delete, move, or reschedule anything.
 For assignment/project/task breakdown requests, call this tool once per proposed CREATE_TASK with a distinct payload.colorCategory per task.
-For calendar event or schedule block requests, call this tool with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601 in the user's timezone) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when proposing multiple blocks. payload.startTime MUST be a valid ISO 8601 datetime string in the user's timezone (e.g. "2026-07-28T09:00:00"). Never write natural language like "July 28 at 9 AM" in the startTime field.
+For task completion, call this tool with type UPDATE_TASK, include payload.taskId from read tools, and set payload.status="done" plus payload.completed=true.
+For new calendar blocks, call this tool with type CREATE_TIME_BLOCK and include payload.startTime (ISO 8601 in the user's timezone) plus payload.endTime or payload.durationMinutes. Use distinct colorCategory values when proposing multiple blocks. payload.startTime MUST be a valid ISO 8601 datetime string in the user's timezone (e.g. "2026-07-28T09:00:00"). Never write natural language like "July 28 at 9 AM" in the startTime field.
+For existing calendar event moves, edits, or deletes, use read tools first and include the real payload.eventId. Use UPDATE_CALENDAR_EVENT for moves/edits and DELETE_CALENDAR_EVENT for deletes.
 Do not only write the tasks in text.
 If you mention "confirm" or "create these tasks", corresponding CREATE_TASK proposal cards must exist.`,
         inputSchema: proposeActionParams,
@@ -756,8 +863,22 @@ If you mention "confirm" or "create these tasks", corresponding CREATE_TASK prop
         progress.markContextDone('Loaded tasks, calendar');
         progress.markGenerating();
 
+        // Clients no longer persist turns; keep history intact even on the
+        // legacy kill-switch path.
+        if (conversationId) {
+          try {
+            await persistBrunoUserTurn(supabaseAdmin, {
+              userId: user.id,
+              conversationId,
+              text: latestUserText,
+            });
+          } catch (persistError) {
+            Sentry.captureException(persistError);
+          }
+        }
+
         const result = streamText({
-          model: openai('gpt-4o-mini'),
+          model: openai(BRUNO_MODELS.STANDARD),
           system: systemPrompt,
           messages: modelMessages,
           tools,
@@ -771,6 +892,18 @@ If you mention "confirm" or "create these tasks", corresponding CREATE_TASK prop
         });
 
         writer.merge(result.toUIMessageStream());
+      },
+      onFinish: async ({ responseMessage, isAborted }) => {
+        if (!conversationId || isAborted) return;
+        try {
+          await persistBrunoAssistantTurn(supabaseAdmin, {
+            userId: user.id,
+            conversationId,
+            message: responseMessage,
+          });
+        } catch (persistError) {
+          Sentry.captureException(persistError);
+        }
       },
     });
 

@@ -10,7 +10,7 @@ export default async function DailyPlanPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="mx-auto w-full max-w-[1040px]">
       <DailyPlanView initialData={data} />
     </div>
   );

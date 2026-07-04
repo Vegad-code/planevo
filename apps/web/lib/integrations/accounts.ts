@@ -45,6 +45,7 @@ interface UpsertIntegrationAccountInput {
   accessTokenEncrypted?: string | null;
   refreshTokenEncrypted?: string | null;
   metadata?: Record<string, unknown> | null;
+  scopes?: string[] | null;
   status?: 'connected' | 'disconnected' | 'error';
   lastSyncedAt?: string | null;
 }
@@ -58,43 +59,51 @@ export async function upsertIntegrationAccount(
     accessTokenEncrypted,
     refreshTokenEncrypted,
     metadata,
+    scopes,
     status = 'connected',
     lastSyncedAt,
   } = input;
 
   const existing = await getIntegrationAccount(userId, provider);
 
-  const row: Record<string, unknown> = { status };
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    provider,
+    status,
+  };
   if (accessTokenEncrypted !== undefined) row.access_token_encrypted = accessTokenEncrypted;
   if (refreshTokenEncrypted !== undefined) row.refresh_token_encrypted = refreshTokenEncrypted;
   if (metadata !== undefined) row.metadata = metadata;
+  if (scopes !== undefined) row.scopes = scopes;
   if (lastSyncedAt !== undefined) row.last_synced_at = lastSyncedAt;
-
-  if (existing) {
-    const { error } = await supabaseAdmin
-      .from('integration_accounts')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update(row as any)
-      .eq('id', existing.id)
-      .eq('user_id', userId);
-    if (error) throw error;
-    return existing.id;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const insertRow: any = {
-    user_id: userId,
-    provider,
-    ...row,
-  };
 
   const { data, error } = await supabaseAdmin
     .from('integration_accounts')
-    .insert(insertRow)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .upsert(row as any, { onConflict: 'user_id,provider' })
     .select('id')
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (existing?.id) {
+      const patch: Record<string, unknown> = { status };
+      if (accessTokenEncrypted !== undefined) patch.access_token_encrypted = accessTokenEncrypted;
+      if (refreshTokenEncrypted !== undefined) patch.refresh_token_encrypted = refreshTokenEncrypted;
+      if (metadata !== undefined) patch.metadata = metadata;
+      if (scopes !== undefined) patch.scopes = scopes;
+      if (lastSyncedAt !== undefined) patch.last_synced_at = lastSyncedAt;
+      const { error: updateError } = await supabaseAdmin
+        .from('integration_accounts')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(patch as any)
+        .eq('id', existing.id)
+        .eq('user_id', userId);
+      if (updateError) throw updateError;
+      return existing.id;
+    }
+    throw error;
+  }
+
   return data.id;
 }
 

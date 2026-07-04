@@ -13,6 +13,7 @@ import { OAuthConnectingModal } from './OAuthConnectingModal';
 import { NotionDatabasePicker } from './NotionDatabasePicker';
 import { ComposioManageModal } from './ComposioManageModal';
 import { extractConnectionSlug } from '@/lib/integrations/composio/slugs';
+import { GOOGLE_CALENDAR_OAUTH_SCOPES } from '@/lib/integrations/google-oauth-scopes';
 import { SlackIcon, NotionIcon, LinearIcon, GoogleIcon, CanvasIcon } from '../icons/BrandIcons';
 
 export default function ComposioIntegrationScreen() {
@@ -212,7 +213,7 @@ export default function ComposioIntegrationScreen() {
           access_type: 'offline',
           prompt: 'consent',
         },
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+        scopes: GOOGLE_CALENDAR_OAUTH_SCOPES,
         skipBrowserRedirect: true,
       },
     });

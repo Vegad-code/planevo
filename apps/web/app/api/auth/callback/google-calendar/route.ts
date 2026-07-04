@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { encryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { syncGoogleCalendar } from '@/lib/integrations/google-calendar';
+import { syncGoogleCalendar, persistGoogleCalendarScopesFromAccessToken } from '@/lib/integrations/google-calendar';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.session) {
-      const { provider_refresh_token, user } = data.session;
+      const { provider_refresh_token, provider_token, user } = data.session;
 
       if (provider_refresh_token) {
         await upsertIntegrationAccount({
@@ -52,6 +52,7 @@ export async function GET(request: Request) {
           refreshTokenEncrypted: encryptToken(provider_refresh_token),
           status: 'connected',
         });
+        await persistGoogleCalendarScopesFromAccessToken(user.id, provider_token);
       } else {
         const existing = await getIntegrationAccount(user.id, 'google_calendar');
         const { data: userRow } = await supabaseAdmin
@@ -75,12 +76,14 @@ export async function GET(request: Request) {
             refreshTokenEncrypted: encrypted,
             status: 'connected',
           });
+          await persistGoogleCalendarScopesFromAccessToken(user.id, provider_token);
         } else {
           await upsertIntegrationAccount({
             userId: user.id,
             provider: 'google_calendar',
             status: 'connected',
           });
+          await persistGoogleCalendarScopesFromAccessToken(user.id, provider_token);
         }
       }
 
@@ -96,13 +99,23 @@ export async function GET(request: Request) {
         .update({ google_calendar_connected: true })
         .eq('id', user.id);
 
+      let oauthError: string | null = null;
       try {
-        await syncGoogleCalendar(user.id, true);
+        const syncResult = await syncGoogleCalendar(user.id, true);
+        if (syncResult.partial) {
+          oauthError =
+            syncResult.warnings[0] ??
+            'Connected, but some Google calendars could not be synced.';
+        }
       } catch (syncError) {
         console.error('Initial Google Calendar sync after connect failed:', syncError);
+        oauthError =
+          syncError instanceof Error
+            ? syncError.message
+            : 'google_calendar_sync_failed';
       }
 
-      return new NextResponse(popupHtml(null), { headers: { 'Content-Type': 'text/html' } });
+      return new NextResponse(popupHtml(oauthError), { headers: { 'Content-Type': 'text/html' } });
     }
   }
 

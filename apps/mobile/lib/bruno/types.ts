@@ -50,9 +50,26 @@ export type BrunoClarificationResponse = {
   answers: BrunoClarificationAnswer[];
 };
 
+export type BrunoActionProposal = {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  riskLevel: string;
+  requiresConfirmation: boolean;
+  payload: Record<string, unknown>;
+};
+
+export type BrunoActionProposalBatch = {
+  type: 'bruno_action_proposals';
+  source: 'deterministic_app_action_workflow';
+  proposals: BrunoActionProposal[];
+};
+
 export type BrunoDataParts = {
   'bruno-progress': BrunoProgressPayload;
   'bruno-clarification-card': BrunoClarificationCard;
+  'bruno-action-proposals': BrunoActionProposalBatch;
 };
 
 export type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;

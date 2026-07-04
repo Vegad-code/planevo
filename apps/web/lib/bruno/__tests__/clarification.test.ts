@@ -81,15 +81,26 @@ describe('shouldRequestClarification', () => {
   });
 
   it.each([
+    // Actionable requests act immediately instead of quizzing the user —
+    // the agent asks its own focused question in-loop if it truly needs one.
     ['Plan my afternoon', decision('daily_planning')],
-    ['Help me plan my week', decision('basic_chat', 0.5)],
     ["I'm overwhelmed, help me prioritize", decision('emotional_recovery')],
     ['Plan my day', decision('daily_planning')],
     ['Help me study for biology', decision('academic_tutoring')],
     ['Break down this project', decision('project_breakdown')],
     ['I got behind, fix my day', decision('schedule_repair')],
+  ])('acts instead of quizzing for actionable prompt: %s', (message, routeDecision) => {
+    expect(
+      shouldRequestClarification({ message, decision: routeDecision })
+    ).toBe(false);
+  });
+
+  it.each([
+    // Only genuinely vague one-liners with an unsure router still get the
+    // structured clarification card.
+    ['Help me plan my week', decision('basic_chat', 0.5)],
     ['Can you help me organize this?', decision('basic_chat', 0.62)],
-  ])('asks often for broad prompt: %s', (message, routeDecision) => {
+  ])('asks for vague low-confidence prompt: %s', (message, routeDecision) => {
     expect(
       shouldRequestClarification({ message, decision: routeDecision })
     ).toBe(true);
