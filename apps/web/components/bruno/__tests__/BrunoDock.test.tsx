@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useEffect } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { BrunoProvider } from '@/components/bruno/BrunoProvider';
 import { BrunoDock } from '@/components/bruno/BrunoDock';
+
+const chatSidebarMountCount = { current: 0 };
 
 vi.mock('@/components/dashboard/BrunoChatSidebar', () => ({
   default: function MockBrunoChatSidebar({
@@ -13,6 +16,10 @@ vi.mock('@/components/dashboard/BrunoChatSidebar', () => ({
     onMinimize?: () => void;
     onToggleFullScreen?: () => void;
   }) {
+    useEffect(() => {
+      chatSidebarMountCount.current += 1;
+    }, []);
+
     return (
       <div
         data-testid="bruno-chat-sidebar"
@@ -48,7 +55,9 @@ describe('BrunoDock', () => {
     );
   });
 
-  it('toggles full-screen mode and closes from the chat body', async () => {
+  it('toggles full-screen mode without remounting the chat and closes from the chat body', async () => {
+    chatSidebarMountCount.current = 0;
+
     render(
       <BrunoProvider>
         <BrunoDock />
@@ -56,12 +65,26 @@ describe('BrunoDock', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Bruno chat' }));
+
+    await waitFor(() => {
+      expect(chatSidebarMountCount.current).toBe(1);
+    });
+
     fireEvent.click(screen.getByRole('button', { name: 'Toggle full screen' }));
 
     expect(screen.getByTestId('bruno-chat-sidebar')).toHaveAttribute(
       'data-full-screen',
       'true'
     );
+    expect(chatSidebarMountCount.current).toBe(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle full screen' }));
+
+    expect(screen.getByTestId('bruno-chat-sidebar')).toHaveAttribute(
+      'data-full-screen',
+      'false'
+    );
+    expect(chatSidebarMountCount.current).toBe(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Minimize' }));
 

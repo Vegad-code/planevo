@@ -62,10 +62,10 @@ export function BrunoDock() {
             )}
           >
             <motion.div
-              key={mode}
-              initial={{ opacity: 0, y: isFullScreen ? 0 : 24, scale: isFullScreen ? 1 : 0.98 }}
+              layout
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: isFullScreen ? 0 : 16, scale: isFullScreen ? 1 : 0.98 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
               className={cn(
                 'pointer-events-auto flex min-h-0 flex-col overflow-hidden border border-[var(--glass-border)] bg-[var(--color-settings-bg)] shadow-2xl',
