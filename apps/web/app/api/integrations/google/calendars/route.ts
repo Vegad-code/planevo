@@ -1,20 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth/get-user';
+import { NextResponse } from 'next/server';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { fetchGoogleCalendars } from '@/lib/integrations/google-calendar';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async ({ user }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const { user, error: authError } = await getAuthenticatedUser(request);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const calendars = await fetchGoogleCalendars(user.id);
 
     return NextResponse.json({
@@ -22,21 +12,21 @@ export async function GET(request: NextRequest) {
       calendars,
     });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Fetch Calendars Error:', err);
+    const message = error instanceof Error ? error.message : '';
+    console.error('Fetch Calendars Error:', error);
 
-    const status =
-      err.message === 'User not connected to Google Calendar' ||
-      err.message.includes('Failed to refresh Google token') ||
-      err.message.includes('invalid_grant')
-        ? 400
-        : 500;
+    const isClientError =
+      message === 'User not connected to Google Calendar' ||
+      message.includes('Failed to refresh Google token') ||
+      message.includes('invalid_grant');
 
     return NextResponse.json(
       {
-        error: err.message || 'Failed to fetch Google calendars',
+        error: isClientError
+          ? 'Google Calendar connection issue. Please reconnect.'
+          : 'Failed to fetch Google calendars',
       },
-      { status }
+      { status: isClientError ? 400 : 500 }
     );
   }
-}
+});

@@ -80,10 +80,12 @@ Events: ${worldState.calendarEvents.length} upcoming events.
     const insight = rawData.choices[0].message.content.trim();
 
     return NextResponse.json({ insight });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[AI Insight Error]', err);
     Sentry.captureException(err);
-    return NextResponse.json({ insight: "Ready to get things done today? 🐻" });
+    return NextResponse.json(
+      { insight: "Ready to get things done today? 🐻", fallback: true },
+      { status: 200 }
+    );
   }
 }

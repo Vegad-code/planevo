@@ -1,25 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { NextResponse } from 'next/server';
+
+import { withAuthClient } from '@/lib/api/route-helpers';
 import { emptyStrictBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 /**
  * Adaptive Rescheduling (Step 4 of Phase Two)
  * Moves all incomplete tasks with a past due_date to 'today' without shame.
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthClient(async ({ supabase, request }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const auth = await createAuthenticatedSupabaseClient(request);
-    if (auth.error || !auth.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { supabase } = auth;
-
     const body = await request.json().catch(() => ({}));
     const parsed = parseJsonBody(emptyStrictBodySchema, body);
     if (!parsed.success) {
@@ -42,6 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     let movedCount = 0;
+    const updateErrors: string[] = [];
     for (const task of overdueTasks) {
       const { error: updateError } = await supabase
         .from('tasks')
@@ -52,7 +42,12 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', task.id);
 
-      if (!updateError) movedCount++;
+      if (updateError) {
+        console.error(`[rollover] Failed to move task ${task.id} ("${task.title}"):`, updateError.message);
+        updateErrors.push(task.id);
+      } else {
+        movedCount++;
+      }
     }
 
     return NextResponse.json({
@@ -60,8 +55,7 @@ export async function POST(request: NextRequest) {
       message: `Bruno moved ${movedCount} tasks to your schedule today. No sweat! 🌿`,
     });
   } catch (error: unknown) {
-    const err = error as Error;
-    console.error('Rollover Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Rollover Error:', error);
+    return NextResponse.json({ error: 'Rollover failed' }, { status: 500 });
   }
-}
+});

@@ -50,8 +50,8 @@ export function useCalendarPreferences() {
           show_completed: data.show_completed ?? true,
         });
       }
-    } catch {
-      // Use defaults if no preferences exist
+    } catch (err) {
+      console.warn('[useCalendarPreferences] Failed to load preferences, using defaults:', err);
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,8 @@ export function useCalendarPreferences() {
         setPreferences(preferences);
       }
     } catch (err) {
-      console.error('Error updating preferences:', err);
+      console.error('[useCalendarPreferences] Error updating preferences:', err);
+      setPreferences(preferences);
     }
   }, [supabase, preferences]);
 

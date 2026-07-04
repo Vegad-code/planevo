@@ -1,21 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { searchNotesSchema } from '@planevo/notes-core';
-import { getAuthenticatedUser } from '@/lib/auth/get-user';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { NOTE_LIST_COLUMNS } from '@/lib/notes/types';
 
-export async function GET(req: NextRequest) {
-  if (!isAllowedOriginOrBearer(req)) {
-    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-  }
-
-  const { user, error: authError } = await getAuthenticatedUser(req);
-  if (authError || !user) {
-    return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
-  }
-
-  const params = Object.fromEntries(req.nextUrl.searchParams.entries());
+export const GET = withAuth(async ({ user, request }) => {
+  const params = Object.fromEntries(request.nextUrl.searchParams.entries());
   const parsed = searchNotesSchema.safeParse({
     ...params,
     limit: params.limit ? Number(params.limit) : undefined,
@@ -42,4 +33,4 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ notes: data ?? [] });
-}
+});

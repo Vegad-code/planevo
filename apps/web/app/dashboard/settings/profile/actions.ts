@@ -67,9 +67,9 @@ export async function updateProfileAction(data: unknown) {
     revalidatePath('/dashboard/settings/profile');
     
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Error updating profile:', err);
-    return { success: false, error: err.message || 'Unknown error' };
+    return { success: false, error: message };
   }
 }

@@ -666,16 +666,16 @@ export async function syncGoogleCalendar(
     }
 
     return { count: events.length, partial, warnings: fetchErrors };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     if (syncRunId) {
       await supabase.from('integration_sync_runs').update({ 
         status: 'failed', 
         finished_at: new Date().toISOString(),
-        error_message: err.message
+        error_message: message
       }).eq('id', syncRunId);
     }
-    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: err.message }).eq('id', accountId).eq('user_id', userId);
+    await supabaseAdmin.from('integration_accounts').update({ status: 'error', last_error: message }).eq('id', accountId).eq('user_id', userId);
     throw err;
   }
 }

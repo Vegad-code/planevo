@@ -34,7 +34,7 @@ export async function checkIpRateLimit(
     });
 
     if (error) {
-      console.error('[ip-rate-limit] RPC failed:', error);
+      console.error('[ip-rate-limit] RPC failed (failing closed):', error);
       return { allowed: false };
     }
 
@@ -44,7 +44,7 @@ export async function checkIpRateLimit(
 
     return { allowed: false, retryAfterSeconds: config.windowSeconds };
   } catch (error) {
-    console.error('[ip-rate-limit] Unexpected failure:', error);
+    console.error('[ip-rate-limit] Unexpected failure (failing closed):', error);
     return { allowed: false };
   }
 }

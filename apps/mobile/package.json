@@ -17,14 +17,14 @@
     "test": "jest"
   },
   "dependencies": {
-    "@callstack/liquid-glass": "^0.8.0",
-    "@planevo/nlp-core": "*",
-    "@planevo/notes-core": "*",
     "@ai-sdk/react": "^3.0.193",
     "@bacons/apple-targets": "^4.0.7",
+    "@callstack/liquid-glass": "^0.8.0",
     "@expo/vector-icons": "^15.0.3",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@howljs/calendar-kit": "^2.5.6",
+    "@planevo/nlp-core": "*",
+    "@planevo/notes-core": "*",
     "@react-navigation/native": "^7.1.8",
     "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.105.4",

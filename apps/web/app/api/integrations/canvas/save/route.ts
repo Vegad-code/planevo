@@ -1,39 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { createAuthenticatedSupabaseClient } from '@/lib/auth/get-user';
+import { NextResponse } from 'next/server';
+
+import { withAuth } from '@/lib/api/route-helpers';
 import { encryptToken } from '@/lib/crypto';
 import { upsertIntegrationAccount } from '@/lib/integrations/accounts';
-import { isAllowedOriginOrBearer } from '@/lib/auth/origin-guard';
+import { canvasSaveCredentialsSchema } from '@/lib/api/schemas';
+import { assertCanvasUrlSafe } from '@/lib/canvas/url-validation';
 
-const bodySchema = z.object({
-  url: z.string().min(1),
-  token: z.string().min(1),
-});
-
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async ({ user, request }) => {
   try {
-    if (!isAllowedOriginOrBearer(request)) {
-      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    }
-
-    const auth = await createAuthenticatedSupabaseClient(request);
-    if (auth.error || !auth.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const parsed = bodySchema.safeParse(await request.json());
+    const parsed = canvasSaveCredentialsSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
     const { url, token } = parsed.data;
+
+    const safe = await assertCanvasUrlSafe(url);
+    if (!safe.ok) {
+      return NextResponse.json({ error: 'Invalid Canvas URL' }, { status: 400 });
+    }
+
     const encryptedToken = encryptToken(token.trim());
 
     await upsertIntegrationAccount({
-      userId: auth.user.id,
+      userId: user.id,
       provider: 'canvas',
       accessTokenEncrypted: encryptedToken,
-      metadata: { canvas_url: url.trim() },
+      metadata: { canvas_url: safe.url },
       status: 'connected',
     });
 
@@ -41,8 +34,8 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[Canvas save]', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save Canvas credentials' },
+      { error: 'Failed to save Canvas credentials' },
       { status: 500 }
     );
   }
-}
+});

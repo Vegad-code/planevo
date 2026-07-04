@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
     const { data } = await supabase.auth.getUser();
     user = data?.user;
   } catch (e) {
-    console.error('Middleware Auth Error:', e);
+    console.error('[Middleware] Auth session refresh failed:', e instanceof Error ? e.message : e);
   }
 
   // Define public routes that don't require authentication

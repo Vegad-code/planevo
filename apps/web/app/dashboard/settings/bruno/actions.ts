@@ -20,10 +20,10 @@ export async function updateBrunoMemoryAction(patch: UserAiMemoryPatch) {
     
     revalidatePath('/dashboard/settings/bruno');
     return { success: true };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update preferences.';
     console.error('[updateBrunoMemoryAction] error:', err);
-    return { success: false, error: err.message || 'Failed to update preferences.' };
+    return { success: false, error: message };
   }
 }
 
@@ -191,10 +191,10 @@ ${rawText}
     });
 
     return { success: true, data: object };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to parse instructions.';
     console.error('[parseLLMImportAction] error:', err);
-    return { success: false, error: err.message || 'Failed to parse instructions.' };
+    return { success: false, error: message };
   }
 }
 
@@ -234,9 +234,10 @@ export async function updateBrunoDataAccessAction(
 
     revalidatePath('/dashboard/settings/bruno');
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to save settings.';
     console.error('[updateBrunoDataAccessAction] error:', err);
-    return { success: false, error: err.message || 'Failed to save settings.' };
+    return { success: false, error: message };
   }
 }
 

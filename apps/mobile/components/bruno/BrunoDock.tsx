@@ -35,8 +35,8 @@ export function BrunoDock() {
             <Text style={[styles.placeholder, { color: colors.textMuted }]} numberOfLines={1}>
               Ask Bruno anything…
             </Text>
-            <View style={[styles.mic, { backgroundColor: Colors.v4.accentWarm }]}>
-              <Mic size={16} color={Colors.v4.accentCream} />
+            <View style={[styles.mic, { backgroundColor: Colors.brand[500] }]}>
+              <Mic size={16} color={Colors.surface[50]} />
             </View>
           </View>
         </GlassSurface>

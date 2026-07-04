@@ -64,9 +64,9 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({ databases });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to list databases' },
+      { error: 'Failed to list databases' },
       { status: 500 }
     );
   }
@@ -99,9 +99,9 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, databaseIds });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save databases' },
+      { error: 'Failed to save databases' },
       { status: 500 }
     );
   }

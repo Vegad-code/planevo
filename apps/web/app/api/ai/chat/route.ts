@@ -703,8 +703,6 @@ URL: ${a.html_url || 'N/A'}
     const userLocalTime = localTime || new Date().toLocaleString();
     const pageContextBlock = buildPageContextBlock(pageContext);
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
     // Build privacy permission block for V1 system prompt
     const permissionLines: string[] = [];
     if (!dataAccess.tasks) permissionLines.push('CRITICAL: Task access is DISABLED. If asked about tasks, tell the user to enable it in Settings > Bruno Preferences.');
@@ -917,13 +915,15 @@ If you mention "confirm" or "create these tasks", corresponding CREATE_TASK prop
         'x-bruno-assistant-requested': requestedAssistantMode,
       },
     });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error('Error in Bruno chat:', error?.stack || error);
+  } catch (error: unknown) {
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error('Error in Bruno chat:', stack || message);
     Sentry.captureException(error);
-    if (error?.name === 'AbortError') {
+    if (isAbort) {
       return jsonWithDiagnostics({ error: 'Bruno took too long to respond (timeout)' }, { status: 504 });
     }
-    return jsonWithDiagnostics({ error: 'Failed to connect to Bruno', details: error?.message }, { status: 500 });
+    return jsonWithDiagnostics({ error: 'Failed to connect to Bruno', details: message }, { status: 500 });
   }
 }

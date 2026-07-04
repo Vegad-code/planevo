@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     console.error('Daily Plan Error:', error);
     Sentry.captureException(error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Daily plan failed' },
+      { error: 'Daily plan generation failed' },
       { status: 500 }
     );
   }
