@@ -4,8 +4,18 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { getIntegrationAccount, upsertIntegrationAccount } from '@/lib/integrations/accounts';
+import {
+  fetchGoogleTokenScopes,
+  googleScopesIncludeWrite,
+} from '@/lib/integrations/google-oauth-scopes';
 import { resilientFetch } from '@/lib/http/resilient-fetch';
 import type { Json } from '@/types/database';
+
+export type GoogleSyncResult = {
+  count: number;
+  partial: boolean;
+  warnings: string[];
+};
 
 function isEncryptedIntegrationToken(value: string): boolean {
   const parts = value.split(':');
@@ -62,26 +72,63 @@ async function resolveGoogleCalendarCredentials(
 
 /**
  * Check whether the user's Google Calendar integration has write scope.
- * Write-back (pushing/deleting events to Google) requires an explicit
- * scope upgrade beyond calendar.readonly. Until the user grants that,
- * all write operations must be silently skipped.
+ * Probes Google's tokeninfo when scopes were not persisted (legacy connects).
  */
 export async function hasGoogleWriteScope(userId: string): Promise<boolean> {
+  const scopes = await resolveGoogleCalendarScopes(userId);
+  return googleScopesIncludeWrite(scopes);
+}
+
+/** Load granted scopes from DB, or probe Google and persist when missing. */
+export async function resolveGoogleCalendarScopes(userId: string): Promise<string[]> {
   const { data: account } = await supabaseAdmin
     .from('integration_accounts')
-    .select('scopes')
+    .select('id, scopes, refresh_token_encrypted')
     .eq('user_id', userId)
     .eq('provider', 'google_calendar')
     .maybeSingle();
 
-  if (!account?.scopes || !Array.isArray(account.scopes)) return false;
+  if (account?.scopes && Array.isArray(account.scopes) && account.scopes.length > 0) {
+    return account.scopes;
+  }
 
-  // Write scope variants that indicate the user has granted write access
-  const writeScopes = [
-    'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events',
-  ];
-  return account.scopes.some(s => writeScopes.includes(s));
+  if (!account?.refresh_token_encrypted) return [];
+
+  try {
+    const refreshToken = decryptToken(account.refresh_token_encrypted);
+    const accessToken = await refreshGoogleToken(refreshToken);
+    const probed = await fetchGoogleTokenScopes(accessToken);
+    if (probed.length > 0) {
+      await supabaseAdmin
+        .from('integration_accounts')
+        .update({ scopes: probed })
+        .eq('id', account.id)
+        .eq('user_id', userId);
+      return probed;
+    }
+  } catch (error) {
+    console.warn('[google-calendar] Failed to probe OAuth scopes:', error);
+  }
+
+  return [];
+}
+
+/** Persist scopes after OAuth connect (tokeninfo with session access token). */
+export async function persistGoogleCalendarScopesFromAccessToken(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<void> {
+  if (!accessToken) return;
+
+  const scopes = await fetchGoogleTokenScopes(accessToken);
+  if (scopes.length === 0) return;
+
+  await upsertIntegrationAccount({
+    userId,
+    provider: 'google_calendar',
+    scopes,
+    status: 'connected',
+  });
 }
 
 export async function refreshGoogleToken(refreshToken: string) {
@@ -107,6 +154,60 @@ export async function refreshGoogleToken(refreshToken: string) {
 const GOOGLE_SYNC_PAST_DAYS = 90;
 const GOOGLE_SYNC_FUTURE_DAYS = 365;
 const GOOGLE_EVENTS_PAGE_SIZE = 250;
+const CALENDAR_UPSERT_BATCH_SIZE = 50;
+
+async function insertCalendarEventsInBatches(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rows: any[]
+) {
+  for (let i = 0; i < rows.length; i += CALENDAR_UPSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + CALENDAR_UPSERT_BATCH_SIZE);
+    const { error } = await supabaseAdmin
+      .from('calendar_events')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert(chunk as any);
+    if (error) {
+      // Partial unique index cannot back ON CONFLICT upsert; handle rare races on insert.
+      if (error.code === '23505') {
+        for (const row of chunk) {
+          const { error: updateError } = await supabaseAdmin
+            .from('calendar_events')
+            .update({
+              title: row.title,
+              start_time: row.start_time,
+              end_time: row.end_time,
+              is_all_day: row.is_all_day,
+              description: row.description,
+              location: row.location,
+              status: row.status,
+              metadata: row.metadata,
+              is_deleted: false,
+            })
+            .eq('user_id', row.user_id)
+            .eq('source', row.source)
+            .eq('external_id', row.external_id);
+          if (updateError) throw updateError;
+        }
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+async function upsertCalendarEventsByIdInBatches(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rows: any[]
+) {
+  for (let i = 0; i < rows.length; i += CALENDAR_UPSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + CALENDAR_UPSERT_BATCH_SIZE);
+    const { error } = await supabaseAdmin
+      .from('calendar_events')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(chunk as any, { onConflict: 'id' });
+    if (error) throw error;
+  }
+}
 
 interface GoogleCalendarListItem {
   id: string;
@@ -137,7 +238,7 @@ export async function persistGoogleCalendarSources(
   calendarIds: string[],
   nameById?: Map<string, string>
 ) {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   if (calendarIds.length === 0) return;
 
@@ -181,7 +282,7 @@ async function resolveCalendarsToSync(
   accountId: string,
   accessToken: string
 ): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   const { data: userPrefs } = await supabase
     .from('users')
@@ -309,18 +410,23 @@ export async function saveGoogleCalendarSelection(userId: string, selectedCalend
   await persistGoogleCalendarSources(userId, account.id, selectedCalendarIds);
 }
 
-export async function syncGoogleCalendar(userId: string, force = false) {
-  const supabase = await createClient();
+export async function syncGoogleCalendar(
+  userId: string,
+  force = false
+): Promise<GoogleSyncResult> {
+  const supabase = supabaseAdmin;
 
   const { encryptedToken, accountId } = await resolveGoogleCalendarCredentials(userId);
 
   // Create sync run
-  const { data: syncRun } = await supabase.from('integration_sync_runs').insert({
+  const { data: syncRun, error: syncRunError } = await supabase.from('integration_sync_runs').insert({
     user_id: userId,
     account_id: accountId,
     provider: 'google_calendar',
     status: 'running'
   }).select('id').single();
+
+  if (syncRunError) throw syncRunError;
 
   const syncRunId = syncRun?.id;
 
@@ -366,7 +472,6 @@ export async function syncGoogleCalendar(userId: string, force = false) {
       throw new Error(fetchErrors[0] || 'Failed to fetch Google Calendar events');
     }
 
-    // 5. Transform to calendar_events format
     const rawEvents = allEventsData.map((item: Record<string, unknown>) => {
       const start = item.start as Record<string, unknown>;
       const end = item.end as Record<string, unknown>;
@@ -415,18 +520,16 @@ export async function syncGoogleCalendar(userId: string, force = false) {
           .update({ status: 'success', finished_at: now })
           .eq('id', syncRunId);
       }
-      return 0;
+      return { count: 0, partial: fetchErrors.length > 0, warnings: fetchErrors };
     }
 
     // 6. Ghost Events Cleanup and Upsert
-    if (force) {
-      await supabase.from('calendar_events')
-        .delete()
-        .eq('user_id', userId)
-        .eq('source', 'google_calendar')
-        .gte('start_time', timeMin)
-        .lte('start_time', timeMax);
-    } else if (events.length > 0) {
+    // Reconcile non-destructively for both force and incremental syncs: soft-delete
+    // rows that no longer exist in Google and upsert the rest by external_id below.
+    // We never hard-delete-and-reinsert, because that recycles calendar_events.id
+    // (UUID) and invalidates any pending references to those events (e.g. Bruno
+    // proposals pinned to the previous id).
+    if (events.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const currentGoogleEventIds = events.map((e: any) => e.external_id);
       const { data: existingWindowEvents } = await supabase
@@ -436,7 +539,7 @@ export async function syncGoogleCalendar(userId: string, force = false) {
         .eq('source', 'google_calendar')
         .gte('start_time', timeMin)
         .lte('start_time', timeMax);
-        
+
       if (existingWindowEvents) {
         const currentIdsSet = new Set(currentGoogleEventIds);
         const ghosts = existingWindowEvents.filter(e => !currentIdsSet.has(e.external_id));
@@ -520,15 +623,11 @@ export async function syncGoogleCalendar(userId: string, force = false) {
       }
 
       if (toInsert.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: insertError } = await supabase.from('calendar_events').insert(toInsert as any);
-        if (insertError) throw insertError;
+        await insertCalendarEventsInBatches(toInsert);
       }
 
       if (toUpdateFull.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: updateError } = await supabase.from('calendar_events').upsert(toUpdateFull as any, { onConflict: 'id' });
-        if (updateError) throw updateError;
+        await upsertCalendarEventsByIdInBatches(toUpdateFull);
       }
 
       if (toUpdatePartial.length > 0) {
@@ -540,9 +639,15 @@ export async function syncGoogleCalendar(userId: string, force = false) {
 
     // Record successful sync
     const now = new Date().toISOString();
+    const partial = fetchErrors.length > 0;
+    const warningMessage = partial ? fetchErrors.join('; ').slice(0, 1000) : null;
     await supabaseAdmin
       .from('integration_accounts')
-      .update({ last_synced_at: now, status: 'connected', last_error: null })
+      .update({
+        last_synced_at: now,
+        status: 'connected',
+        last_error: warningMessage,
+      })
       .eq('id', accountId)
       .eq('user_id', userId);
     await supabase
@@ -555,11 +660,12 @@ export async function syncGoogleCalendar(userId: string, force = false) {
         finished_at: now,
         items_seen: events.length,
         items_created: itemsCreated,
-        items_updated: itemsUpdated
+        items_updated: itemsUpdated,
+        error_message: warningMessage,
       }).eq('id', syncRunId);
     }
 
-    return events.length;
+    return { count: events.length, partial, warnings: fetchErrors };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     if (syncRunId) {

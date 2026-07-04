@@ -48,6 +48,10 @@ function enabled(value: string | undefined) {
   return value?.toLowerCase() === 'true';
 }
 
+function enabledByDefault(value: string | undefined) {
+  return value?.toLowerCase() !== 'false';
+}
+
 export function getBrunoRoutingFlags(
   env: RuntimeEnv = process.env,
   userId?: string
@@ -60,10 +64,12 @@ export function getBrunoRoutingFlags(
   );
 
   return {
+    // V2 (persisted proposals + tool loop) and the LLM router are the default
+    // paths; env vars remain as explicit kill switches.
     routingV2Enabled:
-      enabled(env.BRUNO_ROUTING_V2_ENABLED) ||
+      enabledByDefault(env.BRUNO_ROUTING_V2_ENABLED) ||
       (userId ? internalUsers.has(userId) : false),
-    llmRouterEnabled: enabled(env.BRUNO_LLM_ROUTER_ENABLED),
+    llmRouterEnabled: enabledByDefault(env.BRUNO_LLM_ROUTER_ENABLED),
     upgradeCardsEnabled: enabled(env.BRUNO_UPGRADE_CARDS_ENABLED),
     deepCreditsEnabled: enabled(env.BRUNO_DEEP_CREDITS_ENABLED),
     clarificationCardsEnabled:

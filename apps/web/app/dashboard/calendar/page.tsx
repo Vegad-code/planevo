@@ -131,6 +131,8 @@ export default function CalendarPage() {
     () => ({
       activeView,
       selectedDate: selectedDate.toISOString(),
+      weekStart: startOfWeek(selectedDate, { weekStartsOn: WEEK_STARTS_ON }).toISOString(),
+      monthStart: startOfMonth(selectedDate).toISOString(),
     }),
     [activeView, selectedDate]
   );
@@ -495,10 +497,19 @@ export default function CalendarPage() {
           } catch {
             // keep default
           }
+          if (/fetch failed/i.test(message)) {
+            message =
+              'Google Calendar sync lost connection to the database. Please try again.';
+          }
           throw new Error(message);
         }
         const data = await response.json();
-        if (!silent) {
+        if (data.partial && Array.isArray(data.warnings) && data.warnings.length > 0) {
+          toast.warning(
+            data.warnings[0] ?? 'Google Calendar synced with some calendar errors.',
+            { id: silent ? 'google-sync-partial' : toastId }
+          );
+        } else if (!silent) {
           toast.success(data.message || 'Google Calendar synced', { id: toastId });
         }
         setGoogleConnected(true);
@@ -508,7 +519,10 @@ export default function CalendarPage() {
         const message = err instanceof Error ? err.message : 'Sync failed';
         console.error(err);
         if (!silent) {
-          toast.error(`Sync failed: ${message}`, { id: toastId });
+          const userMessage = /fetch failed/i.test(message)
+            ? 'Could not reach the server to sync Google Calendar. Check your connection and try again.'
+            : message;
+          toast.error(`Sync failed: ${userMessage}`, { id: toastId });
         }
       } finally {
         setIsProcessing(false);

@@ -116,7 +116,7 @@ Respond ONLY with JSON.`;
                   Authorization: `Bearer ${openAiApiKey}`,
                 },
                 body: JSON.stringify({
-                  model: 'gpt-4o-mini',
+                  model: 'gpt-5.4-mini',
                   response_format: { type: 'json_object' },
                   messages: [{ role: 'system', content: prompt }],
                   max_tokens: 500,

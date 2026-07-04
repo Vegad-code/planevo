@@ -43,45 +43,20 @@ export async function POST(request: NextRequest) {
     };
     const column = columnMap[type];
 
-    const insertRow: Record<string, unknown> = {
-      user_id: user.id,
-      date: targetDate,
-      focus_time_seconds: 0,
-      tasks_completed: 0,
-      tasks_planned: 0,
-      [column]: Math.max(0, value),
-    };
-
-    const { data: existing } = await supabase
-      .from('daily_user_metrics')
-      .select('id, focus_time_seconds, tasks_completed, tasks_planned')
-      .eq('user_id', user.id)
-      .eq('date', targetDate)
-      .maybeSingle();
-
-    if (existing) {
-      const newValue = Math.max(0, (existing[column as keyof typeof existing] as number) + value);
-      const updatePayload = { [column]: newValue, updated_at: new Date().toISOString() };
-      const { error } = await supabase
-        .from('daily_user_metrics')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update(updatePayload as any)
-        .eq('id', existing.id);
-
-      if (error) {
-        console.error('Metrics update error:', error);
-        return NextResponse.json({ error: 'Failed to update metrics' }, { status: 500 });
+    // RPC added in migration 20260702120100 — regenerate database types after db push
+    const { error } = await (supabase as { rpc: (fn: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc> }).rpc(
+      'increment_daily_user_metric',
+      {
+        p_user_id: user.id,
+        p_date: targetDate,
+        p_column: column,
+        p_delta: Math.max(0, value),
       }
-    } else {
-      const { error } = await supabase
-        .from('daily_user_metrics')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .insert(insertRow as any);
+    );
 
-      if (error) {
-        console.error('Metrics insert error:', error);
-        return NextResponse.json({ error: 'Failed to insert metrics' }, { status: 500 });
-      }
+    if (error) {
+      console.error('Metrics increment error:', error);
+      return NextResponse.json({ error: 'Failed to update metrics' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

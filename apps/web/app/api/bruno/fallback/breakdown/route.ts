@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { BRUNO_MODELS } from "@/lib/bruno/modelPolicy";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/get-user";
 import { isAllowedOriginOrBearer } from "@/lib/auth/origin-guard";
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await generateObject({
-    model: openai("gpt-4o-mini"),
+    model: openai(BRUNO_MODELS.STANDARD),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     schema: fallbackResponseSchema as any,
     prompt: `

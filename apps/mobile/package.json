@@ -17,7 +17,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@callstack/liquid-glass": "^1.0.0",
+    "@callstack/liquid-glass": "^0.8.0",
     "@planevo/nlp-core": "*",
     "@planevo/notes-core": "*",
     "@ai-sdk/react": "^3.0.193",

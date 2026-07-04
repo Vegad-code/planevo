@@ -1,7 +1,5 @@
-import {
-  inferEventDateTimeFromText,
-  parseIsoDateTimeToUtcIso,
-} from "@/lib/bruno/inferEventDateTime";
+import { parseIsoDateTimeToUtcIso } from "@/lib/bruno/inferEventDateTime";
+import { inferFlexibleEventDateTime } from "@/lib/bruno/dates";
 
 type ProposalArgs = Record<string, unknown>;
 
@@ -34,7 +32,7 @@ export function enrichTimeBlockProposal(
     .filter(Boolean)
     .join(" ");
 
-  const inferred = inferEventDateTimeFromText(
+  const inferred = inferFlexibleEventDateTime(
     combinedText,
     context.timeZone,
     context.referenceDate

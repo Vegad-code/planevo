@@ -4,7 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { Database } from '@/types/database';
 import type { BrunoDataAccess } from '@/lib/bruno/types';
 import { sanitizeSearchQuery } from '@/lib/bruno/readTools';
+import { calendarDayBoundsFromDateKey } from '@/lib/bruno/schedulingContext';
 import { buildDayPlanSnapshot } from '@/lib/plan/day-plan';
+import { findGaps } from '@/lib/calendar';
 import { NOTE_KIND_VALUES, TASK_STATUS_VALUES } from '@/lib/bruno/tools/schemas';
 
 type Supabase = SupabaseClient<Database>;
@@ -15,13 +17,11 @@ function clampLimit(value: number | undefined, defaultLimit: number, max: number
   return Math.min(Math.max(1, value ?? defaultLimit), max);
 }
 
-function dayBounds(dateStr: string): { start: string; end: string } {
-  const start = new Date(`${dateStr}T00:00:00.000Z`);
-  const end = new Date(`${dateStr}T23:59:59.999Z`);
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
-export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess) {
+export function getBrunoV3ReadTools(
+  userId: string,
+  dataAccess: BrunoDataAccess,
+  timeZone: string
+) {
   const supabase = supabaseAdmin as Supabase;
 
   return {
@@ -45,15 +45,15 @@ export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess)
         if (!dataAccess.calendar) {
           return { success: false, error: 'ACCESS_DISABLED', message: 'Calendar access is disabled.' };
         }
-        const { start } = dayBounds(start_date);
-        const { end } = dayBounds(end_date);
+        const { start } = calendarDayBoundsFromDateKey(start_date, timeZone);
+        const { end } = calendarDayBoundsFromDateKey(end_date, timeZone);
         let query = supabase
           .from('calendar_events')
           .select('id, title, start_time, end_time, description, color, status')
           .eq('user_id', userId)
           .eq('is_deleted', false)
-          .gte('start_time', start)
-          .lte('start_time', end)
+          .lt('start_time', end)
+          .or(`and(start_time.gte.${start},start_time.lt.${end}),and(start_time.lt.${start},end_time.gt.${start})`)
           .order('start_time', { ascending: true })
           .limit(50);
         if (title_search) {
@@ -115,15 +115,15 @@ export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess)
         if (!dataAccess.calendar) {
           return { success: false, error: 'ACCESS_DISABLED', message: 'Calendar access is disabled.' };
         }
-        const { start, end } = dayBounds(date);
+        const { start, end } = calendarDayBoundsFromDateKey(date, timeZone);
         const { data, error } = await supabase
           .from('calendar_events')
           .select('*')
           .eq('user_id', userId)
           .eq('is_deleted', false)
           .neq('status', 'rejected')
-          .gte('start_time', start)
-          .lte('start_time', end)
+          .lt('start_time', end)
+          .or(`and(start_time.gte.${start},start_time.lt.${end}),and(start_time.lt.${start},end_time.gt.${start})`)
           .order('start_time', { ascending: true });
         if (error) return { success: false, error: 'Failed to fetch daily plan.' };
         const snapshot = buildDayPlanSnapshot(data ?? []);
@@ -238,8 +238,114 @@ export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess)
       },
     }),
 
+    find_availability: tool({
+      description:
+        "Find free time slots in the user's calendar for a date range (inclusive, max 14 days). Call this BEFORE proposing CREATE_TIME_BLOCK or moving events so blocks land in real gaps instead of double-booking. Returns per-day free slots between day_start_hour and day_end_hour local time.",
+      inputSchema: jsonSchema<{
+        start_date: string;
+        end_date: string;
+        min_duration_minutes?: number;
+        day_start_hour?: number;
+        day_end_hour?: number;
+      }>({
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'YYYY-MM-DD (local)' },
+          end_date: { type: 'string', description: 'YYYY-MM-DD (local, inclusive)' },
+          min_duration_minutes: { type: 'number', minimum: 5, maximum: 1440 },
+          day_start_hour: { type: 'number', minimum: 0, maximum: 23, description: 'Earliest local hour to consider (default 8)' },
+          day_end_hour: { type: 'number', minimum: 1, maximum: 24, description: 'Latest local hour to consider (default 22)' },
+        },
+        required: ['start_date', 'end_date'],
+      }),
+      execute: async ({
+        start_date,
+        end_date,
+        min_duration_minutes,
+        day_start_hour,
+        day_end_hour,
+      }) => {
+        if (!dataAccess.calendar) {
+          return { success: false, error: 'ACCESS_DISABLED', message: 'Calendar access is disabled.' };
+        }
+        const minDuration = clampLimit(min_duration_minutes, 30, 1440);
+        const startHour = Math.min(Math.max(day_start_hour ?? 8, 0), 23);
+        const endHour = Math.min(Math.max(day_end_hour ?? 22, startHour + 1), 24);
+
+        const dayKeys: string[] = [];
+        const cursor = new Date(`${start_date}T00:00:00Z`);
+        const last = new Date(`${end_date}T00:00:00Z`);
+        if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime())) {
+          return { success: false, error: 'INVALID_DATE', message: 'Dates must be YYYY-MM-DD.' };
+        }
+        while (cursor.getTime() <= last.getTime() && dayKeys.length < 14) {
+          dayKeys.push(cursor.toISOString().slice(0, 10));
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+        if (dayKeys.length === 0) {
+          return { success: false, error: 'INVALID_RANGE', message: 'end_date must not be before start_date.' };
+        }
+
+        const { start: rangeStart } = calendarDayBoundsFromDateKey(dayKeys[0], timeZone);
+        const { end: rangeEnd } = calendarDayBoundsFromDateKey(dayKeys[dayKeys.length - 1], timeZone);
+        const { data: events, error } = await supabase
+          .from('calendar_events')
+          .select('id, title, start_time, end_time')
+          .eq('user_id', userId)
+          .eq('is_deleted', false)
+          .neq('status', 'rejected')
+          .lt('start_time', rangeEnd)
+          .gt('end_time', rangeStart)
+          .order('start_time', { ascending: true })
+          .limit(500);
+        if (error) {
+          return { success: false, error: 'QUERY_FAILED', message: 'Could not load calendar events.' };
+        }
+
+        const busy = (events ?? [])
+          .filter((event) => event.start_time && event.end_time)
+          .map((event) => ({
+            start: new Date(event.start_time as string),
+            end: new Date(event.end_time as string),
+          }));
+
+        const days = dayKeys.map((dateKey) => {
+          const bounds = calendarDayBoundsFromDateKey(dateKey, timeZone);
+          const dayStart = new Date(
+            new Date(bounds.start).getTime() + startHour * 3_600_000
+          );
+          const dayEnd = new Date(
+            new Date(bounds.start).getTime() + endHour * 3_600_000
+          );
+          const gaps = findGaps(
+            busy
+              .filter((slot) => slot.end > dayStart && slot.start < dayEnd)
+              .map((slot, index) => ({
+                id: `busy-${index}`,
+                summary: 'busy',
+                start: { dateTime: slot.start.toISOString() },
+                end: { dateTime: slot.end.toISOString() },
+              })),
+            dayStart,
+            dayEnd
+          ).filter((gap) => gap.durationMinutes >= minDuration);
+          return {
+            date: dateKey,
+            freeSlots: gaps.map((gap) => ({
+              start: gap.start.toISOString(),
+              end: gap.end.toISOString(),
+              durationMinutes: gap.durationMinutes,
+            })),
+          };
+        });
+
+        return { success: true, timeZone, minDurationMinutes: minDuration, days };
+      },
+    }),
+
     get_user_context: tool({
-      description: "Load week summary: events, tasks, recent notes.",
+      description:
+        "Load week summary: events, tasks, recent notes, and the user's scheduling preferences (work hours, focus windows).",
       inputSchema: jsonSchema<Record<string, never>>({
         type: 'object',
         properties: {},
@@ -249,7 +355,7 @@ export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess)
         today.setHours(0, 0, 0, 0);
         const weekEnd = new Date(today);
         weekEnd.setDate(weekEnd.getDate() + 7);
-        const [eventsResult, tasksResult, pinnedResult, recentResult] = await Promise.all([
+        const [eventsResult, tasksResult, pinnedResult, recentResult, profileResult, memoryResult] = await Promise.all([
           dataAccess.calendar
             ? supabase.from('calendar_events').select('id, title, start_time, end_time').eq('user_id', userId).eq('is_deleted', false).gte('start_time', today.toISOString()).lte('start_time', weekEnd.toISOString()).order('start_time').limit(20)
             : Promise.resolve({ data: [] }),
@@ -258,14 +364,22 @@ export function getBrunoV3ReadTools(userId: string, dataAccess: BrunoDataAccess)
             : Promise.resolve({ data: [] }),
           supabase.from('notes').select('id, title, note_kind, subject, is_pinned, updated_at').eq('user_id', userId).eq('is_archived', false).eq('is_pinned', true).order('updated_at', { ascending: false }).limit(5),
           supabase.from('notes').select('id, title, note_kind, subject, is_pinned, updated_at').eq('user_id', userId).eq('is_archived', false).order('updated_at', { ascending: false }).limit(5),
+          supabase.from('users').select('scheduling_preferences').eq('id', userId).maybeSingle(),
+          supabase.from('user_ai_memory').select('preferred_focus_windows, avoided_focus_windows, planning_style').eq('user_id', userId).maybeSingle(),
         ]);
         return {
           success: true,
           today: today.toISOString().split('T')[0],
+          timeZone,
           events: eventsResult.data ?? [],
           tasks: tasksResult.data ?? [],
           pinnedNotes: pinnedResult.data ?? [],
           recentNotes: recentResult.data ?? [],
+          schedulingPreferences:
+            (profileResult as { data?: { scheduling_preferences?: unknown } | null })?.data
+              ?.scheduling_preferences ?? null,
+          planningMemory:
+            (memoryResult as { data?: unknown | null })?.data ?? null,
         };
       },
     }),

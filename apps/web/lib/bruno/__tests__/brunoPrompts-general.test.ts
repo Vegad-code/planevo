@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGeneralSystemPrompt } from '@/lib/bruno/brunoPrompts';
+import { buildBrunoSystemPrompt, buildGeneralSystemPrompt } from '@/lib/bruno/brunoPrompts';
 
 describe('buildGeneralSystemPrompt', () => {
   it('uses a neutral assistant instruction without Bruno personality', () => {
@@ -43,7 +43,7 @@ describe('buildGeneralSystemPrompt', () => {
     });
 
     expect(prompt).toContain(
-      'You may use Planevo tools only when the user explicitly asks'
+      'Use Planevo tools whenever they help fulfill the request'
     );
     expect(prompt).toContain('search_tasks');
   });
@@ -62,5 +62,32 @@ describe('buildGeneralSystemPrompt', () => {
     expect(prompt).toContain('CODING BOUNDARY RULES');
     expect(prompt).toContain('not a website/app code generator');
     expect(prompt).toContain('under 40 lines');
+  });
+
+  it('includes bulk action and scheduling anchor rules for app_action mode', () => {
+    const prompt = buildBrunoSystemPrompt({
+      mode: 'app_action',
+      userName: 'Alex',
+      userPlan: 'free',
+      localTime: '7/1/2026, 12:00:00 PM',
+      timeZone: 'America/Los_Angeles',
+      referenceDateIso: '2026-07-01T19:00:00.000Z',
+      pageContext: '',
+      memoryContext: '',
+      taskContext: '',
+      calendarContext: '',
+      canvasContext: '',
+      dataAccess: {
+        tasks: true,
+        calendar: true,
+        canvas: false,
+        integrations: false,
+      },
+    });
+
+    expect(prompt).toContain('BULK ACTION RULES');
+    expect(prompt).toContain('SCHEDULING ANCHOR');
+    expect(prompt).toContain('BRUNO V3 EXECUTION RULES');
+    expect(prompt).toContain('get_calendar_events');
   });
 });

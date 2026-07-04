@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import React from 'react';
 
 // Suppress act warnings if any
 const originalError = console.error;
@@ -11,8 +10,44 @@ console.error = (...args) => {
 };
 
 jest.mock('react-native', () => {
+  const React = require('react');
   const RN = jest.requireActual('react-native');
-  RN.Text = (props) => <RN.View {...props} />;
-  RN.ActivityIndicator = (props) => <RN.View {...props} />;
+  const host = (name) => {
+    const Component = ({ children, ...props }) =>
+      React.createElement(name, props, children);
+    Component.displayName = name;
+    return Component;
+  };
+  Object.defineProperty(RN, 'View', {
+    configurable: true,
+    value: host('View'),
+  });
+  Object.defineProperty(RN, 'Text', {
+    configurable: true,
+    value: host('Text'),
+  });
+  Object.defineProperty(RN, 'Pressable', {
+    configurable: true,
+    value: host('Pressable'),
+  });
+  Object.defineProperty(RN, 'TouchableOpacity', {
+    configurable: true,
+    value: host('TouchableOpacity'),
+  });
+  Object.defineProperty(RN, 'TextInput', {
+    configurable: true,
+    value: host('TextInput'),
+  });
+  Object.defineProperty(RN, 'ActivityIndicator', {
+    configurable: true,
+    value: host('ActivityIndicator'),
+  });
+  Object.defineProperty(RN, 'StyleSheet', {
+    configurable: true,
+    value: {
+      create: (styles) => styles,
+      flatten: (style) => style,
+    },
+  });
   return RN;
 });

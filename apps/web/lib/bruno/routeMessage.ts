@@ -121,17 +121,17 @@ export async function routeBrunoMessage(
       latencyMs: Math.round(performance.now() - startedAt),
     };
   } catch (error) {
-    console.error('[Bruno Router] Falling back to basic chat:', error);
+    console.error('[Bruno Router] Falling back with full context:', error);
     return {
       decision: {
         mode: 'basic_chat',
         confidence: 0.5,
-        needsCalendarContext: false,
-        needsTaskContext: false,
-        needsCanvasContext: false,
+        needsCalendarContext: true,
+        needsTaskContext: true,
+        needsCanvasContext: true,
         estimatedOutputSize: 'medium',
         upgradeMoment: false,
-        rationale: 'router failure fallback',
+        rationale: 'router failure fallback with workspace context',
       },
       routeSource: 'fallback',
       latencyMs: Math.round(performance.now() - startedAt),

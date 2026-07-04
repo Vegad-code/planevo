@@ -914,6 +914,7 @@ CREATE TABLE IF NOT EXISTS public.bruno_tool_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     tool_name TEXT NOT NULL,
+    idempotency_key TEXT,
     arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
     result JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
@@ -938,3 +939,6 @@ CREATE POLICY "Users can view their own tool logs"
 -- Create an index on user_id and created_at for fast queries
 CREATE INDEX IF NOT EXISTS idx_bruno_tool_logs_user_id ON public.bruno_tool_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_bruno_tool_logs_created_at ON public.bruno_tool_logs(created_at DESC);
+ALTER TABLE public.bruno_tool_logs
+    ADD CONSTRAINT bruno_tool_logs_user_id_idempotency_key_key
+    UNIQUE (user_id, idempotency_key);

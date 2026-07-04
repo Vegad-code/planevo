@@ -37,25 +37,30 @@ export default function PlanDraftCard({
   return (
     <>
       <motion.button
+        type="button"
         onClick={() => setIsModalOpen(true)}
+        disabled={isCommitting}
         initial={{ opacity: 0, y: 15, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-[280px] group flex flex-col rounded-2xl border border-[#fdfbf7]/10 bg-gradient-to-b from-[#382c20] to-[#2c221a] shadow-lg hover:shadow-xl hover:border-amber-500/30 transition-all overflow-hidden text-left"
+        className="group flex w-full max-w-[280px] flex-col overflow-hidden rounded-2xl border border-[var(--color-settings-border)] bg-[var(--color-settings-card)] text-left shadow-sm transition-all hover:border-[var(--color-honey)]/40 hover:shadow-md disabled:opacity-60"
       >
-        <div className="p-4 flex items-center justify-between gap-3 bg-white/5">
+        <div className="flex items-center justify-between gap-3 bg-[var(--color-settings-bg)]/60 p-4">
           <div className="flex items-center gap-2.5">
-            <CalendarCheck weight="fill" className="w-5 h-5 text-amber-400" />
-            <h4 className="text-[14px] font-bold text-[#fdfbf7] truncate">{planTitle}</h4>
+            <CalendarCheck weight="fill" className="h-5 w-5 text-[var(--color-honey)]" />
+            <h4 className="truncate text-[14px] font-bold text-[var(--color-settings-text)]">{planTitle}</h4>
           </div>
-          <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
+          <span className="shrink-0 rounded-full border border-[var(--color-honey)]/25 bg-[var(--color-honey)]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--color-honey)]">
             Draft
           </span>
         </div>
-        <div className="p-3 bg-black/20 flex items-center justify-between">
-          <span className="text-[12px] font-medium text-[#fdfbf7]/60 group-hover:text-amber-400 transition-colors">
-            Review {items.length} items
+        <div className="flex items-center justify-between border-t border-[var(--color-settings-border)] bg-[var(--color-settings-bg)]/40 p-3">
+          <span className="text-[12px] font-medium text-[var(--color-settings-text-muted)] transition-colors group-hover:text-[var(--color-honey)]">
+            {isCommitting ? 'Submitting plan…' : `Review ${items.length} items`}
           </span>
-          <ArrowRight weight="bold" className="w-4 h-4 text-[#fdfbf7]/40 group-hover:text-amber-400 transition-colors group-hover:translate-x-1" />
+          <ArrowRight
+            weight="bold"
+            className="h-4 w-4 text-[var(--color-settings-text-muted)] transition-all group-hover:translate-x-1 group-hover:text-[var(--color-honey)]"
+          />
         </div>
       </motion.button>
 

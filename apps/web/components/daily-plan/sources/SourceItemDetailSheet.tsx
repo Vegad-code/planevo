@@ -17,7 +17,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
 
 interface SourceItemDetailSheetProps {
   item: SourceListItem | null;
@@ -29,13 +28,13 @@ interface SourceItemDetailSheetProps {
 function formatDetailTime(item: SourceListItem): string | null {
   if (item.startAt) {
     const start = new Date(item.startAt);
-    const startStr = format(start, 'EEEE, MMM d · h:mm a');
+    const startStr = format(start, 'EEEE, MMM d, h:mm a');
     if (!item.endAt) return startStr;
     const end = new Date(item.endAt);
-    return `${startStr} – ${format(end, 'h:mm a')}`;
+    return `${startStr} - ${format(end, 'h:mm a')}`;
   }
   if (item.dueAt) {
-    return `Due ${format(new Date(item.dueAt), 'EEEE, MMM d · h:mm a')}`;
+    return `Due ${format(new Date(item.dueAt), 'EEEE, MMM d, h:mm a')}`;
   }
   return null;
 }
@@ -59,19 +58,19 @@ export function SourceItemDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md bg-paper border-line overflow-y-auto"
+        className="w-full overflow-y-auto border-line bg-paper text-ink sm:max-w-md [&>button>svg]:text-ink"
       >
         <SheetHeader className="text-left gap-3 pb-4 border-b border-line">
-          <div className="font-mono text-[10px] tracking-[0.16em] text-(--color-ink-soft) uppercase">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
             {providerLabel}
-            {item.meta ? ` · ${item.meta}` : ''}
+            {item.meta ? `, ${item.meta}` : ''}
           </div>
-          <SheetTitle className="font-serif text-2xl text-ink leading-tight pr-8">
+          <SheetTitle className="pr-8 text-2xl font-semibold leading-tight text-ink">
             {item.title}
           </SheetTitle>
           {timeLabel && (
             <SheetDescription asChild>
-              <div className="flex items-center gap-2 font-sans text-sm text-(--color-ink-soft)">
+              <div className="flex items-center gap-2 text-sm text-[var(--color-ink-soft)]">
                 {item.startAt ? (
                   <CalendarBlank weight="bold" className="w-4 h-4 shrink-0" />
                 ) : (
@@ -86,12 +85,12 @@ export function SourceItemDetailSheet({
         <div className="flex flex-col gap-6 py-6">
           {item.description && (
             <section className="flex flex-col gap-2">
-              <h3 className="font-mono text-[10px] tracking-[0.14em] text-(--color-ink-soft) uppercase m-0">
+              <h3 className="m-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
                 Details
               </h3>
               {isHtmlDescription(item.description) ? (
                 <div
-                  className="prose prose-sm max-w-none prose-p:text-(--color-ink-soft) prose-headings:font-serif prose-a:text-(--color-honey-deep) rounded-xl border border-line bg-(--color-honey)/5 p-4"
+                  className="prose prose-sm max-w-none rounded-2xl border border-line bg-[var(--color-surface-muted)] p-4 prose-p:text-[var(--color-ink-soft)] prose-headings:font-semibold prose-a:text-[var(--color-honey-deep)]"
                   dangerouslySetInnerHTML={{
                     __html: DOMPurify.sanitize(item.description, {
                       USE_PROFILES: { html: true },
@@ -99,7 +98,7 @@ export function SourceItemDetailSheet({
                   }}
                 />
               ) : (
-                <p className="font-sans text-sm text-(--color-ink-soft) leading-relaxed m-0 whitespace-pre-wrap rounded-xl border border-line bg-(--color-honey)/5 p-4">
+                <p className="m-0 whitespace-pre-wrap rounded-2xl border border-line bg-[var(--color-surface-muted)] p-4 text-sm leading-6 text-[var(--color-ink-soft)]">
                   {item.description}
                 </p>
               )}
@@ -107,26 +106,24 @@ export function SourceItemDetailSheet({
           )}
 
           <div className="flex flex-col gap-2 mt-auto">
-            <Button
+            <button
               type="button"
               onClick={() => onAskBruno(item)}
-              className="w-full rounded-full bg-ink text-paper hover:bg-ink/90"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-paper transition hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
             >
-              <Sparkle weight="fill" className="w-4 h-4 mr-2" />
+              <Sparkle weight="fill" className="mr-2 h-4 w-4" />
               Ask Bruno
-            </Button>
+            </button>
             {item.url && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-full border-line"
-                asChild
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-line-strong bg-transparent px-5 text-sm font-semibold text-ink transition hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
               >
-                <a href={item.url} target="_blank" rel="noopener noreferrer">
-                  <ArrowSquareOut weight="bold" className="w-4 h-4 mr-2" />
-                  Open in {providerLabel}
-                </a>
-              </Button>
+                <ArrowSquareOut weight="bold" className="mr-2 h-4 w-4" />
+                Open in {providerLabel}
+              </a>
             )}
           </div>
         </div>

@@ -70,7 +70,9 @@ interface SourceItemRow {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function asString(value: unknown): string | null {
@@ -105,7 +107,7 @@ function extractSlackMeta(raw: unknown): string | undefined {
 function extractWorkMeta(item: SourceItemRow): string | undefined {
   if (item.provider === 'linear') {
     const parts = [item.status, item.priority].filter(Boolean);
-    return parts.length > 0 ? parts.join(' · ') : undefined;
+    return parts.length > 0 ? parts.join(', ') : undefined;
   }
   if (item.provider === 'notion') {
     return item.status ?? item.item_type ?? undefined;
@@ -147,7 +149,7 @@ export function mapCanvasAssignmentRow(
   row: Pick<
     Tables<'canvas_assignments'>,
     'id' | 'name' | 'description' | 'due_at' | 'html_url' | 'course_name'
-  >
+  >,
 ): SourceListItem {
   return {
     id: row.id,
@@ -172,7 +174,7 @@ export function mapCalendarEventRow(
     | 'end_time'
     | 'location'
     | 'metadata'
-  >
+  >,
 ): SourceListItem {
   const metadata = asRecord(row.metadata);
   const url =
@@ -198,7 +200,7 @@ export function mapCalendarEventRow(
 
 export function filterAndMapSourceItems(
   rows: SourceItemRow[],
-  provider: Exclude<SourceProvider, 'google_calendar'>
+  provider: Exclude<SourceProvider, 'google_calendar'>,
 ): SourceListItem[] {
   return rows
     .filter((row) => row.provider === provider)

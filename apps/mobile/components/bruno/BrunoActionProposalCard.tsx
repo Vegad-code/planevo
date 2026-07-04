@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors } from '@/constants/Colors';
 
@@ -49,6 +49,7 @@ export function BrunoActionProposalCard({
   isDark,
 }: Props) {
   const labels = labelsForType(proposal.type);
+  const isExecuting = executionStatus === 'executing';
   const canConfirm = executionStatus === 'idle';
 
   return (
@@ -74,11 +75,11 @@ export function BrunoActionProposalCard({
 
       <View style={styles.actions}>
         <TouchableOpacity
-          disabled={!canConfirm || executionStatus === 'executing'}
+          disabled={!canConfirm}
           onPress={() => onConfirm(proposal)}
           style={[styles.confirmBtn, !canConfirm && styles.disabledBtn]}
         >
-          {executionStatus === 'executing' ? (
+          {isExecuting ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.confirmText}>

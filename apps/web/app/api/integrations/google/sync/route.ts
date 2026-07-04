@@ -26,18 +26,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const count = await syncGoogleCalendar(user.id, force);
+    const syncResult = await syncGoogleCalendar(user.id, force);
 
     posthogServer.capture({
       distinctId: user.id,
       event: 'google_connected',
-      properties: { event_count: count },
+      properties: {
+        event_count: syncResult.count,
+        partial: syncResult.partial,
+      },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Synchronized ${count} events from Google Calendar.`,
-      count,
+      partial: syncResult.partial,
+      warnings: syncResult.warnings,
+      message: syncResult.partial
+        ? `Synchronized ${syncResult.count} events with warnings from some calendars.`
+        : `Synchronized ${syncResult.count} events from Google Calendar.`,
+      count: syncResult.count,
     });
   } catch (error: unknown) {
     const err = error as Error;

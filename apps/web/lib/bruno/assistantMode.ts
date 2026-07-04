@@ -39,9 +39,12 @@ export function didAutoEscalateToPlanning(input: {
 export function usesMinimalGeneralPrompt(input: {
   effectiveAssistantMode: BrunoAssistantMode;
   routeMode: BrunoMode;
+  routeHasContextSignal?: boolean;
 }): boolean {
   return (
-    input.effectiveAssistantMode === 'general' && input.routeMode === 'basic_chat'
+    input.effectiveAssistantMode === 'general' &&
+    input.routeMode === 'basic_chat' &&
+    !input.routeHasContextSignal
   );
 }
 

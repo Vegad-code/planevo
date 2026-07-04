@@ -70,6 +70,8 @@ export const Colors = {
     background: surface[100],
     card: '#FFFFFF',
     cardBorder: surface[300],
+    border: surface[300],
+    glass: 'rgba(243,228,201,0.72)',
     tint: brand[400],
     tabIconDefault: surface[400],
     tabIconSelected: brand[500],
@@ -86,6 +88,8 @@ export const Colors = {
     background: '#09090B',
     card: '#121214',
     cardBorder: '#27272A',
+    border: '#27272A',
+    glass: 'rgba(60,61,55,0.55)',
     tint: brand[300],
     tabIconDefault: '#71717A',
     tabIconSelected: brand[300],
@@ -94,6 +98,10 @@ export const Colors = {
     separator: '#27272A',
     inputBackground: '#121214',
     inputBorder: '#27272A',
+  },
+  v4: {
+    accentWarm: brand[400],
+    accentCream: surface[50],
   },
 };
 

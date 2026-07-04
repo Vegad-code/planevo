@@ -182,10 +182,13 @@ export function shouldRequestClarification({
     pattern.test(text)
   );
 
-  if (decision.mode !== 'basic_chat' && words <= 32) return true;
-  if (broad && words <= 48) return true;
-  if (broad && !hasSpecificDetail && decision.confidence < 0.9) return true;
-  return false;
+  // The agent asks its own clarifying questions in-loop when it needs to.
+  // This pre-generation card only fires for genuinely vague one-liners where
+  // the router itself is unsure — never for actionable requests like
+  // "plan my day", which should act immediately instead of quizzing the user.
+  if (!broad || hasSpecificDetail) return false;
+  if (words > 8) return false;
+  return decision.confidence < 0.7;
 }
 
 function normalizeClarificationDraft(input: {

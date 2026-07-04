@@ -5,7 +5,7 @@ import type {
   BrunoClarificationResponse,
 } from './types';
 
-function getApiUrl(): string {
+export function getBrunoApiUrl(): string {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (apiUrl) return apiUrl;
   if (__DEV__) return 'http://localhost:3000';
@@ -14,7 +14,7 @@ function getApiUrl(): string {
 
 export function createBrunoChatTransport() {
   return new DefaultChatTransport({
-    api: `${getApiUrl()}/api/ai/chat`,
+    api: `${getBrunoApiUrl()}/api/ai/chat`,
     headers: async (): Promise<Record<string, string>> => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { detectAppAction } from '@/lib/bruno/detectAppAction';
 import { detectObviousMode } from '@/lib/bruno/detectObviousMode';
 import {
+  applyRouteContextSignalsToPolicy,
   BRUNO_DOCUMENTS_OUTPUT_TOKENS,
   BRUNO_MODELS,
   MODEL_POLICY,
@@ -14,6 +15,9 @@ import { hasDetectorEvasionRequest } from '@/lib/bruno/conversationRouting';
 describe('Bruno V2 deterministic routing', () => {
   it.each([
     'Move math homework to tomorrow',
+    'Move everything I have on Thursday this week to the next day',
+    'Anything on July 2nd, move that to July 3rd',
+    'Delete the event on July 2nd',
     'Mark my essay done',
     'Add a task called study AP Macro',
     'What is next?',
@@ -74,13 +78,15 @@ describe('Bruno V2 model policy', () => {
   it('keeps app actions on the Standard model without an LLM router', () => {
     expect(MODEL_POLICY.app_action.tier).toBe('standard');
     expect(MODEL_POLICY.app_action.includeTasks).toBe(true);
+    expect(MODEL_POLICY.app_action.includeCalendar).toBe(true);
+    expect(MODEL_POLICY.app_action.temperature).toBe(0.1);
   });
 
-  it('keeps the existing Bruno model defaults unchanged', () => {
+  it('runs every generation tier on a gpt-5.x model (nano only routes)', () => {
     expect(BRUNO_MODELS.ROUTER).toBe('gpt-5.4-nano');
-    expect(BRUNO_MODELS.STANDARD).toBe('gpt-4o-mini');
-    expect(BRUNO_MODELS.MEDIUM).toBe('gpt-5.4-nano');
-    expect(BRUNO_MODELS.DEEP).toBe('gpt-5.4-mini');
+    expect(BRUNO_MODELS.STANDARD).toBe('gpt-5.4-mini');
+    expect(BRUNO_MODELS.MEDIUM).toBe('gpt-5.4-mini');
+    expect(BRUNO_MODELS.DEEP).toBe('gpt-5.4');
   });
 
   it('uses a free onboarding credit for an eligible deep request', () => {
@@ -125,7 +131,7 @@ describe('Bruno V2 model policy', () => {
     expect(result.tier).toBe('standard');
     expect(result.shouldReserveDeepAccess).toBe(false);
     expect(result.shouldShowUpgradeCard).toBe(true);
-    expect(result.policy.maxOutputTokens).toBeLessThanOrEqual(800);
+    expect(result.policy.maxOutputTokens).toBeLessThanOrEqual(2000);
     expect(result.policy.includeCanvas).toBe(false);
   });
 
@@ -151,7 +157,19 @@ describe('Bruno V2 model policy', () => {
     expect(result.tier).toBe('standard');
     expect(result.shouldReserveDeepAccess).toBe(false);
     expect(result.shouldShowUpgradeCard).toBe(false);
-    expect(result.policy.maxOutputTokens).toBe(700);
+    expect(result.policy.maxOutputTokens).toBe(1500);
+  });
+
+  it('honors route context signals even when the base mode policy is minimal', () => {
+    const policy = applyRouteContextSignalsToPolicy(MODEL_POLICY.basic_chat, {
+      needsTaskContext: true,
+      needsCalendarContext: true,
+      needsCanvasContext: true,
+    });
+
+    expect(policy.includeTasks).toBe(true);
+    expect(policy.includeCalendar).toBe(true);
+    expect(policy.includeCanvas).toBe(true);
   });
 
   it('uses Standard document writing for free and existing Deep tier for Pro', () => {

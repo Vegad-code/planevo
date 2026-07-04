@@ -5,6 +5,7 @@ export type BrunoContextSource =
   | 'daily-plan'
   | 'tasks'
   | 'calendar'
+  | 'notes'
   | 'settings'
   | 'unknown';
 
@@ -206,12 +207,24 @@ export function parseBrunoDataAccess(
 }
 
 import type { BrunoProgressPayload } from './bruno-progress';
+import type { BrunoActionProposal } from './tools/types';
 
 export type BrunoAssistantModeNotice = {
   type: 'bruno_assistant_mode_notice';
   requestedMode: BrunoAssistantMode;
   effectiveMode: BrunoAssistantMode;
   autoEscalated: boolean;
+  message: string;
+};
+
+export type BrunoActionProposalBatch = {
+  type: 'bruno_action_proposals';
+  source: 'deterministic_app_action_workflow';
+  proposals: BrunoActionProposal[];
+};
+
+export type BrunoStreamErrorNotice = {
+  type: 'bruno_stream_error';
   message: string;
 };
 
@@ -223,6 +236,8 @@ export type BrunoDataParts = {
   'bruno-truncated': BrunoTruncatedNotice;
   'bruno-clarification-card': BrunoClarificationCard;
   'bruno-assistant-mode-notice': BrunoAssistantModeNotice;
+  'bruno-action-proposals': BrunoActionProposalBatch;
+  'bruno-stream-error': BrunoStreamErrorNotice;
 };
 
 export type { BrunoActionTypeV3 } from './tools/schemas';

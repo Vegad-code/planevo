@@ -30,7 +30,15 @@ describe('buildDayPlanSnapshot', () => {
     is_ai_suggested: true,
     status: 'pending',
     energy_level: 'medium',
-    metadata: { reason: 'Due tomorrow' },
+    metadata: {
+      reason: 'Due tomorrow',
+      confidence: 84,
+      confidenceFactors: ['due today', 'high priority'],
+      sourceIds: ['canvas:assignment-1'],
+      constraintsUsed: ['calendar availability'],
+      plannerVersion: 'agentic-daily-plan-v1',
+      blockKind: 'focus',
+    },
     is_deleted: false,
   } as unknown as Tables<'calendar_events'>;
 
@@ -38,6 +46,14 @@ describe('buildDayPlanSnapshot', () => {
     const snapshot = buildDayPlanSnapshot([baseRow]);
     expect(snapshot.pendingCount).toBe(1);
     expect(snapshot.blocks[0].reason).toBe('Due tomorrow');
+    expect(snapshot.blocks[0]).toMatchObject({
+      confidence: 84,
+      confidenceFactors: ['due today', 'high priority'],
+      sourceIds: ['canvas:assignment-1'],
+      constraintsUsed: ['calendar availability'],
+      plannerVersion: 'agentic-daily-plan-v1',
+      blockKind: 'focus',
+    });
   });
 });
 

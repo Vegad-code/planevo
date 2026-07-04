@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { BrunoActionProposal } from "@/lib/bruno/tools/types";
 import { BrunoActionProposalCard, type ExecutionStatus } from "./BrunoActionProposalCard";
 import { isV3ExecutableAction } from "@/lib/bruno/tools/actionLabels";
-import { CheckSquareOffset } from "@phosphor-icons/react";
+import { CheckSquareOffset, CircleNotch } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
 type BrunoProposalGroupProps = {
   proposals: BrunoActionProposal[];
@@ -13,6 +14,7 @@ type BrunoProposalGroupProps = {
   onConfirm: (proposal: BrunoActionProposal) => void | Promise<void>;
   onCancel: (proposal: BrunoActionProposal) => void;
   onConfirmAll?: (proposals: BrunoActionProposal[]) => void | Promise<void>;
+  isConfirmingAll?: boolean;
 };
 
 export function BrunoProposalGroup({
@@ -22,6 +24,7 @@ export function BrunoProposalGroup({
   onConfirm,
   onCancel,
   onConfirmAll,
+  isConfirmingAll = false,
 }: BrunoProposalGroupProps) {
   const [isExpanded, setIsExpanded] = useState(proposals.length <= 3);
 
@@ -33,7 +36,7 @@ export function BrunoProposalGroup({
   const visibleProposals = isExpanded ? proposals : proposals.slice(0, 3);
 
   return (
-    <div className="mt-3 space-y-3">
+    <div className="mt-3 flex flex-col gap-3">
       {visibleProposals.map((proposal) => (
         <BrunoActionProposalCard
           key={proposal.id}
@@ -43,6 +46,7 @@ export function BrunoProposalGroup({
           onConfirm={onConfirm}
           onCancel={onCancel}
           compact={true}
+          disabled={isConfirmingAll}
         />
       ))}
 
@@ -50,7 +54,8 @@ export function BrunoProposalGroup({
         <button
           type="button"
           onClick={() => setIsExpanded(true)}
-          className="w-full rounded-xl border border-dashed border-white/20 px-4 py-2 text-xs font-medium text-white/60 hover:border-white/40 hover:text-white/80 transition-colors"
+          disabled={isConfirmingAll}
+          className="w-full rounded-xl border border-dashed border-[var(--color-settings-border)] px-4 py-2 text-xs font-medium text-[var(--color-settings-text-muted)] transition-colors hover:border-[var(--color-honey)]/40 hover:text-[var(--color-settings-text)] disabled:opacity-50"
         >
           + Show {proposals.length - 3} more
         </button>
@@ -59,6 +64,7 @@ export function BrunoProposalGroup({
       {unexecutedCount > 1 && onConfirmAll && (
         <button
           type="button"
+          disabled={isConfirmingAll}
           onClick={() =>
             onConfirmAll(
               executableProposals.filter(
@@ -66,10 +72,17 @@ export function BrunoProposalGroup({
               )
             )
           }
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#d99043]/20 px-4 py-2.5 text-sm font-semibold text-[#d99043] transition-colors hover:bg-[#d99043]/30"
+          className={cn(
+            "mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60",
+            "bg-[var(--color-honey)]/15 text-[var(--color-honey)] hover:bg-[var(--color-honey)]/25"
+          )}
         >
-          <CheckSquareOffset weight="bold" />
-          Confirm All ({unexecutedCount})
+          {isConfirmingAll ? (
+            <CircleNotch weight="bold" className="size-4 animate-spin" />
+          ) : (
+            <CheckSquareOffset weight="bold" className="size-4" />
+          )}
+          {isConfirmingAll ? 'Confirming…' : `Confirm All (${unexecutedCount})`}
         </button>
       )}
     </div>

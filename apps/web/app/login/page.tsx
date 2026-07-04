@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GOOGLE_CALENDAR_OAUTH_SCOPES } from '@/lib/integrations/google-oauth-scopes';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeClosed, CaretLeft } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -54,7 +55,7 @@ export default function SignIn() {
           access_type: 'offline',
           prompt: 'select_account consent',
         },
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+        scopes: GOOGLE_CALENDAR_OAUTH_SCOPES,
       },
     });
 

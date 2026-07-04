@@ -2,6 +2,7 @@
 
 import type { DayPlanBlock, DayPlanSnapshot } from '@/lib/plan/day-plan';
 import { PlanBlockCard } from './PlanBlockCard';
+import { SmoothSurface } from './SmoothSurface';
 
 interface DayTimelineProps {
   snapshot: DayPlanSnapshot;
@@ -24,31 +25,38 @@ export function DayTimeline({
 
   if (blocks.length === 0) {
     return (
-      <div className="rounded-2xl border border-[var(--glass-border)] bg-[var(--color-surface-raised)] p-12 text-center">
-        <p className="font-serif text-xl text-(--color-ink-soft) m-0">
+      <SmoothSurface
+        cornerRadius={28}
+        cornerSmoothing={0.88}
+        className="border border-line bg-[var(--color-surface-raised)] p-10 text-center"
+      >
+        <p className="m-0 text-lg font-semibold text-ink">
           No blocks scheduled yet.
         </p>
-        <p className="text-[14px] text-(--color-ink-faint) mt-2 mb-0">
+        <p className="m-0 mt-2 text-[14px] text-[var(--color-ink-soft)]">
           Bruno will build your plan automatically, or tap Regenerate.
         </p>
-      </div>
+      </SmoothSurface>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <ol className="m-0 flex list-none flex-col gap-3 p-0">
       {blocks.map((block) => (
-        <PlanBlockCard
-          key={block.id}
-          block={block}
-          isNow={block.id === nowBlockId}
-          isNext={block.id === nextBlockId}
-          onAccept={() => onBlockAccept(block.id)}
-          onReject={() => onBlockReject(block.id)}
-          onStart={() => onBlockStart(block)}
-          processing={blockProcessing ? blockProcessing(block.id) : processing}
-        />
+        <li key={block.id}>
+          <PlanBlockCard
+            block={block}
+            isNow={block.id === nowBlockId}
+            isNext={block.id === nextBlockId}
+            onAccept={() => onBlockAccept(block.id)}
+            onReject={() => onBlockReject(block.id)}
+            onStart={() => onBlockStart(block)}
+            processing={
+              blockProcessing ? blockProcessing(block.id) : processing
+            }
+          />
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }

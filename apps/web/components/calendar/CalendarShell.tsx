@@ -171,21 +171,23 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
     const handleEventDrop = useCallback(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ({ event, start, end }: any) => {
+        if (isProcessing) return;
         if (onEventReschedule && event.id) {
           onEventReschedule(event.id as string, start, end);
         }
       },
-      [onEventReschedule]
+      [onEventReschedule, isProcessing]
     );
 
     const handleEventResize = useCallback(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ({ event, end }: any) => {
+        if (isProcessing) return;
         if (onEventResize && event.id) {
           onEventResize(event.id as string, end);
         }
       },
-      [onEventResize]
+      [onEventResize, isProcessing]
     );
 
     const handleSelectSlot = useCallback(
@@ -295,12 +297,13 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
     const handleDropFromOutside = useCallback(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ({ start }: any) => {
+        if (isProcessing) return;
         if (draggedTask && onTaskDrop) {
           onTaskDrop(draggedTask, start);
         }
         onDragTaskChange(null);
       },
-      [draggedTask, onTaskDrop, onDragTaskChange]
+      [draggedTask, onTaskDrop, onDragTaskChange, isProcessing]
     );
 
     const showNowButton =
@@ -383,8 +386,9 @@ const CalendarShell = forwardRef<CalendarShellHandle, CalendarShellProps>(
               onSelectSlot={handleSelectSlot}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onSelectEvent={(event: any) => onEventClick?.(event.resource)}
-              selectable
-              resizable
+              selectable={!isProcessing}
+              resizable={!isProcessing}
+              draggableAccessor={() => !isProcessing}
               step={15}
               timeslots={4}
               min={minTime}

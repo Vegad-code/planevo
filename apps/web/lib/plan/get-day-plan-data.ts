@@ -11,7 +11,15 @@ import {
   mapCalendarEventRow,
   mapCanvasAssignmentRow,
   type DayPlanSourcesData,
+  type SourceListItem,
+  type SourceProvider,
 } from '@/lib/plan/source-items';
+import type {
+  DailyPlanCapacity,
+  DailyPlanOverflowItem,
+  DailyPlanSource,
+  DailyPlanSourceInfluence,
+} from '@/lib/plan/agent/types';
 import type { Tables } from '@/types/database';
 
 export interface DayPlanPageData {
@@ -22,6 +30,9 @@ export interface DayPlanPageData {
   isBuilding: boolean;
   hasPlan: boolean;
   sources: DayPlanSourcesData;
+  capacity: DailyPlanCapacity;
+  sourceInfluence: DailyPlanSourceInfluence[];
+  overflowItems: DailyPlanOverflowItem[];
 }
 
 export type { DayPlanSourcesData } from '@/lib/plan/source-items';
@@ -76,7 +87,7 @@ export async function getDayPlanPageData(): Promise<DayPlanPageData | null> {
       .order('start_time', { ascending: true }),
     supabase
       .from('tasks')
-      .select('id')
+      .select('id, title, due_date, priority, estimated_minutes')
       .eq('user_id', user.id)
       .eq('completed', false)
       .is('deleted_at', null),
@@ -177,15 +188,26 @@ export async function getDayPlanPageData(): Promise<DayPlanPageData | null> {
     slack: filterAndMapSourceItems(workSourceRows, 'slack'),
     linear: filterAndMapSourceItems(workSourceRows, 'linear'),
   };
+  const overflowItems = buildOverflowItems({
+    tasks: tasksResult.data ?? [],
+    scheduledTaskIds,
+    plannedSourceIds: snapshot.blocks.flatMap((block) => block.sourceIds),
+    sources,
+  });
+  const sourceInfluence = buildSourceInfluence(snapshot, sources, tasksResult.data ?? [], overflowItems);
+  const capacity = buildCapacity(snapshot, overflowItems.length);
 
   return {
     userName: profileResult.data?.name?.split(' ')[0] ?? 'there',
     brunoMessage,
     snapshot,
-    overflowCount,
+    overflowCount: overflowItems.length || overflowCount,
     isBuilding,
     hasPlan,
     sources,
+    capacity,
+    sourceInfluence,
+    overflowItems,
   };
 }
 
@@ -213,4 +235,163 @@ function buildBrunoMessage(
       : '';
 
   return `First up: ${first.title}.${reason}${overflowNote}`;
+}
+
+function minutesInBlocks(
+  blocks: DayPlanBlock[],
+  predicate: (block: DayPlanBlock) => boolean
+): number {
+  return blocks
+    .filter(predicate)
+    .reduce((total, block) => total + block.duration, 0);
+}
+
+function buildCapacity(
+  snapshot: DayPlanSnapshot,
+  overflowCount: number
+): DailyPlanCapacity {
+  const fixedMinutes = minutesInBlocks(snapshot.blocks, (block) => block.isFixed);
+  const plannedFocusMinutes = minutesInBlocks(
+    snapshot.blocks,
+    (block) => block.type === 'focus' && block.isAiSuggested && block.status !== 'rejected'
+  );
+  const bufferMinutes = minutesInBlocks(
+    snapshot.blocks,
+    (block) => block.blockKind === 'buffer' || block.type === 'break'
+  );
+  const availableFocusMinutes = Math.max(0, 24 * 60 - fixedMinutes);
+  const loadRatio = availableFocusMinutes > 0 ? plannedFocusMinutes / availableFocusMinutes : 1;
+
+  return {
+    fixedMinutes,
+    availableFocusMinutes,
+    plannedFocusMinutes,
+    bufferMinutes,
+    overflowCount,
+    status:
+      loadRatio > 1
+        ? 'overloaded'
+        : loadRatio >= 0.78 || overflowCount > 3
+          ? 'tight'
+          : 'healthy',
+  };
+}
+
+function providerToSource(provider: SourceProvider): DailyPlanSource {
+  return provider === 'google_calendar' ? 'google_calendar' : provider;
+}
+
+function sourceItemSourceId(item: SourceListItem): string {
+  return `${providerToSource(item.provider)}:${item.id}`;
+}
+
+function buildOverflowItems(input: {
+  tasks: Array<{
+    id: string;
+    title?: string | null;
+    due_date?: string | null;
+    priority?: string | null;
+    estimated_minutes?: number | null;
+  }>;
+  scheduledTaskIds: string[];
+  plannedSourceIds: string[];
+  sources: DayPlanSourcesData;
+}): DailyPlanOverflowItem[] {
+  const scheduledTasks = new Set(input.scheduledTaskIds);
+  const plannedSources = new Set(input.plannedSourceIds);
+  const items: DailyPlanOverflowItem[] = [];
+
+  for (const task of input.tasks) {
+    if (scheduledTasks.has(task.id) || plannedSources.has(`task:${task.id}`)) continue;
+    items.push({
+      candidateId: `task:${task.id}`,
+      source: 'task',
+      title: task.title ?? 'Untitled task',
+      reason: task.due_date
+        ? `Not placed yet; due ${new Date(task.due_date).toLocaleDateString()}.`
+        : 'Not placed yet; no due date is available.',
+      score: 0,
+    });
+  }
+
+  const sourceGroups = [
+    ...input.sources.canvas,
+    ...input.sources.notion,
+    ...input.sources.slack,
+    ...input.sources.linear,
+  ];
+  for (const item of sourceGroups) {
+    const sourceId = sourceItemSourceId(item);
+    if (plannedSources.has(sourceId)) continue;
+    items.push({
+      candidateId: sourceId,
+      source: providerToSource(item.provider),
+      title: item.title,
+      reason: item.dueAt
+        ? `Synced from ${item.provider}; due ${new Date(item.dueAt).toLocaleDateString()}.`
+        : `Synced from ${item.provider}; no due date is available.`,
+      score: 0,
+    });
+  }
+
+  return items.slice(0, 20);
+}
+
+function plannedSourceForBlock(block: DayPlanBlock): DailyPlanSource | null {
+  const firstSource = block.sourceIds[0];
+  if (firstSource) {
+    const prefix = firstSource.split(':')[0];
+    if (
+      prefix === 'task' ||
+      prefix === 'canvas' ||
+      prefix === 'google_calendar' ||
+      prefix === 'notion' ||
+      prefix === 'slack' ||
+      prefix === 'linear'
+    ) {
+      return prefix;
+    }
+  }
+
+  if (block.linkedTaskId) return 'task';
+  if (block.source === 'canvas') return 'canvas';
+  if (block.source === 'google_calendar') return 'google_calendar';
+  return null;
+}
+
+function buildSourceInfluence(
+  snapshot: DayPlanSnapshot,
+  sources: DayPlanSourcesData,
+  tasks: Array<{ id: string }>,
+  overflowItems: DailyPlanOverflowItem[]
+): DailyPlanSourceInfluence[] {
+  const totalBySource = new Map<DailyPlanSource, number>([
+    ['task', tasks.length],
+    ['canvas', sources.canvas.length],
+    ['google_calendar', sources.calendar.length],
+    ['notion', sources.notion.length],
+    ['slack', sources.slack.length],
+    ['linear', sources.linear.length],
+  ]);
+  const plannedBySource = new Map<DailyPlanSource, number>();
+  const overflowBySource = new Map<DailyPlanSource, number>();
+
+  for (const block of snapshot.blocks) {
+    const source = plannedSourceForBlock(block);
+    if (!source) continue;
+    plannedBySource.set(source, (plannedBySource.get(source) ?? 0) + 1);
+  }
+
+  for (const item of overflowItems) {
+    overflowBySource.set(item.source, (overflowBySource.get(item.source) ?? 0) + 1);
+  }
+
+  return Array.from(totalBySource.entries())
+    .filter(([, totalCandidates]) => totalCandidates > 0)
+    .map(([source, totalCandidates]) => ({
+      source,
+      totalCandidates,
+      plannedCount: plannedBySource.get(source) ?? 0,
+      overflowCount: overflowBySource.get(source) ?? 0,
+    }));
 }

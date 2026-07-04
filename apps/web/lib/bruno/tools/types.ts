@@ -3,6 +3,7 @@ export type BrunoActionType =
   | "UPDATE_TASK"
   | "RESCHEDULE_TASK"
   | "CREATE_TIME_BLOCK"
+  | "UPDATE_CALENDAR_EVENT"
   | "UPDATE_DAILY_PLAN"
   | "CREATE_NOTE"
   | "UPDATE_NOTE"
@@ -11,7 +12,8 @@ export type BrunoActionType =
   | "DELETE_CALENDAR_EVENT"
   | "DELETE_TASK"
   | "EXPLAIN_PLAN"
-  | "NO_ACTION";
+  | "NO_ACTION"
+  | "APPLY_PLAN";
 
 export type BrunoActionStatus =
   | "draft"
