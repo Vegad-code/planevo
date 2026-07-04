@@ -35,6 +35,8 @@ function labelsForType(type: string) {
       return { confirm: 'Delete event', success: 'Event deleted' };
     case 'DELETE_TASK':
       return { confirm: 'Remove task', success: 'Task removed' };
+    case 'APPLY_PLAN':
+      return { confirm: 'Apply plan', success: 'Plan applied' };
     default:
       return { confirm: 'Confirm', success: 'Done' };
   }
@@ -65,6 +67,16 @@ export function BrunoActionProposalCard({
       <Text style={[styles.description, { color: isDark ? Colors.surface[300] : Colors.surface[600] }]}>
         {proposal.description}
       </Text>
+      {proposal.type === 'APPLY_PLAN' && Array.isArray(proposal.payload.steps) ? (
+        <Text
+          style={[
+            styles.description,
+            { color: isDark ? Colors.surface[400] : Colors.surface[500] },
+          ]}
+        >
+          {(proposal.payload.steps as unknown[]).length} steps, applied in order
+        </Text>
+      ) : null}
 
       {executionStatus === 'success' ? (
         <Text style={styles.success}>{labels.success}</Text>

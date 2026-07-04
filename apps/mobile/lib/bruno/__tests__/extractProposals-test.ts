@@ -70,3 +70,77 @@ describe('extractProposalsFromMessage', () => {
     ]);
   });
 });
+
+describe('extractProposalsFromMessage propose_plan', () => {
+  it('renders a propose_plan tool part as an APPLY_PLAN proposal', () => {
+    const message = {
+      id: 'assistant-3',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-propose_plan',
+          toolCallId: 'plan-call-1',
+          input: {
+            summary: 'Clear Thursday and move everything to Friday',
+            steps: [
+              { type: 'UPDATE_CALENDAR_EVENT', title: 'Move gym' },
+              { type: 'UPDATE_CALENDAR_EVENT', title: 'Move study block' },
+            ],
+          },
+          output: {
+            success: true,
+            proposalId: 'proposal-plan-1',
+            proposal: {
+              id: 'proposal-plan-1',
+              type: 'APPLY_PLAN',
+              title: 'Clear Thursday and move everything to Friday',
+              description: 'Clear Thursday and move everything to Friday',
+              riskLevel: 'medium',
+              requiresConfirmation: true,
+              payload: {
+                planSummary: 'Clear Thursday and move everything to Friday',
+                steps: [
+                  { type: 'UPDATE_CALENDAR_EVENT', title: 'Move gym' },
+                  { type: 'UPDATE_CALENDAR_EVENT', title: 'Move study block' },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    } as unknown as BrunoUIMessage;
+
+    const proposals = extractProposalsFromMessage(message);
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]).toEqual(
+      expect.objectContaining({
+        id: 'proposal-plan-1',
+        type: 'APPLY_PLAN',
+        requiresConfirmation: true,
+      })
+    );
+    expect((proposals[0].payload.steps as unknown[]).length).toBe(2);
+  });
+
+  it('shapes a plan card from raw input when no server proposal exists yet', () => {
+    const message = {
+      id: 'assistant-4',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-propose_plan',
+          toolCallId: 'plan-call-2',
+          input: {
+            summary: 'Plan my finals week',
+            steps: [{ type: 'CREATE_TASK', title: 'Outline essay' }],
+          },
+        },
+      ],
+    } as unknown as BrunoUIMessage;
+
+    const proposals = extractProposalsFromMessage(message);
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0].type).toBe('APPLY_PLAN');
+    expect(proposals[0].title).toBe('Plan my finals week');
+  });
+});

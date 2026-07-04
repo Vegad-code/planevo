@@ -70,6 +70,10 @@ export function getBrunoRoutingFlags(
       enabledByDefault(env.BRUNO_ROUTING_V2_ENABLED) ||
       (userId ? internalUsers.has(userId) : false),
     llmRouterEnabled: enabledByDefault(env.BRUNO_LLM_ROUTER_ENABLED),
+    // Native approval loop (Phase B). Requires the client to opt in per
+    // request (`agentLoop: true` in the chat body); this env var is the
+    // global kill switch.
+    agentLoopEnabled: enabledByDefault(env.BRUNO_AGENT_LOOP_ENABLED),
     upgradeCardsEnabled: enabled(env.BRUNO_UPGRADE_CARDS_ENABLED),
     deepCreditsEnabled: enabled(env.BRUNO_DEEP_CREDITS_ENABLED),
     clarificationCardsEnabled:

@@ -17,6 +17,7 @@ function createHistorySupabase(options: {
   rows?: Array<Record<string, unknown>>;
 }) {
   const inserts: Array<Record<string, unknown>> = [];
+  const updates: Array<Record<string, unknown>> = [];
   const table = {
     select: vi.fn(() => table),
     eq: vi.fn(() => table),
@@ -35,10 +36,20 @@ function createHistorySupabase(options: {
       inserts.push(row);
       return Promise.resolve({ data: null, error: null });
     }),
+    update: vi.fn((row: Record<string, unknown>) => {
+      updates.push(row);
+      return table;
+    }),
+    then: undefined as unknown,
   };
+  // Make the chained update(...).eq(...).eq(...).eq(...) awaitable.
+  (table as { then: unknown }).then = (
+    resolve: (value: { data: null; error: null }) => void
+  ) => resolve({ data: null, error: null });
   return {
     supabase: { from: vi.fn(() => table) } as unknown as SupabaseClient<Database>,
     inserts,
+    updates,
   };
 }
 
@@ -100,6 +111,35 @@ describe('partsForModel', () => {
       { type: 'data-bruno-action-proposals', data: {} },
     ]);
     expect(parts).toHaveLength(2);
+  });
+});
+
+describe('partsForModel approval states', () => {
+  const APPROVAL_REQUESTED = {
+    type: 'tool-propose_action',
+    toolCallId: 'c1',
+    state: 'approval-requested',
+    input: { type: 'CREATE_TASK', title: 'Read' },
+    approval: { id: 'appr-1' },
+  };
+  const OUTPUT_DENIED = {
+    type: 'tool-propose_action',
+    toolCallId: 'c2',
+    state: 'output-denied',
+    input: { type: 'DELETE_TASK', title: 'Drop' },
+    approval: { id: 'appr-2', approved: false },
+  };
+
+  it('always keeps user-denied tool calls so the model knows the outcome', () => {
+    const parts = partsForModel([OUTPUT_DENIED]);
+    expect(parts).toHaveLength(1);
+  });
+
+  it('keeps pending approval requests only when asked to (agent-loop resume)', () => {
+    expect(partsForModel([APPROVAL_REQUESTED])).toBeNull();
+    expect(
+      partsForModel([APPROVAL_REQUESTED], { keepPendingApprovals: true })
+    ).toHaveLength(1);
   });
 });
 
@@ -178,6 +218,31 @@ describe('persistBrunoAssistantTurn', () => {
     });
     expect(inserts).toHaveLength(1);
     expect(String(inserts[0].content)).toContain('without a text reply');
+  });
+
+  it('updates the existing row in place on approval continuations', async () => {
+    const { supabase, inserts, updates } = createHistorySupabase({});
+    await persistBrunoAssistantTurn(supabase, {
+      userId: USER_ID,
+      conversationId: CONV_ID,
+      replaceRowId: 'row-1',
+      message: {
+        parts: [
+          { type: 'text', text: 'Done — created the block.' },
+          {
+            type: 'tool-propose_action',
+            toolCallId: 'c1',
+            state: 'output-available',
+            input: { type: 'CREATE_TIME_BLOCK', title: 'Study' },
+            output: { success: true, executed: true },
+          },
+        ],
+      },
+    });
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].content).toBe('Done — created the block.');
+    expect(Array.isArray(updates[0].parts)).toBe(true);
   });
 });
 

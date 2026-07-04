@@ -1,18 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import BrunoAvatar from './BrunoAvatar';
 import { createClient } from '@/lib/supabase/client';
 import { PaperPlaneTilt, Minus, ArrowsOut, ArrowsIn, ClockCounterClockwise, Plus, Stop } from '@phosphor-icons/react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeSanitize from 'rehype-sanitize';
-import { brunoMarkdownComponents } from '@/components/bruno/brunoMarkdownComponents';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, UIMessage } from 'ai';
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from 'ai';
 import { BrunoChatLimitPaywall } from '@/components/bruno/BrunoChatLimitPaywall';
-import { BrunoNoteActions } from '@/components/bruno/BrunoNoteActions';
+import { BrunoMessageList, type BrunoUIMessage } from '@/components/bruno/BrunoMessageList';
+import {
+  dispatchBrunoActionRefreshEvents,
+  useBrunoProposalActions,
+} from '@/hooks/useBrunoProposalActions';
+import { extractExecutedActionsFromMessage } from '@/lib/bruno/proposalExtraction';
+import { createBrunoChatRequestBody } from '@/lib/bruno/chat-request';
 import { useSubscription } from '@/hooks/use-subscription';
 import type { BrunoRateLimitPayload } from '@/lib/bruno/types';
 import {
@@ -20,77 +25,6 @@ import {
   parseBrunoRateLimitError,
 } from '@/lib/bruno/rate-limit-client';
 
-const MemoizedMessage = memo(({ m, isLoading, editingMessageId, setInput, setEditingMessageId }: any) => {
-  const textPart = (m.parts?.find((p: any) => p.type === 'text'))?.text;
-  const toolParts = m.parts?.filter((p: any) => p.type.startsWith('tool-'));
-
-  if (!textPart && (!toolParts || toolParts.length === 0)) return null;
-
-  return (
-    <div className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-      
-      {/* Tool Execution indicators */}
-      {toolParts && toolParts.length > 0 && (
-        <div className="flex flex-col gap-1 items-start w-full mb-2">
-           {toolParts.map((tool: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-2 bg-surface-800 text-surface-400 px-3 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest border border-surface-700 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                {(tool.state === 'input-streaming' || tool.state === 'input-available') && <div className="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping" />}
-                {tool.state === 'output-available' && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
-                {(tool.state === 'input-streaming' || tool.state === 'input-available') ? 'Executing Tool...' : 'Tool Completed'}
-              </div>
-           ))}
-        </div>
-      )}
-
-      {/* Text Bubble with Edit Button */}
-      {textPart && (
-        <div className={`flex flex-row items-center gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-          {m.role === 'user' && !isLoading && editingMessageId !== m.id && (
-            <button 
-               onClick={() => {
-                  setInput(textPart);
-                  setEditingMessageId(m.id);
-               }}
-               className="text-surface-600 hover:text-white transition-colors"
-               title="Edit message"
-            >
-               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-            </button>
-          )}
-          <div className={`
-            max-w-[85%] p-3 text-xs font-bold leading-relaxed
-            ${m.role === 'user' 
-              ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none border-2 border-[#121212]' 
-              : 'bg-white text-black rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]'
-            }
-            ${editingMessageId === m.id ? 'opacity-50' : ''}
-          `}>
-            <div className="bruno-markdown max-w-none text-xs [&_h2]:text-sm [&_h3]:text-xs [&_strong]:text-accent-600">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={brunoMarkdownComponents}>
-                {textPart}
-              </ReactMarkdown>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}, (prevProps, nextProps) => {
-  const prevText = prevProps.m.parts?.find((p: any) => p.type === 'text')?.text;
-  const nextText = nextProps.m.parts?.find((p: any) => p.type === 'text')?.text;
-  
-  const prevToolStates = JSON.stringify(prevProps.m.parts?.filter((p: any) => p.type.startsWith('tool-')).map((p: any) => p.state));
-  const nextToolStates = JSON.stringify(nextProps.m.parts?.filter((p: any) => p.type.startsWith('tool-')).map((p: any) => p.state));
-
-  return (
-    prevText === nextText &&
-    prevToolStates === nextToolStates &&
-    prevProps.isLoading === nextProps.isLoading &&
-    prevProps.editingMessageId === nextProps.editingMessageId
-  );
-});
-MemoizedMessage.displayName = 'MemoizedMessage';
 
 interface Conversation {
   id: string;
@@ -147,24 +81,60 @@ export default function BrunoChat() {
     [isFree]
   );
 
-  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    error,
+    stop,
+    clearError,
+    addToolApprovalResponse,
+  } = useChat<BrunoUIMessage>({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
     messages: [
-      { id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as UIMessage
+      { id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as BrunoUIMessage
     ],
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: handleRateLimitError,
     onFinish: async (event) => {
       const message = (event as any).message || event;
       const textPart = message.parts?.find((p: any) => p.type === 'text')?.text;
-      
+
       // Assistant-turn persistence is server-side now (chat stream onFinish);
       // only conversation metadata stays client-side.
       if (currentConversationId && message.role === 'assistant' && textPart) {
         await (supabase as any).from('chat_conversations').update({ last_active: new Date().toISOString() }).eq('id', currentConversationId);
       }
+
+      if (message.role === 'assistant') {
+        for (const action of extractExecutedActionsFromMessage(message)) {
+          dispatchBrunoActionRefreshEvents(
+            action.actionType,
+            action.proposalId,
+            action.data
+          );
+        }
+      }
     }
+  });
+
+  const lastUserPromptRef = useRef<string>('');
+  const {
+    actionStatuses,
+    actionErrors,
+    isConfirmingAll,
+    handleConfirmProposal,
+    handleCancelProposal,
+    handleConfirmAll,
+  } = useBrunoProposalActions({
+    addToolApprovalResponse,
+    getRequestBody: () =>
+      createBrunoChatRequestBody(currentConversationId, null, 'general'),
+    getConversationId: () => currentConversationId,
+    getUserPrompt: () => lastUserPromptRef.current || undefined,
   });
 
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -248,7 +218,7 @@ export default function BrunoChat() {
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setMessages([{ id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as UIMessage]);
+    setMessages([{ id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as BrunoUIMessage]);
     setShowHistory(false);
   };
 
@@ -271,7 +241,7 @@ export default function BrunoChat() {
             ? m.parts
             : [{ type: 'text', text: m.content }],
         createdAt: new Date(m.created_at)
-      } as UIMessage)));
+      } as BrunoUIMessage)));
     }
   };
 
@@ -335,13 +305,14 @@ export default function BrunoChat() {
       setIsAtBottom(true);
       setTimeout(() => scrollToBottom(), 50);
       
+      lastUserPromptRef.current = userMessage;
       sendMessage({ text: userMessage }, {
-        body: { diagnostics: true, conversationId: convId }
+        body: createBrunoChatRequestBody(convId, null, 'general')
       });
       
     } catch (err) {
       console.error("Failed to start chat stream:", err);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', parts: [{ type: 'text', text: "Sorry, I hit a slight connection issue. Could you repeat that?" }] } as UIMessage]);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', parts: [{ type: 'text', text: "Sorry, I hit a slight connection issue. Could you repeat that?" }] } as BrunoUIMessage]);
     }
   };
 
@@ -445,34 +416,31 @@ export default function BrunoChat() {
         className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#121212] custom-scrollbar"
         onScroll={handleScroll}
       >
-        {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((m, i) => {
-          const textPart = m.parts?.find((p: { type: string }) => p.type === 'text') as { text?: string } | undefined;
-          const truncatedPart = m.parts?.find((p: { type: string }) => p.type === 'data-bruno-truncated') as { data?: { assistantText?: string; canContinue?: boolean } } | undefined;
-          return (
-            <div key={i}>
-              <MemoizedMessage
-                m={m}
-                isLoading={isLoading}
-                editingMessageId={editingMessageId}
-                setInput={setInput}
-                setEditingMessageId={setEditingMessageId}
-              />
-              {m.role === 'assistant' && textPart?.text && (
-                <BrunoNoteActions
-                  content={truncatedPart?.data?.assistantText || textPart.text}
-                  conversationId={currentConversationId}
-                  truncated={truncatedPart?.data ? { type: 'bruno_truncated', message: '', assistantText: truncatedPart.data.assistantText ?? textPart.text, canContinue: truncatedPart.data.canContinue ?? false } : null}
-                  onContinue={() => {
-                    sendMessage(
-                      { text: 'continue' },
-                      { body: { conversationId: currentConversationId } }
-                    );
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
+        <div className="flex flex-col gap-4">
+          <BrunoMessageList
+            messages={messages.filter(m => m.role === 'user' || m.role === 'assistant')}
+            isProcessing={isLoading}
+            isBrunoWorking={false}
+            editingMessageId={editingMessageId}
+            onStartEditMessage={(messageId, text) => {
+              setInput(text);
+              setEditingMessageId(messageId);
+            }}
+            conversationId={currentConversationId}
+            actionStatuses={actionStatuses}
+            actionErrors={actionErrors}
+            isConfirmingAll={isConfirmingAll}
+            onConfirmProposal={handleConfirmProposal}
+            onCancelProposal={handleCancelProposal}
+            onConfirmAll={handleConfirmAll}
+            onContinueTruncated={() => {
+              sendMessage(
+                { text: 'continue' },
+                { body: createBrunoChatRequestBody(currentConversationId, null, 'general') }
+              );
+            }}
+          />
+        </div>
         {isWaitingForFirstToken && (
           <div className="flex justify-start animate-in fade-in duration-200">
             <div className="bg-white p-3 rounded-2xl rounded-tl-none border-2 border-[#121212] shadow-[4px_4px_0px_0px_#000]">

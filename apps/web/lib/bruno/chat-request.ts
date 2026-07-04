@@ -19,6 +19,9 @@ export function createBrunoChatRequestBody(
 
   return {
     diagnostics: true,
+    // Web surfaces opt into the native approval loop (propose → approve →
+    // execute inside one model run). Mobile keeps the legacy execute flow.
+    agentLoop: true,
     conversationId,
     assistantMode,
     timeZone: resolvedTimeZone,
