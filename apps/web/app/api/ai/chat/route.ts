@@ -28,7 +28,6 @@ import {
   persistBrunoUserTurn,
 } from '@/lib/bruno/serverChatHistory';
 import {
-  resolveBrunoReferenceDate,
   resolveBrunoTimeZone,
 } from '@/lib/bruno/schedulingContext';
 import {
@@ -63,9 +62,9 @@ import { routeBrunoMessage } from '@/lib/bruno/routeMessage';
 import { extractLastUserMessageText } from '@/lib/bruno/enrichTimeBlockProposal';
 import { enrichBrunoProposal } from '@/lib/bruno/enrichProposalColor';
 import { getBrunoRoutingFlags } from '@/lib/bruno/runtime';
+import { looksLikeApprovalContinuation } from '@/lib/bruno/agentLoop';
 import { BrunoProgressWriter } from '@/lib/bruno/progressWriter';
 import { parseBrunoDataAccess } from '@/lib/bruno/types';
-import { runBrunoAppActionWorkflow } from '@/lib/bruno/appActionWorkflow';
 import type { BrunoDataParts } from '@/lib/bruno/types';
 import type { UIMessage, UIMessageStreamWriter } from 'ai';
 
@@ -86,6 +85,7 @@ const requestSchema = z.object({
   pageContext: pageContextSchema.optional(),
   assistantMode: z.enum(['general', 'planning']).optional().default('general'),
   clarificationResponse: brunoClarificationResponseSchema.optional(),
+  agentLoop: z.boolean().optional(),
 });
 
 function writeStaticText(
@@ -260,6 +260,7 @@ export async function POST(request: NextRequest) {
       pageContext,
       assistantMode,
       clarificationResponse,
+      agentLoop,
     } = parsedBody.data;
     const messages = applyClarificationResponseToMessages(
       rawMessages,
@@ -317,10 +318,27 @@ export async function POST(request: NextRequest) {
         isDocumentRefinementMessage(latestUserText));
     const routingFlags = getBrunoRoutingFlags(process.env, user.id);
 
+    // A resumed approval click is not a new user message: it must not burn a
+    // daily chat credit. This is only a heuristic for quota routing — the
+    // approval itself is validated against server-persisted state inside
+    // handleBrunoChatV2, and an invalid one ends the request without any
+    // model call.
+    const isApprovalContinuation =
+      agentLoop === true &&
+      routingFlags.routingV2Enabled &&
+      routingFlags.agentLoopEnabled &&
+      looksLikeApprovalContinuation(
+        messages as Parameters<typeof looksLikeApprovalContinuation>[0]
+      );
+
     // Consume daily quota only after validating the request body.
     // Notes/documents use separate monthly quotas in V2 and skip the daily chat cap.
     let usageLogId: string | undefined;
-    if (isNotesChat || (routingFlags.routingV2Enabled && isDocumentChat)) {
+    if (
+      isNotesChat ||
+      (routingFlags.routingV2Enabled && isDocumentChat) ||
+      isApprovalContinuation
+    ) {
       const { data: notesLog, error: notesLogError } = await supabaseAdmin
         .from('ai_usage_logs')
         .insert({
@@ -428,6 +446,7 @@ export async function POST(request: NextRequest) {
         pageContext,
         assistantMode: parseBrunoAssistantMode(assistantMode),
         clarificationResponse,
+        agentLoop: agentLoop === true,
       });
     }
 
@@ -453,70 +472,6 @@ export async function POST(request: NextRequest) {
       clientTimeZone: timeZone,
       profilePreferences: prefs,
     });
-    const referenceDate = resolveBrunoReferenceDate({ localTime, pageContext });
-
-    if (
-      v1RouteResult.decision.mode === 'app_action' &&
-      (dataAccess.calendar || dataAccess.tasks)
-    ) {
-      try {
-        const workflowResult = await runBrunoAppActionWorkflow({
-          userId: user.id,
-          message: latestUserText,
-          timeZone: resolvedTimeZone,
-          supabase: supabaseAdmin,
-          referenceDate,
-        });
-
-        if (workflowResult.handled) {
-          const stream = createUIMessageStream<UIMessage<unknown, BrunoDataParts>>({
-            execute: ({ writer }) => {
-              const progress = new BrunoProgressWriter(writer);
-              progress.markReadDone();
-              progress.markSafetyDone();
-              progress.markRouteDone(
-                v1RouteResult.decision.mode,
-                'Deterministic app action workflow'
-              );
-              writeStaticText(
-                writer,
-                workflowResult.text ||
-                  'I prepared the calendar changes for confirmation.'
-              );
-              if (workflowResult.proposals.length > 0) {
-                writer.write({
-                  type: 'data-bruno-action-proposals',
-                  data: {
-                    type: 'bruno_action_proposals',
-                    source: 'deterministic_app_action_workflow',
-                    proposals: workflowResult.proposals,
-                  },
-                });
-              }
-              progress.markComplete();
-            },
-          });
-
-          return createUIMessageStreamResponse({
-            stream,
-            headers: {
-              'Server-Timing': buildServerTimingHeader(
-                latencyTimer.complete(performance.now() - startAt)
-              ),
-              'x-bruno-assistant-mode': effectiveAssistantMode,
-              'x-bruno-assistant-requested': requestedAssistantMode,
-              'x-bruno-mode': 'app_action',
-            },
-          });
-        }
-      } catch (error) {
-        Sentry.captureException(error);
-        console.warn(
-          '[Bruno App Action Workflow] Falling back to legacy chat:',
-          error
-        );
-      }
-    }
 
     if (
       shouldRequestClarification({
@@ -662,10 +617,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get learned memory
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const memory = useMinimalPrompt
       ? null
-      : await getUserAIMemory(supabaseAdmin as any, user.id);
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await getUserAIMemory(supabaseAdmin as any, user.id);
     const memoryContext = memory ? buildMemoryContext(memory) : '';
     latencyTimer.mark('memory');
 

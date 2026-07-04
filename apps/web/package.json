@@ -26,7 +26,6 @@
     "@composio/core": "^0.10.0",
     "@composio/vercel": "^0.9.2",
     "@hello-pangea/dnd": "^18.0.1",
-    "@langchain/langgraph": "^1.4.7",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@notionhq/client": "^5.22.0",
     "@phosphor-icons/react": "^2.1.10",

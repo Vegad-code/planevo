@@ -36,17 +36,24 @@ Produced 2026-07-03 from a multi-agent deep-read of the Bruno pipeline (chat, ex
 - Message-edit deletion anchors to the server row's `created_at` (was: client clock).
 - Migration `20260703120000_bruno_messages_parts.sql` adds nullable `bruno_messages.parts` jsonb — groundwork for full parts persistence.
 
-## Remaining workstreams
+## Shipped (P4 + P5 full + Phase C/D — 2026-07-04)
 
-### P4 + P5(full) — Native `needsApproval` loop + parts persistence (do together)
-**Key finding (2026-07-03):** AI SDK v6 native approval (`needsApproval` + `addToolApprovalResponse` — both verified present in installed packages) requires approval state to survive the client resubmission round-trip. But `resolveAuthoritativeChatMessages` deliberately discards all client-sent assistant/tool parts (anti-prompt-injection) and rebuilds text-only history from `bruno_messages`. **Full parts persistence is therefore a hard prerequisite, not a follow-up**:
-1. Persist full UIMessage parts server-side on `onFinish` (the `parts` column already exists); rehydrate in `loadConversation` and `resolveAuthoritativeChatMessages` (server-side parts are trusted; client-sent parts remain ignored — approval responses matched against server-side pending approval records by approvalId).
-2. Then flip write tools to `needsApproval: true` behind `BRUNO_AGENT_LOOP_ENABLED`; tool `execute()` = reservation → fresh ID re-resolution → `executeAction` → structured result into the loop. Skip quota re-reservation when a request is a pure approval continuation.
-3. Then delete the sidebar's legacy extraction paths, the `/api/bruno/fallback/breakdown` band-aid, and share the message list with `BrunoChat.tsx` (which still renders dead "Executing Tool…" pills). Keep `/api/bruno/actions/execute` for mobile until it migrates.
-4. Then retire the LangGraph `appActionWorkflow` + `@langchain/langgraph` (its regex path now only short-circuits when it produced concrete proposals; bulk moves increasingly flow through `apply_plan`).
+**Native approval loop (`agentLoop`)** — propose → approve → execute now happens inside ONE model run:
+- Write tools (`propose_action`, `propose_plan`) carry `needsApproval` when the client opts in (`agentLoop: true` in the chat body — web sidebar + floating widget send it; mobile does not). The stream pauses on approval cards; approving resumes the loop, `execute()` runs the action server-side (privacy gate → ledger row → reservation → `executeAction`), and the structured result re-enters the model context so Bruno reports real outcomes and can chain. Invalid proposals skip the approval pause so the model self-corrects in-loop. Env kill switch: `BRUNO_AGENT_LOOP_ENABLED=false`.
+- **Trust boundary** (`lib/bruno/agentLoop.ts`): on a continuation the server accepts ONLY `{approvalId, approved}` pairs, validated against the approval-requested parts it persisted itself in `bruno_messages.parts` (newest row only, 7-day TTL); `reason` strings are dropped; everything else the client says about assistant/tool state stays ignored. Invalid/expired approvals end the request with a static reply — no model call.
+- Continuations skip moderation, user-turn persistence, routing hijacks, and the daily chat quota (heuristic gate in the route; authoritative validation in `handleChatV2`). Resumed turns merge into the original assistant row via `createUIMessageStream({originalMessages})` + `persistBrunoAssistantTurn({replaceRowId})`.
 
-### Smaller follow-ups
-- Mobile: render `tool-propose_plan` parts (mobile `extractProposals` currently only knows `propose_action`).
+**Frontend unification (Phase C)**:
+- Shared `BrunoMessageList` + `useBrunoProposalActions` + `lib/bruno/proposalExtraction.ts` power both the dashboard sidebar and the floating widget (which previously had dead "Executing Tool…" pills and no proposal support at all).
+- Deleted: `/api/bruno/fallback/breakdown`, the canned "I've drafted a plan…" displayText override, AI SDK v4 `toolInvocation` extraction, client-side time enrichment of proposals, dead PlanDraftCard path.
+- Confirm All answers all pending approvals; the SDK auto-resubmits once every card is answered (`lastAssistantMessageIsCompleteWithApprovalResponses`).
+
+**Phase D**:
+- LangGraph `appActionWorkflow` retired from both chat paths; `@langchain/langgraph` uninstalled. The LLM router + agent loop own action turns end to end.
+- Mobile renders `propose_plan` (APPLY_PLAN cards with step count); mobile stays on the legacy `/api/bruno/actions/execute` flow (`agentLoop` not sent) until it migrates.
+
+## Remaining follow-ups
+- Mobile: migrate chat to the native approval loop, then evaluate retiring `/api/bruno/actions/execute`.
 - Shrink the static context dump in favor of on-demand reads (A/B via PostHog).
 - Dashboard v4 shell: decide on a targeted refresh for executed actions (daily-plan + calendar are covered).
 

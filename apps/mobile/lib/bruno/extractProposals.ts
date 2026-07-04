@@ -66,6 +66,7 @@ export function extractProposalsFromMessage(message: BrunoUIMessage): ExtractedP
   const tools = parts.filter(
     (part) =>
       part.type === 'tool-propose_action' ||
+      part.type === 'tool-propose_plan' ||
       (part.type === 'tool-invocation' &&
         'toolInvocation' in part &&
         (part.toolInvocation as { toolName?: string }).toolName === 'propose_action')
@@ -80,11 +81,37 @@ export function extractProposalsFromMessage(message: BrunoUIMessage): ExtractedP
       toolInvocation?.result ??
       toolInvocation?.output;
     const outputRecord = isRecord(toolOutput) ? toolOutput : null;
-    const args = (rawPart.input ??
+    const rawArgs = (rawPart.input ??
       rawPart.args ??
       toolInvocation?.args ??
       toolInvocation?.input ??
       {}) as Record<string, unknown>;
+
+    // propose_plan args are {summary, steps}; prefer the server-shaped
+    // APPLY_PLAN proposal from the tool output, else shape one for display.
+    const serverProposal = isRecord(outputRecord?.proposal)
+      ? (outputRecord.proposal as Record<string, unknown>)
+      : null;
+    const isPlan = rawPart.type === 'tool-propose_plan';
+    const summary =
+      typeof rawArgs.summary === 'string' && rawArgs.summary.trim()
+        ? rawArgs.summary.trim()
+        : 'Apply this plan';
+    const args =
+      serverProposal ??
+      (isPlan
+        ? {
+            type: 'APPLY_PLAN',
+            title: summary.length > 120 ? `${summary.slice(0, 117)}...` : summary,
+            description: summary,
+            riskLevel: 'medium',
+            requiresConfirmation: true,
+            payload: {
+              planSummary: summary,
+              steps: Array.isArray(rawArgs.steps) ? rawArgs.steps : [],
+            },
+          }
+        : rawArgs);
     const argsWithServerId =
       typeof outputRecord?.proposalId === 'string'
         ? { ...args, id: outputRecord.proposalId }

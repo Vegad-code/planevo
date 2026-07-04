@@ -17,7 +17,8 @@ import {
   toProposedAction,
   EXECUTABLE_V3_ACTION_TYPES,
 } from '@/lib/bruno/tools/schemas';
-import { parseBrunoDataAccess, type BrunoDataAccess } from '@/lib/bruno/types';
+import { parseBrunoDataAccess } from '@/lib/bruno/types';
+import { actionAccessError } from '@/lib/bruno/actionAccess';
 
 /**
  * Record the execution outcome as an assistant message so the next chat turn
@@ -53,34 +54,6 @@ async function recordExecutionOutcome(input: {
   } catch (error) {
     Sentry.captureException(error);
   }
-}
-
-function actionAccessError(
-  actionType: string,
-  access: BrunoDataAccess
-): string | null {
-  const taskActions = new Set([
-    'CREATE_TASK',
-    'UPDATE_TASK',
-    'RESCHEDULE_TASK',
-    'DELETE_TASK',
-  ]);
-  const calendarActions = new Set([
-    'CREATE_TIME_BLOCK',
-    'UPDATE_CALENDAR_EVENT',
-    'DELETE_CALENDAR_EVENT',
-    'UPDATE_DAILY_PLAN',
-  ]);
-
-  if (taskActions.has(actionType) && !access.tasks) {
-    return 'Task access is disabled for Bruno. Enable Task Access in Settings > Bruno Preferences, then ask Bruno again.';
-  }
-
-  if (calendarActions.has(actionType) && !access.calendar) {
-    return 'Calendar access is disabled for Bruno. Enable Calendar Access in Settings > Bruno Preferences, then ask Bruno again.';
-  }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {

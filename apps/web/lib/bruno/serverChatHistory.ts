@@ -130,15 +130,26 @@ export function sanitizeUiMessagePartsForStorage(
 
 /**
  * Convert stored parts back into a model-safe UIMessage parts array: text plus
- * completed tool invocations. Data parts and incomplete tool calls are UI-only
- * and are excluded from what the model sees.
+ * completed tool invocations (results and user-denied calls). Data parts and
+ * incomplete tool calls are UI-only and are excluded from what the model sees.
+ * With `keepPendingApprovals`, approval-requested parts survive too — the
+ * agent-loop resume path grafts responses onto them and strips any that stay
+ * unresolved before the prompt is built.
  */
-export function partsForModel(parts: unknown[]): UIMessage['parts'] | null {
+export function partsForModel(
+  parts: unknown[],
+  options?: { keepPendingApprovals?: boolean }
+): UIMessage['parts'] | null {
   const kept = parts.filter((part) => {
     if (!isRecord(part) || typeof part.type !== 'string') return false;
     if (part.type === 'text') return typeof part.text === 'string';
     if (part.type.startsWith('tool-') || part.type === 'dynamic-tool') {
-      return part.state === 'output-available';
+      return (
+        part.state === 'output-available' ||
+        part.state === 'output-denied' ||
+        (options?.keepPendingApprovals === true &&
+          part.state === 'approval-requested')
+      );
     }
     return false;
   });
@@ -185,6 +196,12 @@ export async function persistBrunoAssistantTurn(
     userId: string;
     conversationId: string;
     message: Pick<UIMessage, 'parts'>;
+    /**
+     * When set, update this existing assistant row instead of inserting a new
+     * one — used by approval continuations, where the SDK merges the resumed
+     * turn into the original assistant message.
+     */
+    replaceRowId?: string;
   }
 ): Promise<void> {
   const parts = Array.isArray(input.message.parts) ? input.message.parts : [];
@@ -193,11 +210,23 @@ export async function persistBrunoAssistantTurn(
 
   if (!text && !sanitized) return;
 
+  const content = text || '[Bruno performed actions without a text reply]';
+
+  if (input.replaceRowId) {
+    await supabase
+      .from('bruno_messages')
+      .update({ content, parts: sanitized as Json })
+      .eq('id', input.replaceRowId)
+      .eq('user_id', input.userId)
+      .eq('conversation_id', input.conversationId);
+    return;
+  }
+
   await supabase.from('bruno_messages').insert({
     user_id: input.userId,
     conversation_id: input.conversationId,
     message_type: 'assistant',
-    content: text || '[Bruno performed actions without a text reply]',
+    content,
     parts: sanitized as Json,
   });
 }
@@ -211,7 +240,8 @@ export async function resolveAuthoritativeChatMessages(
   supabase: Supabase,
   userId: string,
   conversationId: string | undefined,
-  clientMessages: ServerChatMessageInput[]
+  clientMessages: ServerChatMessageInput[],
+  options?: { keepPendingApprovals?: boolean }
 ): Promise<UIMessage[]> {
   const clientUserMessages = clientMessages
     .filter((message) => message.role === 'user')
@@ -241,7 +271,7 @@ export async function resolveAuthoritativeChatMessages(
   const serverMessages: UIMessage[] = (data ?? []).map((row) => {
     const role = row.message_type === 'user' ? 'user' : 'assistant';
     if (role === 'assistant' && Array.isArray(row.parts)) {
-      const modelParts = partsForModel(row.parts);
+      const modelParts = partsForModel(row.parts, options);
       if (modelParts) {
         return { id: row.id, role, parts: modelParts } satisfies UIMessage;
       }

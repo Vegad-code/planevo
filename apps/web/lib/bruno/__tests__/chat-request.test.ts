@@ -12,6 +12,7 @@ describe('createBrunoChatRequestBody', () => {
       }, 'planning')
     ).toEqual({
       diagnostics: true,
+      agentLoop: true,
       conversationId: 'conversation-1',
       assistantMode: 'planning',
       timeZone: expect.any(String),
@@ -48,6 +49,7 @@ describe('createBrunoChatRequestBody', () => {
       )
     ).toEqual({
       diagnostics: true,
+      agentLoop: true,
       conversationId: 'conversation-1',
       assistantMode: 'general',
       timeZone: expect.any(String),
