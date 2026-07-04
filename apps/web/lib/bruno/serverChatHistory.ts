@@ -1,6 +1,10 @@
 import type { UIMessage } from 'ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/types/database';
+import {
+  buildActiveBranchTranscript,
+  type BranchMessageRow,
+} from '@/lib/bruno/messageBranches';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -15,6 +19,13 @@ export type ServerChatMessageInput = {
 const MAX_STORED_PARTS_BYTES = 200_000;
 /** Max serialized size for a single tool part's output before it is truncated. */
 const MAX_TOOL_OUTPUT_BYTES = 8_000;
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(id: string): boolean {
+  return UUID_REGEX.test(id);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -162,28 +173,61 @@ export function partsForModel(
  */
 export async function persistBrunoUserTurn(
   supabase: Supabase,
-  input: { userId: string; conversationId: string; text: string }
-): Promise<void> {
+  input: {
+    userId: string;
+    conversationId: string;
+    text: string;
+    messageId?: string;
+    skipInsert?: boolean;
+  }
+): Promise<string | undefined> {
   const text = input.text.trim();
-  if (!text) return;
+  if (!text) return undefined;
+
+  if (input.skipInsert) {
+    return input.messageId;
+  }
 
   const { data: lastRows } = await supabase
     .from('bruno_messages')
-    .select('message_type, content')
+    .select('id, message_type, content')
     .eq('conversation_id', input.conversationId)
     .eq('user_id', input.userId)
     .order('created_at', { ascending: false })
     .limit(1);
 
   const last = lastRows?.[0];
-  if (last?.message_type === 'user' && last.content === text) return;
+  if (last?.message_type === 'user' && last.content === text) {
+    return last.id;
+  }
 
-  await supabase.from('bruno_messages').insert({
+  const turnKey =
+    typeof input.messageId === 'string' && isValidUuid(input.messageId)
+      ? input.messageId
+      : crypto.randomUUID();
+
+  const insertRow: Database['public']['Tables']['bruno_messages']['Insert'] = {
     user_id: input.userId,
     conversation_id: input.conversationId,
     message_type: 'user',
     content: text,
-  });
+    turn_key: turnKey,
+    variant_index: 0,
+    is_active_variant: true,
+  };
+
+  if (typeof input.messageId === 'string' && isValidUuid(input.messageId)) {
+    insertRow.id = input.messageId;
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('bruno_messages')
+    .insert(insertRow)
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return inserted?.id;
 }
 
 /**
@@ -195,13 +239,14 @@ export async function persistBrunoAssistantTurn(
   input: {
     userId: string;
     conversationId: string;
-    message: Pick<UIMessage, 'parts'>;
+    message: Pick<UIMessage, 'parts'> & { id?: string };
     /**
      * When set, update this existing assistant row instead of inserting a new
      * one — used by approval continuations, where the SDK merges the resumed
      * turn into the original assistant message.
      */
     replaceRowId?: string;
+    parentUserMessageId?: string;
   }
 ): Promise<void> {
   const parts = Array.isArray(input.message.parts) ? input.message.parts : [];
@@ -222,13 +267,40 @@ export async function persistBrunoAssistantTurn(
     return;
   }
 
-  await supabase.from('bruno_messages').insert({
+  const insertRow: Database['public']['Tables']['bruno_messages']['Insert'] = {
     user_id: input.userId,
     conversation_id: input.conversationId,
     message_type: 'assistant',
     content,
     parts: sanitized as Json,
-  });
+  };
+
+  if (typeof input.message.id === 'string' && isValidUuid(input.message.id)) {
+    insertRow.id = input.message.id;
+  }
+
+  if (
+    typeof input.parentUserMessageId === 'string' &&
+    isValidUuid(input.parentUserMessageId)
+  ) {
+    insertRow.parent_user_message_id = input.parentUserMessageId;
+  } else {
+    const { data: activeUserRows } = await supabase
+      .from('bruno_messages')
+      .select('id')
+      .eq('conversation_id', input.conversationId)
+      .eq('user_id', input.userId)
+      .eq('message_type', 'user')
+      .eq('is_active_variant', true)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const parentId = activeUserRows?.[0]?.id;
+    if (parentId) {
+      insertRow.parent_user_message_id = parentId;
+    }
+  }
+
+  await supabase.from('bruno_messages').insert(insertRow);
 }
 
 /**
@@ -261,22 +333,29 @@ export async function resolveAuthoritativeChatMessages(
 
   const { data, error } = await supabase
     .from('bruno_messages')
-    .select('id, content, message_type, parts, created_at')
+    .select(
+      'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at'
+    )
     .eq('conversation_id', conversationId)
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
   if (error) throw error;
 
-  const serverMessages: UIMessage[] = (data ?? []).map((row) => {
-    const role = row.message_type === 'user' ? 'user' : 'assistant';
-    if (role === 'assistant' && Array.isArray(row.parts)) {
-      const modelParts = partsForModel(row.parts, options);
+  const branchTranscript = buildActiveBranchTranscript(
+    (data ?? []) as BranchMessageRow[]
+  );
+
+  const serverMessages: UIMessage[] = branchTranscript.map((row) => {
+    if (row.role === 'assistant' && Array.isArray(row.parts)) {
+      const modelParts = partsForModel(row.parts as unknown[], options);
       if (modelParts) {
-        return { id: row.id, role, parts: modelParts } satisfies UIMessage;
+        return { id: row.id, role: row.role, parts: modelParts } satisfies UIMessage;
       }
     }
-    return toUiMessage(row.id, role, row.content);
+    const text =
+      row.parts?.find((part) => part.type === 'text')?.text ?? '';
+    return toUiMessage(row.id, row.role, text);
   });
 
   if (!latestClientUser) {

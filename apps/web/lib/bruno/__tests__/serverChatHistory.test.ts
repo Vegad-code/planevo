@@ -13,19 +13,25 @@ const USER_ID = 'user-1';
 const CONV_ID = 'conv-1';
 
 function createHistorySupabase(options: {
-  lastRow?: { message_type: string; content: string } | null;
+  lastRow?: { message_type: string; content: string; id?: string } | null;
   rows?: Array<Record<string, unknown>>;
+  activeUserId?: string | null;
 }) {
   const inserts: Array<Record<string, unknown>> = [];
   const updates: Array<Record<string, unknown>> = [];
   const table = {
     select: vi.fn(() => table),
     eq: vi.fn(() => table),
+    is: vi.fn(() => table),
     order: vi.fn((column: string, opts?: { ascending?: boolean }) => {
       if (opts?.ascending === false) {
         return {
           limit: vi.fn().mockResolvedValue({
-            data: options.lastRow ? [options.lastRow] : [],
+            data: options.lastRow
+              ? [options.lastRow]
+              : options.activeUserId
+                ? [{ id: options.activeUserId }]
+                : [],
             error: null,
           }),
         };
@@ -34,7 +40,14 @@ function createHistorySupabase(options: {
     }),
     insert: vi.fn((row: Record<string, unknown>) => {
       inserts.push(row);
-      return Promise.resolve({ data: null, error: null });
+      return {
+        select: vi.fn(() => ({
+          single: vi.fn().mockResolvedValue({
+            data: { id: row.id ?? 'generated-user-id' },
+            error: null,
+          }),
+        })),
+      };
     }),
     update: vi.fn((row: Record<string, unknown>) => {
       updates.push(row);
@@ -160,7 +173,7 @@ describe('persistBrunoUserTurn', () => {
     const { supabase, inserts } = createHistorySupabase({
       lastRow: { message_type: 'assistant', content: 'Sure!' },
     });
-    await persistBrunoUserTurn(supabase, {
+    const id = await persistBrunoUserTurn(supabase, {
       userId: USER_ID,
       conversationId: CONV_ID,
       text: 'Plan my day',
@@ -170,7 +183,27 @@ describe('persistBrunoUserTurn', () => {
       message_type: 'user',
       content: 'Plan my day',
       conversation_id: CONV_ID,
+      variant_index: 0,
+      is_active_variant: true,
     });
+    expect(inserts[0].turn_key).toEqual(expect.any(String));
+    expect(id).toBe('generated-user-id');
+  });
+
+  it('uses client uuid as id and turn_key when provided', async () => {
+    const clientId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const { supabase, inserts } = createHistorySupabase({
+      lastRow: { message_type: 'assistant', content: 'Sure!' },
+    });
+    const id = await persistBrunoUserTurn(supabase, {
+      userId: USER_ID,
+      conversationId: CONV_ID,
+      text: 'Plan my day',
+      messageId: clientId,
+    });
+    expect(inserts[0].id).toBe(clientId);
+    expect(inserts[0].turn_key).toBe(clientId);
+    expect(id).toBe(clientId);
   });
 });
 
@@ -197,6 +230,20 @@ describe('persistBrunoAssistantTurn', () => {
     expect(inserts[0].content).toBe('Proposed two changes.');
     expect(Array.isArray(inserts[0].parts)).toBe(true);
     expect((inserts[0].parts as unknown[]).length).toBe(2);
+  });
+
+  it('persists client message id when it is a valid uuid', async () => {
+    const clientId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const { supabase, inserts } = createHistorySupabase({});
+    await persistBrunoAssistantTurn(supabase, {
+      userId: USER_ID,
+      conversationId: CONV_ID,
+      message: {
+        id: clientId,
+        parts: [{ type: 'text', text: 'Stable id reply.' }],
+      },
+    });
+    expect(inserts[0].id).toBe(clientId);
   });
 
   it('uses a placeholder content when the model produced only tool calls', async () => {
@@ -256,6 +303,11 @@ describe('resolveAuthoritativeChatMessages with parts', () => {
           message_type: 'user',
           parts: null,
           created_at: '2026-07-03T10:00:00Z',
+          turn_key: 'm1',
+          variant_index: 0,
+          is_active_variant: true,
+          parent_user_message_id: null,
+          superseded_at: null,
         },
         {
           id: 'm2',
@@ -273,6 +325,11 @@ describe('resolveAuthoritativeChatMessages with parts', () => {
             { type: 'data-bruno-action-proposals', data: {} },
           ],
           created_at: '2026-07-03T10:00:05Z',
+          turn_key: null,
+          variant_index: 0,
+          is_active_variant: true,
+          parent_user_message_id: 'm1',
+          superseded_at: null,
         },
       ],
     });
@@ -298,11 +355,28 @@ describe('resolveAuthoritativeChatMessages with parts', () => {
     const { supabase } = createHistorySupabase({
       rows: [
         {
+          id: 'u1',
+          content: 'Hello',
+          message_type: 'user',
+          parts: null,
+          created_at: '2026-07-01T09:59:00Z',
+          turn_key: 'u1',
+          variant_index: 0,
+          is_active_variant: true,
+          parent_user_message_id: null,
+          superseded_at: null,
+        },
+        {
           id: 'm1',
           content: 'Older reply',
           message_type: 'assistant',
           parts: null,
           created_at: '2026-07-01T10:00:00Z',
+          turn_key: null,
+          variant_index: 0,
+          is_active_variant: true,
+          parent_user_message_id: 'u1',
+          superseded_at: null,
         },
       ],
     });
@@ -313,7 +387,7 @@ describe('resolveAuthoritativeChatMessages with parts', () => {
       CONV_ID,
       []
     );
-    expect(messages).toHaveLength(1);
-    expect(messages[0].parts).toEqual([{ type: 'text', text: 'Older reply' }]);
+    expect(messages).toHaveLength(2);
+    expect(messages[1].parts).toEqual([{ type: 'text', text: 'Older reply' }]);
   });
 });

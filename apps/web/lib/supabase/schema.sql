@@ -612,6 +612,11 @@ CREATE POLICY "Users can delete own bruno messages"
   ON public.bruno_messages FOR DELETE
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own bruno messages"
+  ON public.bruno_messages FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 -- AI USAGE LOGS: Users can only view their own logs
 CREATE POLICY "Users can view own AI logs"
   ON public.ai_usage_logs FOR SELECT
@@ -806,6 +811,11 @@ CREATE POLICY "Users can create own bruno messages"
 CREATE POLICY "Users can delete own bruno messages"
   ON public.bruno_messages FOR DELETE
   USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own bruno messages"
+  ON public.bruno_messages FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- AI USAGE LOGS: Users can only view their own logs
 CREATE POLICY "Users can view own AI logs"

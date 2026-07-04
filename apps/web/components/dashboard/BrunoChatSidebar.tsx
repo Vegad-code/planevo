@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { BrunoIntegrationChips } from '../bruno/BrunoIntegrationChips';
 import type { BrunoDataParts } from '@/lib/bruno/types';
 import { BrunoMessageList } from '@/components/bruno/BrunoMessageList';
+import type { BrunoMessageRating } from '@/components/bruno/BrunoMessageFooter';
 import { extractExecutedActionsFromMessage } from '@/lib/bruno/proposalExtraction';
 import {
   dispatchBrunoActionRefreshEvents,
@@ -42,6 +43,34 @@ import {
   isRateLimitActive,
   parseBrunoRateLimitError,
 } from '@/lib/bruno/rate-limit-client';
+import {
+  branchRowsToChatState,
+  branchRowsToChatStateForVariant,
+  type BranchMessageRow,
+  type BrunoVariantInfo,
+  type HydratedBrunoMessage,
+} from '@/lib/bruno/messageBranches';
+import {
+  persistVariantSelection,
+  scheduleVariantSkeleton,
+} from '@/lib/bruno/persistVariantSelection';
+
+const BRUNO_BRANCH_MESSAGE_SELECT =
+  'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at';
+
+function hydratedToUiMessage(
+  message: HydratedBrunoMessage & { createdAt?: Date | string }
+): BrunoUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.parts,
+    createdAt:
+      message.createdAt instanceof Date
+        ? message.createdAt
+        : new Date(message.createdAt ?? Date.now()),
+  } as BrunoUIMessage;
+}
 
 type BrunoUIMessage = UIMessage<unknown, BrunoDataParts>;
 
@@ -143,8 +172,19 @@ export default function BrunoChatSidebar({
   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const currentConversationIdRef = useRef<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<
+    Record<string, BrunoMessageRating>
+  >({});
+  const [variantInfoByMessageId, setVariantInfoByMessageId] = useState<
+    Record<string, BrunoVariantInfo>
+  >({});
+  const [pendingVariantTurnKey, setPendingVariantTurnKey] = useState<
+    string | null
+  >(null);
+  const branchRowsRef = useRef<BranchMessageRow[]>([]);
   const [chatToDelete, setChatToDelete] = useState<{id: string, title: string} | null>(null);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const isDeletingConversationRef = useRef(false);
@@ -152,6 +192,16 @@ export default function BrunoChatSidebar({
   const [mentionState, setMentionState] = useState<{ active: boolean, text: string }>({ active: false, text: '' });
   const [suggestions, setSuggestions] = useState<{id: string, title: string, type: 'task'|'event', subtitle?: string}[]>([]);
   const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0);
+
+  const messagesRef = useRef<BrunoUIMessage[]>([]);
+
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  const syncMessagesFromConversationRef = useRef<
+    ((conversationId: string) => Promise<void>) | null
+  >(null);
 
   useEffect(() => {
     async function fetchMentions() {
@@ -241,6 +291,7 @@ export default function BrunoChatSidebar({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
+    generateId: () => crypto.randomUUID(),
     messages: initialMessage
       ? [
           {
@@ -291,11 +342,85 @@ export default function BrunoChatSidebar({
       }
 
       if (onFinish) onFinish();
+
+      const convId = currentConversationIdRef.current;
+      if (convId && message.role === 'assistant') {
+        // Allow server-side assistant persistence to finish before resyncing.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await syncMessagesFromConversationRef.current?.(convId);
+      }
       } catch (finishError) {
         console.error('[BrunoChatSidebar] onFinish failed:', finishError);
       }
     }
   });
+
+  const syncMessagesFromConversation = useCallback(
+    async (conversationId: string) => {
+      const { data: branchRows } = await supabase
+        .from('bruno_messages')
+        .select(BRUNO_BRANCH_MESSAGE_SELECT)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (!branchRows) return;
+
+      branchRowsRef.current = branchRows as BranchMessageRow[];
+      const { messages: transcript, variantInfoByMessageId: variantInfo } =
+        branchRowsToChatState(branchRowsRef.current);
+      setMessages(transcript.map(hydratedToUiMessage));
+      setVariantInfoByMessageId(variantInfo);
+    },
+    [setMessages, supabase]
+  );
+
+  useEffect(() => {
+    syncMessagesFromConversationRef.current = syncMessagesFromConversation;
+  }, [syncMessagesFromConversation]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const sendUserTurn = useCallback(
+    (
+      text: string,
+      options: {
+        messageId?: string;
+        body: ReturnType<typeof createBrunoChatRequestBody>;
+      }
+    ) => {
+      const { messageId, body } = options;
+      if (
+        messageId &&
+        !messagesRef.current.some((message) => message.id === messageId)
+      ) {
+        toast.error(
+          'That message version changed. Pick the version you want, then try again.'
+        );
+        return;
+      }
+
+      try {
+        sendMessage(
+          messageId ? { text, messageId } : { text },
+          { body }
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes('not found')
+        ) {
+          toast.error(
+            'That message version changed. Pick the version you want, then try again.'
+          );
+          return;
+        }
+        throw error;
+      }
+    },
+    [sendMessage]
+  );
 
   const {
     actionStatuses,
@@ -326,32 +451,45 @@ export default function BrunoChatSidebar({
   const loadConversation = async (id: string) => {
     setCurrentConversationId(id);
     setShowHistory(false);
+    setFeedbackByMessageId({});
+    setVariantInfoByMessageId({});
 
-    const { data } = await supabase
-      .from('bruno_messages')
-      .select('id, content, message_type, parts, created_at')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true });
+    const [{ data }, { data: feedbackRows }] = await Promise.all([
+      supabase
+        .from('bruno_messages')
+        .select(BRUNO_BRANCH_MESSAGE_SELECT)
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('bruno_message_feedback')
+        .select('message_id, rating')
+        .eq('conversation_id', id),
+    ]);
+
+    if (feedbackRows) {
+      const feedbackMap: Record<string, BrunoMessageRating> = {};
+      for (const row of feedbackRows) {
+        if (row.rating === 1 || row.rating === -1) {
+          feedbackMap[row.message_id] = row.rating;
+        }
+      }
+      setFeedbackByMessageId(feedbackMap);
+    }
 
     if (data) {
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      setMessages(data.map((m: any) => ({
-        id: m.id,
-        role: m.message_type === 'user' ? 'user' : 'assistant',
-        // Rehydrate full parts (tool calls, proposals, data cards) when the
-        // server stored them; legacy rows fall back to text-only.
-        parts:
-          m.message_type !== 'user' && Array.isArray(m.parts) && m.parts.length > 0
-            ? m.parts
-            : [{ type: 'text', text: m.content }],
-        createdAt: new Date(m.created_at)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)));
+      branchRowsRef.current = data as BranchMessageRow[];
+      const { messages: transcript, variantInfoByMessageId: variantInfo } =
+        branchRowsToChatState(branchRowsRef.current);
+      setVariantInfoByMessageId(variantInfo);
+      setMessages(transcript.map(hydratedToUiMessage));
     }
   };
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
+    setFeedbackByMessageId({});
+    setVariantInfoByMessageId({});
+    branchRowsRef.current = [];
     setMessages(
       initialMessage
         ? [
@@ -495,53 +633,227 @@ export default function BrunoChatSidebar({
       }
     }
 
-    if (editingMessageId && convId) {
-      const editIndex = messages.findIndex(m => m.id === editingMessageId);
-      if (editIndex !== -1) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const editedMsg = messages[editIndex] as any;
-        let timestamp = editedMsg.createdAt
-           ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString())
-           : new Date().toISOString();
-
-        // For messages loaded from the DB, anchor the cutoff to the server
-        // row's created_at — the client clock can drift and delete too much
-        // or too little.
-        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingMessageId)) {
-          const { data: editedRow } = await supabase
-            .from('bruno_messages')
-            .select('created_at')
-            .eq('id', editingMessageId)
-            .eq('conversation_id', convId)
-            .maybeSingle();
-          if (editedRow?.created_at) timestamp = editedRow.created_at;
-        }
-
-        await supabase.from('bruno_messages').delete()
-          .eq('conversation_id', convId)
-          .gte('created_at', timestamp);
-          
-        setMessages(messages.slice(0, editIndex));
-      }
+    const editingId = editingMessageId;
+    if (editingId) {
       setEditingMessageId(null);
     }
 
-    // User-turn persistence is server-side now (chat route persists it with
-    // dedup); writing it here too would create duplicate rows.
-
-    sendMessage({ text: userMessage }, {
+    sendUserTurn(userMessage, {
+      messageId: editingId ?? undefined,
       body: createBrunoChatRequestBody(
         convId,
         currentContext,
         assistantMode,
-        options.clarificationResponse
-      )
+        options.clarificationResponse,
+        undefined,
+        editingId ? { editMessageId: editingId } : undefined
+      ),
     });
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     void submitPrompt(input, event);
   };
+
+  const findUserTurnBeforeAssistant = useCallback(
+    (assistantMessageId: string) => {
+      const assistantIndex = messages.findIndex((m) => m.id === assistantMessageId);
+      if (assistantIndex === -1) return null;
+
+      for (let i = assistantIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          const text =
+            messages[i].parts?.find((p) => p.type === 'text')?.text?.trim() ?? '';
+          return { userIndex: i, userText: text, userMessageId: messages[i].id };
+        }
+      }
+      return null;
+    },
+    [messages]
+  );
+
+  const handleRegenerate = useCallback(
+    async (assistantMessageId: string) => {
+      if (isProcessing || !currentConversationId) return;
+
+      const turn = findUserTurnBeforeAssistant(assistantMessageId);
+      if (!turn || !turn.userText) return;
+
+      setFeedbackByMessageId((prev) => {
+        const next = { ...prev };
+        delete next[assistantMessageId];
+        return next;
+      });
+
+      sendUserTurn(turn.userText, {
+        messageId: turn.userMessageId,
+        body: createBrunoChatRequestBody(
+          currentConversationId,
+          currentContext,
+          assistantMode,
+          undefined,
+          undefined,
+          { editMessageId: turn.userMessageId }
+        ),
+      });
+    },
+    [
+      assistantMode,
+      currentContext,
+      currentConversationId,
+      findUserTurnBeforeAssistant,
+      isProcessing,
+      sendUserTurn,
+    ]
+  );
+
+  const handleSelectVariant = useCallback(
+    (turnKey: string, variantIndex: number) => {
+      if (!currentConversationId || isProcessing) return;
+
+      const cachedRows = branchRowsRef.current;
+      let cancelSkeleton: (() => void) | null = null;
+
+      if (cachedRows.length > 0) {
+        const { rows, messages, variantInfoByMessageId: variantInfo } =
+          branchRowsToChatStateForVariant(cachedRows, turnKey, variantIndex);
+        branchRowsRef.current = rows;
+        setMessages(messages.map(hydratedToUiMessage));
+        setVariantInfoByMessageId(variantInfo);
+        setEditingMessageId(null);
+        setInput('');
+      } else {
+        cancelSkeleton = scheduleVariantSkeleton(turnKey, setPendingVariantTurnKey);
+      }
+
+      void (async () => {
+        const hadLocalCache = cachedRows.length > 0;
+
+        try {
+          await persistVariantSelection({
+            conversationId: currentConversationId,
+            turnKey,
+            variantIndex,
+          });
+
+          const { data: branchRows } = await supabase
+            .from('bruno_messages')
+            .select(BRUNO_BRANCH_MESSAGE_SELECT)
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: true });
+
+          if (branchRows?.length) {
+            branchRowsRef.current = branchRows as BranchMessageRow[];
+          }
+
+          if (!hadLocalCache && branchRowsRef.current.length > 0) {
+            const { messages, variantInfoByMessageId: variantInfo } =
+              branchRowsToChatState(branchRowsRef.current);
+            setMessages(messages.map(hydratedToUiMessage));
+            setVariantInfoByMessageId(variantInfo);
+            setEditingMessageId(null);
+            setInput('');
+          }
+        } catch (variantError) {
+          console.error('[BrunoChatSidebar] select variant failed:', variantError);
+          toast.error('Could not switch edit version. Please try again.');
+          await syncMessagesFromConversation(currentConversationId);
+        } finally {
+          cancelSkeleton?.();
+          setPendingVariantTurnKey(null);
+        }
+      })();
+    },
+    [
+      currentConversationId,
+      isProcessing,
+      setMessages,
+      supabase,
+      syncMessagesFromConversation,
+    ]
+  );
+
+  const handleFeedback = useCallback(
+    async (messageId: string, rating: BrunoMessageRating) => {
+      if (!currentConversationId) {
+        toast.error('Start a conversation before rating replies.');
+        return;
+      }
+
+      const assistantMessage = messages.find((m) => m.id === messageId);
+      const assistantText =
+        assistantMessage?.parts?.find((p) => p.type === 'text')?.text ?? '';
+      const turn = findUserTurnBeforeAssistant(messageId);
+
+      const previousRating = feedbackByMessageId[messageId];
+      setFeedbackByMessageId((prev) => {
+        const next = { ...prev };
+        if (previousRating === rating) {
+          delete next[messageId];
+        } else {
+          next[messageId] = rating;
+        }
+        return next;
+      });
+
+      try {
+        const response = await fetch('/api/ai/chat/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messageId,
+            conversationId: currentConversationId,
+            rating,
+            messageSnapshot: assistantText,
+            userTurnSnapshot: turn?.userText,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const payload = (await response.json()) as {
+          rating: BrunoMessageRating | null;
+          cleared?: boolean;
+        };
+
+        setFeedbackByMessageId((prev) => {
+          const next = { ...prev };
+          if (payload.cleared || payload.rating === null) {
+            delete next[messageId];
+          } else {
+            next[messageId] = payload.rating;
+          }
+          return next;
+        });
+
+        if (!payload.cleared && payload.rating !== null) {
+          toast.success('Thanks for your feedback — it helps us improve Bruno.', {
+            duration: 3500,
+          });
+        }
+      } catch (feedbackError) {
+        console.error('[BrunoChatSidebar] feedback failed:', feedbackError);
+        setFeedbackByMessageId((prev) => {
+          const next = { ...prev };
+          if (previousRating) {
+            next[messageId] = previousRating;
+          } else {
+            delete next[messageId];
+          }
+          return next;
+        });
+        toast.error('Could not save feedback. Try again.');
+      }
+    },
+    [
+      currentConversationId,
+      feedbackByMessageId,
+      findUserTurnBeforeAssistant,
+      messages,
+    ]
+  );
 
   const showStarterActions =
     isPlanningMode &&
@@ -753,6 +1065,18 @@ export default function BrunoChatSidebar({
                         ),
                       }
                     );
+                  }}
+                  feedbackByMessageId={feedbackByMessageId}
+                  onFeedback={(messageId, rating) => {
+                    void handleFeedback(messageId, rating);
+                  }}
+                  onRegenerate={(messageId) => {
+                    void handleRegenerate(messageId);
+                  }}
+                  variantInfoByMessageId={variantInfoByMessageId}
+                  pendingVariantTurnKey={pendingVariantTurnKey}
+                  onSelectVariant={(turnKey, variantIndex) => {
+                    handleSelectVariant(turnKey, variantIndex);
                   }}
                 />
               </div>

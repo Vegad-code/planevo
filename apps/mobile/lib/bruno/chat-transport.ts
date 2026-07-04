@@ -28,10 +28,12 @@ export function createBrunoChatRequestBody({
   conversationId,
   assistantMode,
   clarificationResponse,
+  editMessageId,
 }: {
   conversationId: string | null;
   assistantMode: BrunoAssistantMode;
   clarificationResponse?: BrunoClarificationResponse;
+  editMessageId?: string;
 }) {
   return {
     conversationId,
@@ -39,5 +41,6 @@ export function createBrunoChatRequestBody({
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     localTime: new Date().toLocaleString(),
     ...(clarificationResponse ? { clarificationResponse } : {}),
+    ...(editMessageId ? { editMessageId } : {}),
   };
 }

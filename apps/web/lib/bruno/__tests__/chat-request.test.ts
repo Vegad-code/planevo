@@ -69,4 +69,19 @@ describe('createBrunoChatRequestBody', () => {
       timeZone: 'America/New_York',
     });
   });
+
+  it('includes editMessageId when editing a prior user turn', () => {
+    expect(
+      createBrunoChatRequestBody(
+        'conversation-1',
+        null,
+        'general',
+        undefined,
+        undefined,
+        { editMessageId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }
+      )
+    ).toMatchObject({
+      editMessageId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    });
+  });
 });

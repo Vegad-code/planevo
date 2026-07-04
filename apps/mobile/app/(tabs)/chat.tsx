@@ -4,7 +4,16 @@ import { useChat } from '@ai-sdk/react';
 import {
   createBrunoChatRequestBody,
   createBrunoChatTransport,
+  getBrunoApiUrl,
 } from '@/lib/bruno/chat-transport';
+import {
+  branchRowsToChatState,
+  type BranchMessageRow,
+  type BrunoVariantInfo,
+} from '@/lib/bruno/messageBranches';
+
+const BRUNO_BRANCH_MESSAGE_SELECT =
+  'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at';
 import {
   extractProposalsFromMessage,
   type ExtractedProposal,
@@ -193,6 +202,7 @@ export default function BrunoChatScreen() {
   } = useChat<BrunoUIMessage>({
     transport: createBrunoChatTransport(),
     messages: [WELCOME_UI_MESSAGE],
+    generateId: () => crypto.randomUUID(),
     onError: (error) => {
       const parsed = parseBrunoRateLimitError(error);
       if (parsed) {
@@ -213,6 +223,26 @@ export default function BrunoChatScreen() {
           .from('chat_conversations')
           .update({ last_active: new Date().toISOString() })
           .eq('id', currentConversationIdRef.current);
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        const { data: branchRows } = await supabase
+          .from('bruno_messages')
+          .select(BRUNO_BRANCH_MESSAGE_SELECT)
+          .eq('conversation_id', currentConversationIdRef.current)
+          .order('created_at', { ascending: true });
+        if (branchRows) {
+          const { messages: transcript, variantInfoByMessageId: variantInfo } =
+            branchRowsToChatState(branchRows as BranchMessageRow[]);
+          setVariantInfoByMessageId(variantInfo);
+          setUiMessages(
+            transcript.map((message) => ({
+              id: message.id,
+              role: message.role,
+              parts: message.parts,
+            }))
+          );
+        }
       }
     },
   });
@@ -261,6 +291,9 @@ export default function BrunoChatScreen() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [variantInfoByMessageId, setVariantInfoByMessageId] = useState<
+    Record<string, BrunoVariantInfo>
+  >({});
   const [chatToDelete, setChatToDelete] = useState<{id: string, title: string} | null>(null);
   const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false);
 
@@ -329,21 +362,25 @@ export default function BrunoChatScreen() {
     if (currentConversationId) {
       supabase
         .from('bruno_messages')
-        .select('id, content, message_type, created_at')
+        .select(BRUNO_BRANCH_MESSAGE_SELECT)
         .eq('conversation_id', currentConversationId)
         .order('created_at', { ascending: true })
         .limit(100)
         .then(({ data }) => {
           if (data && data.length > 0) {
+            const { messages: transcript, variantInfoByMessageId: variantInfo } =
+              branchRowsToChatState(data as BranchMessageRow[]);
+            setVariantInfoByMessageId(variantInfo);
             setUiMessages(
-              data.map((m: { id: string; content: string; message_type: string }) => ({
-                id: m.id,
-                role: m.message_type === 'user' ? ('user' as const) : ('assistant' as const),
-                parts: [{ type: 'text' as const, text: m.content }],
+              transcript.map((message) => ({
+                id: message.id,
+                role: message.role,
+                parts: message.parts,
               }))
             );
           } else {
             setUiMessages([WELCOME_UI_MESSAGE]);
+            setVariantInfoByMessageId({});
           }
           setInitialMessagesLoaded(true);
         });
@@ -368,6 +405,7 @@ export default function BrunoChatScreen() {
     setCurrentConversationId(null);
     currentConversationIdRef.current = null;
     setUiMessages([WELCOME_UI_MESSAGE]);
+    setVariantInfoByMessageId({});
     setShowHistory(false);
     setInitialMessagesLoaded(true);
   };
@@ -475,27 +513,13 @@ export default function BrunoChatScreen() {
       }
     }
 
-    if (editingMessageId && convId) {
-      const editIndex = uiMessages.findIndex((m) => m.id === editingMessageId);
-      if (editIndex !== -1) {
-        await supabase
-          .from('bruno_messages')
-          .delete()
-          .eq('conversation_id', convId)
-          .gte('created_at', new Date().toISOString());
-        setUiMessages(uiMessages.slice(0, editIndex));
-      }
+    const editingId = editingMessageId;
+    if (editingId) {
       setEditingMessageId(null);
     }
 
     try {
       if (user && convId) {
-        await supabase.from('bruno_messages').insert({
-          conversation_id: convId,
-          user_id: user.id,
-          content: userMessageContent,
-          message_type: 'user',
-        });
         await supabase
           .from('chat_conversations')
           .update({ last_active: new Date().toISOString() })
@@ -503,12 +527,15 @@ export default function BrunoChatScreen() {
       }
 
       sendChatMessage(
-        { text: userMessageContent },
+        editingId
+          ? { text: userMessageContent, messageId: editingId }
+          : { text: userMessageContent },
         {
           body: createBrunoChatRequestBody({
             conversationId: convId,
             assistantMode,
             clarificationResponse: options.clarificationResponse,
+            editMessageId: editingId ?? undefined,
           }),
         }
       );
@@ -576,6 +603,58 @@ export default function BrunoChatScreen() {
     setActionErrors((prev) => ({ ...prev, [proposal.id]: null }));
   }, []);
 
+  const handleSelectVariant = useCallback(
+    async (turnKey: string, variantIndex: number) => {
+      if (!currentConversationId || sending) return;
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const response = await fetch(`${getBrunoApiUrl()}/api/ai/chat/select-variant`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            conversationId: currentConversationId,
+            turnKey,
+            variantIndex,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const payload = (await response.json()) as {
+          messages: Array<{
+            id: string;
+            role: 'user' | 'assistant';
+            parts: BrunoUIMessage['parts'];
+          }>;
+          variantInfoByMessageId: Record<string, BrunoVariantInfo>;
+        };
+
+        setUiMessages(
+          payload.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            parts: message.parts,
+          }))
+        );
+        setVariantInfoByMessageId(payload.variantInfoByMessageId);
+        setEditingMessageId(null);
+      } catch (error) {
+        console.error('[Bruno mobile] select variant failed:', error);
+        Alert.alert('Bruno', 'Could not switch edit version. Please try again.');
+      }
+    },
+    [currentConversationId, sending, setUiMessages]
+  );
+
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const isEditing = editingMessageId === item.id;
@@ -612,6 +691,43 @@ export default function BrunoChatScreen() {
             <Text style={[styles.messageText, { color: isUser ? '#fff' : colors.text }]}>
               {item.content}
             </Text>
+
+            {isUser && variantInfoByMessageId[item.id] ? (
+              <View style={styles.versionNavRow}>
+                <TouchableOpacity
+                  disabled={sending || variantInfoByMessageId[item.id].activeIndex <= 0}
+                  onPress={() => {
+                    void handleSelectVariant(
+                      variantInfoByMessageId[item.id].turnKey,
+                      variantInfoByMessageId[item.id].activeIndex - 1
+                    );
+                  }}
+                  style={styles.versionNavButton}
+                >
+                  <Text style={styles.versionNavButtonText}>{'‹'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.versionNavLabel}>
+                  {variantInfoByMessageId[item.id].activeIndex + 1} /{' '}
+                  {variantInfoByMessageId[item.id].totalVariants}
+                </Text>
+                <TouchableOpacity
+                  disabled={
+                    sending ||
+                    variantInfoByMessageId[item.id].activeIndex >=
+                      variantInfoByMessageId[item.id].totalVariants - 1
+                  }
+                  onPress={() => {
+                    void handleSelectVariant(
+                      variantInfoByMessageId[item.id].turnKey,
+                      variantInfoByMessageId[item.id].activeIndex + 1
+                    );
+                  }}
+                  style={styles.versionNavButton}
+                >
+                  <Text style={styles.versionNavButtonText}>{'›'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {!isUser && item.clarificationCards && item.clarificationCards.length > 0 && (
               <View style={styles.clarificationStack}>
@@ -1067,6 +1183,33 @@ const styles = StyleSheet.create({
   messageHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   messageRole: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   messageText: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
+  versionNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: 6,
+  },
+  versionNavButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  versionNavButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  versionNavLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 11,
+    fontWeight: '600',
+    minWidth: 36,
+    textAlign: 'center',
+  },
   clarificationStack: {
     marginTop: 12,
     gap: 10,

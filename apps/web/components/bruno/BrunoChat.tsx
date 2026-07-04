@@ -24,6 +24,34 @@ import {
   isRateLimitActive,
   parseBrunoRateLimitError,
 } from '@/lib/bruno/rate-limit-client';
+import {
+  branchRowsToChatState,
+  branchRowsToChatStateForVariant,
+  type BranchMessageRow,
+  type BrunoVariantInfo,
+  type HydratedBrunoMessage,
+} from '@/lib/bruno/messageBranches';
+import {
+  persistVariantSelection,
+  scheduleVariantSkeleton,
+} from '@/lib/bruno/persistVariantSelection';
+
+const BRUNO_BRANCH_MESSAGE_SELECT =
+  'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at';
+
+function hydratedToUiMessage(
+  message: HydratedBrunoMessage & { createdAt?: Date | string }
+): BrunoUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.parts,
+    createdAt:
+      message.createdAt instanceof Date
+        ? message.createdAt
+        : new Date(message.createdAt ?? Date.now()),
+  } as BrunoUIMessage;
+}
 
 
 interface Conversation {
@@ -50,7 +78,15 @@ export default function BrunoChat() {
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const currentConversationIdRef = useRef<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [variantInfoByMessageId, setVariantInfoByMessageId] = useState<
+    Record<string, BrunoVariantInfo>
+  >({});
+  const [pendingVariantTurnKey, setPendingVariantTurnKey] = useState<
+    string | null
+  >(null);
+  const branchRowsRef = useRef<BranchMessageRow[]>([]);
   const [rateLimitInfo, setRateLimitInfo] = useState<BrunoRateLimitPayload | null>(null);
   const [isPaywallDismissed, setIsPaywallDismissed] = useState(false);
   const { isFree } = useSubscription();
@@ -58,6 +94,15 @@ export default function BrunoChat() {
   const [loadingPhrase, setLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const messagesRef = useRef<BrunoUIMessage[]>([]);
+
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  const syncMessagesFromConversationRef = useRef<
+    ((conversationId: string) => Promise<void>) | null
+  >(null);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -94,6 +139,7 @@ export default function BrunoChat() {
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
     }),
+    generateId: () => crypto.randomUUID(),
     messages: [
       { id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as BrunoUIMessage
     ],
@@ -118,8 +164,65 @@ export default function BrunoChat() {
           );
         }
       }
+
+      const convId = currentConversationIdRef.current;
+      if (convId && message.role === 'assistant') {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await syncMessagesFromConversationRef.current?.(convId);
+      }
     }
   });
+
+  const syncMessagesFromConversation = useCallback(
+    async (conversationId: string) => {
+      const { data: branchRows } = await supabase
+        .from('bruno_messages')
+        .select(BRUNO_BRANCH_MESSAGE_SELECT)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (!branchRows) return;
+
+      branchRowsRef.current = branchRows as BranchMessageRow[];
+      const { messages: transcript, variantInfoByMessageId: variantInfo } =
+        branchRowsToChatState(branchRowsRef.current);
+      setMessages(transcript.map(hydratedToUiMessage));
+      setVariantInfoByMessageId(variantInfo);
+    },
+    [setMessages, supabase]
+  );
+
+  useEffect(() => {
+    syncMessagesFromConversationRef.current = syncMessagesFromConversation;
+  }, [syncMessagesFromConversation]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const sendUserTurn = useCallback(
+    (
+      text: string,
+      options: {
+        messageId?: string;
+        body: ReturnType<typeof createBrunoChatRequestBody>;
+      }
+    ) => {
+      const { messageId, body } = options;
+      if (
+        messageId &&
+        !messagesRef.current.some((message) => message.id === messageId)
+      ) {
+        return;
+      }
+
+      sendMessage(
+        messageId ? { text, messageId } : { text },
+        { body }
+      );
+    },
+    [sendMessage]
+  );
 
   const lastUserPromptRef = useRef<string>('');
   const {
@@ -218,6 +321,8 @@ export default function BrunoChat() {
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
+    setVariantInfoByMessageId({});
+    branchRowsRef.current = [];
     setMessages([{ id: 'init', role: 'assistant', parts: [{ type: 'text', text: "Hello! I'm ready to help you clear your schedule. What should we focus on today?" }] } as BrunoUIMessage]);
     setShowHistory(false);
   };
@@ -225,25 +330,86 @@ export default function BrunoChat() {
   const loadConversation = async (id: string) => {
     setCurrentConversationId(id);
     setShowHistory(false);
+    setVariantInfoByMessageId({});
 
     const { data } = await supabase
       .from('bruno_messages')
-      .select('id, content, message_type, parts, created_at')
+      .select(BRUNO_BRANCH_MESSAGE_SELECT)
       .eq('conversation_id', id)
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data.map((m) => ({
-        id: m.id,
-        role: m.message_type === 'user' ? 'user' : 'assistant',
-        parts:
-          m.message_type !== 'user' && Array.isArray(m.parts) && m.parts.length > 0
-            ? m.parts
-            : [{ type: 'text', text: m.content }],
-        createdAt: new Date(m.created_at)
-      } as BrunoUIMessage)));
+      branchRowsRef.current = data as BranchMessageRow[];
+      const { messages: transcript, variantInfoByMessageId: variantInfo } =
+        branchRowsToChatState(branchRowsRef.current);
+      setVariantInfoByMessageId(variantInfo);
+      setMessages(transcript.map(hydratedToUiMessage));
     }
   };
+
+  const handleSelectVariant = useCallback(
+    (turnKey: string, variantIndex: number) => {
+      if (!currentConversationId || isLoading) return;
+
+      const cachedRows = branchRowsRef.current;
+      let cancelSkeleton: (() => void) | null = null;
+
+      if (cachedRows.length > 0) {
+        const { rows, messages, variantInfoByMessageId: variantInfo } =
+          branchRowsToChatStateForVariant(cachedRows, turnKey, variantIndex);
+        branchRowsRef.current = rows;
+        setMessages(messages.map(hydratedToUiMessage));
+        setVariantInfoByMessageId(variantInfo);
+        setEditingMessageId(null);
+        setInput('');
+      } else {
+        cancelSkeleton = scheduleVariantSkeleton(turnKey, setPendingVariantTurnKey);
+      }
+
+      void (async () => {
+        const hadLocalCache = cachedRows.length > 0;
+
+        try {
+          await persistVariantSelection({
+            conversationId: currentConversationId,
+            turnKey,
+            variantIndex,
+          });
+
+          const { data: branchRows } = await supabase
+            .from('bruno_messages')
+            .select(BRUNO_BRANCH_MESSAGE_SELECT)
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: true });
+
+          if (branchRows?.length) {
+            branchRowsRef.current = branchRows as BranchMessageRow[];
+          }
+
+          if (!hadLocalCache && branchRowsRef.current.length > 0) {
+            const { messages, variantInfoByMessageId: variantInfo } =
+              branchRowsToChatState(branchRowsRef.current);
+            setMessages(messages.map(hydratedToUiMessage));
+            setVariantInfoByMessageId(variantInfo);
+            setEditingMessageId(null);
+            setInput('');
+          }
+        } catch {
+          await syncMessagesFromConversation(currentConversationId);
+        } finally {
+          cancelSkeleton?.();
+          setPendingVariantTurnKey(null);
+        }
+      })();
+    },
+    [
+      currentConversationId,
+      isLoading,
+      setMessages,
+      supabase,
+      syncMessagesFromConversation,
+    ]
+  );
 
   useEffect(() => {
     if (isOpen && isAtBottom) {
@@ -279,35 +445,25 @@ export default function BrunoChat() {
         }
       }
 
-      if (editingMessageId && convId) {
-        const editIndex = messages.findIndex(m => m.id === editingMessageId);
-        if (editIndex !== -1) {
-          const editedMsg = messages[editIndex] as any;
-          const timestamp = editedMsg.createdAt 
-             ? (editedMsg.createdAt instanceof Date ? editedMsg.createdAt.toISOString() : new Date(editedMsg.createdAt).toISOString()) 
-             : new Date().toISOString();
-             
-          // Delete messages after this point in DB
-          await supabase.from('bruno_messages').delete()
-            .eq('conversation_id', convId)
-            .gte('created_at', timestamp);
-            
-          // Truncate local messages
-          setMessages(messages.slice(0, editIndex));
-        }
+      const editingId = editingMessageId;
+      if (editingId) {
         setEditingMessageId(null);
       }
 
-      // User-turn persistence is server-side now (chat route persists it
-      // with dedup); writing it here too would create duplicate rows.
-
-      // Trigger the stream
       setIsAtBottom(true);
       setTimeout(() => scrollToBottom(), 50);
-      
+
       lastUserPromptRef.current = userMessage;
-      sendMessage({ text: userMessage }, {
-        body: createBrunoChatRequestBody(convId, null, 'general')
+      sendUserTurn(userMessage, {
+        messageId: editingId ?? undefined,
+        body: createBrunoChatRequestBody(
+          convId,
+          null,
+          'general',
+          undefined,
+          undefined,
+          editingId ? { editMessageId: editingId } : undefined
+        ),
       });
       
     } catch (err) {
@@ -438,6 +594,11 @@ export default function BrunoChat() {
                 { text: 'continue' },
                 { body: createBrunoChatRequestBody(currentConversationId, null, 'general') }
               );
+            }}
+            variantInfoByMessageId={variantInfoByMessageId}
+            pendingVariantTurnKey={pendingVariantTurnKey}
+            onSelectVariant={(turnKey, variantIndex) => {
+              handleSelectVariant(turnKey, variantIndex);
             }}
           />
         </div>

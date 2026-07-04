@@ -179,6 +179,70 @@ export type Database = {
           },
         ]
       }
+      bruno_message_feedback: {
+        Row: {
+          conversation_id: string
+          correction_text: string | null
+          created_at: string
+          exported_for_training_at: string | null
+          id: string
+          message_id: string
+          message_snapshot: string | null
+          model_route: Json | null
+          rating: number
+          user_id: string
+          user_turn_snapshot: string | null
+        }
+        Insert: {
+          conversation_id: string
+          correction_text?: string | null
+          created_at?: string
+          exported_for_training_at?: string | null
+          id?: string
+          message_id: string
+          message_snapshot?: string | null
+          model_route?: Json | null
+          rating: number
+          user_id: string
+          user_turn_snapshot?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          correction_text?: string | null
+          created_at?: string
+          exported_for_training_at?: string | null
+          id?: string
+          message_id?: string
+          message_snapshot?: string | null
+          model_route?: Json | null
+          rating?: number
+          user_id?: string
+          user_turn_snapshot?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bruno_message_feedback_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bruno_message_feedback_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "bruno_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bruno_message_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bruno_route_events: {
         Row: {
           confidence: number | null
@@ -1108,27 +1172,42 @@ export type Database = {
           conversation_id: string | null
           created_at: string
           id: string
+          is_active_variant: boolean
           message_type: string
+          parent_user_message_id: string | null
           parts: Json | null
+          superseded_at: string | null
+          turn_key: string | null
           user_id: string
+          variant_index: number
         }
         Insert: {
           content: string
           conversation_id?: string | null
           created_at?: string
           id?: string
+          is_active_variant?: boolean
           message_type: string
+          parent_user_message_id?: string | null
           parts?: Json | null
+          superseded_at?: string | null
+          turn_key?: string | null
           user_id: string
+          variant_index?: number
         }
         Update: {
           content?: string
           conversation_id?: string | null
           created_at?: string
           id?: string
+          is_active_variant?: boolean
           message_type?: string
+          parent_user_message_id?: string | null
           parts?: Json | null
+          superseded_at?: string | null
+          turn_key?: string | null
           user_id?: string
+          variant_index?: number
         }
         Relationships: [
           {
@@ -1136,6 +1215,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bruno_messages_parent_user_message_id_fkey"
+            columns: ["parent_user_message_id"]
+            isOneToOne: false
+            referencedRelation: "bruno_messages"
             referencedColumns: ["id"]
           },
           {

@@ -1,16 +1,24 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { PencilSimple, Copy } from '@phosphor-icons/react';
+import { PencilSimple } from '@phosphor-icons/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
-import { toast } from 'sonner';
 import type { UIMessage } from 'ai';
 import { brunoMarkdownComponents } from '@/components/bruno/brunoMarkdownComponents';
 import { BrunoEntitlementNotice } from '@/components/bruno/BrunoEntitlementNotice';
 import { BrunoIntegrationActionCard } from '@/components/bruno/BrunoIntegrationActionCard';
 import { BrunoNoteActions } from '@/components/bruno/BrunoNoteActions';
+import {
+  BrunoMessageFooter,
+  type BrunoMessageRating,
+} from '@/components/bruno/BrunoMessageFooter';
+import {
+  BrunoEditVersionNav,
+  type BrunoEditVersionNavProps,
+} from '@/components/bruno/BrunoEditVersionNav';
+import { BrunoVariantTurnSkeleton } from '@/components/bruno/BrunoVariantTurnSkeleton';
 import { BrunoProposalGroup } from '@/components/bruno/BrunoProposalGroup';
 import { BrunoThinkingIndicator } from '@/components/bruno/BrunoThinkingIndicator';
 import type { BrunoThinkingPhaseVerb } from '@/lib/bruno/brunoThinkingPhrases';
@@ -45,6 +53,17 @@ export type BrunoMessageListProps = {
   onCancelProposal: (proposal: BrunoActionProposal) => void;
   onConfirmAll?: (proposals: BrunoActionProposal[]) => void | Promise<void>;
   onContinueTruncated?: () => void;
+  feedbackByMessageId?: Record<string, BrunoMessageRating>;
+  onFeedback?: (messageId: string, rating: BrunoMessageRating) => void;
+  onRegenerate?: (messageId: string) => void;
+  variantInfoByMessageId?: Record<
+    string,
+    Pick<BrunoEditVersionNavProps, 'activeIndex' | 'totalVariants'> & {
+      turnKey: string;
+    }
+  >;
+  onSelectVariant?: (turnKey: string, variantIndex: number) => void;
+  pendingVariantTurnKey?: string | null;
 };
 
 /**
@@ -68,7 +87,28 @@ export function BrunoMessageList({
   onCancelProposal,
   onConfirmAll,
   onContinueTruncated,
+  feedbackByMessageId = {},
+  onFeedback,
+  onRegenerate,
+  variantInfoByMessageId = {},
+  onSelectVariant,
+  pendingVariantTurnKey = null,
 }: BrunoMessageListProps) {
+  function turnKeyForMessageIndex(index: number): string | undefined {
+    const message = messages[index];
+    if (!message) return undefined;
+    if (message.role === 'user') {
+      return variantInfoByMessageId[message.id]?.turnKey;
+    }
+    for (let j = index - 1; j >= 0; j--) {
+      const prior = messages[j];
+      if (prior.role === 'user') {
+        return variantInfoByMessageId[prior.id]?.turnKey;
+      }
+    }
+    return undefined;
+  }
+
   return (
     <AnimatePresence initial={false}>
       {messages.map((message, i) => {
@@ -100,6 +140,10 @@ export function BrunoMessageList({
             ? streamErrorPart.data
             : null;
         const isEditing = editingMessageId === message.id;
+        const messageTurnKey = turnKeyForMessageIndex(i);
+        const showVariantSkeleton =
+          Boolean(pendingVariantTurnKey) &&
+          messageTurnKey === pendingVariantTurnKey;
 
         const proposals = extractBrunoProposalsFromMessage(message);
         const hasProposals = proposals.length > 0;
@@ -143,6 +187,11 @@ export function BrunoMessageList({
           return null;
         }
 
+        const showFooter =
+          message.role === 'assistant' &&
+          hasVisibleAssistantContent &&
+          !(isLastMessage && isBrunoWorking);
+
         return (
           <motion.div
             key={message.id || i}
@@ -178,11 +227,33 @@ export function BrunoMessageList({
                 <div
                   className={`max-w-[min(82vw,34rem)] rounded-2xl border border-[var(--color-settings-brand)]/20 bg-[var(--color-settings-brand)]/18 px-4 py-2.5 text-[15px] leading-6 text-[var(--color-settings-text)] ${isEditing ? 'opacity-50' : ''}`}
                 >
-                  <p>{textPart}</p>
+                  {showVariantSkeleton ? (
+                    <BrunoVariantTurnSkeleton role="user" className="border-0 bg-transparent px-0 py-0" />
+                  ) : (
+                    <p>{textPart}</p>
+                  )}
                 </div>
+                {variantInfoByMessageId[message.id] && onSelectVariant ? (
+                  <BrunoEditVersionNav
+                    activeIndex={variantInfoByMessageId[message.id].activeIndex}
+                    totalVariants={
+                      variantInfoByMessageId[message.id].totalVariants
+                    }
+                    disabled={isProcessing}
+                    onSelect={(index) =>
+                      onSelectVariant(
+                        variantInfoByMessageId[message.id].turnKey,
+                        index
+                      )
+                    }
+                  />
+                ) : null}
               </div>
             ) : (
               <div className="group relative mr-auto w-full max-w-[min(92%,48rem)]">
+                {showVariantSkeleton ? (
+                  <BrunoVariantTurnSkeleton role="assistant" />
+                ) : (
                 <div className="rounded-2xl border border-[var(--color-settings-border)]/60 bg-[var(--color-settings-card)]/30 px-4 py-3 text-[15px] leading-7 text-[var(--color-settings-text)] md:px-5">
                   <div className="w-full">
                     <div className="bruno-markdown max-w-none text-[15px] text-[var(--color-settings-text)]">
@@ -239,17 +310,23 @@ export function BrunoMessageList({
                     )}
                   </div>
                 </div>
-                {!isProcessing && textPart && (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(textPart);
-                      toast.success('Copied to clipboard');
-                    }}
-                    className="absolute top-2 left-[100%] ml-2 p-1.5 rounded-full text-[var(--color-settings-text-muted)] hover:text-[var(--color-settings-text)] hover:bg-[var(--color-settings-card-hover)] transition-all opacity-0 group-hover:opacity-100"
-                    title="Copy message"
-                  >
-                    <Copy size={16} />
-                  </button>
+                )}
+                {!showVariantSkeleton && showFooter && (
+                  <BrunoMessageFooter
+                    messageId={message.id}
+                    text={truncatedNotice?.assistantText || textPart}
+                    rating={feedbackByMessageId[message.id] ?? null}
+                    showRegenerate={Boolean(onRegenerate)}
+                    disabled={isProcessing}
+                    onRegenerate={
+                      onRegenerate ? () => onRegenerate(message.id) : undefined
+                    }
+                    onFeedback={
+                      onFeedback
+                        ? (rating) => onFeedback(message.id, rating)
+                        : undefined
+                    }
+                  />
                 )}
               </div>
             )}

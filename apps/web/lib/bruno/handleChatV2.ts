@@ -132,6 +132,8 @@ type HandleBrunoV2Input = {
   clarificationResponse?: BrunoClarificationResponse;
   /** Client opt-in to the native approval loop (web surfaces only). */
   agentLoop?: boolean;
+  /** When set, the latest user message is an in-place edit of an earlier turn. */
+  editMessageId?: string;
 };
 
 import {
@@ -143,6 +145,10 @@ import {
   persistBrunoUserTurn,
   resolveAuthoritativeChatMessages,
 } from '@/lib/bruno/serverChatHistory';
+import {
+  handleUserMessageEdit,
+  resolveClientMessageId,
+} from '@/lib/bruno/messageBranches';
 
 function writeStaticText(
   writer: Pick<
@@ -378,6 +384,8 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
   const flags = getBrunoRoutingFlags(process.env, input.user.id);
   const usageRepository = createBrunoUsageRepository(supabaseAdmin);
   const latestMessage = extractLastUserMessage(input.messages);
+  let parentUserMessageIdForTurn: string | undefined =
+    typeof input.editMessageId === 'string' ? input.editMessageId : undefined;
   const userPlan = normalizePlanType(input.profile?.plan_type);
   const adminEmails = new Set(
     (process.env.BRUNO_ADMIN_EMAILS ?? '')
@@ -615,11 +623,34 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
       // races, reloads, and future approval-resume flows.
       if (input.conversationId && !isApprovalResume) {
         try {
-          await persistBrunoUserTurn(supabaseAdmin, {
+          const clientUserMessageId = resolveClientMessageId(input.messages);
+          const isEdit =
+            typeof input.editMessageId === 'string' &&
+            input.editMessageId.length > 0;
+
+          if (isEdit) {
+            await handleUserMessageEdit(supabaseAdmin, {
+              userId: input.user.id,
+              conversationId: input.conversationId,
+              editMessageId: input.editMessageId!,
+              newText: latestMessage,
+            });
+          }
+
+          const persistedUserId = await persistBrunoUserTurn(supabaseAdmin, {
             userId: input.user.id,
             conversationId: input.conversationId,
             text: latestMessage,
+            messageId: clientUserMessageId,
+            skipInsert: isEdit,
           });
+          if (isEdit) {
+            parentUserMessageIdForTurn = input.editMessageId;
+          } else if (persistedUserId) {
+            parentUserMessageIdForTurn = persistedUserId;
+          } else if (clientUserMessageId) {
+            parentUserMessageIdForTurn = clientUserMessageId;
+          }
         } catch (persistError) {
           Sentry.captureException(persistError);
         }
@@ -1429,6 +1460,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
         const mergedIntoOriginal =
           resumeState !== null &&
           responseMessage.id === resumeState.state.rowId;
+        const parentUserMessageId = parentUserMessageIdForTurn;
         await persistBrunoAssistantTurn(supabaseAdmin, {
           userId: input.user.id,
           conversationId: input.conversationId,
@@ -1436,6 +1468,7 @@ export async function handleBrunoChatV2(input: HandleBrunoV2Input) {
           replaceRowId: mergedIntoOriginal
             ? resumeState.state.rowId
             : undefined,
+          parentUserMessageId,
         });
         if (resumeState && !mergedIntoOriginal) {
           // Fallback: the resumed turn landed in a new message. Mark the

@@ -361,6 +361,73 @@ export async function recordScheduleBlockFeedbackInMemory(
   return current;
 }
 
+export async function recordBrunoChatFeedbackInMemory(
+  supabase: SupabaseServerClient,
+  userId: string,
+  rating: 1 | -1,
+  snapshot: { assistantText: string; userText?: string }
+): Promise<UserAiMemory> {
+  const current = await getUserAIMemory(supabase, userId);
+  if (!current.memory_learning_settings.learning_enabled) {
+    return current;
+  }
+
+  const now = new Date().toISOString();
+  const excerpt = snapshot.assistantText.slice(0, 120).trim();
+  const label =
+    excerpt.length > 0
+      ? excerpt.length < snapshot.assistantText.length
+        ? `${excerpt}…`
+        : excerpt
+      : 'Bruno chat reply';
+
+  if (rating === 1) {
+    return updateUserAIMemory(supabase, userId, {
+      accepted_patterns: upsertPattern(current.accepted_patterns, {
+        label: `liked: ${label}`,
+        detail: snapshot.userText
+          ? `User liked a reply to: "${snapshot.userText.slice(0, 80)}"`
+          : 'User gave positive chat feedback.',
+        feature: 'bruno_chat',
+        count: 1,
+        last_seen_at: now,
+      }),
+      source_counters: incrementCounter(current.source_counters, 'bruno_chat_like'),
+    });
+  }
+
+  const avoidPhrases = [...current.tone_preference.avoid_phrases];
+  const openingLine = snapshot.assistantText.split('\n')[0]?.trim().slice(0, 80);
+  if (openingLine && openingLine.length > 12 && !avoidPhrases.includes(openingLine)) {
+    avoidPhrases.push(openingLine);
+  }
+
+  return updateUserAIMemory(supabase, userId, {
+    disliked_patterns: upsertPattern(current.disliked_patterns, {
+      label: `disliked: ${label}`,
+      detail: snapshot.userText
+        ? `User disliked a reply to: "${snapshot.userText.slice(0, 80)}"`
+        : 'User gave negative chat feedback.',
+      feature: 'bruno_chat',
+      count: 1,
+      last_seen_at: now,
+    }),
+    tone_preference: {
+      ...current.tone_preference,
+      avoid_phrases: avoidPhrases.slice(-12),
+    },
+    learned_rules: upsertRule(current.learned_rules, {
+      id: 'bruno-chat-avoid-disliked-style',
+      text: 'When a recent reply style was disliked, shorten the answer, stay concrete, and skip filler.',
+      feature: 'bruno_chat',
+      confidence: 0.7,
+      evidence_count: 1,
+      last_seen_at: now,
+    }),
+    source_counters: incrementCounter(current.source_counters, 'bruno_chat_dislike'),
+  });
+}
+
 export function buildMemoryContext(memory: UserAiMemory): string {
   const lines: string[] = [];
 
@@ -388,6 +455,19 @@ export function buildMemoryContext(memory: UserAiMemory): string {
 
   if (memory.accepted_patterns.length > 0) {
     lines.push(`Known good patterns: ${memory.accepted_patterns.map((pattern) => pattern.label).join(', ')}`);
+  }
+
+  const chatLikes = memory.accepted_patterns.filter((p) => p.feature === 'bruno_chat');
+  const chatDislikes = memory.disliked_patterns.filter((p) => p.feature === 'bruno_chat');
+  if (chatLikes.length > 0) {
+    lines.push(
+      `Recent chat styles the user liked: ${chatLikes.slice(-3).map((p) => p.label).join('; ')}`
+    );
+  }
+  if (chatDislikes.length > 0) {
+    lines.push(
+      `Recent chat styles to avoid: ${chatDislikes.slice(-3).map((p) => p.label).join('; ')}`
+    );
   }
 
   // --- Enhanced memory context ---

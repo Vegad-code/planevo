@@ -9,7 +9,8 @@ export function createBrunoChatRequestBody(
   pageContext: BrunoPageContext | null,
   assistantMode: BrunoAssistantMode = 'general',
   clarificationResponse?: BrunoClarificationResponse,
-  schedulingContext?: { localTime?: string; timeZone?: string }
+  schedulingContext?: { localTime?: string; timeZone?: string },
+  options?: { editMessageId?: string }
 ) {
   const resolvedTimeZone =
     schedulingContext?.timeZone ??
@@ -28,5 +29,6 @@ export function createBrunoChatRequestBody(
     localTime: resolvedLocalTime,
     ...(pageContext ? { pageContext } : {}),
     ...(clarificationResponse ? { clarificationResponse } : {}),
+    ...(options?.editMessageId ? { editMessageId: options.editMessageId } : {}),
   };
 }

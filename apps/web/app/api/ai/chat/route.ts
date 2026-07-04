@@ -86,6 +86,7 @@ const requestSchema = z.object({
   assistantMode: z.enum(['general', 'planning']).optional().default('general'),
   clarificationResponse: brunoClarificationResponseSchema.optional(),
   agentLoop: z.boolean().optional(),
+  editMessageId: z.string().uuid().optional(),
 });
 
 function writeStaticText(
@@ -261,6 +262,7 @@ export async function POST(request: NextRequest) {
       assistantMode,
       clarificationResponse,
       agentLoop,
+      editMessageId,
     } = parsedBody.data;
     const messages = applyClarificationResponseToMessages(
       rawMessages,
@@ -447,6 +449,7 @@ export async function POST(request: NextRequest) {
         assistantMode: parseBrunoAssistantMode(assistantMode),
         clarificationResponse,
         agentLoop: agentLoop === true,
+        editMessageId,
       });
     }
 
