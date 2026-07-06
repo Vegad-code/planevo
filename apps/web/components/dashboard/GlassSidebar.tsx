@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useUIStore } from '@/lib/store/ui-store';
 import { Gear, SignOut, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
+import { PlanevoWordmark } from '@/components/PlanevoWordmark';
 import {
   BrunoMark,
   MobileMenuButton,
@@ -56,10 +57,7 @@ export default function GlassSidebar() {
           <div className="flex items-center gap-2.5">
             <PlanevoLogo size={32} gapColor="var(--color-accent-cream)" />
             {!sidebarCollapsed && (
-              <span className="font-serif text-[22px] tracking-[-0.02em] leading-none text-[var(--color-accent-cream)]">
-                <b className="font-normal">Plan</b>
-                <i className="not-italic">evo</i>
-              </span>
+              <PlanevoWordmark className="text-[22px] text-[var(--color-accent-cream)]" />
             )}
           </div>
           <button

@@ -6,8 +6,9 @@ import { GOOGLE_CALENDAR_OAUTH_SCOPES } from '@/lib/integrations/google-oauth-sc
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeClosed, CaretLeft } from "@phosphor-icons/react";
 import Link from "next/link";
-import Image from "next/image";
+import { AuthPanelBackdrop, DotGridLayer } from "@/components/landing-v2/DotGridSurface";
 import { PlanevoLogo } from "@/components/PlanevoLogo";
+import { PlanevoWordmark } from "@/components/PlanevoWordmark";
 export default function SignIn() {
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [email, setEmail] = useState('');
@@ -66,9 +67,10 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-(--color-paper) text-(--color-ink) font-sans">
+    <div className="relative min-h-screen grid bg-(--color-paper) text-(--color-ink) font-sans lg:grid-cols-2">
+      <DotGridLayer />
       {/* Left Column: Form */}
-      <div className="flex flex-col justify-center px-8 sm:px-16 md:px-24 lg:px-24 xl:px-32 py-12">
+      <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">
         <div className="w-full max-w-105 mx-auto">
           {/* Back to home */}
           <Link 
@@ -82,10 +84,7 @@ export default function SignIn() {
           <div className="mb-10">
             <div className="mb-8 flex items-center gap-3">
               <PlanevoLogo size={40} gapColor="var(--color-paper)" />
-              <div className="flex items-baseline tracking-tight leading-none text-(--color-ink) select-none">
-                <span className="text-4xl font-bold font-serif">Plan</span>
-                <span className="text-4xl font-serif italic">evo</span>
-              </div>
+              <PlanevoWordmark size="lg" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-(--color-ink) mb-2">Welcome back</h1>
             <p className="text-(--color-ink-soft)">Please enter your details to sign in.</p>
@@ -191,18 +190,7 @@ export default function SignIn() {
         </div>
       </div>
 
-      {/* Right Column: Hero Image */}
-      <div className="hidden lg:block relative bg-(--color-cream-2) overflow-hidden">
-        <Image 
-          src="/planevo_login_hero.png" 
-          alt="Planevo Bear Organizing Tasks" 
-          fill 
-          priority
-          className="object-cover"
-        />
-        {/* Soft overlay/gradient to blend it in slightly */}
-        <div className="absolute inset-0 bg-gradient-to-t from-(--color-ink)/5 to-transparent"></div>
-      </div>
+      <AuthPanelBackdrop />
     </div>
   );
 }

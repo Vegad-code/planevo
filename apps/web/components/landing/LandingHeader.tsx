@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { List, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
+import { PlanevoWordmark } from '@/components/PlanevoWordmark';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BrunoMark = ({ size = 28, mood = 'normal' }) => (
@@ -61,9 +62,8 @@ export default function LandingHeader() {
           >
             <PlanevoLogo size={32} gapColor="var(--color-paper)" />
           </motion.div>
-          <span className="font-serif text-[28px] hidden sm:flex items-baseline tracking-tight font-normal leading-none text-[var(--color-ink)] select-none">
-            <span className="font-bold">Plan</span>
-            <span className="italic font-serif">evo</span>
+          <span className="hidden sm:block">
+            <PlanevoWordmark className="text-[28px]" />
           </span>
         </Link>
 

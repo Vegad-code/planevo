@@ -3,6 +3,7 @@ export type BrunoContextSource =
   | 'dock'
   | 'dashboard'
   | 'daily-plan'
+  | 'command'
   | 'tasks'
   | 'calendar'
   | 'notes'

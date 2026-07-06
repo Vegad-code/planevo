@@ -8,6 +8,7 @@ import { useAppearance } from '@/components/providers/AppearanceProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gear, SignOut, CaretLeft } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
+import { PlanevoWordmark } from '@/components/PlanevoWordmark';
 import {
   BrunoMark,
   MobileMenuButton,
@@ -131,10 +132,9 @@ export default function FloatingPillSidebar() {
             <CollapsibleLabel
               collapsed={sidebarCollapsed}
               reduceMotion={reduceMotion}
-              className="font-serif text-[24px] tracking-[-0.02em] leading-none"
+              className="leading-none"
             >
-              <b className="font-normal">Plan</b>
-              <i className="italic font-serif text-[var(--color-honey)]">evo</i>
+              <PlanevoWordmark className="text-[24px]" />
             </CollapsibleLabel>
           </div>
 

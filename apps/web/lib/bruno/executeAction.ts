@@ -27,6 +27,12 @@ import {
   type ProposedAction,
   sanitizeBrunoString,
 } from '@/lib/bruno/tools/schemas';
+import { FEATURES } from '@/lib/featureFlags';
+import { commandDb } from '@/lib/command/db';
+import {
+  mirrorTaskToResponsibility,
+  syncTaskCompletionToResponsibility,
+} from '@/lib/command/tasks-bridge';
 
 type Supabase = SupabaseClient<Database>;
 type CalendarEventUpdate = Database['public']['Tables']['calendar_events']['Update'];
@@ -342,6 +348,21 @@ async function executeCreateTask(action: ProposedAction, ctx: ExecuteActionConte
     Sentry.captureException(error, { tags: { userId: ctx.userId, actionType: 'CREATE_TASK' } });
     return humanError('Could not create the task. Please try again.');
   }
+
+  // Command transition (§16.9): mirror the new task into responsibility_items.
+  // Flag-guarded + fully isolated — a bridge failure never affects the task write.
+  if (FEATURES.PLANEVO_COMMAND) {
+    await mirrorTaskToResponsibility(commandDb(), ctx.userId, {
+      id: data.id,
+      title: (payload.taskTitle as string) || action.title || 'Untitled Task',
+      description: payload.notes ? String(payload.notes) : null,
+      due_date: (payload.dueDate as string) || null,
+      estimated_minutes: (payload.estimatedMinutes as number) || null,
+      priority: (payload.priority as 'low' | 'medium' | 'high') || 'medium',
+      completed: false,
+    }).catch(() => null);
+  }
+
   return { success: true, data: { taskId: data.id, title: data.title } };
 }
 
@@ -448,6 +469,17 @@ async function executeUpdateTask(action: ProposedAction, ctx: ExecuteActionConte
       },
     };
   }
+  // Command transition (§16.9): propagate completion to the linked responsibility.
+  // Flag-guarded + isolated; never affects the task update result.
+  if (FEATURES.PLANEVO_COMMAND && requestedCompleted !== undefined) {
+    await syncTaskCompletionToResponsibility(
+      commandDb(),
+      ctx.userId,
+      data.id,
+      requestedCompleted,
+    ).catch(() => undefined);
+  }
+
   return {
     success: true,
     data: {

@@ -1,4 +1,4 @@
-import type { UIMessage } from 'ai';
+import type { BrunoUIMessage } from './types';
 
 export type BranchMessageRow = {
   id: string;
@@ -22,7 +22,7 @@ export type BrunoVariantInfo = {
 export type HydratedBrunoMessage = {
   id: string;
   role: 'user' | 'assistant';
-  parts: UIMessage['parts'];
+  parts: BrunoUIMessage['parts'];
   createdAt: Date;
   turnKey?: string;
   variantIndex?: number;
@@ -43,7 +43,7 @@ function rowToUiMessage(row: BranchMessageRow): HydratedBrunoMessage {
     return {
       id: row.id,
       role,
-      parts: row.parts as UIMessage['parts'],
+      parts: row.parts as BrunoUIMessage['parts'],
       createdAt: new Date(row.created_at),
     };
   }

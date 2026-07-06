@@ -1,5 +1,6 @@
 export const COLOR_THEME_IDS = [
   'classic',
+  'daylight',
   'forest-olive',
   'aurora',
   'taupe-slate',

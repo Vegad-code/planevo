@@ -154,6 +154,17 @@ export const deleteAccountSchema = z.object({
 
 export const notificationPreferencesSchema = z.record(z.string(), z.unknown());
 
+export const brunoExecuteBodySchema = z.object({
+  proposalId: z.string().min(1).max(256),
+  type: z.string().min(1).max(128),
+  title: z.string().max(512).optional(),
+  description: z.string().max(4000).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+  userPrompt: z.string().max(10000).optional(),
+  timeZone: z.string().max(128).optional(),
+  conversationId: z.string().uuid().optional(),
+}).passthrough();
+
 export function parseJsonBody<T extends z.ZodType>(
   schema: T,
   body: unknown

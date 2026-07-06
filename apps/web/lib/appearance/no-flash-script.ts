@@ -11,10 +11,13 @@ var uid=__pvUid();
 var isPublic=!window.location.pathname.startsWith('/dashboard');
 if(isPublic){
   document.documentElement.setAttribute('data-public','true');
-  document.documentElement.setAttribute('data-accent','honey');
+  document.documentElement.setAttribute('data-accent','amber');
+  document.documentElement.setAttribute('data-color-theme','daylight');
 }else{
-  var a=__pvScoped('${APPEARANCE_STORAGE_KEYS.accent}',uid)||'honey';
+  var a=__pvScoped('${APPEARANCE_STORAGE_KEYS.accent}',uid)||'amber';
   document.documentElement.setAttribute('data-accent',a);
+  var ct=__pvScoped('${APPEARANCE_STORAGE_KEYS.colorTheme}',uid)||'daylight';
+  document.documentElement.setAttribute('data-color-theme',ct);
 }
 var f=__pvScoped('${APPEARANCE_STORAGE_KEYS.fontSize}',uid)||'default';
 var s={compact:0.92,'default':1,large:1.1}[f]||1;

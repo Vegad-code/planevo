@@ -595,24 +595,42 @@ export type Database = {
           conversation_id: string | null
           created_at: string
           id: string
+          is_active_variant: boolean
           message_type: string
+          parent_user_message_id: string | null
+          parts: Json | null
+          superseded_at: string | null
+          turn_key: string | null
           user_id: string
+          variant_index: number
         }
         Insert: {
           content: string
           conversation_id?: string | null
           created_at?: string
           id?: string
+          is_active_variant?: boolean
           message_type: string
+          parent_user_message_id?: string | null
+          parts?: Json | null
+          superseded_at?: string | null
+          turn_key?: string | null
           user_id: string
+          variant_index?: number
         }
         Update: {
           content?: string
           conversation_id?: string | null
           created_at?: string
           id?: string
+          is_active_variant?: boolean
           message_type?: string
+          parent_user_message_id?: string | null
+          parts?: Json | null
+          superseded_at?: string | null
+          turn_key?: string | null
           user_id?: string
+          variant_index?: number
         }
         Relationships: [
           {
@@ -620,6 +638,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bruno_messages_parent_user_message_id_fkey"
+            columns: ["parent_user_message_id"]
+            isOneToOne: false
+            referencedRelation: "bruno_messages"
             referencedColumns: ["id"]
           },
           {

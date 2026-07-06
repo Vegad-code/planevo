@@ -17,8 +17,10 @@ import {
   toProposedAction,
   EXECUTABLE_V3_ACTION_TYPES,
 } from '@/lib/bruno/tools/schemas';
+import type { BrunoActionType } from '@/lib/bruno/tools/types';
 import { parseBrunoDataAccess } from '@/lib/bruno/types';
 import { actionAccessError } from '@/lib/bruno/actionAccess';
+import { brunoExecuteBodySchema, parseJsonBody } from '@/lib/api/schemas';
 
 /**
  * Record the execution outcome as an assistant message so the next chat turn
@@ -71,16 +73,23 @@ export async function POST(request: NextRequest) {
     }
     userId = user.id;
 
-    const body = await request.json();
-    const proposalId = typeof body?.proposalId === 'string' ? body.proposalId : null;
-    const type = typeof body?.type === 'string' ? body.type : null;
-
-    if (!proposalId || !type) {
-      return NextResponse.json({ success: false, error: 'Invalid action payload' }, { status: 400 });
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
     }
+    const parsedBody = parseJsonBody(brunoExecuteBodySchema, rawBody);
+    if (!parsedBody.success) {
+      return NextResponse.json({ success: false, error: parsedBody.error }, { status: 400 });
+    }
+    const body = parsedBody.data;
+    const proposalId = body.proposalId;
+    const type = body.type;
+    const registryType = type as BrunoActionType;
 
     const isV3Executable = EXECUTABLE_V3_ACTION_TYPES.has(type as never);
-    const actionDef = getActionDefinition(type);
+    const actionDef = getActionDefinition(registryType);
     if (!isV3Executable && !actionDef?.executable) {
       return NextResponse.json({ success: false, error: 'Action is not executable' }, { status: 403 });
     }

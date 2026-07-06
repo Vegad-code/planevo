@@ -14,11 +14,11 @@ const LEGACY_ACCENT_MAP: Record<string, ColorThemeId> = {
 };
 
 export function migrateAccentToColorTheme(value: string | null | undefined): ColorThemeId {
-  if (!value) return 'classic';
+  if (!value) return 'daylight';
   if ((COLOR_THEME_IDS as readonly string[]).includes(value)) {
     return value as ColorThemeId;
   }
-  return LEGACY_ACCENT_MAP[value] ?? 'classic';
+  return LEGACY_ACCENT_MAP[value] ?? 'daylight';
 }
 
 export function isColorThemeId(value: string | null | undefined): value is ColorThemeId {

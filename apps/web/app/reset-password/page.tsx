@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
+import { PlanevoWordmark } from '@/components/PlanevoWordmark';
 
 export default function ResetPasswordPage() {
   const supabase = createClient();
@@ -79,10 +80,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md rounded-2xl border border-[var(--color-line-strong)] bg-white p-8 shadow-sm">
         <div className="mb-8 flex items-center gap-3">
           <PlanevoLogo size={36} gapColor="#fff" />
-          <div className="flex items-baseline tracking-tight leading-none">
-            <span className="text-3xl font-bold font-serif">Plan</span>
-            <span className="text-3xl font-serif italic">evo</span>
-          </div>
+          <PlanevoWordmark className="text-3xl" />
         </div>
 
         {!sessionChecked ? (

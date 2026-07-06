@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeClosed, CaretLeft } from "@phosphor-icons/react";
 import Link from "next/link";
-import Image from "next/image";
+import { AuthPanelBackdrop, DotGridLayer } from "@/components/landing-v2/DotGridSurface";
 import { PlanevoLogo } from "@/components/PlanevoLogo";
+import { PlanevoWordmark } from "@/components/PlanevoWordmark";
 import { useSearchParams } from "next/navigation";
 import { posthog } from "@/lib/posthog";
 
@@ -87,9 +88,10 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-[var(--color-paper)] text-[var(--color-ink)] font-sans">
+    <div className="relative min-h-screen grid bg-[var(--color-paper)] text-[var(--color-ink)] font-sans lg:grid-cols-2">
+      <DotGridLayer />
       {/* Left Column: Form */}
-      <div className="flex flex-col justify-center px-8 sm:px-16 md:px-24 lg:px-24 xl:px-32 py-12">
+      <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">
         <div className="w-full max-w-[420px] mx-auto">
           {/* Back to home */}
           <Link 
@@ -103,10 +105,7 @@ function SignupForm() {
           <div className="mb-10">
             <div className="mb-8 flex items-center gap-3">
               <PlanevoLogo size={40} gapColor="var(--color-paper)" />
-              <div className="flex items-baseline tracking-tight leading-none text-[var(--color-ink)] select-none">
-                <span className="text-4xl font-bold font-serif">Plan</span>
-                <span className="text-4xl font-serif italic">evo</span>
-              </div>
+              <PlanevoWordmark size="lg" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-[var(--color-ink)] mb-2">Create an account</h1>
             <p className="text-[var(--color-ink-soft)]">Welcome! Let&apos;s get you set up.</p>
@@ -248,18 +247,7 @@ function SignupForm() {
         </div>
       </div>
 
-      {/* Right Column: Hero Image */}
-      <div className="hidden lg:block relative bg-[var(--color-cream-2)] overflow-hidden">
-        <Image 
-          src="/planevo_login_hero.png" 
-          alt="Planevo Bear Organizing Tasks" 
-          fill 
-          priority
-          className="object-cover"
-        />
-        {/* Soft overlay/gradient to blend it in slightly */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-ink)]/5 to-transparent"></div>
-      </div>
+      <AuthPanelBackdrop />
     </div>
   );
 }

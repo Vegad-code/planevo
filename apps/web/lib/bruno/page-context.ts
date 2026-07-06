@@ -18,6 +18,7 @@ export const pageContextSchema = z
         'dock',
         'dashboard',
         'daily-plan',
+        'command',
         'tasks',
         'calendar',
         'notes',

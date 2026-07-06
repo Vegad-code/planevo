@@ -11,9 +11,6 @@ import {
   type BranchMessageRow,
   type BrunoVariantInfo,
 } from '@/lib/bruno/messageBranches';
-
-const BRUNO_BRANCH_MESSAGE_SELECT =
-  'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at';
 import {
   extractProposalsFromMessage,
   type ExtractedProposal,
@@ -66,6 +63,9 @@ import {
 } from '@/lib/bruno/rate-limit-client';
 import { useBrunoAssistantMode } from '@/hooks/useBrunoAssistantMode';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+
+const BRUNO_BRANCH_MESSAGE_SELECT =
+  'id, content, message_type, parts, created_at, turn_key, variant_index, is_active_variant, parent_user_message_id, superseded_at';
 
 interface ChatMessage {
   id: string;
@@ -346,7 +346,7 @@ export default function BrunoChatScreen() {
       .order('last_active', { ascending: false });
 
     if (data) setConversations(data);
-  }, [user]);
+  }, [user, setConversations]);
 
   useEffect(() => {
     fetchConversations();
@@ -547,15 +547,15 @@ export default function BrunoChatScreen() {
   }, [
     sending,
     user,
-    uiMessages,
     currentConversationId,
     editingMessageId,
     fetchConversations,
+    setCurrentConversationId,
+    setEditingMessageId,
     isOffline,
     mentionState,
     suggestions,
     sendChatMessage,
-    setUiMessages,
     assistantMode,
     isRateLimited,
   ]);
@@ -630,11 +630,11 @@ export default function BrunoChatScreen() {
         }
 
         const payload = (await response.json()) as {
-          messages: Array<{
+          messages: {
             id: string;
             role: 'user' | 'assistant';
             parts: BrunoUIMessage['parts'];
-          }>;
+          }[];
           variantInfoByMessageId: Record<string, BrunoVariantInfo>;
         };
 

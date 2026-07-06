@@ -1,0 +1,28 @@
+import Image from 'next/image';
+import { FeatureShowcase } from './FeatureShowcase';
+import { PlanMyDayTimeline } from '../demo/PlanMyDayTimeline';
+
+export function FeaturePlanMyDay() {
+  return (
+    <FeatureShowcase
+      id="plan"
+      eyebrow="Plan my day · Availability engine"
+      headline="Planned into your real free time."
+      body="One click runs your plate through your actual calendar. Planevo finds the gaps between classes, practice, and commitments — and places the work there. When the day changes, it adapts."
+      backdrop="sky"
+      learnMoreHref="/signup"
+    >
+      <div className="mx-auto max-w-sm rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-5 shadow-xl">
+        <div className="mb-3 flex items-center justify-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-[var(--color-belly)]">
+            <Image src="/landing/bruno-face-160.png" alt="" width={20} height={20} />
+          </span>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-faint)]">
+            Bruno · Plan my day
+          </p>
+        </div>
+        <PlanMyDayTimeline trigger="inView" />
+      </div>
+    </FeatureShowcase>
+  );
+}

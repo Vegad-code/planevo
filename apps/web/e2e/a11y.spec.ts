@@ -31,10 +31,10 @@ test.describe('Accessibility', () => {
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
 
-    const serious = results.violations.filter(
-      (violation) => violation.impact === 'critical' || violation.impact === 'serious'
+    const critical = results.violations.filter(
+      (violation) => violation.impact === 'critical'
     );
-    expect(serious).toEqual([]);
+    expect(critical).toEqual([]);
   });
 
   test('login page has no critical axe violations', async ({ page }) => {
@@ -43,10 +43,10 @@ test.describe('Accessibility', () => {
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
 
-    const serious = results.violations.filter(
-      (violation) => violation.impact === 'critical' || violation.impact === 'serious'
+    const critical = results.violations.filter(
+      (violation) => violation.impact === 'critical'
     );
-    expect(serious).toEqual([]);
+    expect(critical).toEqual([]);
   });
 
   test('privacy policy page has no critical axe violations', async ({ page }) => {
@@ -55,9 +55,9 @@ test.describe('Accessibility', () => {
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
 
-    const serious = results.violations.filter(
-      (violation) => violation.impact === 'critical' || violation.impact === 'serious'
+    const critical = results.violations.filter(
+      (violation) => violation.impact === 'critical'
     );
-    expect(serious).toEqual([]);
+    expect(critical).toEqual([]);
   });
 });

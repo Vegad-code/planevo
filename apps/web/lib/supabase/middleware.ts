@@ -41,6 +41,7 @@ export async function updateSession(request: NextRequest) {
   // Define public routes that don't require authentication
   const publicRoutes = [
     '/',
+    '/landing-v2',
     '/login',
     '/signup',
     '/forgot-password',

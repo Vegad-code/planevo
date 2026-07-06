@@ -29,6 +29,18 @@ describe('page context', () => {
     expect(buildPageContextBlock(undefined)).toBe('');
   });
 
+  it('accepts command surface context', () => {
+    const context = pageContextSchema.parse({
+      source: 'command',
+      page: 'command',
+      label: 'Command',
+      payload: { surface: 'command', selectedItemId: 'item-1' },
+    });
+
+    expect(context.source).toBe('command');
+    expect(buildPageContextBlock(context)).toContain('Source: command');
+  });
+
   it('rejects oversized labels', () => {
     expect(() =>
       pageContextSchema.parse({

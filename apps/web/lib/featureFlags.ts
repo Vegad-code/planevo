@@ -35,6 +35,15 @@ export const FEATURES = {
   SLACK_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_SLACK === 'true',
   LINEAR_INTEGRATION: process.env.NEXT_PUBLIC_ENABLE_LINEAR === 'true',
 
+  // --- PLANEVO COMMAND (docs/superpowers/plans/comprehensive.md §32) ---
+  // Unrelated to the legacy vaulted COMMAND_CENTER flag above.
+  PLANEVO_COMMAND: process.env.NEXT_PUBLIC_PLANEVO_COMMAND_ENABLED === 'true',
+  COMMAND_VOICE: process.env.NEXT_PUBLIC_COMMAND_VOICE_ENABLED === 'true',
+  COMMAND_SOURCE_SYNC: process.env.NEXT_PUBLIC_COMMAND_SOURCE_SYNC_ENABLED === 'true',
+  COMMAND_SCHEDULE_BRIDGE: process.env.NEXT_PUBLIC_COMMAND_SCHEDULE_BRIDGE_ENABLED === 'true',
+  COMMAND_IS_HOME: process.env.NEXT_PUBLIC_COMMAND_IS_HOME_ENABLED === 'true',
+  COMMAND_DEBUG_COSTS: process.env.NEXT_PUBLIC_COMMAND_DEBUG_COSTS_ENABLED === 'true',
+
   // --- v1 ADVANCED AI (flagged off; archived endpoints) ---
   AI_PRIORITIZE: process.env.NEXT_PUBLIC_ENABLE_AI_PRIORITIZE === 'true',
   AI_BREAKDOWN: process.env.NEXT_PUBLIC_ENABLE_AI_BREAKDOWN === 'true',

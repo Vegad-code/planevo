@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { AuthPanelBackdrop, DotGridLayer } from '@/components/landing-v2/DotGridSurface';
 import { CaretLeft } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
+import { PlanevoWordmark } from '@/components/PlanevoWordmark';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -38,8 +39,9 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-(--color-paper) text-(--color-ink) font-sans">
-      <div className="flex flex-col justify-center px-8 sm:px-16 md:px-24 lg:px-24 xl:px-32 py-12">
+    <div className="relative min-h-screen grid bg-(--color-paper) text-(--color-ink) font-sans lg:grid-cols-2">
+      <DotGridLayer />
+      <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">
         <div className="w-full max-w-105 mx-auto">
           <Link
             href="/login"
@@ -53,10 +55,7 @@ export default function ForgotPasswordPage() {
           <div className="mb-10">
             <div className="mb-8 flex items-center gap-3">
               <PlanevoLogo size={40} gapColor="var(--color-paper)" />
-              <div className="flex items-baseline tracking-tight leading-none text-(--color-ink) select-none">
-                <span className="text-4xl font-bold font-serif">Plan</span>
-                <span className="text-4xl font-serif italic">evo</span>
-              </div>
+              <PlanevoWordmark size="lg" />
             </div>
 
             {success ? (
@@ -155,16 +154,7 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      <div className="relative hidden overflow-hidden bg-(--color-cream-2) lg:block">
-        <Image
-          src="/planevo_login_hero.png"
-          alt="Planevo planning workspace"
-          fill
-          priority
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-(--color-ink)/5 to-transparent" />
-      </div>
+      <AuthPanelBackdrop />
     </div>
   );
 }

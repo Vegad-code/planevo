@@ -10,8 +10,15 @@ import { NextRequest } from 'next/server';
  */
 
 const ALLOWED_ORIGINS: string[] = [
-  process.env.NEXT_PUBLIC_APP_URL || 'https://planevo.co',
+  process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://planevo.co',
 ];
+
+if (
+  process.env.APP_URL &&
+  !ALLOWED_ORIGINS.includes(process.env.APP_URL)
+) {
+  ALLOWED_ORIGINS.push(process.env.APP_URL);
+}
 
 if (process.env.NODE_ENV === 'development') {
   ALLOWED_ORIGINS.push('http://localhost:3000');

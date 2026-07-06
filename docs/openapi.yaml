@@ -60,6 +60,35 @@ paths:
           description: Request accepted (uniform response)
         '429':
           description: IP rate limit exceeded
+  /api/auth/change-password:
+    post:
+      summary: Change authenticated user's password
+      tags: [Auth]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthChangePasswordBody'
+      responses:
+        '200':
+          description: Password changed
+        '400':
+          description: Invalid password change request
+        '401':
+          description: Unauthorized
+        '429':
+          description: IP rate limit exceeded
+  /api/auth/recovery-session:
+    get:
+      summary: Check whether a recovery session is active
+      tags: [Auth]
+      responses:
+        '200':
+          description: Recovery session status
   /api/metrics/track:
     post:
       summary: Track daily user metrics
@@ -149,6 +178,34 @@ paths:
           description: Streamed response
         '429':
           description: Rate limit reached
+  /api/ai/chat/feedback:
+    post:
+      summary: Record feedback for a Bruno chat message
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Feedback recorded or cleared
+        '400':
+          description: Invalid feedback payload
+        '404':
+          description: Message not found
+  /api/ai/chat/select-variant:
+    post:
+      summary: Switch the active Bruno message variant
+      tags: [AI]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active branch transcript
+        '400':
+          description: Invalid variant selection
+        '404':
+          description: Conversation not found
   /api/ai/conversations/{id}:
     get:
       summary: Get conversation by ID
@@ -206,6 +263,196 @@ paths:
       responses:
         '200':
           description: Breakdown
+  /api/cron/auto-daily-plan:
+    get:
+      summary: Run the automatic daily plan sweep
+      tags: [Cron]
+      responses:
+        '200':
+          description: Sweep completed
+        '500':
+          description: Cron job failed
+  /api/cron/export-chat-feedback:
+    get:
+      summary: Export unexported Bruno chat feedback for training
+      tags: [Cron]
+      responses:
+        '200':
+          description: Feedback export result
+        '500':
+          description: Export failed
+  /api/flashcards:
+    get:
+      summary: List note flashcards
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Flashcard list
+    post:
+      summary: Create or review a note flashcard
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Flashcard created or reviewed
+        '400':
+          description: Invalid flashcard payload
+  /api/notebooks:
+    get:
+      summary: List notebooks
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notebook list
+    post:
+      summary: Create notebook
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notebook created
+        '400':
+          description: Invalid notebook payload
+  /api/notes:
+    get:
+      summary: List notes
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note list
+    post:
+      summary: Create note
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note created
+        '400':
+          description: Invalid note payload
+    put:
+      summary: Sync course notebooks
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notebook sync result
+  /api/notes/assignments:
+    get:
+      summary: List Canvas assignments for notes
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assignment list
+  /api/notes/search:
+    get:
+      summary: Search notes
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Search results
+        '400':
+          description: Invalid search query
+  /api/notes/{id}:
+    get:
+      summary: Get note by ID
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note detail
+        '404':
+          description: Note not found
+    patch:
+      summary: Update note
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note updated
+        '400':
+          description: Invalid update payload
+        '404':
+          description: Note not found
+    delete:
+      summary: Delete note
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note deleted
+        '404':
+          description: Note not found
+  /api/notes/{id}/revisions:
+    get:
+      summary: List note revisions
+      tags: [Notes]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Revision list
+  /api/notifications/inbox:
+    get:
+      summary: List notification inbox items
+      tags: [Notifications]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification inbox
+  /api/notifications/read-all:
+    post:
+      summary: Mark all notifications read
+      tags: [Notifications]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notifications updated
+  /api/notifications/{id}:
+    patch:
+      summary: Mark or dismiss a notification
+      tags: [Notifications]
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification updated
+        '400':
+          description: Invalid notification action
   /api/integrations/canvas/save:
     post:
       summary: Save Canvas credentials
@@ -380,6 +627,18 @@ components:
         email:
           type: string
           format: email
+    AuthChangePasswordBody:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 256
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 256
     MetricsTrackBody:
       type: object
       required: [type, value]

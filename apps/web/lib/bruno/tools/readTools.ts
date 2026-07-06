@@ -8,6 +8,10 @@ import { calendarDayBoundsFromDateKey } from '@/lib/bruno/schedulingContext';
 import { buildDayPlanSnapshot } from '@/lib/plan/day-plan';
 import { findGaps } from '@/lib/calendar';
 import { NOTE_KIND_VALUES, TASK_STATUS_VALUES } from '@/lib/bruno/tools/schemas';
+import { FEATURES } from '@/lib/featureFlags';
+import { commandDb } from '@/lib/command/db';
+import { loadBoard } from '@/lib/command/persist';
+import { summarizeBoard } from '@/lib/command/board';
 
 type Supabase = SupabaseClient<Database>;
 type TaskStatus = (typeof TASK_STATUS_VALUES)[number];
@@ -25,6 +29,58 @@ export function getBrunoV3ReadTools(
   const supabase = supabaseAdmin as Supabase;
 
   return {
+    // Planevo Command — lets Bruno see the responsibility board natively (§16.9).
+    // Additive + read-only; safe no-op when Command is off or its tables are absent.
+    get_board: tool({
+      description:
+        "Get the user's Planevo Command board: their responsibilities grouped into Now / Today / Due Soon / On My Plate / Unsorted / Waiting / Done, with a compact count summary. Call this to understand what the user is responsible for before proposing tasks or time blocks.",
+      inputSchema: jsonSchema<Record<string, never>>({
+        type: 'object',
+        properties: {},
+      }),
+      execute: async () => {
+        if (!FEATURES.PLANEVO_COMMAND) {
+          return {
+            success: false,
+            error: 'COMMAND_DISABLED',
+            message: 'Planevo Command is not enabled for this user.',
+          };
+        }
+        try {
+          const { board } = await loadBoard(commandDb(), userId, new Date(), timeZone);
+          const summary = summarizeBoard(board);
+          // Return compact rows only (title/type/due/status) to keep the prompt small.
+          const compact = (
+            items: { id: string; title: string; type: string; dueAt: string | null; status: string }[],
+          ) =>
+            items.map((i) => ({
+              id: i.id,
+              title: i.title,
+              type: i.type,
+              dueAt: i.dueAt,
+              status: i.status,
+            }));
+          return {
+            success: true,
+            summary,
+            board: {
+              now: compact(board.now),
+              today: compact(board.today),
+              dueSoon: compact(board.dueSoon),
+              onMyPlate: compact(board.onMyPlate),
+              unsorted: compact(board.unsorted),
+              waiting: compact(board.waiting),
+            },
+          };
+        } catch {
+          return {
+            success: false,
+            error: 'BOARD_UNAVAILABLE',
+            message: 'Could not read the Command board right now.',
+          };
+        }
+      },
+    }),
     get_calendar_events: tool({
       description:
         "Fetch the user's calendar events by date range. Call before proposing reschedule or time blocks.",

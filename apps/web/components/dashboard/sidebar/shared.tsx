@@ -1,27 +1,45 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Layout,
   CheckSquare,
   Calendar,
   Notebook,
   NotePencil,
+  Command as CommandIcon,
 } from '@phosphor-icons/react';
 import { useUserProfileOptional } from '@/components/providers/UserProfileProvider';
 import { normalizePlanType } from '@/lib/auth/plan-types';
+import { FEATURES } from '@/lib/featureFlags';
 
-export const NAV_ITEMS = [
+export type NavItem = {
+  label: string;
+  href: string;
+  icon: ReactNode;
+};
+
+// Planevo Command replaces the Daily Plan nav entry when the flag is on
+// (comprehensive.md §8). The Daily Plan route itself stays mounted for rollback.
+const PLAN_NAV_ITEM: NavItem = FEATURES.PLANEVO_COMMAND
+  ? {
+      label: 'Command',
+      href: '/dashboard/command',
+      icon: <CommandIcon weight="bold" size={16} />,
+    }
+  : {
+      label: 'Daily Plan',
+      href: '/dashboard/daily-plan',
+      icon: <Notebook weight="bold" size={16} />,
+    };
+
+export const NAV_ITEMS: readonly NavItem[] = [
   {
     label: 'Dashboard',
     href: '/dashboard',
     icon: <Layout weight="bold" size={16} />,
   },
-  {
-    label: 'Daily Plan',
-    href: '/dashboard/daily-plan',
-    icon: <Notebook weight="bold" size={16} />,
-  },
+  PLAN_NAV_ITEM,
   {
     label: 'Tasks',
     href: '/dashboard/tasks',
@@ -37,7 +55,7 @@ export const NAV_ITEMS = [
     href: '/dashboard/notes',
     icon: <NotePencil weight="bold" size={16} />,
   },
-] as const;
+];
 
 export function BrunoMark({ size = 28, mood = 'normal' }: { size?: number; mood?: 'normal' | 'happy' }) {
   return (

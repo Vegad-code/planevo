@@ -2,8 +2,9 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Colors } from '@/constants/Colors';
-import { CalendarDays, MessageCircle, Settings, CheckSquare, StickyNote } from 'lucide-react-native';
+import { CalendarDays, MessageCircle, Settings, CheckSquare, StickyNote, Command } from 'lucide-react-native';
 import { Platform } from 'react-native';
+import { FEATURES } from '@/lib/featureFlags';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
@@ -39,6 +40,19 @@ export default function TabLayout() {
             <CalendarDays size={size} color={color} strokeWidth={2.5} accessibilityElementsHidden importantForAccessibility="no" />
           ),
           tabBarButtonTestID: 'tab-plan',
+        }}
+      />
+      {/* Planevo Command — hidden (href:null) until the flag is on (§25 rollout). */}
+      <Tabs.Screen
+        name="command"
+        options={{
+          title: 'Command',
+          href: FEATURES.PLANEVO_COMMAND ? undefined : null,
+          tabBarAccessibilityLabel: 'Command tab',
+          tabBarIcon: ({ color, size }) => (
+            <Command size={size} color={color} strokeWidth={2.5} accessibilityElementsHidden importantForAccessibility="no" />
+          ),
+          tabBarButtonTestID: 'tab-command',
         }}
       />
       <Tabs.Screen

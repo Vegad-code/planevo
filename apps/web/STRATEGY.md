@@ -4,6 +4,8 @@
 
 > **Status:** Pre-launch. Pre-revenue. Pre-feedback. We are choosing focus over scope.
 
+> **Next major initiative — Planevo Command (in progress, flag-gated).** The approved transition replaces the Daily Plan *page* with **Planevo Command**, a capture-first responsibility command center: dump messy life → structured preview → confirm → calm board → act, with confirmed responsibilities fed into the existing availability engine on request ("Plan my day"). The Daily Plan *engine* (`findGaps`, the daily-plan generator, rollover) is NOT removed — it becomes Command's scheduling layer. Command ships behind `PLANEVO_COMMAND` (default off) and becomes the dashboard home at rollout maturity. Full spec: [`docs/superpowers/plans/comprehensive.md`](../../docs/superpowers/plans/comprehensive.md); build state: [`docs/superpowers/plans/command-build-state.md`](../../docs/superpowers/plans/command-build-state.md). Until Command is stable, Daily Plan below remains the live core surface. The availability-based day builder stays the painkiller; Command changes the front door to it, not the promise.
+
 ---
 
 ## 1. The One-Sentence Pitch
@@ -104,20 +106,22 @@ We ship exactly these and nothing more:
 
 ---
 
-## 7. Pricing Model (Final)
+## 7. Pricing Model (Freemium — Free + Pro)
 
-**One product. One price. One trial. No tiers.**
+**One product, free to access. Pro removes the limits and adds power features.**
+
+Founder decision (2026-07): reposition from a card-required trial to a ChatGPT/Notion-style freemium model. The whole product is usable free; Pro is the upgrade for power users. This matches the gates already enforced in code (`lib/bruno/usagePolicy.ts` — free/canceled users get a capped daily Bruno allowance and read-only Google sync).
 
 | Plan | Price | Notes |
 |------|-------|-------|
-| 14-day free trial | $0 | Card collected upfront, refund on day 14 if no engagement signal |
-| Planevo Monthly | **$9.99/mo** | Everything. |
-| Planevo Annual | **$79/yr** | 34% savings. Anchor on the marketing page. |
+| Free | $0 forever | No card. Full product — capture, board, plan my day, tasks, calendar, notes, sync. Bruno capped at 5 asks/day. |
+| Pro Monthly | **$9.99/mo** | Limits lifted: unlimited Bruno (incl. deep thinking), unlimited plan-my-day, connected apps, priority support. |
+| Pro Annual | **$79/yr** | 34% savings. Anchor on the marketing page. |
 | Student / Early Career (.edu) | **$4.99/mo** | SheerID or `.edu` email + active enrollment check |
 
 **What we are killing:**
-- ❌ Free forever tier (5 AI plans/month) — adverse selection, no conversion lever
-- ❌ Standard / Pro / Elite tiers — decision fatigue for an ADHD audience
+- ❌ Card-required 14-day trial as the only way in — free signup is now the front door
+- ❌ Standard / Pro / Elite tiers — the split is only Free vs Pro
 - ❌ "Coming Soon" features in pricing copy — we sell what works today
 
 **When (and only when) we add a higher tier later:**
@@ -199,8 +203,8 @@ We will explicitly NOT do these in the next 6 months, no matter how tempting:
 - ❌ Add team / collaboration features (v1 is for individuals)
 - ❌ Add a Notion-style workspace / docs editor
 - ❌ Ship more than 3 user-facing AI surfaces
-- ❌ Add tiered pricing
-- ❌ Bring back a free-forever plan
+- ❌ Add tiers beyond Free vs Pro
+- ❌ Gate the core day-planning loop behind a paywall (Free must stay genuinely useful)
 - ❌ Localize to non-English (until North America wedge is dominated)
 - ❌ Build integrations beyond primary sources (for now)
 - ❌ Market as AI-first ("AI planner," "AI co-pilot" as headline) or shame-recovery planner
@@ -286,6 +290,9 @@ This section grows over time. Every strategic decision and its date is logged so
 | 2026-05-08 | Transitioned to Radix UI Tabs for Sync/Plan/Focus workflow | Standardized the 3-pillar dashboard structure (Sync -> Plan -> Focus) per §4. |
 | 2026-06 | Reposition: availability + adaptive day (not shame-free / AI-first brand) | Product identity is day- and availability-centric; quiet automation; Goals/Projects vaulted |
 | 2026-06 | Renamed "No-Shame Rollover" → **Adaptive Day Rollover** in product/marketing copy | Emphasizes adaptive nature of the product, not guilt-recovery framing |
+| 2026-07 | **Freemium reposition** — landing + /pricing now lead with a genuinely useful Free tier; Pro ($9.99 / $4.99 .edu) lifts limits & adds power features. Killed "card-required trial" as the only entry. | Founder call: match ChatGPT/Notion freemium; align marketing with gates already in `usagePolicy.ts`; widen top of funnel |
+| 2026-07 | **Meet Bruno** section added to landing (Higgsfield idle clip + live ask→propose→confirm demo) | Show that Planevo has a real AI companion; Bruno stays an assistant, not the product |
+| 2026-07 | **Bruno section redesigned** — removed Higgsfield video; added agent-skills grid + tabbed demos (action + reflection chat) | Explain what Bruno can do; show both propose/approve flow and grounded reflection |
 
 ---
 

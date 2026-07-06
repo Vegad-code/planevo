@@ -70,13 +70,13 @@ export default function Pricing() {
                 >
                     <div className="inline-flex items-center gap-2 bg-[var(--color-honey-soft)] border border-[var(--color-honey)] px-4 py-1.5 text-[var(--color-honey-deep)] rounded-full font-mono text-xs uppercase tracking-widest font-semibold">
                         <Lightning weight="fill" className="size-3" />
-                        One Membership
+                        Free to start · Pro when you&rsquo;re ready
                     </div>
                     <h2 className="text-5xl md:text-7xl font-serif font-bold text-[var(--color-ink)] leading-[0.9] tracking-tight">
-                        Everything you need.<br />One simple price.
+                        Start free.<br />Upgrade when you outgrow it.
                     </h2>
                     <p className="text-lg font-sans text-[var(--color-ink-soft)] max-w-lg mx-auto">
-                        No confusing tiers. No hidden limits. Just a clear path to a calmer academic life.
+                        Anyone can use Planevo free — no card, no trial clock. Pro lifts the limits and unlocks the power features below.
                     </p>
                 </motion.div>
 
@@ -179,12 +179,15 @@ export default function Pricing() {
                                     {isCheckoutLoading ? (
                                         <CircleNotch weight="bold" className="size-5 animate-spin" />
                                     ) : (
-                                        'Start 14-Day Free Trial'
+                                        'Go Pro'
                                     )}
                                 </button>
-                                <p className="text-center text-[var(--color-ink-soft)] font-mono text-[10px] uppercase tracking-widest font-medium">
-                                    Card required. Cancel anytime.
-                                </p>
+                                <Link
+                                    href="/signup"
+                                    className="block text-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] transition-colors font-mono text-[10px] uppercase tracking-widest font-medium"
+                                >
+                                    Or keep using Planevo free — no card
+                                </Link>
                             </div>
                         ) : (
                             <div className="w-full text-center py-5 text-[10px] font-mono font-bold uppercase tracking-widest text-[var(--color-ink-faint)] border border-dashed border-[var(--color-line-strong)] rounded-full mt-auto">

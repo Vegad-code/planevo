@@ -30,7 +30,7 @@ export { COLOR_THEMES };
 export const ACCENTS = [
   { id: 'honey', name: 'Honey', color: '#D08741' },
   { id: 'terracotta', name: 'Terracotta', color: '#C9663B' },
-  { id: 'amber', name: 'Amber', color: '#DDA02C' },
+  { id: 'amber', name: 'Amber', color: '#F4A62A' },
   { id: 'rosewood', name: 'Rosewood', color: '#C2675C' },
   { id: 'sage', name: 'Sage', color: '#6F9266' },
   { id: 'ocean', name: 'Ocean', color: '#3E8194' },
@@ -59,8 +59,8 @@ export type SidebarStyleId = (typeof SIDEBAR_STYLES)[number]['id'];
 export const STORAGE_KEYS = APPEARANCE_STORAGE_KEYS;
 
 const DEFAULT_APPEARANCE = {
-  accent: 'honey' as AccentId,
-  colorTheme: 'classic' as ColorThemeId,
+  accent: 'amber' as AccentId,
+  colorTheme: 'daylight' as ColorThemeId,
   fontSize: 'default' as FontSizeId,
   reduceMotion: false,
   sidebarStyle: 'glass' as SidebarStyleId,
@@ -449,8 +449,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   );
 
   const resetAppearance = useCallback(() => {
-    setAccent('honey');
-    setColorTheme('classic');
+    setAccent('amber');
+    setColorTheme('daylight');
     setFontSize('default');
     setReduceMotion(false);
     setSidebarStyle('glass');

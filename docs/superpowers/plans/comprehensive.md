@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace Daily Plan with Planevo Command, the central responsibility hub where users can dump messy life, school, work, creative, and personal obligations by typing, pasting, speaking, forwarding, or importing, then Planevo turns that chaos into a calm board of real responsibilities, next actions, source-backed context, and confirmed Bruno help.
+**Goal:** Replace Daily Plan with Planevo Command, the central responsibility hub where users can dump messy life, school, work, creative, and personal obligations by typing, pasting, speaking, forwarding, or importing, then Planevo turns that chaos into a calm board of real responsibilities, next actions, source-backed context, and confirmed Bruno help. Command also becomes the dashboard home at rollout maturity (see §8.1), and it feeds confirmed responsibilities into Planevo's existing availability-based scheduling engine (see §9.9) — capture is the front door; gap-aware scheduling is the reason to stay. Launch positioning is student-first (see §4.1).
 
 **Architecture:** Planevo Command is not a dictation app and not an AI-first chatbot. It is a native Planevo system made of a fast capture surface, a structured responsibility graph, deterministic validation, source-aware organization, usage/cost controls, a command board UI, mobile capture, and Bruno contextual actions. AI is used only where it removes setup friction: transcription, extraction, cleanup, categorization, ambiguity detection, and optional Bruno help. The durable source of truth is Planevo data, not an LLM response.
 
@@ -33,7 +33,7 @@ The final product should feel like the aesthetic productivity videos people want
 
 ## 2. What Planevo Command Is
 
-Planevo Command is a comprehensive tab that replaces Daily Plan in the main navigation.
+Planevo Command is a comprehensive tab that replaces Daily Plan in the main navigation. Once stable, it also replaces the dashboard home page — the board *is* the landing screen (see §8.1). Planevo does not keep a separate summary lobby in front of Command.
 
 It is a responsibility operating center with these core abilities:
 
@@ -45,6 +45,7 @@ It is a responsibility operating center with these core abilities:
 6. Let Bruno help in context, but keep Bruno as an assistant inside the system instead of the whole product.
 7. Track progress and momentum without shame.
 8. Work on mobile as a fast dumping surface and on web as a richer command center.
+9. Feed confirmed responsibilities into Planevo's availability engine (`findGaps()` pipeline) so they can be placed into real calendar gaps on request — this is the capability no competitor's capture-and-triage board has.
 
 The user-facing name can be:
 
@@ -83,6 +84,15 @@ The real pain is responsibility overload:
 
 Most planning tools assume the user already knows what to type into a clean task field. Planevo Command assumes the user is overwhelmed and starts messy.
 
+### 4.1 Launch Positioning: Student-First
+
+The *system* supports every persona above — the data model and extraction are domain-agnostic. The *launch positioning and marketing* stay student-first, consistent with `apps/web/STRATEGY.md`:
+
+- Canvas is the one integration no competitor prioritizes; it is the acquisition wedge.
+- Onboarding examples, marketing copy, and App Store screenshots use student scenarios.
+- Corporate/creative/parent personas are supported-but-not-marketed until student traction is proven.
+- Do not build persona-specific UI modes at launch. One board, student-flavored copy.
+
 ## 5. The Wedge
 
 The market already has:
@@ -104,10 +114,11 @@ Planevo Command should stand apart by combining:
 - Mobile-first capture.
 - Free voice capture with clear limits.
 - A paid tier that unlocks higher-quality processing, more connected sources, and deeper Bruno help.
+- **Availability-aware scheduling.** Planevo already has a gap-finding engine (`findGaps()`, adaptive rollover, Bruno's `find_availability` tool). Command is the only capture board that can take what you dumped and place it into your *actual free time* on request. Todoist/Akiflow/TickTick can sort a dump; none of them can schedule it around a real calendar. This is the moat — do not demote it to a chip.
 
 The wedge is not "speak and get notes." It is:
 
-> Speak, paste, or import the chaos of your life. Planevo turns it into responsibilities you can trust, see, and act on.
+> Speak, paste, or import the chaos of your life. Planevo turns it into responsibilities you can trust, see, and act on — and, when you ask, places them into the real free time on your calendar.
 
 ## 6. Primary User Promise
 
@@ -159,6 +170,26 @@ Implementation decision:
 - Do not delete existing Daily Plan internals in Phase 1. Planevo Command can reuse `calendar_events`, `source_items`, and planner utilities where useful.
 - Rename nav label from `Daily Plan` to `Command`.
 - Keep database compatibility with existing calendar-based planning until the Command persistence layer is stable.
+- Do NOT delete the Daily Plan *engine* (`lib/ai/generate-daily-plan.ts`, `findGaps()`, rollover). It becomes the scheduling layer behind Command's `Plan my day` action (§9.9). Only the Daily Plan *page* is replaced.
+- Update `apps/web/STRATEGY.md` and `apps/web/lib/featureFlags.ts` as part of this transition so repo guidance never contradicts this plan. Note: the legacy vaulted `COMMAND_CENTER` flag predates this initiative and is unrelated — Command uses its own `PLANEVO_COMMAND_ENABLED` flags (§32).
+
+### 8.1 Dashboard Consolidation
+
+The dashboard home (`apps/web/app/dashboard/page.tsx`) is today a lobby that funnels users into Daily Plan: hero with "Generate Plan" CTA, Today/Coming Up preview cards, overdue alerts, week strip, Bruno insights. Command duplicates every one of those jobs by design (capture band, board sections, summary strip, Bruno rail). Shipping both produces two competing "what's my life" pages that will disagree.
+
+Decision: **Command becomes the dashboard home.** No separate lobby survives.
+
+- During rollout (flag on, pre-stable): Command ships as its own tab at `/dashboard/command`; the dashboard home is untouched for safe rollback.
+- At rollout maturity (Phase 12): `/dashboard` renders Command directly; the old home components are archived; the nav loses one item (final nav: `Command`, `Tasks`, `Calendar`, `Notes`).
+- Mobile follows the same logic: the index tab becomes Command capture + simplified board.
+
+Absorb these existing dashboard components into Command rather than rebuilding them:
+
+- `WeekStrip` → sits under the summary strip (Command's only week-level visualization).
+- `DashboardAlerts` → feeds the `Now` section, subject to the overdue-decay rule (§21.1) so it never becomes a shame wall.
+- `DashboardHero` mood modes (the greeting state logic) → become the board header's state-aware greeting.
+- Bruno insights row → becomes the Bruno rail content.
+- `useDashboardData`, realtime refresh hooks (`useSupabaseTableRealtime`), and the `EventDialog` modals transfer directly.
 
 ## 9. Core User Journeys
 
@@ -266,6 +297,13 @@ The returning user opens Command and sees:
 
 The default state should not be empty. Even when no tasks exist, it should encourage one simple input.
 
+**Morning re-entry digest (launch requirement, not a nice-to-have).** Boards go stale; Daily Plan at least gave users a daily reason to open the app. On the first open of a day, the board header shows a one-line, calm delta since last visit, powered by `responsibility_events` and the rollover job:
+
+- `2 assignments landed from Canvas. 1 thing became urgent. Today is lighter than yesterday.`
+- Dismissable, never modal, never a popup.
+- Ties into `/api/schedule/rollover` so moved items are reported as "moved to today," not "overdue."
+- This digest is Command's answer to day-30 retention: the reason to open the app each morning is to see what changed, not to be reminded of what didn't get done.
+
 ### 9.6 Mobile Capture Loop
 
 On mobile, the user should be able to:
@@ -302,6 +340,26 @@ Bruno should:
 - Draft messages.
 - Create calendar blocks only after user confirmation.
 - Keep mutation behavior confirmation-based.
+
+### 9.9 Plan My Day (Scheduling Bridge)
+
+This is the loop that separates Command from every other capture-and-triage board, and it is a **launch-scope** feature, not a Bruno chip.
+
+The board has a first-class `Plan my day` action (header-level, next to the summary strip). Flow:
+
+1. User confirms responsibilities onto the board (any capture mode).
+2. User clicks `Plan my day` (or asks Bruno).
+3. Planevo runs the selected/eligible items through the **existing** availability pipeline: `getBrunoMasterContext()` → `findGaps()` → block proposals — the same engine that powered Daily Plan. No new scheduler is built.
+4. Proposed time blocks appear for confirmation (reusing Bruno's proposal/approval card pattern).
+5. Confirmed blocks are written to `calendar_events` and each scheduled responsibility links to its block (`calendar_event_id`).
+6. Scheduled items show their time on the board; the adaptive rollover keeps them honest when the day changes.
+
+Rules:
+
+- Scheduling is always pull, not push: Planevo never auto-fills the calendar without a request and a confirmation.
+- Deterministic engine, existing code: `lib/ai/generate-daily-plan.ts`, `findGaps()` in `lib/calendar.ts`, and Bruno's `find_availability` tool are reused, not reimplemented.
+- The old Daily Plan page's job ("here is your day as time blocks") survives as the *scheduled view* of Command, not as a separate destination.
+- Positioning: capture is why users arrive; gap-aware scheduling is why they stay.
 
 ## 10. Command Board Layout
 
@@ -379,29 +437,24 @@ Optional sections:
 - `Done`: recently completed items.
 - `Sources`: integration-driven items requiring review.
 
-### 10.4 Item Card
+### 10.4 Item Row
 
-Each responsibility item should show:
+Responsibilities render as dense typographic **rows**, not boxed cards (binding rules in §26.1). At rest, a row shows at most:
 
-- Title.
-- Type icon.
-- Due date or time if known.
-- Source badge.
-- Urgency badge only when useful.
-- Confidence/needs-review state when extraction is uncertain.
-- One primary action.
-- Overflow actions.
+- Title (real text hierarchy).
+- Due date/time if known (right-aligned, muted).
+- Small source glyph (and a type icon only when it adds information).
 
-Avoid making every card visually heavy.
+Everything else is progressive disclosure:
 
-Example card:
+- Urgency: expressed by section placement and at most a muted color accent — never a badge inside an already-urgent section.
+- Confidence/needs-review: preview panel and `Unsorted` only.
+- Primary action + overflow: on hover/tap/selection only.
+
+Example row:
 
 ```text
-Bio lab report
-Assignment
-Due Fri
-Source: Manual
-Action: Break down
+Bio lab report                                   Fri · ✎
 ```
 
 ### 10.5 Item Types
@@ -426,6 +479,13 @@ Supported item types:
 - `unknown`
 
 Do not overfit early. The UI can display friendly labels while the database stores stable enum values.
+
+**Launch subset (8 types).** The database enum keeps all 16 values as the stable vocabulary, but the launch extraction prompt and UI use only: `assignment`, `assessment`, `meeting`, `class`, `follow_up`, `errand`, `admin`, `unknown`. Guidance:
+
+- Family/household items → `errand`. Money/health appointments → `admin` or `meeting`. Creative/idea items → `unknown` (they land in Unsorted/Ideas, which is correct at launch).
+- `unknown` absorbs ambiguity instead of the model guessing among 16 near-synonyms — fewer types means higher extraction accuracy on nano.
+- Enable the remaining types only after eval fixtures (§ Phase 11) cover them and show the extra granularity improves, not degrades, classification.
+- Sixteen visible type icons on day one is taxonomy noise for the user and slop surface for the UI.
 
 ### 10.6 Source Badges
 
@@ -504,15 +564,16 @@ Required entry points:
 - Preview panel can ask Bruno to clarify extraction.
 - Source panel can ask Bruno to summarize context.
 
-Existing architecture to preserve:
+Existing architecture to preserve — target the **post-overhaul (July 2026) Bruno pipeline**, not the retired LangGraph/legacy-execute path:
 
-- `apps/web/components/dashboard/BrunoChatSidebar.tsx`
-- `BrunoProvider`
-- `BrunoShell`
-- `useRegisterBrunoContext`
-- `createBrunoChatRequestBody`
-- `/api/bruno/actions/execute`
-- proposal/confirmation card behavior
+- `BrunoProvider`, `BrunoShell`, shared `BrunoMessageList` (powers sidebar and floating widget)
+- `useRegisterBrunoContext` (Command registers its context exactly like other dashboard pages)
+- `handleChatV2` + the LLM router (`routeMessage.ts`) — do not add regex gates in front of it
+- The **native approval loop** (`lib/bruno/agentLoop.ts`): propose → approve → execute inside one model run, with `needsApproval` write tools and the server-side trust boundary on continuations
+- `propose_action` / `propose_plan` (APPLY_PLAN) tools with per-action-type validation at propose time
+- Read tools (`readTools.ts`), including `find_availability` — Command's scheduling bridge (§9.9) rides on this
+- The single flexible date parser in `lib/bruno/dates.ts` — Command intake normalization must not introduce a second date parser
+- Mobile note: mobile is still on the legacy `/api/bruno/actions/execute` flow until it migrates to the agent loop; Command mobile follows whatever the mobile Bruno migration lands on, it does not fork a third path
 
 ### 11.3 Bruno Action Examples
 
@@ -525,14 +586,14 @@ Action chips on an item:
 - `Add calendar block`
 - `Mark waiting`
 
-Bruno proposal flow:
+Bruno proposal flow (runs inside the native approval loop — one model run, approval cards pause the stream, execution results re-enter the loop):
 
 1. User clicks `Find time`.
-2. Bruno reads selected responsibility, today's calendar, and active Command board context.
-3. Bruno proposes one or more calendar blocks.
-4. User confirms.
-5. Planevo writes to Google Calendar only if scopes and confirmation are valid.
-6. The responsibility item links to the created event.
+2. Bruno reads the selected responsibility, `find_availability` output, and active Command board context.
+3. Bruno emits `propose_action`/`propose_plan` calendar blocks; the stream pauses on approval cards.
+4. User confirms in-conversation.
+5. Execution runs server-side (privacy gate → ledger → `executeAction`); Planevo writes to Google Calendar only if scopes and confirmation are valid.
+6. The responsibility item links to the created event, and the structured result re-enters Bruno's context so he reports the real outcome.
 
 ### 11.4 Bruno Context Contract
 
@@ -588,6 +649,8 @@ Default:
 
 - `gpt-5.4-nano`
 
+**Zero-AI fast path first.** Before any model call, run the deterministic parser (`packages/nlp-core` + `lib/taskParser.ts`) on the input. A simple single-item entry ("dentist Friday 3pm") parses instantly, costs nothing, and does not consume a free user's AI quota. Only inputs the deterministic parser cannot confidently handle (multi-item dumps, ambiguous phrasing) go to the model. This makes the free tier feel generous while lowering COGS.
+
 Use for:
 
 - Simple typed dumps.
@@ -630,6 +693,8 @@ Deep Bruno:
 - `gpt-5.4`
 
 Deep Bruno should be limited because output tokens are expensive.
+
+**Deep Bruno metering reuses the existing Bruno credit ledger** (`lib/bruno/usagePolicy.ts` + `modelPolicy.ts`: onboarding/earned/pro-monthly credits, shipped Pro limit `BRUNO_PRO_MONTHLY_DEEP_LIMIT = 150/month`). Command does NOT build a parallel deep-usage counter. Per-plan allowances are tuned in `modelPolicy.ts`, not in Command code.
 
 Examples for Deep Bruno:
 
@@ -841,8 +906,9 @@ PostHog public pricing snapshot:
 
 Required cost controls:
 
-- Log every Command AI call in a usage ledger.
+- Log every Command AI call in the **existing** `ai_usage_logs` ledger (extend it with `feature` and `audio_seconds` columns) — do not create a parallel Command ledger (§16.7).
 - Store model, tokens, audio seconds, estimated cost, user plan, feature area, and request id.
+- Run the deterministic NLP fast path (§12.2) before any model call so simple entries cost zero.
 - Enforce per-plan limits before calling the model.
 - Use nano first for extraction.
 - Escalate only when schema validation or confidence requires it.
@@ -925,7 +991,7 @@ Recommended Pro limits:
 - Voice: 1,000 minutes/month fair-use, or start at 300 minutes/month and raise after usage data.
 - Sources: all supported integrations.
 - Bruno standard: 100/day global AI cap.
-- Deep Bruno: 20/month on `gpt-5.4`, then downgrade to mini or require add-on.
+- Deep Bruno: governed by the existing credit ledger (shipped Pro limit is 150/month via `BRUNO_PRO_MONTHLY_DEEP_LIMIT`); tune there, do not create a Command-specific deep quota.
 - Background source refresh: automatic.
 
 ### 15.3 Student User
@@ -940,7 +1006,7 @@ Recommended Student limits:
 - Voice: 300 minutes/month.
 - Sources: Canvas, Google Calendar, and one additional source at launch.
 - Bruno standard: premium limit.
-- Deep Bruno: 10/month.
+- Deep Bruno: via the same credit ledger with a lower per-plan value than full Pro (set in `modelPolicy.ts`; start around 10/month and tune with telemetry).
 - Background source refresh: automatic but less frequent than full Pro if needed.
 
 Student value should emphasize:
@@ -971,16 +1037,18 @@ Use Supabase/Postgres with RLS.
 
 ### 16.1 Tables
 
-Recommended tables:
+New tables (keep the surface minimal — reuse before creating):
 
 - `command_intake_runs`
 - `responsibility_items`
-- `responsibility_sources`
-- `responsibility_item_sources`
 - `responsibility_events`
-- `command_usage_ledger`
 - `responsibility_clarifications`
 - `responsibility_item_links`
+
+Deliberately NOT created (reuse existing infrastructure instead):
+
+- ~~`command_usage_ledger`~~ → extend the existing `ai_usage_logs` (§16.7)
+- ~~`responsibility_sources`~~ / ~~`responsibility_item_sources`~~ → reuse the existing `integration_sources` + `source_items` pipeline; `responsibility_items.source_item_id` covers the link (§16.4). Manual/paste capture context lives on the intake run (`raw_text`). If a true many-to-many between items and sources proves necessary later, add the join table then.
 
 ### 16.2 command_intake_runs
 
@@ -1043,6 +1111,7 @@ create table public.responsibility_items (
   intake_run_id uuid references public.command_intake_runs(id) on delete set null,
   calendar_event_id uuid references public.calendar_events(id) on delete set null,
   source_item_id uuid references public.source_items(id) on delete set null,
+  task_id uuid references public.tasks(id) on delete set null,
   needs_review boolean not null default false,
   review_reason text,
   why_it_matters text,
@@ -1053,15 +1122,15 @@ create table public.responsibility_items (
 );
 ```
 
-Allowed `status` values:
+Allowed `status` values — **lifecycle only**. Board sections (`Now`, `Today`, `Due Soon`) are always *computed* (§21); storing them as status would create drift between stored state and derived placement:
 
 - `active`
-- `now`
-- `scheduled`
 - `waiting`
 - `done`
 - `archived`
 - `discarded`
+
+If the product needs explicit user pinning to a section, store it as `metadata.pinnedSection` — never as status.
 
 Allowed `priority` values:
 
@@ -1072,41 +1141,15 @@ Allowed `priority` values:
 
 The UI can compute section placement from status, due date, calendar time, urgency, and source context. Do not over-store UI sections unless product needs explicit user pinning.
 
-### 16.4 responsibility_sources
+### 16.4 Source linkage — reuse the existing pipeline
 
-Purpose:
+Do not create `responsibility_sources` / `responsibility_item_sources`. Planevo already has a normalized source pipeline: `integration_accounts` → `integration_sources` → `source_items` (used by Canvas today, and flag-gated Notion/Slack/Linear). Command links to it directly:
 
-- Represent a source system or source artifact.
+- Integration-derived items: `responsibility_items.source_item_id` → `source_items`. The source badge and context panel read from `source_items` (label, url, captured text, provider metadata all already exist there).
+- Calendar-derived items: `responsibility_items.calendar_event_id` → `calendar_events`.
+- Manual/voice/paste items: `source_type` on the item + raw context on the intake run (`command_intake_runs.raw_text` / `transcript_text`).
 
-```sql
-create table public.responsibility_sources (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  provider text not null,
-  external_id text,
-  label text not null,
-  url text,
-  captured_text text,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-```
-
-### 16.5 responsibility_item_sources
-
-Purpose:
-
-- Many-to-many relationship between items and sources.
-
-```sql
-create table public.responsibility_item_sources (
-  item_id uuid not null references public.responsibility_items(id) on delete cascade,
-  source_id uuid not null references public.responsibility_sources(id) on delete cascade,
-  relation text not null default 'derived_from',
-  created_at timestamptz not null default now(),
-  primary key (item_id, source_id)
-);
-```
+One item, one primary source. If a genuine many-to-many need emerges (one responsibility backed by a Slack thread *and* a Notion doc), add a join table against `source_items` at that point — not speculatively.
 
 ### 16.6 responsibility_events
 
@@ -1127,32 +1170,19 @@ create table public.responsibility_events (
 );
 ```
 
-### 16.7 command_usage_ledger
+### 16.7 Usage logging — extend `ai_usage_logs`, don't fork it
 
-Purpose:
+Do not create `command_usage_ledger`. Planevo already logs every AI call to `ai_usage_logs` via `costEstimator.ts` / `usageService.ts`, and the Bruno credit ledger already meters deep usage. A parallel Command ledger means two cost dashboards that disagree.
 
-- Cost and limit tracking for Command.
+Migration: extend the existing table where needed:
 
 ```sql
-create table public.command_usage_ledger (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  plan_type text not null,
-  feature text not null,
-  provider text not null default 'openai',
-  model text,
-  input_tokens integer not null default 0,
-  output_tokens integer not null default 0,
-  cached_input_tokens integer not null default 0,
-  audio_seconds integer not null default 0,
-  estimated_cost_usd numeric(10, 6) not null default 0,
-  request_id text,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
+alter table public.ai_usage_logs
+  add column if not exists feature text,
+  add column if not exists audio_seconds integer not null default 0;
 ```
 
-Features:
+Command writes rows with `feature` values:
 
 - `text_extract`
 - `text_escalation`
@@ -1195,6 +1225,23 @@ using (auth.uid() = user_id);
 
 Repeat for each table with `user_id`.
 
+### 16.9 Relationship to `tasks`, `calendar_events`, and Bruno's tools (decide before Phase 1)
+
+This is the hardest problem in the plan and must be settled before any migration ships. Without it, Bruno and Command silently disagree about what is on the user's plate: Bruno's tools (`create_task`, `update_task`, `complete_task`, `propose_action`) operate on `tasks`/`calendar_events`, while Command items would live in `responsibility_items`.
+
+Decision: **`responsibility_items` becomes the canonical backlog; `tasks` is bridged, then absorbed.**
+
+Contract:
+
+1. **Ownership.** `responsibility_items` owns "what am I responsible for." `calendar_events` continues to own "when is it scheduled" (unchanged, canonical for time). `tasks` becomes a legacy table during transition.
+2. **Backfill.** The Command migration backfills every open `tasks` row into `responsibility_items` (title, due date, recurrence, estimated time → `metadata`), setting `task_id` to the originating row. Idempotent; re-runnable.
+3. **Sync during transition (both directions, keyed on `task_id`):**
+   - Completing a responsibility with a linked `task_id` marks the task completed, and vice versa.
+   - Edits to due date/title on either side propagate. The `responsibility_events` audit row records `actor: 'sync'`.
+4. **Bruno tool bridge.** `create_task`/`update_task`/`complete_task` are updated server-side to write through to `responsibility_items` (creating the linked pair during transition). Bruno's proposal cards do not change shape; only the execute layer's write target changes. Add a `get_board` read tool so Bruno sees Command state natively.
+5. **Endgame.** Once Command is the only surface reading `tasks` (web + mobile migrated), `tasks` writes stop, the table is retired to read-only archive, and the sync code is deleted. Do not carry dual-write forever — set an explicit removal milestone in Phase 12.
+6. **Lifecycle integrity rule carries over:** scheduling a responsibility (linking a calendar block) never marks it done.
+
 ## 17. TypeScript Domain Types
 
 Create:
@@ -1224,8 +1271,6 @@ export type ResponsibilityType =
 
 export type ResponsibilityStatus =
   | "active"
-  | "now"
-  | "scheduled"
   | "waiting"
   | "done"
   | "archived"
@@ -1349,19 +1394,20 @@ Pipeline:
 
 1. User submits text, paste, voice, source import, share sheet, or OCR input.
 2. Server authenticates user.
-3. Server checks plan and usage limits.
-4. If voice, transcribe audio.
-5. Server creates `command_intake_runs` row.
-6. Server calls extraction model.
-7. Server validates JSON with Zod.
-8. Server normalizes dates, types, priorities, and confidence.
-9. Server returns preview items to client.
-10. User confirms, edits, or discards.
-11. Server persists confirmed `responsibility_items`.
-12. Server links items to sources, calendar events, or source_items.
-13. Server logs usage/cost.
-14. UI refreshes Command board.
-15. Bruno receives updated context.
+3. Server runs the deterministic NLP fast path (`nlp-core`/`taskParser`) — if it confidently parses the input as a single simple item, skip to step 10 with zero AI cost and no quota consumed.
+4. Server checks plan and usage limits.
+5. If voice, transcribe audio.
+6. Server creates `command_intake_runs` row.
+7. Server calls extraction model.
+8. Server validates JSON with Zod.
+9. Server normalizes dates, types, priorities, and confidence.
+10. Server returns preview items to client.
+11. User confirms, edits, or discards.
+12. Server persists confirmed `responsibility_items`.
+13. Server links items to sources, calendar events, or source_items.
+14. Server logs usage/cost.
+15. UI refreshes Command board.
+16. Bruno receives updated context.
 
 Important:
 
@@ -1523,17 +1569,27 @@ Create:
 
 - `apps/web/lib/command/board.ts`
 
-Rules:
+Rules (sections are always computed from lifecycle status + dates + urgency — never stored as status, per §16.3):
 
 - `done`: status `done`.
 - `waiting`: status `waiting`.
 - `unsorted`: `needsReview = true` or type `unknown` with no due/start date.
-- `now`: high urgency, overdue, due within 24 hours, explicitly pinned, or current calendar-linked commitment.
-- `today`: due today, scheduled today, or user-pinned to today.
+- `now`: high urgency, freshly overdue (see §21.1), due within 24 hours, pinned via `metadata.pinnedSection`, or current calendar-linked commitment.
+- `today`: due today, scheduled today (calendar-linked block today), or user-pinned to today.
 - `dueSoon`: due in next 7 days but not today/now.
-- `onMyPlate`: active responsibilities not in other sections.
+- `onMyPlate`: active responsibilities not in other sections, including decayed overdue items (§21.1).
 
 The board must be deterministic. AI should not decide live section placement every render.
+
+### 21.1 Overdue Decay (anti-shame rule)
+
+A user who avoids the app for a week must not return to a wall of red in `Now` — that is the churn moment, and it is the exact failure the adaptive rollover was built to prevent. Overdue items age *down*, not up:
+
+- Overdue < 48h: stays in `Now`, shown as `Due yesterday` in muted urgency color — actionable, not alarming.
+- Overdue ≥ 48h: decays to `On My Plate` with the calm label `Still on your plate` and no urgency badge. The nightly rollover job (`/api/schedule/rollover`) performs the decay and increments `rescheduled_count`, consistent with existing non-punitive rollover behavior.
+- The morning re-entry digest (§9.5) reports decayed items as "moved to your plate," never as a count of failures.
+- Cap the visible `Now` section at ~7 items; overflow goes to `Today`/`On My Plate` in urgency order. An urgent section with 30 items communicates nothing except panic.
+- Adjust `computeUrgencyScore`: the overdue bonus (+50) applies only within the first 48 hours; after decay, score the item as if due "soon" so it stays discoverable without screaming.
 
 Urgency score formula can start simple:
 
@@ -1723,7 +1779,7 @@ Create these files:
 - `apps/web/components/command/CommandCapture.tsx`
 - `apps/web/components/command/CommandBoard.tsx`
 - `apps/web/components/command/CommandSection.tsx`
-- `apps/web/components/command/CommandItemCard.tsx`
+- `apps/web/components/command/CommandItemRow.tsx`
 - `apps/web/components/command/CommandPreviewPanel.tsx`
 - `apps/web/components/command/CommandVoiceButton.tsx`
 - `apps/web/components/command/CommandUsageBanner.tsx`
@@ -1737,6 +1793,8 @@ Create these files:
 - `apps/web/lib/command/costs.ts`
 - `apps/web/lib/command/usage.ts`
 - `apps/web/lib/command/extract.ts`
+- `apps/web/lib/command/fastpath.ts` (deterministic NLP fast path wrapping `nlp-core`/`taskParser`)
+- `apps/web/lib/command/schedule-bridge.ts` (Plan My Day: wraps `findGaps()`/daily-plan engine, §9.9)
 - `apps/web/lib/command/transcribe.ts`
 - `apps/web/lib/command/normalize.ts`
 - `apps/web/lib/command/validate.ts`
@@ -1772,7 +1830,7 @@ Create or modify:
 - `apps/mobile/components/command/MobileCommandView.tsx`
 - `apps/mobile/components/command/MobileCommandCapture.tsx`
 - `apps/mobile/components/command/MobileCommandBoard.tsx`
-- `apps/mobile/components/command/MobileCommandItemCard.tsx`
+- `apps/mobile/components/command/MobileCommandItemRow.tsx`
 - `apps/mobile/components/command/MobileCommandVoiceButton.tsx`
 - `apps/mobile/components/command/MobileCommandPreviewSheet.tsx`
 - `apps/mobile/lib/commandApi.ts`
@@ -1819,6 +1877,38 @@ Microcopy:
 - Good: `On your plate`, `Needs a date`, `Waiting`, `Clear My Plate`.
 - Avoid: `You failed`, `Recovery`, `Overdue again`, `Fix your schedule`.
 
+### 26.1 Design Spec (anti-slop hard rules)
+
+Command's two centerpiece elements — an AI input box and a board of items — are the two most slop-coded patterns in current software. These rules are binding, not suggestions. Vague direction ("make it calm") produces slop; concrete constraints don't.
+
+**Build from the existing Planevo design system.** Tokens from `packages/theme` (cream `surfaceBase #FBF6EA`, raised white surfaces, ink `#1A140D`, honey accent `#D08741`, sage `#6B8B69`), Geist sans + Instrument Serif display + Geist Mono, existing Radix primitives and spacing. Command must look like it was designed by the same hands as the rest of the app — a greenfield visual language next to the existing one is itself slop.
+
+**Rows, not cards.** Responsibilities render as dense typographic rows (reference: Things 3, Linear) — title in real text hierarchy, due date right-aligned in muted text, a small source glyph. No per-item boxes, borders, or shadows. Boxed surfaces are reserved for genuinely separate planes: the capture band, the preview panel, the Bruno rail.
+
+**Metadata budget: max 2 signals per row at rest.** Due date + source glyph. Urgency is expressed by *position* (the item is already in `Now`) and at most a muted color accent — never a red badge on an item already in an urgent section. Type shows as a small icon only when it adds information. Confidence/needs-review UI appears only in the preview panel and `Unsorted`. Actions appear on hover/tap, never permanently.
+
+**State-dependent hierarchy — one dominant element per state:**
+
+- Empty board: the capture band is large and dominant; sections don't render as empty scaffolding.
+- Populated board: capture collapses to a modest single-line bar; `Now` carries the visual weight; sections get progressively tighter/quieter down the page (`On My Plate` is a compact list, not five equal blocks).
+- Preview open: the preview panel dominates; everything else dims.
+
+**Page-level arrival hierarchy (added after first prototype pass, 2026-07-04).** Command is now the dashboard home (§8.1), not a tool tab living beside a rich hero — its header must carry one moment of arrival, or the page reads as thinner than its own empty state. Concretely: the greeting ("Good afternoon, Anthony") uses the same Instrument Serif display treatment as the empty state's headline, sized larger than a body line, with generous top whitespace before it. The one-line re-entry digest sits directly under it. This arrival moment is typography and space only — it must NOT regress into a boxed/dark hero card, stat pills, or an embedded chat bar (that pattern belongs to the retired dashboard hero, not Command). Everything below the greeting — capture bar, summary line, rows — stays exactly as quiet and dense as the rest of this spec requires. One arrival moment at the top, operational calm everywhere else.
+
+**Summary strip is a sentence, not stat tiles.** `3 for now · 5 today · 2 due soon` as one quiet line of text with the week strip. Four boxed KPI cards with big numbers is the most generic dashboard pattern alive — banned.
+
+**Capture band must not look like a chatbot.** No chat bubble styling, no send-arrow-in-a-pill, no "Ask AI anything" framing. It reads as a notepad surface: placeholder text, a mic glyph, and a `Clear My Plate` button. The user is dumping onto a surface, not messaging an assistant.
+
+**Only one open, typeable input surface may exist on the Command page at a time: the capture bar (added after first prototype pass, 2026-07-04).** The current production dashboard's `DashboardHero` has a bespoke inline "Ask Bruno anything…" bar in addition to the real Bruno entry point (a compact sidebar icon that opens `BrunoDock` as a full modal/fullscreen overlay). That inline bar is a second prompt-shaped surface competing with Command's capture bar and does NOT carry over into Command — it is retired along with the rest of the old hero (§8.1). On the Command board, Bruno's presence (rail card or contextual chip) is always a *closed* affordance: bear illustration + at most one suggestion sentence + up to 2 action chips, never an editable text field. Opening a real conversation with Bruno always routes to the existing `BrunoDock` modal/fullscreen surface, not a second embedded chat input living inline in the page. Chat-shaped UI is earned only by `BrunoDock`, because it is the one place a conversation is actually happening; everywhere else on Command, Bruno speaks in suggestions, not prompts.
+
+**Motion budget: one moment.** The dump → preview → items-settling-onto-the-board transition is the product's magic trick and the only choreographed motion (plus standard micro-feedback like a row completing). No ambient animation, no shimmer, no floating gradients. Respect `prefers-reduced-motion`.
+
+**Color budget.** Neutral warm surfaces + ink text everywhere; honey accent for the primary action and focus states only; one semantic urgency tone used sparingly; sage for done/positive states. If a screen shows more than three non-neutral colors at rest, it fails review.
+
+**Bruno is a presence, not a feature grid.** One contextual Bruno affordance per view, wearing the existing character art (`BrunoFaceMark`, thinking illustrations). Empty states use Bruno illustration, not generic SVG blobs. Max 3 action chips on a selected item, shown only on selection. No ✨ sparkle iconography anywhere.
+
+**Banned outright:** stat-tile KPI rows; per-row badge stacks; chat-style capture; a second inline chat/prompt bar competing with the capture bar; gradient orbs/mesh backgrounds; glassmorphism panels; kanban columns as the default layout; skeleton shimmer on the whole page; 16 type icons in a legend; "AI-generated" labels on content the user just confirmed.
+
 ## 27. Usage Limits Implementation
 
 Create:
@@ -1827,12 +1917,12 @@ Create:
 
 Responsibilities:
 
-- Read user's plan.
-- Compute daily/hourly Command AI usage.
-- Compute voice period usage.
-- Compute Deep Bruno monthly usage.
-- Enforce limits before provider calls.
-- Log usage after provider calls.
+- Read user's plan (existing `getUserPlan` / plan normalization).
+- Compute daily/hourly Command AI usage from `ai_usage_logs` (shared pool with the existing `AI_DAILY_LIMITS` in `lib/auth/rateLimit.ts` — Command does not get a separate global cap).
+- Compute voice period usage from `ai_usage_logs.audio_seconds`.
+- Deep Bruno usage: delegate entirely to the existing Bruno credit ledger (`usagePolicy.ts`) — do not recount it here.
+- Enforce limits before provider calls; the deterministic fast path (§12.2) bypasses enforcement because it makes no provider call.
+- Log usage after provider calls via the existing `costEstimator`/`usageService`.
 
 Limit dimensions:
 
@@ -2037,6 +2127,8 @@ COMMAND_SOURCE_SYNC_ENABLED=false
 COMMAND_PRO_LIMITS_ENABLED=true
 COMMAND_DEBUG_COSTS_ENABLED=false
 COMMAND_DEEP_BRUNO_ENABLED=false
+COMMAND_SCHEDULE_BRIDGE_ENABLED=false
+COMMAND_IS_HOME_ENABLED=false
 ```
 
 Rollout order:
@@ -2066,6 +2158,8 @@ Tasks:
 - [ ] Document exact nav files to modify in implementation notes.
 - [ ] Confirm whether mobile currently exposes Daily Plan as a tab or nested screen.
 - [ ] Confirm current usage-limit helper paths.
+- [ ] Update `apps/web/STRATEGY.md` and `CLAUDE.md` so repo guidance reflects the Command transition (CLAUDE.md was refreshed 2026-07-04; keep it current as phases land).
+- [ ] Verify the `tasks` bridge decision (§16.9) against the current Bruno tool implementations before writing the migration.
 - [ ] Do not delete existing Daily Plan code in this phase.
 
 Acceptance:
@@ -2267,6 +2361,26 @@ Acceptance:
 - User can convert a source item into a responsibility.
 - Source badge links back to context.
 
+### Phase 7B: Scheduling Bridge (Plan My Day)
+
+Goal:
+
+- Wire Command into the existing availability engine (§9.9), behind `COMMAND_SCHEDULE_BRIDGE_ENABLED`.
+
+Tasks:
+
+- [ ] Create `apps/web/lib/command/schedule-bridge.ts` wrapping `getBrunoMasterContext()` → `findGaps()` → block proposals for a set of responsibility items.
+- [ ] Add the `Plan my day` board action (header-level) producing confirmable block proposals.
+- [ ] Reuse the Bruno proposal/approval card pattern for confirmation.
+- [ ] Write confirmed blocks to `calendar_events`; link each scheduled item via `calendar_event_id`.
+- [ ] Show scheduled times on board rows; rollover keeps decayed/moved items honest.
+- [ ] Add tests: gap computation reuse, no auto-write without confirmation, link integrity.
+
+Acceptance:
+
+- A user can go from messy dump → confirmed items → proposed time blocks in real calendar gaps → confirmed schedule, with no new scheduler code.
+- Nothing is written to any calendar without explicit confirmation.
+
 ### Phase 8: Bruno Context and Actions
 
 Goal:
@@ -2369,12 +2483,15 @@ Tasks:
 - [ ] Add feature flag.
 - [ ] Ship hidden route to admin/internal.
 - [ ] Run migration in staging.
-- [ ] Backfill or map existing Daily Plan tasks only if safe.
+- [ ] Run the `tasks` backfill + enable the two-way sync bridge (§16.9).
+- [ ] Ship the morning re-entry digest (§9.5) before broad rollout — it is the retention mechanism, not a polish item.
 - [ ] Add redirect from Daily Plan if flag is enabled.
 - [ ] Monitor usage, errors, cost, and conversion.
 - [ ] Roll out to beta users.
 - [ ] Roll out to all web users.
-- [ ] Roll out mobile after web loop is stable.
+- [ ] Flip `COMMAND_IS_HOME_ENABLED`: `/dashboard` renders Command, old home components archived (absorb list in §8.1), nav item removed.
+- [ ] Roll out mobile after web loop is stable; mobile index tab becomes Command.
+- [ ] Set an explicit milestone to retire `tasks` writes and delete the sync bridge (§16.9 endgame).
 
 Acceptance:
 
@@ -2596,6 +2713,10 @@ Do not:
 - Hard-code model pricing in UI.
 - Store raw audio by default.
 - Let source text prompt-inject the model.
+- Build a parallel usage ledger, deep-Bruno counter, source table, or date parser when an existing one can be extended (§16.4, §16.7, §12.3, `lib/bruno/dates.ts`).
+- Rebuild the retired legacy Bruno execute path — target the native approval loop (§11.2).
+- Delete or bypass the availability engine (`findGaps()`, daily-plan generator, rollover) — it is the scheduling layer behind §9.9.
+- Render responsibilities as boxed cards with badge stacks — see the binding design rules in §26.1.
 
 Do:
 
@@ -2632,3 +2753,83 @@ Re-check these before launch because pricing and limits can change.
 - It includes implementation phases that can be completed one at a time.
 - It keeps external mutations confirmation-based.
 - It keeps the existing ecosystem direction: Calendar, Canvas, Slack, Notion, Linear, mobile, billing, and Bruno.
+
+Revision 2026-07-04 (post-review):
+
+- Added the Scheduling Bridge (§9.9, Phase 7B): Command feeds the existing availability engine; the Daily Plan engine survives as Command's scheduling layer. Capture is the front door; gap-aware scheduling is the moat.
+- Added Dashboard Consolidation (§8.1): Command becomes the dashboard home at rollout maturity; absorb list for existing home components.
+- Settled the `tasks` relationship and Bruno tool bridge (§16.9) as a pre-Phase-1 decision.
+- Reuse over parallel infrastructure: `ai_usage_logs` instead of `command_usage_ledger` (§16.7); `source_items` pipeline instead of `responsibility_sources` (§16.4); the Bruno credit ledger for Deep Bruno (§12.3); the single flexible date parser.
+- Status enum trimmed to lifecycle-only; board sections are always computed (§16.3, §21).
+- Added Overdue Decay anti-shame rule (§21.1) and the morning re-entry digest as a launch requirement (§9.5).
+- Added the zero-AI deterministic fast path (§12.2, §19).
+- Launch scope tightened: student-first positioning (§4.1); 8-type launch subset (§10.5).
+- Updated Bruno integration to the post-overhaul native approval loop (§11.2, §11.3).
+- Added binding anti-slop Design Spec (§26.1) grounded in the existing `packages/theme` tokens.
+
+---
+
+## 43. Build Log — What We Have Made
+
+> Living record of the actual implementation, appended as phases land. Orchestrated by Fable with Opus builder agents; every deliverable reviewed against this plan before being marked done. Detailed task state: [`command-build-state.md`](command-build-state.md).
+
+### 2026-07-04 — Build kickoff (Phases 0–3 in flight)
+
+**Phase 0 — Recon & foundation (done, orchestrator):**
+
+- Confirmed entry points: nav at `components/dashboard/sidebar/shared.tsx`, Bruno context hook at `components/bruno/BrunoProvider.tsx` (`useRegisterBrunoContext`), migrations in `supabase/migrations/` (timestamped), deterministic parser in `packages/nlp-core` + `lib/taskParser.ts`, glass system in `components/ui/glass-panel.tsx` / `glass-sheet.tsx` + `app/globals.css`.
+- Created `apps/web/lib/command/types.ts` (§17 domain types + §20 API contracts, launch 8-type subset constant) and `apps/web/lib/command/schema.ts` (§18 Zod schemas) as the shared contract for all builders.
+- Added Command feature flags to `apps/web/lib/featureFlags.ts` (`PLANEVO_COMMAND`, `COMMAND_VOICE`, `COMMAND_SOURCE_SYNC`, `COMMAND_SCHEDULE_BRIDGE`, `COMMAND_IS_HOME`, `COMMAND_DEBUG_COSTS`) — all env-gated, default off; Daily Plan untouched.
+
+**Design decision (binding for this build):** the app's liquid glass components (`GlassPanel`, `glass-sheet`) are used only on the planes §26.1 permits as boxed surfaces — capture band, preview panel, Bruno rail, modals. Responsibility rows remain dense typographic rows. Glass is the chrome; typography is the content.
+
+**Build note — orchestration reality:** the Opus builder subagents were repeatedly terminated by the account's Fable-5 usage limit (both on first launch and on resume), so per the standing instruction ("if it does not satisfy the plan, step in and build it yourself") the orchestrator (switched to Opus) built Phases 1–3 directly. The `command-data` migration landed from the subagent before it died and was kept after review; everything else is orchestrator-authored.
+
+**Phase 1 — Data layer ✅ (verified)**
+
+- `supabase/migrations/20260704150000_planevo_command.sql` — 5 user-owned tables (`command_intake_runs`, `responsibility_items`, `responsibility_events`, `responsibility_clarifications`, `responsibility_item_links`), RLS + four owner policies each, indexes on `(user_id,status)`/`(user_id,due_at)`/`(user_id,created_at)`, and the `ai_usage_logs` extension (`feature`, `audio_seconds`) per §16.7 — no parallel ledger.
+- `lib/command/board.ts` — pure deterministic `computeBoardSections` / `computeUrgencyScore` / `summarizeBoard`; overdue decay (full +50 only <48h, decay to On My Plate ≥48h), Now-cap of 7 with urgency-ordered overflow to Today, `metadata.pinnedSection`, timezone-aware "today" via `Intl` (no date library, no `Date.now()` in logic).
+- `lib/command/__tests__/board.test.ts` — **17 tests, all passing.**
+
+**Phase 2 — Backend pipeline ✅ (verified)**
+
+- `lib/command/`: `models.ts` (env-overridable model + usage-feature config), `costs.ts` (delegates text pricing to existing `costEstimator`; adds voice per-minute), `usage.ts` (`COMMAND_LIMITS` §27; `reserveCommandAiRequest` rides the shared `checkRateLimitForUser` cap — no separate global cap; deep Bruno delegated to the credit ledger), `fastpath.ts` (zero-AI deterministic parse via `@planevo/nlp-core`), `extract.ts` (nano-first → schema-validate → one correction retry → mini escalation → raw-text fallback; untrusted-input framing), `normalize.ts` (16→8 launch-type mapping, ISO validation, unresolved-date → needsReview), `validate.ts`, `persist.ts` (intake runs, confirmed-item insert, `responsibility_events` audit, deterministic board load, item patch with lifecycle-integrity rule), `db.ts` (single permissive-client cast point until the generated `Database` type is regenerated in Phase 12).
+- API routes: `POST /api/command/intake` (fast path → reserve → extract → preview, never persisting preview; over-limit rejected pre-provider), `POST /api/command/confirm`, `GET /api/command/board` (zero AI), `PATCH`/`DELETE /api/command/items/[id]`. All origin-guarded + auth'd + flag-gated (404 when off).
+- `lib/command/__tests__/extract.test.ts` + `usage.test.ts` — **11 tests, all passing** (valid extraction, retry→escalate, twice-failed fallback, limit rejection, feature-key wiring). Total Command suite: **28 tests green.**
+
+**Phase 3 — Web UI ✅ (verified, §26.1-compliant)**
+
+- `app/dashboard/command/page.tsx` (flag-gated server page; redirects to Daily Plan when off) + `components/command/`: `CommandView` (orchestrator: board load, intake, preview, confirm, optimistic mark-done, arrival greeting, summary sentence, usage notice), `CommandCapture` (glass notepad band, hero↔bar states), `CommandBoard` / `CommandSection` / `CommandItemRow` (dense typographic rows), `CommandPreviewPanel` (glass sheet, dominates), `CommandUsageBanner`, `CommandEmptyState` (Bruno art), `CommandBoardSkeleton`, `CommandBrunoActions` (closed affordance + `useRegisterBrunoContext` §11.4), `format.ts`.
+- Nav swap: `components/dashboard/sidebar/shared.tsx` shows `Command` in place of Daily Plan when `PLANEVO_COMMAND` is on (Daily Plan route untouched for rollback); byte-identical when off. `BrunoContextSource` gained `'command'`.
+- **§26.1 compliance:** rows-not-cards ✓; ≤2 signals at rest (due + source glyph; type muted, hidden on mobile) ✓; summary is a sentence not tiles ✓; capture reads as a notepad not a chatbot ✓; one typeable surface, Bruno is a closed affordance routing to BrunoDock ✓; state-dependent hierarchy (hero↔bar, preview dims board) ✓; arrival greeting in Instrument Serif, space-only, no boxed hero ✓; one motion moment (dump→preview→board) with `prefers-reduced-motion` respected ✓; warm-neutral + ink, honey accent for primary/past-due, sage for done (≤3 non-neutral) ✓; no KPI tiles / badge stacks / kanban / orbs / sparkles ✓.
+- **Liquid glass decision honored:** `GlassPanel`/glass surfaces used only on the capture band, preview panel, and Bruno rail (the boxed planes §26.1 permits); rows stay pure typography.
+
+**Verification:** `tsc --noEmit` clean across the whole web workspace (0 errors); ESLint clean on all Command source; 28/28 Command unit tests passing.
+
+**Still ahead (queued):** apply the migration in an environment; Phase 5 upgrade-CTA analytics events; Phase 6 voice route; Phase 7/7B source panel + Plan-My-Day schedule bridge; Phase 8 Bruno action execution wiring; Phase 9 mobile. The core loop (dump → preview → confirm → board → act) is complete and shippable behind the flag.
+
+### 2026-07-05 — Phases 6–11 complete (Opus 4.8 orchestrating Sonnet 5 agents + orchestrator build)
+
+**Orchestration:** Opus 4.8 led a team of Sonnet 5 builder agents (voice, sources, schedule, evals, mobile) and personally handled the hard integration (Bruno bridge, digest, CommandView wiring, mobile). The Sonnet agents hit the shared account session limit and died mid-build, so — per the standing "step in and build it yourself" instruction — the orchestrator finished every unfinished deliverable directly. Substantial agent output landed before they died and was kept after review (voice route/lib, source lib+route+panel, schedule bridge+route+panel, all eval fixtures/tests).
+
+**Phase 6 — Voice capture ✅.** `lib/command/transcribe.ts` (OpenAI `experimental_transcribe`, plan-tiered model), `lib/command/voice.ts`, `app/api/command/voice/route.ts` (voice-second cap enforced BEFORE transcription, reserve, transcribe, extract, no raw-audio storage §29), `components/command/CommandVoiceButton.tsx` (MediaRecorder → voice route → same preview flow as text), wired into `CommandCapture`. Flag: `COMMAND_VOICE`.
+
+**Phase 7 — Sources + calendar context ✅.** `lib/command/source-items.ts` (list unconverted `source_items` + calendar commitments; convert to responsibility linking `source_item_id`/`calendar_event_id`; reuses the existing pipeline, no new source tables §16.4), `app/api/command/sources/route.ts`, `components/command/CommandSourcePanel.tsx` (glass panel, muted badges), mounted in `CommandView` behind `COMMAND_SOURCE_SYNC`.
+
+**Phase 7B — Plan My Day (scheduling bridge) ✅.** `lib/command/schedule-bridge.ts` (wraps the EXISTING engine — `getBrunoMasterContext` → `findGaps` → urgency-ordered block proposals; propose writes nothing; confirm writes `calendar_events` + links `calendar_event_id`; scheduling never marks done §9.9/§16.9), `app/api/command/schedule/route.ts`, `components/command/CommandSchedulePanel.tsx`, header-level "Plan my day" action in `CommandView` behind `COMMAND_SCHEDULE_BRIDGE`. Tests assert engine reuse + no-auto-write + link integrity.
+
+**Phase 8 — Bruno context + actions ✅.** Added the `get_board` read tool to `getBrunoV3ReadTools` (read-only, flag-gated, safe no-op when Command off/tables absent — Bruno now sees the board natively §16.9). Built the `tasks` ↔ `responsibility_items` bridge (`lib/command/tasks-bridge.ts`): `mirrorTaskToResponsibility` + `syncTaskCompletionToResponsibility` + `backfillTasksToResponsibilities`, wired into `executeCreateTask`/`executeUpdateTask` as flag-guarded, try/catch-isolated calls that can NEVER break the shipped task write. Context registration (`useRegisterBrunoContext`) already shipped in Phase 3.
+
+**Phase 9 — Mobile Command ✅.** `apps/mobile`: `lib/featureFlags.ts`, `lib/commandApi.ts` (bearer-auth client), `components/command/` (MobileCommandView, MobileCommandCapture, MobileCommandBoard, MobileCommandItemRow, MobileCommandPreviewSheet), `app/(tabs)/command.tsx` + tab registered in `_layout.tsx` (hidden via `href:null` until `EXPO_PUBLIC_PLANEVO_COMMAND_ENABLED`). Fast text dump → preview sheet → board with haptic mark-done. Voice is a graceful stub (no on-device recorder dependency yet — documented).
+
+**Phase 11 — Evals ✅.** `lib/command/__tests__/fixtures/extraction-fixtures.ts` (5 personas), `extraction-evals.test.ts` + `fastpath-evals.test.ts` — regression net over schema + normalize + fast-path quality invariants (false-split, invented-obligation, ambiguous-date→needsReview, prompt-injection safety, fast-path accept/defer cost invariant).
+
+**§9.5 morning re-entry digest ✅.** `lib/command/digest.ts` (calm one-liner, non-punitive framing, dismissable) + wired into the `CommandView` header on first-open-of-day. Client-only delta for now; the richer "since last visit" version needs a server `last_visit` timestamp (Phase 12).
+
+**Phase 12 — Rollout (partial) ✅/queued.** `app/api/command/backfill/route.ts` (idempotent per-user `tasks`→`responsibility_items` backfill); `apps/web/STRATEGY.md` updated with the Command transition note. Remaining ops-gated items: apply the migration to a real DB, regenerate the `Database` type (then delete `lib/command/db.ts` cast), flip `COMMAND_IS_HOME` to make Command the dashboard home, and retire the `tasks` dual-write at the §16.9 endgame.
+
+**Phase 10 — Share sheet + OCR: deferred by design.** Per the plan's own sequencing (§23.7/§40: "do not launch OCR before text/voice is excellent") and because an OS share extension needs native iOS/Android config that can't be built or verified in this environment. The intake API already accepts `share_sheet`/`ocr` input modes, so the capture path is ready; the remaining work is native config + an OCR-provider/privacy decision.
+
+**Verification (2026-07-05):** web `tsc --noEmit` 0 errors; **85 Command unit tests green**; ESLint clean on the Command surface + the two touched Bruno files; **255 Bruno tests still green** (bridge edits caused no regression); mobile `tsc --noEmit` 0 errors.
+
+**Net state:** Phases 0–9 + 11 implemented behind flags (all default off); Phase 10 deferred by design; Phase 12 is the remaining rollout/ops work requiring a live database. Every feature is additive and flag-gated — Daily Plan and the shipped Bruno pipeline are untouched at runtime when the flags are off.

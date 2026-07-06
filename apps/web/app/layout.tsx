@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
+import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -7,10 +7,12 @@ import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
 import { appearanceNoFlashScript } from "@/lib/appearance/no-flash-script";
 import "./globals.css";
 
-const instrumentSerif = Instrument_Serif({
-  weight: "400",
-  style: ["normal", "italic"],
+// Display serif — closest free match to littlebird.ai's Meraki (high-contrast,
+// editorial headings). Not Instrument Serif or Fraunces.
+const cormorantGaramond = Cormorant_Garamond({
   variable: "--font-serif",
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
   subsets: ["latin"],
   display: "swap",
 });
@@ -28,14 +30,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Planevo — The proactive AI planner for busy students and high-performers",
+  title: "Planevo — A plan that adapts. Never breaks.",
   description:
-    "Planevo is the calm AI co-pilot for high-performers. Sync your tasks, generate a daily plan around your energy, and let Bruno reorganize tomorrow whenever life slips — without the guilt.",
+    "Free for students and high-performers whose calendars change faster than they can replan. Planevo builds each day around your real availability — then quietly adapts when life gets in the way. Go Pro to unlock everything.",
   keywords: [
-    "AI planner",
-    "focus assistant",
+    "student planner",
+    "free planner",
+    "calendar planning",
+    "Canvas sync",
+    "plan my day",
     "student productivity",
-    "automatic scheduling",
     "time management",
   ],
   authors: [{ name: "Planevo Team" }],
@@ -43,9 +47,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://planevo.ai",
-    title: "Planevo — Shame-free planning for high-performers",
+    title: "Planevo — A plan that adapts. Never breaks.",
     description:
-      "Connect Canvas, generate an energy-aware daily plan, and let Bruno reorganize tomorrow when life slips. Built for brains that don't run on willpower.",
+      "Dump everything on your plate — free. Planevo turns it into a calm board of real responsibilities, then places the work into the real free time on your calendar.",
   },
 };
 
@@ -57,7 +61,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorantGaramond.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
