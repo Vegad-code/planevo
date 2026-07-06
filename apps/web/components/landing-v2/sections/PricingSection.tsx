@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 import { Eyebrow } from '../Eyebrow';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
@@ -33,6 +36,10 @@ const PRO_PERKS = [
 ];
 
 export function PricingSection() {
+  const [annual, setAnnual] = useState(true);
+  const proPrice = annual ? '$7.99' : '$9.99';
+  const eduPrice = annual ? '$3.99' : '$4.99';
+
   return (
     <section id="pricing" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <ScrollReveal className="mx-auto max-w-5xl">
@@ -45,6 +52,29 @@ export function PricingSection() {
             Anyone can use Planevo for free — no card, no trial clock. Go Pro to remove the
             limits and unlock the power features.
           </p>
+        </div>
+
+        <div className="mx-auto mb-10 flex w-fit items-center justify-center gap-1 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-muted)] p-1">
+          {(
+            [
+              { key: false, label: 'Monthly' },
+              { key: true, label: 'Annual · 2 months free' },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={annual === key}
+              onClick={() => setAnnual(key)}
+              className={
+                annual === key
+                  ? 'rounded-full bg-[var(--color-paper)] px-4 py-2 text-[13px] font-semibold text-[var(--color-ink)] shadow-sm'
+                  : 'rounded-full px-4 py-2 text-[13px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)]'
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="grid items-stretch gap-6 md:grid-cols-2">
@@ -84,22 +114,17 @@ export function PricingSection() {
 
           {/* Pro */}
           <div className="relative flex flex-col overflow-hidden rounded-[32px] border border-[var(--color-ink)] bg-[var(--color-ink)] p-8 text-[var(--color-paper)] shadow-xl md:p-10">
-            <div className="flex items-center justify-between">
-              <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-paper)]/70">
-                Pro
-              </p>
-              <span className="rounded-full bg-[var(--color-honey)] px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--color-ink)]">
-                .edu saves 50%
-              </span>
-            </div>
+            <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-paper)]/70">
+              Pro
+            </p>
             <div className="mt-4 flex items-baseline gap-1">
-              <span className="font-serif text-5xl text-[var(--color-paper)]">$9.99</span>
+              <span className="font-serif text-5xl text-[var(--color-paper)]">{proPrice}</span>
               <span className="font-sans text-sm font-medium text-[var(--color-paper)]/70">
                 / month
               </span>
             </div>
-            <p className="mt-2 text-sm text-[var(--color-paper)]/70">
-              $4.99/mo with a verified .edu email.
+            <p className="mt-3 rounded-xl bg-[var(--color-honey)]/15 px-3 py-2 text-[14px] font-medium text-[var(--color-honey)]">
+              Students: {eduPrice}/mo with a verified .edu email — same product, half price.
             </p>
 
             <ul className="mt-7 flex flex-1 flex-col gap-3.5 text-sm text-[var(--color-paper)]/85">
