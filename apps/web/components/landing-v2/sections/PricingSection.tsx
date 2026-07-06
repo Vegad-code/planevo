@@ -36,7 +36,7 @@ export function PricingSection() {
     <section id="pricing" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <ScrollReveal className="mx-auto max-w-5xl">
         <div className="mx-auto mb-12 max-w-2xl text-center">
-          <p className="mb-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-ink-faint)]">
+          <p className="mb-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
             Free to start · Pro when you&rsquo;re ready
           </p>
           <h2 className="font-serif text-3xl leading-tight tracking-tight text-[var(--color-ink)] md:text-5xl">
@@ -120,7 +120,7 @@ export function PricingSection() {
             >
               Go Pro
             </Link>
-            <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-widest text-[var(--color-paper)]/40">
+            <p className="mt-4 text-center font-sans text-[12px] text-[var(--color-paper)]/70">
               Upgrade or cancel any time
             </p>
           </div>

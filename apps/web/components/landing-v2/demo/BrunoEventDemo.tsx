@@ -113,7 +113,7 @@ export function BrunoEventDemo() {
                         <span className="block text-[12px] font-semibold text-[var(--color-ink)]">
                           Dentist appointment
                         </span>
-                        <span className="block font-mono text-[9px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+                        <span className="block font-mono text-[9px] uppercase tracking-wider text-[var(--color-ink-soft)]">
                           Thu · 2:00–3:00 PM
                         </span>
                       </span>
@@ -147,7 +147,7 @@ export function BrunoEventDemo() {
       <div className="grid grid-cols-5 gap-1.5 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-muted)] p-2">
         {WEEK.map((d) => (
           <div key={d} className="flex flex-col items-center gap-1">
-            <span className="font-mono text-[8px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+            <span className="font-mono text-[8px] uppercase tracking-wider text-[var(--color-ink-soft)]">
               {d}
             </span>
             <div className="relative h-12 w-full rounded-md bg-[var(--color-paper)]">

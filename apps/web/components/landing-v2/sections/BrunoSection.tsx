@@ -11,7 +11,7 @@ export function BrunoSection() {
     <section id="bruno" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <div className="mx-auto flex max-w-6xl flex-col gap-12 sm:gap-16">
         <ScrollReveal className="mx-auto max-w-2xl text-center">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-muted)] px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-faint)]">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-muted)] px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
             How Bruno can help · Your AI companion
           </p>
           <h2 className="font-serif text-[36px] leading-[1.06] tracking-tight text-[var(--color-ink)] sm:text-[52px]">

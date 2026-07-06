@@ -62,7 +62,7 @@ function InputViz({ way }: { way: Way }) {
         transition={{ type: 'spring', stiffness: 260, damping: 22 }}
         className="rounded-lg border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface-muted)] p-3 text-left"
       >
-        <p className="mb-1 font-mono text-[9px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+        <p className="mb-1 font-mono text-[9px] uppercase tracking-wider text-[var(--color-ink-soft)]">
           Pasted from Canvas
         </p>
         <p className="font-sans text-[13px] leading-snug text-[var(--color-ink-soft)]">
@@ -177,7 +177,7 @@ export function CaptureWaysDemo() {
       </div>
 
       {/* Morph arrow */}
-      <div className="my-2 flex justify-center text-[var(--color-ink-faint)]">
+      <div className="my-2 flex justify-center text-[var(--color-ink-soft)]">
         <ArrowDown size={16} weight="bold" />
       </div>
 
@@ -198,7 +198,7 @@ export function CaptureWaysDemo() {
             <span className="block truncate text-[14px] font-medium text-[var(--color-ink)]">
               {out.title}
             </span>
-            <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+            <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--color-ink-soft)]">
               {out.meta}
             </span>
           </span>

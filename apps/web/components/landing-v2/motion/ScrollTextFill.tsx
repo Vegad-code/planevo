@@ -93,7 +93,7 @@ export function ScrollTextFill({
               {attribution}
             </p>
             {role && (
-              <p className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+              <p className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-ink-soft)]">
                 {role}
               </p>
             )}
@@ -139,7 +139,7 @@ export function ScrollTextFill({
               {attribution}
             </p>
             {role && (
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-ink-faint)]">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
                 {role}
               </p>
             )}
@@ -149,7 +149,7 @@ export function ScrollTextFill({
         <motion.p
           style={{ opacity: hintOpacity }}
           aria-hidden
-          className="absolute bottom-12 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-faint)]"
+          className="absolute bottom-12 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-soft)]"
         >
           Scroll to read
         </motion.p>

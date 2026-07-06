@@ -38,7 +38,7 @@ export function HeroSection() {
               See how it works
             </Link>
           </div>
-          <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-[var(--color-ink-soft)]">
             Free to sign up · No card required · Pro from $9.99/mo
           </p>
         </div>

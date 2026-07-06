@@ -43,7 +43,7 @@ export function BrunoDemoTabs() {
               'rounded-full px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors',
               activeTab === id
                 ? 'bg-[var(--color-paper)] text-[var(--color-ink)] shadow-sm'
-                : 'text-[var(--color-ink-faint)] hover:text-[var(--color-ink-soft)]',
+                : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink-soft)]',
             )}
           >
             {label}
@@ -60,7 +60,7 @@ export function BrunoDemoTabs() {
         </div>
       </div>
 
-      <p className="text-center font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-faint)]">
+      <p className="text-center font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-soft)]">
         {CAPTIONS[activeTab]}
       </p>
     </div>

@@ -35,7 +35,7 @@ function SourcesDemoCard() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-faint)]">
+      <div className="flex items-center justify-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-soft)]">
         <ArrowsClockwise size={12} weight="bold" />
         Synced 2 minutes ago
       </div>
@@ -53,10 +53,10 @@ function SourcesDemoCard() {
               <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--color-ink)]">
                 {row.title}
               </span>
-              <span className="flex-none text-[10px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+              <span className="flex-none text-[10px] uppercase tracking-wider text-[var(--color-ink-soft)]">
                 {row.source === 'canvas' ? 'canvas' : 'cal'}
               </span>
-              <span className="flex-none text-[12px] tabular-nums text-[var(--color-ink-faint)]">
+              <span className="flex-none text-[12px] tabular-nums text-[var(--color-ink-soft)]">
                 {row.due}
               </span>
             </div>

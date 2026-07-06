@@ -36,7 +36,7 @@ export function FeatureShowcase({
             reverse ? 'lg:order-2' : 'lg:order-1',
           )}
         >
-          <p className="mb-4 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-faint)]">
+          <p className="mb-4 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
             {eyebrow}
           </p>
           <h2 className="font-serif text-[36px] leading-[1.08] tracking-tight text-[var(--color-ink)] sm:text-[44px]">

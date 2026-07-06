@@ -26,7 +26,7 @@ export function BrowserFrame({
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-honey)]/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-sage)]/70" />
         </div>
-        <div className="flex-1 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-1 text-center font-mono text-[10px] tracking-wide text-[var(--color-ink-faint)]">
+        <div className="flex-1 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-1 text-center font-mono text-[10px] tracking-wide text-[var(--color-ink-soft)]">
           {url}
         </div>
         <span aria-hidden className="w-8" />

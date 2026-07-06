@@ -45,7 +45,7 @@ const GLYPHS: Glyph[] = [
   { icon: GraduationCap, bg: 'bg-[var(--color-rose-soft)]', fg: 'text-[var(--color-rose)]', label: 'Canvas' },
   { icon: CalendarBlank, bg: 'bg-[var(--color-blue-soft)]', fg: 'text-[var(--color-blue)]', label: 'Google Calendar' },
   { icon: CheckSquare, bg: 'bg-[var(--color-honey-soft)]', fg: 'text-[var(--color-honey-deep)]', label: 'Tasks' },
-  { icon: Note, bg: 'bg-[var(--color-cream-2)]', fg: 'text-[var(--color-ink-faint)]', label: 'Notes' },
+  { icon: Note, bg: 'bg-[var(--color-cream-2)]', fg: 'text-[var(--color-ink-soft)]', label: 'Notes' },
   { icon: Microphone, bg: 'bg-[var(--color-sage-soft)]', fg: 'text-[var(--color-sage)]', label: 'Voice' },
 ];
 

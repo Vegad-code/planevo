@@ -115,7 +115,7 @@ export function PlanMyDayTimeline({
             className="absolute inset-x-0 flex items-center gap-2"
             style={{ top: pct(h * 60) }}
           >
-            <span className="w-10 flex-none text-right font-mono text-[9px] text-[var(--color-ink-faint)]">
+            <span className="w-10 flex-none text-right font-mono text-[9px] text-[var(--color-ink-soft)]">
               {hourLabel(h)}
             </span>
             <span className="h-px flex-1 bg-[var(--color-line)]" />

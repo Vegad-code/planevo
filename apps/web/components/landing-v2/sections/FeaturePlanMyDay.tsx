@@ -17,7 +17,7 @@ export function FeaturePlanMyDay() {
           <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-[var(--color-belly)]">
             <Image src="/landing/bruno-face-160.png" alt="" width={20} height={20} />
           </span>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-faint)]">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-soft)]">
             Bruno · Plan my day
           </p>
         </div>
