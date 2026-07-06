@@ -30,26 +30,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Planevo — A plan that adapts. Never breaks.",
+  metadataBase: new URL("https://planevo.ai"),
+  title: "Planevo — Your week, handled.",
   description:
-    "Free for students and high-performers whose calendars change faster than they can replan. Planevo builds each day around your real availability — then quietly adapts when life gets in the way. Go Pro to unlock everything.",
-  keywords: [
-    "student planner",
-    "free planner",
-    "calendar planning",
-    "Canvas sync",
-    "plan my day",
-    "student productivity",
-    "time management",
-  ],
+    "For students whose calendars change faster than they can replan. Planevo builds your day around your real availability — and adapts when life happens.",
   authors: [{ name: "Planevo Team" }],
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "https://planevo.ai",
-    title: "Planevo — A plan that adapts. Never breaks.",
+    siteName: "Planevo",
+    title: "Planevo — Your week, handled.",
     description:
-      "Dump everything on your plate — free. Planevo turns it into a calm board of real responsibilities, then places the work into the real free time on your calendar.",
+      "Dump everything on your plate. Planevo turns it into a calm board, then places the work into the real free time on your calendar.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Planevo — Your week, handled.",
+    description:
+      "A calm board of everything on your plate, planned into your real free time.",
   },
 };
 
