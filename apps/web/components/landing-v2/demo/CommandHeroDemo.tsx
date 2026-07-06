@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CommandBoard } from '@/components/command/CommandBoard';
 import { CaptureFlowDemo } from './CaptureFlowDemo';
@@ -21,17 +21,39 @@ function heroDotForStage(stage: HeroStage, capturePreview: boolean): DemoState {
 /**
  * Hero product demo — plays capture → board once, then rests. Replay restarts the flow.
  */
-export function CommandHeroDemo() {
+export function CommandHeroDemo({ startWhen }: { startWhen?: boolean }) {
   const reduce = useReducedMotion();
+  const waitForDeposit = startWhen !== undefined;
+  const autoStartedRef = useRef(false);
   const [stage, setStage] = useState<HeroStage>('capture');
   const [capturePreview, setCapturePreview] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(waitForDeposit && !startWhen);
   const [finished, setFinished] = useState(false);
   const [runId, setRunId] = useState(0);
   const [captureKey, setCaptureKey] = useState(0);
   const [now] = useState(() => new Date());
 
   const board = useMemo(() => makeBoardFixture(now), [now]);
+
+  useEffect(() => {
+    if (!waitForDeposit || reduce) return;
+
+    if (!startWhen) {
+      setPaused(true);
+      autoStartedRef.current = false;
+      return;
+    }
+
+    if (autoStartedRef.current) return;
+
+    autoStartedRef.current = true;
+    setFinished(false);
+    setCapturePreview(false);
+    setCaptureKey((k) => k + 1);
+    setRunId((r) => r + 1);
+    setStage('capture');
+    setPaused(false);
+  }, [startWhen, waitForDeposit, reduce]);
 
   useEffect(() => {
     if (reduce || paused || stage !== 'board' || finished) return;
@@ -42,6 +64,7 @@ export function CommandHeroDemo() {
   }, [stage, reduce, paused, finished]);
 
   const replay = useCallback(() => {
+    autoStartedRef.current = true;
     setFinished(false);
     setCapturePreview(false);
     setCaptureKey((k) => k + 1);
@@ -103,7 +126,7 @@ export function CommandHeroDemo() {
       className="flex flex-col gap-4"
     >
       <div
-        aria-hidden
+        inert
         className="relative rounded-[28px] border border-[var(--color-line-strong)] bg-[var(--color-paper)] p-4 shadow-xl sm:p-6"
       >
         <motion.div

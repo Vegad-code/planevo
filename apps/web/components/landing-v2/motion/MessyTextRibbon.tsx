@@ -42,8 +42,9 @@ export function MessyTextRibbon() {
         <motion.textPath
           href="#messy-arc"
           initial={{ startOffset: '0%' }}
-          animate={{ startOffset: ['0%', '4%', '0%'] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          whileInView={{ startOffset: '2%' }}
+          viewport={{ once: true }}
+          transition={{ duration: 2.4, ease: 'easeOut' }}
         >
           {MESSY_RIBBON_TEXT}
         </motion.textPath>

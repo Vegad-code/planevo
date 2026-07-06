@@ -9,15 +9,15 @@ export function FeaturePlanMyDay() {
       eyebrow="Plan my day · Availability engine"
       headline="Planned into your real free time."
       body="One click runs your plate through your actual calendar. Planevo finds the gaps between classes, practice, and commitments — and places the work there. When the day changes, it adapts."
-      backdrop="sky"
       learnMoreHref="/signup"
+      highlightHeadline
     >
-      <div className="mx-auto max-w-sm rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-5 shadow-xl">
+      <div className="mx-auto max-w-sm">
         <div className="mb-3 flex items-center justify-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-[var(--color-belly)]">
             <Image src="/landing/bruno-face-160.png" alt="" width={20} height={20} />
           </span>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-soft)]">
+          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
             Bruno · Plan my day
           </p>
         </div>

@@ -38,7 +38,7 @@ test.describe('landing page accessibility', () => {
 
   test('slogan appears in title and h1', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Your week, handled/i);
+    await expect(page).toHaveTitle(/A plan that adapts/i);
 
     const h1 = page.locator('h1');
     await expect(h1).toContainText('Your week,');

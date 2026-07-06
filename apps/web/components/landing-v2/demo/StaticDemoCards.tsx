@@ -23,7 +23,7 @@ export function BoardDemoCard() {
 
   return (
     <div
-      aria-hidden
+      inert
       className="overflow-hidden rounded-2xl border border-[var(--color-line-strong)] bg-[var(--color-paper)] p-4 shadow-xl sm:p-5"
     >
       <CommandBoard

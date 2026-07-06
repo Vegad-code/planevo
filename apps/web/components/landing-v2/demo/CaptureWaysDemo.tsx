@@ -128,7 +128,7 @@ export function CaptureWaysDemo() {
   return (
     <div
       ref={ref}
-      aria-hidden
+      inert
       className="mx-auto w-full max-w-md rounded-2xl border border-[var(--color-line-strong)] bg-[var(--color-paper)] p-5 shadow-xl"
     >
       {/* Mode tabs */}

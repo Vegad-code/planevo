@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { SourceIconRiver } from './SourceIconRiver';
 
 const NODE_IDS = ['capture', 'board', 'plan'] as const;
 
@@ -75,6 +76,9 @@ export function FeatureConnectTrack({ children }: { children: React.ReactNode })
   return (
     <div className="relative">
       <ScrollConnectLine />
+      <div className="pointer-events-none absolute inset-x-0 top-[38%] z-10 hidden h-48 lg:block">
+        <SourceIconRiver />
+      </div>
       {children}
     </div>
   );

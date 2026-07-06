@@ -20,7 +20,7 @@ export function RotatingWord() {
   }, [reduce]);
 
   if (reduce) {
-    return <span className="italic text-[var(--color-honey-deep)]">handled.</span>;
+    return <span className="italic text-[var(--color-ocean-deep)]">handled.</span>;
   }
 
   return (
@@ -40,7 +40,7 @@ export function RotatingWord() {
             animate={{ y: '0%', opacity: 1 }}
             exit={{ y: '-70%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 90, damping: 16 }}
-            className="col-start-1 row-start-1 whitespace-nowrap italic text-[var(--color-honey-deep)]"
+            className="col-start-1 row-start-1 whitespace-nowrap italic text-[var(--color-ocean-deep)]"
           >
             {WORDS[index]}.
           </motion.span>

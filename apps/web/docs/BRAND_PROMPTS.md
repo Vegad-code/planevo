@@ -1,5 +1,21 @@
 # Planevo brand art prompts (Higgsfield)
 
+## Footer cinematic banner — SHIPPED (2026-07-06)
+
+**Model:** `marketing_studio_image`, aspect `21:9`
+
+**Winner:** Variant A (golden cream horizon) → `public/landing/bg/footer-cinematic.webp` (~38KB)
+
+**Alternates kept for review:** `footer-cinematic-b.webp` (abstract gradient), `footer-cinematic-c.webp` (blurred desk)
+
+**Winning prompt:**
+
+```
+Cinematic ultra-wide marketing banner, extreme motion blur and soft gaussian haze like wisprflow.ai footer photography, open meadow and sky at warm golden hour, dominant warm cream (#FFFFEB) and soft honey tones, subtle cornflower blue (#6395EE) horizon glow, deep forest green (#044337) tree silhouettes in lower third, dreamy long-exposure feel, heavy directional blur, no people, no text, no watermark, generous negative space center for headline overlay
+```
+
+---
+
 ## Forest footer band — BLOCKED
 
 **Status:** BLOCKED — Higgsfield MCP `generate_image` preflight was rejected at runtime (2026-07-06). `models_explore` recommended `nano_banana_pro` (16.5 credits available). Re-run Task 16 Step 1–5 when MCP generation is approved.

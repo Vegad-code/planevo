@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="relative min-h-screen grid bg-(--color-paper) text-(--color-ink) font-sans lg:grid-cols-2">
+    <div className="marketing-scope relative min-h-screen grid bg-[var(--color-paper)] font-sans text-[var(--color-ink)] lg:grid-cols-2">
       <DotGridLayer />
       <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">
         <div className="w-full max-w-105 mx-auto">

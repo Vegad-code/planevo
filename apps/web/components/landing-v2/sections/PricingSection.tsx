@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Eyebrow } from '../Eyebrow';
 import { ScrollReveal } from '../motion/ScrollReveal';
+import { OceanPillButton } from '../editorial/OceanPillButton';
 
 function CheckMark() {
   return (
@@ -78,14 +79,13 @@ export function PricingSection() {
         </div>
 
         <div className="grid items-stretch gap-6 md:grid-cols-2">
-          {/* Free */}
-          <div className="flex flex-col rounded-[32px] border border-[var(--color-line-strong)] bg-[var(--color-paper)] p-8 shadow-md md:p-10">
-            <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
+          <div className="flex flex-col rounded-[32px] border border-[var(--color-line)] bg-[var(--color-paper)] p-8 shadow-[0_16px_48px_rgba(20,20,20,0.06)] md:p-10">
+            <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
               Free
             </p>
             <div className="mt-4 flex items-baseline gap-1">
               <span className="font-serif text-5xl text-[var(--color-ink)]">$0</span>
-              <span className="font-sans text-sm font-medium text-[var(--color-ink-soft)]">
+              <span className="text-sm font-medium text-[var(--color-ink-soft)]">
                 / forever
               </span>
             </div>
@@ -96,7 +96,7 @@ export function PricingSection() {
             <ul className="mt-7 flex flex-1 flex-col gap-3.5 text-sm text-[var(--color-ink-soft)]">
               {FREE_PERKS.map((perk) => (
                 <li key={perk} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-[var(--color-forest-soft)] text-[var(--color-forest)]">
+                  <span className="mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-[var(--color-forest-soft)] text-[var(--color-forest-band)]">
                     <CheckMark />
                   </span>
                   {perk}
@@ -106,31 +106,30 @@ export function PricingSection() {
 
             <Link
               href="/signup"
-              className="mt-8 w-full rounded-full border border-[var(--color-line-strong)] bg-[var(--color-paper)] px-6 py-3 text-center font-sans text-[15px] font-semibold text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-muted)]"
+              className="mt-8 w-full rounded-full border border-[var(--color-line-strong)] bg-[var(--color-paper)] px-6 py-3 text-center text-[15px] font-semibold text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-muted)]"
             >
               Start free — no card
             </Link>
           </div>
 
-          {/* Pro */}
-          <div className="relative flex flex-col overflow-hidden rounded-[32px] border border-[var(--color-ink)] bg-[var(--color-ink)] p-8 text-[var(--color-paper)] shadow-xl md:p-10">
-            <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-paper)]/70">
+          <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-[var(--color-charcoal)] p-8 text-[var(--color-paper)] shadow-[0_24px_80px_rgba(20,20,20,0.18)] md:p-10">
+            <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--color-paper)]/70">
               Pro
             </p>
             <div className="mt-4 flex items-baseline gap-1">
               <span className="font-serif text-5xl text-[var(--color-paper)]">{proPrice}</span>
-              <span className="font-sans text-sm font-medium text-[var(--color-paper)]/70">
+              <span className="text-sm font-medium text-[var(--color-paper)]/70">
                 / month
               </span>
             </div>
-            <p className="mt-3 rounded-xl bg-[var(--color-honey)]/15 px-3 py-2 text-[14px] font-medium text-[var(--color-honey)]">
+            <p className="mt-3 rounded-xl bg-[var(--color-ocean)]/20 px-3 py-2 text-[14px] font-medium text-[var(--color-ocean-soft)]">
               Students: {eduPrice}/mo with a verified .edu email — same product, half price.
             </p>
 
             <ul className="mt-7 flex flex-1 flex-col gap-3.5 text-sm text-[var(--color-paper)]/85">
               {PRO_PERKS.map((perk) => (
                 <li key={perk} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-[var(--color-honey)] text-[var(--color-ink)]">
+                  <span className="mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-[var(--color-ocean)] text-[var(--color-charcoal)]">
                     <CheckMark />
                   </span>
                   {perk}
@@ -138,13 +137,10 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <Link
-              href="/signup?plan=pro"
-              className="mt-8 w-full rounded-full bg-[var(--color-paper)] px-6 py-3 text-center font-sans text-[15px] font-semibold text-[var(--color-ink)] transition-transform hover:scale-[1.02]"
-            >
+            <OceanPillButton href="/signup?plan=pro" className="mt-8 w-full justify-center">
               Go Pro
-            </Link>
-            <p className="mt-4 text-center font-sans text-[12px] text-[var(--color-paper)]/70">
+            </OceanPillButton>
+            <p className="mt-4 text-center text-[12px] text-[var(--color-paper)]/70">
               Upgrade or cancel any time
             </p>
           </div>

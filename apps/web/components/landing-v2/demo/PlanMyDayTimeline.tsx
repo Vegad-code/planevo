@@ -43,8 +43,8 @@ function hourLabel(h: number): string {
 }
 
 const TONE_CLASS: Record<FixedEvent['tone'], string> = {
-  blue: 'bg-[var(--color-blue-soft)] border-[var(--color-blue)]/40 text-[var(--color-blue)]',
-  rose: 'bg-[var(--color-rose-soft)] border-[var(--color-rose)]/40 text-[var(--color-rose)]',
+  blue: 'bg-[var(--color-ocean-soft)] border-[var(--color-ocean)]/40 text-[var(--color-charcoal)]',
+  rose: 'bg-[var(--color-markup)]/20 border-[var(--color-markup)]/50 text-[var(--color-ink)]',
 };
 
 /**

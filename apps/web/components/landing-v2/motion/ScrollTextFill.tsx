@@ -17,21 +17,24 @@ function FillWord({
   word,
   progress,
   range,
+  inverted = false,
 }: {
   word: string;
   progress: MotionValue<number>;
   range: [number, number];
+  inverted?: boolean;
 }) {
   const fillWidth = useTransform(progress, range, ['0%', '100%']);
   const label = `${word}\u00a0`;
+  const faint = inverted ? 'text-[var(--color-paper)]/55' : 'text-[var(--color-ink-faint)]';
+  const filled = inverted ? 'text-[var(--color-paper)]' : 'text-[var(--color-ink)]';
 
   return (
     <span className="relative inline-block align-baseline leading-inherit">
-      {/* Sizer — sets width/height; both color layers stack on this box */}
       <span className="invisible inline-block whitespace-pre" aria-hidden>
         {label}
       </span>
-      <span className="pointer-events-none absolute left-0 top-0 bottom-0 whitespace-pre text-[var(--color-ink-faint)]">
+      <span className={cn('pointer-events-none absolute left-0 top-0 bottom-0 whitespace-pre', faint)}>
         {label}
       </span>
       <motion.span
@@ -39,7 +42,7 @@ function FillWord({
         className="pointer-events-none absolute left-0 top-0 bottom-0 overflow-hidden"
         style={{ width: fillWidth }}
       >
-        <span className="inline-block whitespace-pre text-[var(--color-ink)]">{label}</span>
+        <span className={cn('inline-block whitespace-pre', filled)}>{label}</span>
       </motion.span>
     </span>
   );
@@ -55,11 +58,13 @@ export function ScrollTextFill({
   attribution,
   role,
   className,
+  inverted = false,
 }: {
   quote: string;
   attribution: string;
   role?: string;
   className?: string;
+  inverted?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
@@ -85,11 +90,17 @@ export function ScrollTextFill({
         )}
       >
         <div className="mx-auto max-w-5xl text-center">
-          <blockquote className="font-serif text-[32px] leading-[1.15] tracking-tight text-[var(--color-ink)] sm:text-[48px]">
+          <blockquote className={cn(
+            'font-serif text-[32px] leading-[1.15] tracking-tight sm:text-[48px]',
+            inverted ? 'text-[var(--color-paper)]' : 'text-[var(--color-ink)]',
+          )}>
             &ldquo;{quote}&rdquo;
           </blockquote>
           <footer className="mt-10 flex flex-col items-center gap-1">
-            <p className="font-sans text-[16px] font-medium text-[var(--color-ink-soft)]">
+            <p className={cn(
+              'font-sans text-[16px] font-medium',
+              inverted ? 'text-[var(--color-paper)]/75' : 'text-[var(--color-ink-soft)]',
+            )}>
               {attribution}
             </p>
             {role && (
@@ -112,7 +123,7 @@ export function ScrollTextFill({
       <section className="sticky top-0 z-20 flex h-svh min-h-svh flex-col items-center justify-center px-6">
         <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center text-center">
           <blockquote className="font-serif text-[34px] leading-[1.14] tracking-[-0.02em] sm:text-[52px] lg:text-[64px] xl:text-[76px]">
-            <span className="text-[var(--color-ink-faint)]">&ldquo;</span>
+            <span className={inverted ? 'text-[var(--color-paper)]/55' : 'text-[var(--color-ink-faint)]'}>&ldquo;</span>
             <span className="sr-only">{quote}</span>
             <span aria-hidden>
             {words.map((word, index) => {
@@ -124,18 +135,22 @@ export function ScrollTextFill({
                   word={word}
                   progress={scrollYProgress}
                   range={[start, end]}
+                  inverted={inverted}
                 />
               );
             })}
             </span>
-            <span className="text-[var(--color-ink-faint)]">&rdquo;</span>
+            <span className={inverted ? 'text-[var(--color-paper)]/55' : 'text-[var(--color-ink-faint)]'}>&rdquo;</span>
           </blockquote>
 
           <motion.footer
             style={{ opacity: attributionOpacity, y: attributionY }}
             className="mt-12 flex flex-col items-center gap-2 sm:mt-14"
           >
-            <p className="font-sans text-[17px] font-medium text-[var(--color-ink-soft)] sm:text-[19px]">
+            <p className={cn(
+              'font-sans text-[17px] font-medium sm:text-[19px]',
+              inverted ? 'text-[var(--color-paper)]/75' : 'text-[var(--color-ink-soft)]',
+            )}>
               {attribution}
             </p>
             {role && (
@@ -149,7 +164,10 @@ export function ScrollTextFill({
         <motion.p
           style={{ opacity: hintOpacity }}
           aria-hidden
-          className="absolute bottom-12 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-soft)]"
+          className={cn(
+            'absolute bottom-12 font-mono text-[10px] uppercase tracking-[0.2em]',
+            inverted ? 'text-[var(--color-paper)]/70' : 'text-[var(--color-ink-soft)]',
+          )}
         >
           Scroll to read
         </motion.p>
@@ -160,7 +178,10 @@ export function ScrollTextFill({
         >
           <motion.div
             style={{ scaleX: scrollYProgress }}
-            className="h-full w-full origin-left rounded-full bg-[var(--color-ink)]/40"
+            className={cn(
+              'h-full w-full origin-left rounded-full',
+              inverted ? 'bg-[var(--color-paper)]/35' : 'bg-[var(--color-ink)]/40',
+            )}
           />
         </div>
       </section>

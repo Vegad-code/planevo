@@ -5,6 +5,16 @@ import {
   type ThemeTokens,
 } from '@planevo/theme';
 
+/** Remove inline theme tokens so marketing/public CSS variables can apply. */
+export function clearColorThemeInlineStyles() {
+  if (typeof document === 'undefined') return;
+
+  const root = document.documentElement;
+  (Object.keys(TOKEN_CSS_VAR_MAP) as (keyof ThemeTokens)[]).forEach((key) => {
+    root.style.removeProperty(TOKEN_CSS_VAR_MAP[key]);
+  });
+}
+
 export function applyColorThemeToDocument(theme: ColorThemeId, isDark: boolean) {
   if (typeof document === 'undefined') return;
 

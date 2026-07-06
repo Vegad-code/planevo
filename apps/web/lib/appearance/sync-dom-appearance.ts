@@ -1,5 +1,8 @@
 import type { ColorThemeId } from '@planevo/theme';
-import { applyColorThemeToDocument } from '@/lib/appearance/apply-color-theme';
+import {
+  applyColorThemeToDocument,
+  clearColorThemeInlineStyles,
+} from '@/lib/appearance/apply-color-theme';
 import { isPublicAppRoute, PUBLIC_APPEARANCE } from '@/lib/appearance/public-route';
 
 export function syncDomAppearance({
@@ -18,7 +21,10 @@ export function syncDomAppearance({
   if (isPublicAppRoute(pathname)) {
     document.documentElement.setAttribute('data-public', 'true');
     document.documentElement.setAttribute('data-accent', PUBLIC_APPEARANCE.accent);
-    applyColorThemeToDocument(PUBLIC_APPEARANCE.colorTheme, false);
+    document.documentElement.setAttribute('data-color-theme', PUBLIC_APPEARANCE.colorTheme);
+    // Do not apply dashboard daylight tokens on public routes — they set inline
+    // --color-paper: #FFFFFF on <html>, overriding the Wispr cream (#FFFFEB) palette.
+    clearColorThemeInlineStyles();
   } else {
     document.documentElement.removeAttribute('data-public');
     document.documentElement.setAttribute('data-accent', accent);

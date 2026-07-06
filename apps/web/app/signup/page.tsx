@@ -88,7 +88,7 @@ function SignupForm() {
   }
 
   return (
-    <div className="relative min-h-screen grid bg-[var(--color-paper)] text-[var(--color-ink)] font-sans lg:grid-cols-2">
+    <div className="marketing-scope relative min-h-screen grid bg-[var(--color-paper)] font-sans text-[var(--color-ink)] lg:grid-cols-2">
       <DotGridLayer />
       {/* Left Column: Form */}
       <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">

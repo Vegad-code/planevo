@@ -88,7 +88,7 @@ export function AnimatedTasksDemo() {
                 {task.title}
               </span>
               {justMoved ? (
-                <span className="flex flex-none items-center gap-1 rounded-full bg-[var(--color-honey)] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-white">
+                <span className="flex flex-none items-center gap-1 rounded-full bg-[var(--color-markup)] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[var(--color-ink)]">
                   <ArrowUp size={9} weight="bold" />
                   Today
                 </span>

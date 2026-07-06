@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import type { Icon } from '@phosphor-icons/react';
 import { Eyebrow } from '../Eyebrow';
+import { FloatingUiCard } from '../editorial/FloatingUiCard';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
 const CELLS: Array<{
@@ -14,6 +15,7 @@ const CELLS: Array<{
   title: string;
   body: string;
   rows: Array<{ label: string; meta: string }>;
+  offset?: string;
 }> = [
   {
     id: 'sources',
@@ -24,6 +26,7 @@ const CELLS: Array<{
       { label: 'Bio lab report', meta: 'Fri' },
       { label: 'Problem set 4', meta: 'Mon' },
     ],
+    offset: 'lg:translate-y-8',
   },
   {
     id: 'tasks',
@@ -34,6 +37,7 @@ const CELLS: Array<{
       { label: 'Algebra quiz review', meta: 'Today' },
       { label: 'English essay draft', meta: 'Jul 14' },
     ],
+    offset: 'lg:-translate-y-4',
   },
   {
     id: 'calendar',
@@ -44,6 +48,7 @@ const CELLS: Array<{
       { label: 'Chemistry lecture', meta: '10:00' },
       { label: 'Soccer practice', meta: '16:00' },
     ],
+    offset: 'lg:translate-y-4',
   },
   {
     id: 'notes',
@@ -54,6 +59,7 @@ const CELLS: Array<{
       { label: 'Lab report outline', meta: 'Linked · Thu' },
       { label: 'Key facts → flashcards', meta: '12 cards' },
     ],
+    offset: 'lg:-translate-y-6',
   },
 ];
 
@@ -67,34 +73,33 @@ export function FeatureBento() {
             The rest of your system, built in.
           </h2>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          {CELLS.map(({ id, icon: CellIcon, title, body, rows }) => (
-            <div
-              key={id}
-              className="flex flex-col gap-4 rounded-[28px] border border-[var(--color-line)] bg-[var(--color-surface-raised)] p-7 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-honey-soft)] text-[var(--color-honey-deep)]">
-                <CellIcon size={22} weight="duotone" />
-              </span>
-              <div className="flex flex-col gap-1.5">
-                <h3 className="font-serif text-[22px] leading-snug tracking-tight text-[var(--color-ink)]">
-                  {title}
-                </h3>
-                <p className="text-[15px] leading-relaxed text-[var(--color-ink-soft)]">{body}</p>
-              </div>
-              <div className="mt-auto flex flex-col rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-1">
-                {rows.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between gap-3 border-b border-[var(--color-line)] py-2.5 last:border-b-0"
-                  >
-                    <span className="truncate text-[14px] text-[var(--color-ink)]">{row.label}</span>
-                    <span className="flex-none text-[12px] tabular-nums text-[var(--color-ink-soft)]">
-                      {row.meta}
-                    </span>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {CELLS.map(({ id, icon: CellIcon, title, body, rows, offset }, i) => (
+            <div key={id} className={offset}>
+              <FloatingUiCard variant="dark" rotate={i % 2 === 0 ? -0.5 : 0.5}>
+                <div className="flex flex-col gap-4">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-ocean-soft)] text-[var(--color-ocean)]">
+                    <CellIcon size={22} weight="duotone" />
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="font-serif text-[22px] leading-snug tracking-tight text-[var(--color-paper)]">
+                      {title}
+                    </h3>
+                    <p className="text-[14px] leading-relaxed text-[var(--color-paper)]/70">{body}</p>
                   </div>
-                ))}
-              </div>
+                  <ul className="flex flex-col gap-2 border-t border-[var(--color-paper)]/10 pt-4">
+                    {rows.map((row) => (
+                      <li
+                        key={row.label}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-[var(--color-paper)]/8 px-3 py-2 text-[13px] text-[var(--color-paper)]/90"
+                      >
+                        <span>{row.label}</span>
+                        <span className="text-[var(--color-paper)]/55">{row.meta}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </FloatingUiCard>
             </div>
           ))}
         </div>

@@ -1,16 +1,10 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 
 export const alt = 'Planevo — A plan that adapts.';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-export default async function OgImage() {
-  const fraunces = await readFile(
-    join(process.cwd(), 'assets/fonts/Fraunces-SemiBold.ttf'),
-  );
-
+export default function OgImage() {
   return new ImageResponse(
     (
       <div
@@ -21,9 +15,9 @@ export default async function OgImage() {
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#FFFDF5',
+          backgroundColor: '#FFFFEB',
           backgroundImage:
-            'radial-gradient(circle, rgba(27,28,21,0.07) 1.5px, transparent 1.5px)',
+            'radial-gradient(circle, rgba(28,27,23,0.06) 1.5px, transparent 1.5px)',
           backgroundSize: '28px 28px',
         }}
       >
@@ -33,7 +27,7 @@ export default async function OgImage() {
             alignItems: 'center',
             gap: 12,
             fontSize: 28,
-            color: '#6B6C61',
+            color: '#706E64',
             letterSpacing: 4,
             textTransform: 'uppercase',
           }}
@@ -43,24 +37,21 @@ export default async function OgImage() {
         <div
           style={{
             marginTop: 24,
-            fontFamily: 'Fraunces',
             fontSize: 96,
-            color: '#1B1C15',
+            color: '#1C1B17',
             letterSpacing: -3,
             display: 'flex',
+            fontFamily: 'Georgia, serif',
           }}
         >
           A plan that&nbsp;
-          <span style={{ fontStyle: 'italic', color: '#B96E2A' }}>adapts.</span>
+          <span style={{ fontStyle: 'italic', color: '#6395EE' }}>adapts.</span>
         </div>
-        <div style={{ marginTop: 28, fontSize: 30, color: '#6B6C61', display: 'flex' }}>
+        <div style={{ marginTop: 28, fontSize: 30, color: '#706E64', display: 'flex' }}>
           Planned into your real free time — for students.
         </div>
       </div>
     ),
-    {
-      ...size,
-      fonts: [{ name: 'Fraunces', data: fraunces, style: 'normal', weight: 600 }],
-    },
+    { ...size },
   );
 }

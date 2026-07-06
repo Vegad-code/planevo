@@ -10,9 +10,8 @@ import { FoundersNote } from '@/components/landing-v2/sections/FoundersNote';
 import { BrunoSection } from '@/components/landing-v2/sections/BrunoSection';
 import { PricingSection } from '@/components/landing-v2/sections/PricingSection';
 import { FaqSection } from '@/components/landing-v2/sections/FaqSection';
-import { FinalCta } from '@/components/landing-v2/sections/FinalCta';
+import { FooterCinematicCta } from '@/components/landing-v2/sections/FooterCinematicCta';
 import { LandingFooter } from '@/components/landing-v2/sections/LandingFooter';
-import { FooterBrandBand } from '@/components/landing-v2/sections/FooterBrandBand';
 import { FeatureConnectTrack } from '@/components/landing-v2/motion/ScrollConnectLine';
 
 export default function HomePage() {
@@ -32,10 +31,9 @@ export default function HomePage() {
         <BrunoSection />
         <PricingSection />
         <FaqSection />
-        <FinalCta />
       </main>
+      <FooterCinematicCta />
       <LandingFooter />
-      <FooterBrandBand />
     </DotGridPage>
   );
 }

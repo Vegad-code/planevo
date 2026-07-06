@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { List, X } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
 import { PlanevoWordmark } from '@/components/PlanevoWordmark';
+import { OceanPillButton } from '@/components/landing-v2/editorial/OceanPillButton';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -50,26 +51,26 @@ export function GlassNav() {
   }, [mobileOpen]);
 
   return (
-    <header className="glass-nav fixed inset-x-0 top-0 z-50">
-      <div className="mx-auto flex h-[60px] max-w-6xl items-center px-5 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 pt-4">
+      <div className="pointer-events-auto mx-auto flex w-[min(100%,calc(100%-2rem))] max-w-4xl items-center justify-between gap-4 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-2 shadow-[0_8px_32px_rgba(20,20,20,0.06)] sm:px-5">
         <Link
           href="/"
-          className="flex items-center gap-2 text-[var(--color-ink)] lg:justify-self-start"
+          className="flex items-center gap-2 text-[var(--color-ink)]"
         >
-          <PlanevoLogo size={24} />
+          <PlanevoLogo size={22} />
           <PlanevoWordmark />
         </Link>
 
-        <nav className="hidden items-center justify-center gap-7 lg:flex">
+        <nav className="hidden items-center justify-center gap-6 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.name}
               href={link.href}
               aria-current={activeId === link.href.slice(1) ? 'true' : undefined}
               className={cn(
-                'font-sans text-[14px] font-medium transition-colors',
+                'text-[13px] font-medium uppercase tracking-[0.12em] transition-colors',
                 activeId === link.href.slice(1)
-                  ? 'text-[var(--color-ink)] underline decoration-[var(--color-honey-deep)] decoration-2 underline-offset-8'
+                  ? 'text-[var(--color-ink)]'
                   : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]',
               )}
             >
@@ -78,28 +79,25 @@ export function GlassNav() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-4 lg:ml-0 lg:justify-self-end">
+        <div className="flex items-center gap-3">
           <Link
             href="/login"
-            className="hidden font-sans text-[14px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] md:inline"
+            className="hidden text-[13px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] sm:inline"
           >
             Sign in
           </Link>
-          <Link
-            href="/signup"
-            className="hidden rounded-full bg-[var(--color-ink)] px-5 py-2 font-sans text-[14px] font-semibold text-white transition-colors hover:bg-[var(--color-ink-2)] md:inline-flex"
-          >
-            Start free <span aria-hidden>→</span>
-          </Link>
+          <OceanPillButton href="/signup" className="hidden px-4 py-2 text-[13px] sm:inline-flex">
+            Start free
+          </OceanPillButton>
 
           <button
             type="button"
-            className="p-1.5 text-[var(--color-ink)] lg:hidden"
+            className="p-1.5 text-[var(--color-ink)] md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
             aria-label="Toggle menu"
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X size={24} weight="bold" /> : <List size={24} weight="bold" />}
+            {mobileOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
           </button>
         </div>
       </div>
@@ -107,13 +105,13 @@ export function GlassNav() {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="overflow-hidden border-t border-[var(--glass-border)] bg-[color-mix(in_srgb,var(--color-paper)_78%,transparent)] backdrop-blur-xl lg:hidden"
+            className="pointer-events-auto mx-auto mt-2 w-[min(100%,calc(100%-2rem))] max-w-md overflow-hidden rounded-3xl border border-[var(--color-line)] bg-[var(--color-paper)] p-5 shadow-xl md:hidden"
           >
-            <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-5 sm:px-6">
+            <div className="flex flex-col gap-4">
               {NAV_LINKS.map((link) => (
                 <Link
                   key={link.name}
@@ -124,23 +122,21 @@ export function GlassNav() {
                   {link.name}
                 </Link>
               ))}
-              <hr className="border-[var(--glass-border)]" />
-              <div className="flex flex-col gap-3">
-                <Link
-                  href="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="font-sans text-[15px] font-medium text-[var(--color-ink-soft)]"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href="/signup"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-full bg-[var(--color-ink)] px-5 py-3 text-center font-sans text-[15px] font-semibold text-white"
-                >
-                  Start free →
-                </Link>
-              </div>
+              <hr className="border-[var(--color-line)]" />
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="text-[15px] font-medium text-[var(--color-ink-soft)]"
+              >
+                Sign in
+              </Link>
+              <OceanPillButton
+                href="/signup"
+                className="w-full justify-center"
+                onClick={() => setMobileOpen(false)}
+              >
+                Start free
+              </OceanPillButton>
             </div>
           </motion.div>
         )}

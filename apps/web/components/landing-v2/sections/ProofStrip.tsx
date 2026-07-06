@@ -6,6 +6,8 @@ import {
   LineSegments,
 } from '@phosphor-icons/react/dist/ssr';
 import type { Icon } from '@phosphor-icons/react';
+import { EditorialSection } from '../editorial/EditorialSection';
+import { LogoMarquee } from '../editorial/LogoMarquee';
 
 const INTEGRATIONS: Array<{ name: string; icon: Icon }> = [
   { name: 'Canvas', icon: GraduationCap },
@@ -17,24 +19,25 @@ const INTEGRATIONS: Array<{ name: string; icon: Icon }> = [
 
 export function ProofStrip() {
   return (
-    <section aria-label="Works with your tools" className="px-6 pb-16 sm:pb-20">
-      <div className="mx-auto flex max-w-4xl flex-col items-center gap-5">
-        <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-          {INTEGRATIONS.map(({ name, icon: BrandIcon }) => (
-            <li
-              key={name}
-              className="flex items-center gap-2 text-[15px] font-medium text-[var(--color-ink-soft)]"
-            >
+    <EditorialSection tone="forest" bleed className="py-8 sm:py-10">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-6">
+        <p className="text-center text-[12px] font-medium uppercase tracking-[0.18em] text-[var(--color-paper)]/80">
+          Works with the tools you already use
+        </p>
+        <LogoMarquee
+          className="w-full"
+          items={INTEGRATIONS.map(({ name, icon: BrandIcon }) => (
+            <span key={name} className="flex items-center gap-2">
               <BrandIcon size={20} weight="duotone" aria-hidden />
-              {name}
-            </li>
+              <span className="text-[15px] font-medium text-[var(--color-paper)]">{name}</span>
+            </span>
           ))}
-        </ul>
-        <p className="text-center text-[14px] text-[var(--color-ink-soft)]">
+        />
+        <p className="max-w-xl text-center text-[14px] text-[var(--color-paper)]/75">
           Deadlines sync in by themselves — and Planevo never schedules over
           something already on your calendar.
         </p>
       </div>
-    </section>
+    </EditorialSection>
   );
 }

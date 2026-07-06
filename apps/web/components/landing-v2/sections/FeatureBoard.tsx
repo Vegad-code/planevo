@@ -8,7 +8,6 @@ export function FeatureBoard() {
       eyebrow="The board · One calm place"
       headline="Your whole plate, calm."
       body="Everything you're responsible for, sorted into Now, Today, and Due soon — one quiet, scannable list instead of five apps and a knot in your stomach."
-      backdrop="meadow"
       learnMoreHref="/signup"
       reverse
     >

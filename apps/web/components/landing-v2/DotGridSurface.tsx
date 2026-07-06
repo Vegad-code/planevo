@@ -1,6 +1,7 @@
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
-/** Attio / Linear dot grid layer — sits on littlebird white (--color-paper). */
+/** Attio / Linear dot grid layer — optional texture on Wispr cream paper. */
 export function DotGridLayer({ className }: { className?: string }) {
   return (
     <div
@@ -10,32 +11,15 @@ export function DotGridLayer({ className }: { className?: string }) {
   );
 }
 
-/** Soft honey + forest glows pulled from generated palette, kept very light. */
-export function HeroAccentGlow({ className }: { className?: string }) {
-  return (
-    <div
-      aria-hidden
-      className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}
-    >
-      <div className="absolute -left-[8%] top-[6%] h-[28rem] w-[28rem] rounded-full bg-[var(--color-honey)]/[0.05] blur-3xl" />
-      <div className="absolute -right-[6%] top-[18%] h-[22rem] w-[22rem] rounded-full bg-[var(--color-forest)]/[0.04] blur-3xl" />
-      <div className="absolute bottom-[12%] left-[28%] h-48 w-48 rounded-full bg-[var(--color-honey)]/[0.035] blur-3xl" />
-      {/* Honey accent dots — echo generated backgrounds at lower weight */}
-      <div className="absolute left-[18%] top-[22%] h-1.5 w-1.5 rounded-full bg-[var(--color-honey)]/30" />
-      <div className="absolute left-[42%] top-[38%] h-1 w-1 rounded-full bg-[var(--color-honey)]/20" />
-      <div className="absolute right-[24%] top-[28%] h-1.5 w-1.5 rounded-full bg-[var(--color-honey)]/25" />
-      <div className="absolute bottom-[32%] right-[18%] h-1 w-1 rounded-full bg-[var(--color-forest)]/20" />
-    </div>
-  );
-}
-
-/** Page shell: littlebird white + dot grid across full scroll height. */
+/** Page shell: Wispr cream paper (#FFFFEB), flat canvas like wisprflow.ai. */
 export function DotGridPage({
   children,
   className,
+  showDotGrid = false,
 }: {
   children: React.ReactNode;
   className?: string;
+  showDotGrid?: boolean;
 }) {
   return (
     <div
@@ -44,16 +28,33 @@ export function DotGridPage({
         className,
       )}
     >
-      <DotGridLayer />
+      {showDotGrid ? <DotGridLayer /> : null}
       <div className="relative">{children}</div>
     </div>
   );
 }
 
-/** Auth split-panel right column — soft glow accents over shared page grid. */
+/** Auth split-panel right column — Bruno portrait on warm cream, with soft glow accents. */
 export function AuthPanelBackdrop({ className }: { className?: string }) {
   return (
-    <div className={cn('relative hidden overflow-hidden lg:block', className)}>
+    <div
+      className={cn(
+        'relative hidden overflow-hidden bg-[var(--color-cream-2)] lg:block',
+        className,
+      )}
+    >
+      <Image
+        src="/planevo_login_hero.png"
+        alt="Bruno, your Planevo companion"
+        fill
+        priority
+        className="object-cover object-center"
+        sizes="50vw"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--color-ink)]/5 to-transparent"
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 overflow-hidden"

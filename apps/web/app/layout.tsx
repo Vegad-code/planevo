@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
+import Script from "next/script";
+import { Geist, Geist_Mono, Instrument_Serif, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -7,11 +9,17 @@ import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
 import { appearanceNoFlashScript } from "@/lib/appearance/no-flash-script";
 import "./globals.css";
 
-const fraunces = Fraunces({
+const instrumentSerif = Instrument_Serif({
   variable: "--font-serif",
   subsets: ["latin"],
+  weight: ["400"],
   style: ["normal", "italic"],
-  axes: ["opsz", "SOFT", "WONK"],
+  display: "swap",
+});
+
+const inter = Inter({
+  variable: "--font-marketing-sans",
+  subsets: ["latin"],
   display: "swap",
 });
 
@@ -51,23 +59,27 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerStore = await headers();
+  const isPublic = headerStore.get("x-planevo-public") === "true";
+
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} h-full antialiased`}
+      data-public={isPublic ? "true" : undefined}
       suppressHydrationWarning
     >
-      <head>
-        <script
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <Script
+          id="appearance-no-flash"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: appearanceNoFlashScript }}
         />
-      </head>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider          attribute="class"
           defaultTheme="system"
           themes={["light", "dark"]}
