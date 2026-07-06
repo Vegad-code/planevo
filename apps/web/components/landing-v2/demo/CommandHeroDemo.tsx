@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CommandBoard } from '@/components/command/CommandBoard';
 import { CaptureFlowDemo } from './CaptureFlowDemo';
 import { DemoStateDots, DEMO_STATES, type DemoState } from './DemoStateDots';
-import { DemoCursor, type CursorPoint } from '../motion/DemoCursor';
 import { makeBoardFixture } from './fixtures';
 
 const noop = () => {};
@@ -24,15 +23,11 @@ function heroDotForStage(stage: HeroStage, capturePreview: boolean): DemoState {
  */
 export function CommandHeroDemo() {
   const reduce = useReducedMotion();
-  const containerRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<HeroStage>('capture');
   const [capturePreview, setCapturePreview] = useState(false);
   const [paused, setPaused] = useState(false);
   const [finished, setFinished] = useState(false);
   const [runId, setRunId] = useState(0);
-  const [cursor, setCursor] = useState<CursorPoint>({ x: 20, y: 20 });
-  const [clicking, setClicking] = useState(false);
-  const [cursorVisible, setCursorVisible] = useState(false);
   const [captureKey, setCaptureKey] = useState(0);
   const [now] = useState(() => new Date());
 
@@ -41,7 +36,6 @@ export function CommandHeroDemo() {
   useEffect(() => {
     if (reduce || paused || stage !== 'board' || finished) return;
     const id = window.setTimeout(() => {
-      setCursorVisible(false);
       setFinished(true);
     }, 2600);
     return () => window.clearTimeout(id);
@@ -78,7 +72,6 @@ export function CommandHeroDemo() {
           paused={paused}
           onPreviewChange={setCapturePreview}
           onConfirmed={() => {
-            setCursorVisible(false);
             setStage('board');
           }}
         />
@@ -110,7 +103,6 @@ export function CommandHeroDemo() {
       className="flex flex-col gap-4"
     >
       <div
-        ref={containerRef}
         aria-hidden
         className="relative rounded-[28px] border border-[var(--color-line-strong)] bg-[var(--color-paper)] p-4 shadow-xl sm:p-6"
       >
@@ -122,9 +114,6 @@ export function CommandHeroDemo() {
         >
           {panel}
         </motion.div>
-        {stage !== 'capture' && (
-          <DemoCursor point={cursor} visible={cursorVisible} clicking={clicking} />
-        )}
       </div>
       <DemoStateDots
         states={HERO_DEMO_STATES}
