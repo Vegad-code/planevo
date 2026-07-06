@@ -22,14 +22,11 @@ export function ScrollConnectLine({ className }: { className?: string }) {
   const lineScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-
     function measure() {
-      const t = trackRef.current;
-      if (!t) return;
-      const trackTop = t.getBoundingClientRect().top + window.scrollY;
-      const trackHeight = t.offsetHeight;
+      const track = trackRef.current;
+      if (!track) return;
+      const trackTop = track.getBoundingClientRect().top + window.scrollY;
+      const trackHeight = track.offsetHeight;
       const next = NODE_IDS.map((id) => {
         const el = document.getElementById(id);
         if (!el) return { id, top: 0 };
@@ -42,11 +39,8 @@ export function ScrollConnectLine({ className }: { className?: string }) {
 
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(track);
-    for (const id of NODE_IDS) {
-      const el = document.getElementById(id);
-      if (el) ro.observe(el);
-    }
+    if (trackRef.current) ro.observe(trackRef.current);
+    ro.observe(document.documentElement);
     return () => ro.disconnect();
   }, []);
 

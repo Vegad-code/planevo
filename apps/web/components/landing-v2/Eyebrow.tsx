@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 
+/** Section eyebrow — the only mono-caps label allowed on the landing page. */
 export function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <p

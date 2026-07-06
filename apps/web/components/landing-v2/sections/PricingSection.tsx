@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Eyebrow } from '../Eyebrow';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
 function CheckMark() {
@@ -36,9 +37,7 @@ export function PricingSection() {
     <section id="pricing" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <ScrollReveal className="mx-auto max-w-5xl">
         <div className="mx-auto mb-12 max-w-2xl text-center">
-          <p className="mb-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
-            Free to start · Pro when you&rsquo;re ready
-          </p>
+          <Eyebrow>Free to start · Pro when you&rsquo;re ready</Eyebrow>
           <h2 className="font-serif text-3xl leading-tight tracking-tight text-[var(--color-ink)] md:text-5xl">
             Start free. Upgrade when you outgrow it.
           </h2>

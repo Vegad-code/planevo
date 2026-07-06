@@ -9,7 +9,7 @@ export function HeroSection() {
       <HeroAccentGlow />
       <div className="relative mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-muted)] px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-muted)] px-4 py-1.5 text-[13px] text-[var(--color-ink-soft)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-forest)]" aria-hidden />
             Free to start
           </p>
@@ -27,7 +27,7 @@ export function HeroSection() {
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="w-full rounded-full bg-[var(--color-ink)] px-8 py-3.5 text-center font-sans text-[16px] font-semibold text-white shadow-lg transition-transform hover:scale-[1.02] sm:w-auto"
+              className="w-full rounded-full bg-[var(--color-ink)] px-8 py-3.5 text-center font-sans text-[16px] font-semibold text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.99] sm:w-auto"
             >
               Start free <span aria-hidden>→</span>
             </Link>

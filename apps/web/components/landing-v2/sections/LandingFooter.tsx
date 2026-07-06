@@ -48,7 +48,7 @@ export function LandingFooter() {
 
         {COLUMNS.map((column) => (
           <div key={column.title} className="flex flex-col items-start gap-4">
-            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
+            <h3 className="text-[13px] text-[var(--color-ink-soft)]">
               {column.title}
             </h3>
             {column.links.map((link) => (
@@ -65,10 +65,10 @@ export function LandingFooter() {
       </div>
 
       <div className="mx-auto mt-12 flex max-w-6xl flex-col items-start justify-between gap-3 border-t border-[var(--color-line)] pt-6 sm:flex-row sm:items-center">
-        <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--color-ink-soft)]">
+        <p className="text-[13px] text-[var(--color-ink-soft)]">
           © {new Date().getFullYear()} Planevo. All rights reserved.
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--color-ink-soft)]">
+        <p className="text-[13px] text-[var(--color-ink-soft)]">
           Built for days that change.
         </p>
       </div>

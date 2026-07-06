@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Planevo — Your week, handled.';
+export const alt = 'Planevo — A plan that adapts.';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -44,17 +44,17 @@ export default async function OgImage() {
           style={{
             marginTop: 24,
             fontFamily: 'Fraunces',
-            fontSize: 110,
+            fontSize: 96,
             color: '#1B1C15',
             letterSpacing: -3,
             display: 'flex',
           }}
         >
-          Your week,&nbsp;
-          <span style={{ fontStyle: 'italic', color: '#B96E2A' }}>handled.</span>
+          A plan that&nbsp;
+          <span style={{ fontStyle: 'italic', color: '#B96E2A' }}>adapts.</span>
         </div>
         <div style={{ marginTop: 28, fontSize: 30, color: '#6B6C61', display: 'flex' }}>
-          Your plate, planned into your real free time.
+          Planned into your real free time — for students.
         </div>
       </div>
     ),

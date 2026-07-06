@@ -1,3 +1,4 @@
+import { Eyebrow } from '../Eyebrow';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
 export const FAQS: Array<{ q: string; a: string }> = [
@@ -59,9 +60,7 @@ export function FaqSection() {
       <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-5 lg:gap-16">
         {/* Littlebird split: serif headline left */}
         <ScrollReveal className="lg:col-span-2">
-          <p className="mb-4 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
-            Questions · Answered
-          </p>
+          <Eyebrow>Questions · Answered</Eyebrow>
           <h2 className="font-serif text-[36px] leading-[1.08] tracking-tight text-[var(--color-ink)] sm:text-[44px]">
             Fair questions.
           </h2>

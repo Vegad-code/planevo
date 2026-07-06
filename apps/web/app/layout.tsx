@@ -29,7 +29,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://planevo.ai"),
-  title: "Planevo — Your week, handled.",
+  title: "Planevo — A plan that adapts.",
   description:
     "For students whose calendars change faster than they can replan. Planevo builds your day around your real availability — and adapts when life happens.",
   authors: [{ name: "Planevo Team" }],
@@ -39,13 +39,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://planevo.ai",
     siteName: "Planevo",
-    title: "Planevo — Your week, handled.",
+    title: "Planevo — A plan that adapts.",
     description:
       "Dump everything on your plate. Planevo turns it into a calm board, then places the work into the real free time on your calendar.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Planevo — Your week, handled.",
+    title: "Planevo — A plan that adapts.",
     description:
       "A calm board of everything on your plate, planned into your real free time.",
   },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CommandBoard } from '@/components/command/CommandBoard';
 import { CaptureFlowDemo } from './CaptureFlowDemo';
@@ -19,7 +19,9 @@ function heroDotForStage(stage: HeroStage, capturePreview: boolean): DemoState {
   return 'board';
 }
 
-/** Hero demo — capture → board once, then Replay pill. */
+/**
+ * Hero product demo — plays capture → board once, then rests. Replay restarts the flow.
+ */
 export function CommandHeroDemo() {
   const reduce = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,19 +29,29 @@ export function CommandHeroDemo() {
   const [capturePreview, setCapturePreview] = useState(false);
   const [paused, setPaused] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [cursor] = useState<CursorPoint>({ x: 20, y: 20 });
-  const [clicking] = useState(false);
+  const [runId, setRunId] = useState(0);
+  const [cursor, setCursor] = useState<CursorPoint>({ x: 20, y: 20 });
+  const [clicking, setClicking] = useState(false);
   const [cursorVisible, setCursorVisible] = useState(false);
   const [captureKey, setCaptureKey] = useState(0);
   const [now] = useState(() => new Date());
 
   const board = useMemo(() => makeBoardFixture(now), [now]);
 
+  useEffect(() => {
+    if (reduce || paused || stage !== 'board' || finished) return;
+    const id = window.setTimeout(() => {
+      setCursorVisible(false);
+      setFinished(true);
+    }, 2600);
+    return () => window.clearTimeout(id);
+  }, [stage, reduce, paused, finished]);
+
   const replay = useCallback(() => {
     setFinished(false);
     setCapturePreview(false);
-    setCursorVisible(false);
     setCaptureKey((k) => k + 1);
+    setRunId((r) => r + 1);
     setStage('capture');
   }, []);
 
@@ -62,13 +74,12 @@ export function CommandHeroDemo() {
     case 'capture':
       panel = (
         <CaptureFlowDemo
-          key={captureKey}
-          paused={paused || finished}
+          key={`${captureKey}-${runId}`}
+          paused={paused}
           onPreviewChange={setCapturePreview}
           onConfirmed={() => {
             setCursorVisible(false);
             setStage('board');
-            setFinished(true);
           }}
         />
       );
@@ -114,17 +125,6 @@ export function CommandHeroDemo() {
         {stage !== 'capture' && (
           <DemoCursor point={cursor} visible={cursorVisible} clicking={clicking} />
         )}
-        {finished && (
-          <div className="absolute bottom-4 right-4 z-10">
-            <button
-              type="button"
-              onClick={replay}
-              className="rounded-full border border-[var(--color-line-strong)] bg-[var(--color-paper)]/95 px-4 py-2 font-sans text-[13px] font-semibold text-[var(--color-ink)] shadow-sm backdrop-blur-sm transition-colors hover:bg-[var(--color-surface-muted)]"
-            >
-              Replay
-            </button>
-          </div>
-        )}
       </div>
       <DemoStateDots
         states={HERO_DEMO_STATES}
@@ -137,10 +137,18 @@ export function CommandHeroDemo() {
             setStage('capture');
           } else if (state === 'board') {
             setStage('board');
-            setFinished(true);
           }
         }}
       />
+      {finished && (
+        <button
+          type="button"
+          onClick={replay}
+          className="mx-auto rounded-full border border-[var(--color-line-strong)] bg-[var(--color-paper)] px-4 py-1.5 text-[13px] font-medium text-[var(--color-ink-soft)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink)]"
+        >
+          Replay demo ↺
+        </button>
+      )}
     </div>
   );
 }
