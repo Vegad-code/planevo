@@ -50,7 +50,7 @@ export function FeatureShowcase({
               href={learnMoreHref}
               className="mt-6 inline-flex items-center gap-1.5 text-[15px] font-medium text-[var(--color-ink)] underline decoration-[var(--color-line-strong)] decoration-2 underline-offset-4 transition-colors hover:text-[var(--color-ink-soft)]"
             >
-              Learn more <span aria-hidden>→</span>
+              Try it free <span aria-hidden>→</span>
             </Link>
           )}
         </ScrollReveal>

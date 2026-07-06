@@ -1,6 +1,6 @@
 import { ScrollReveal } from '../motion/ScrollReveal';
 
-const FAQS: Array<{ q: string; a: string }> = [
+export const FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'What is Planevo Command?',
     a: 'Command is the home screen of Planevo: one capture box and one calm board. You dump everything on your plate — typed, pasted, or spoken — and Planevo turns it into real responsibilities sorted by when they actually matter.',
@@ -42,6 +42,20 @@ const FAQS: Array<{ q: string; a: string }> = [
 export function FaqSection() {
   return (
     <section id="faq" className="scroll-mt-24 px-6 py-16 sm:py-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: FAQS.map((f) => ({
+              '@type': 'Question',
+              name: f.q,
+              acceptedAnswer: { '@type': 'Answer', text: f.a },
+            })),
+          }),
+        }}
+      />
       <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-5 lg:gap-16">
         {/* Littlebird split: serif headline left */}
         <ScrollReveal className="lg:col-span-2">

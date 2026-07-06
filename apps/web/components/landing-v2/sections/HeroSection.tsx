@@ -38,9 +38,6 @@ export function HeroSection() {
               See how it works
             </Link>
           </div>
-          <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-[var(--color-ink-soft)]">
-            Free to sign up · No card required · Pro from $9.99/mo
-          </p>
         </div>
 
         <div className="relative mx-auto mt-16 max-w-4xl rounded-[28px] border border-[var(--color-line)] bg-[var(--color-surface-raised)]/90 p-4 shadow-lg backdrop-blur-sm sm:mt-20 sm:p-6">

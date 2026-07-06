@@ -14,8 +14,8 @@ export function FinalCta() {
         >
           Start free <span aria-hidden>→</span>
         </Link>
-        <p className="mt-6 font-mono text-[11px] font-bold uppercase tracking-wider text-[var(--color-ink-soft)]">
-          Free to sign up · No card required · Pro from $9.99/mo
+        <p className="mt-6 text-[14px] text-[var(--color-ink-soft)]">
+          No card required · Cancel anytime
         </p>
       </ScrollReveal>
     </section>
