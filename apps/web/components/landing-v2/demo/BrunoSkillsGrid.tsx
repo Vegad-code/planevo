@@ -61,7 +61,7 @@ export function BrunoSkillsGrid() {
     <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,280px)_1fr] lg:gap-12">
       <div className="relative mx-auto w-full max-w-[280px] overflow-hidden rounded-[32px] border border-[var(--color-line)] bg-[linear-gradient(180deg,#F4EDD9_0%,#FFFDF5_100%)] p-5 shadow-lg">
         <Image
-          src="/landing/bruno-portrait.png"
+          src="/landing/bruno-portrait.webp"
           alt="Bruno, the Planevo bear"
           width={512}
           height={512}
