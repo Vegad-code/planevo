@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Eyebrow } from '../Eyebrow';
 import { FeatureStage } from './FeatureStage';
 import type { StageBackdropVariant } from '../StageBackdrop';
 import { ScrollReveal } from '../motion/ScrollReveal';
@@ -29,16 +30,14 @@ export function FeatureShowcase({
 }) {
   return (
     <section id={id} className="scroll-mt-24 px-6 py-16 sm:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
         <ScrollReveal
           className={cn(
-            'flex flex-col items-start text-left',
+            'flex min-h-0 flex-col items-start text-left lg:min-h-[420px] lg:justify-center',
             reverse ? 'lg:order-2' : 'lg:order-1',
           )}
         >
-          <p className="mb-4 font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--color-ink-soft)]">
-            {eyebrow}
-          </p>
+          <Eyebrow>{eyebrow}</Eyebrow>
           <h2 className="font-serif text-[36px] leading-[1.08] tracking-tight text-[var(--color-ink)] sm:text-[44px]">
             {headline}
           </h2>
@@ -50,7 +49,7 @@ export function FeatureShowcase({
               href={learnMoreHref}
               className="mt-6 inline-flex items-center gap-1.5 text-[15px] font-medium text-[var(--color-ink)] underline decoration-[var(--color-line-strong)] decoration-2 underline-offset-4 transition-colors hover:text-[var(--color-ink-soft)]"
             >
-              Try it free <span aria-hidden>→</span>
+              See how it works <span aria-hidden>→</span>
             </Link>
           )}
         </ScrollReveal>

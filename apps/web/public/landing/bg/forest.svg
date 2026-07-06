@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 400" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFDF5"/>
+      <stop offset="45%" stop-color="#F4EDD9"/>
+      <stop offset="100%" stop-color="#E4EEE7"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4EEE7" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#C8DDD0" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="400" fill="url(#sky)"/>
+  <path fill="#B8CEC0" d="M0 280 C240 220 420 300 640 250 C860 200 1020 290 1280 240 C1500 200 1680 270 1920 230 L1920 400 L0 400 Z"/>
+  <path fill="#9FBAA8" d="M0 310 C200 270 380 320 600 285 C820 250 1040 315 1260 275 C1480 235 1680 300 1920 270 L1920 400 L0 400 Z"/>
+  <path fill="#7FA392" d="M0 340 C180 310 360 350 560 325 C760 300 980 355 1200 320 C1420 285 1660 340 1920 310 L1920 400 L0 400 Z"/>
+  <rect width="1920" height="400" fill="url(#mist)"/>
+  <!-- Bruno silhouette  subtle footer mascot -->
+  <ellipse cx="1780" cy="318" rx="18" ry="14" fill="#5C7A6A" opacity="0.85"/>
+  <circle cx="1780" cy="296" r="11" fill="#5C7A6A" opacity="0.85"/>
+  <circle cx="1775" cy="294" r="2" fill="#FFFDF5" opacity="0.7"/>
+  <circle cx="1785" cy="294" r="2" fill="#FFFDF5" opacity="0.7"/>
+</svg>

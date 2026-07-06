@@ -17,7 +17,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     links: [
       { label: 'Students', href: '/signup' },
       { label: 'High-performers', href: '/signup' },
-      { label: 'Canvas sync', href: '#sources' },
+      { label: 'Everything else', href: '#everything-else' },
     ],
   },
   {

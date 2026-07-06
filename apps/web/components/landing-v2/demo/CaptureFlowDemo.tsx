@@ -23,33 +23,35 @@ type Phase =
   | 'hold';
 
 const REST: CursorPoint = { x: 24, y: 24 };
+const TYPEWRITER_CPS = 48;
 
-function useTypewriter(text: string, active: boolean, speedMs = 14): string {
+function useRafTypewriter(text: string, active: boolean): string {
   const [count, setCount] = useState(0);
+
   useEffect(() => {
     if (!active) {
       setCount(0);
       return;
     }
     setCount(0);
-    const id = window.setInterval(() => {
-      setCount((c) => {
-        if (c >= text.length) {
-          window.clearInterval(id);
-          return c;
-        }
-        return c + 1;
-      });
-    }, speedMs);
-    return () => window.clearInterval(id);
-  }, [text, active, speedMs]);
+    const start = performance.now();
+    let frame = 0;
+
+    const tick = (now: number) => {
+      const elapsed = (now - start) / 1000;
+      const next = Math.min(text.length, Math.floor(elapsed * TYPEWRITER_CPS));
+      setCount(next);
+      if (next < text.length) frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [text, active]);
+
   return text.slice(0, count);
 }
 
-/**
- * Shared capture → review demo: typewriter dump, cursor clicks Clear My Plate,
- * then cursor clicks Add to Command. Used in hero and Capture feature section.
- */
+/** Capture → review demo with rAF typewriter. Plays once — no loop. */
 export function CaptureFlowDemo({
   compact = false,
   paused = false,
@@ -58,9 +60,7 @@ export function CaptureFlowDemo({
 }: {
   compact?: boolean;
   paused?: boolean;
-  /** Called after the confirm click — hero uses this to advance to board. */
   onConfirmed?: () => void;
-  /** Fires when the review panel opens or closes. */
   onPreviewChange?: (showingPreview: boolean) => void;
 }) {
   const reduce = useReducedMotion();
@@ -73,7 +73,7 @@ export function CaptureFlowDemo({
   const [now] = useState(() => new Date());
 
   const drafts = useMemo(() => makePreviewDrafts(now), [now]);
-  const typed = useTypewriter(DUMP_TEXT, phase === 'typing' && !reduce && !paused);
+  const typed = useRafTypewriter(DUMP_TEXT, phase === 'typing' && !reduce && !paused);
 
   const moveTo = useCallback((selector: string) => {
     const point = targetCenter(containerRef.current, selector);
@@ -92,7 +92,7 @@ export function CaptureFlowDemo({
   }, []);
 
   useEffect(() => {
-    if (reduce || paused) return;
+    if (reduce || paused || phase === 'hold') return;
 
     let cancelled = false;
     const wait = (ms: number) =>
@@ -105,7 +105,7 @@ export function CaptureFlowDemo({
     async function run() {
       switch (phase) {
         case 'typing': {
-          await wait(DUMP_TEXT.length * 14 + 600);
+          await wait((DUMP_TEXT.length / TYPEWRITER_CPS) * 1000 + 600);
           if (cancelled) return;
           setPhase('move-submit');
           break;
@@ -149,16 +149,8 @@ export function CaptureFlowDemo({
           setPhase('hold');
           break;
         }
-        case 'hold': {
-          await wait(onConfirmed ? 400 : 2400);
-          if (cancelled) return;
-          setShowPreview(false);
-          onPreviewChange?.(false);
-          setCursorVisible(false);
-          setCursor(REST);
-          setPhase('typing');
+        case 'hold':
           break;
-        }
         default: {
           const exhaustive: never = phase;
           throw new Error(`Unhandled capture demo phase: ${exhaustive}`);

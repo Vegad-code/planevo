@@ -14,14 +14,14 @@ export function HeroSection() {
             Free to start
           </p>
           <h1 className="font-serif text-[48px] font-semibold leading-[1.06] tracking-tight text-[var(--color-ink)] sm:text-[68px] lg:text-[84px]">
-            A plan that
+            Your week,
             <br />
             <RotatingWord />
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-[var(--color-ink-soft)] sm:text-[19px]">
-            For students and high-performers whose calendars change faster than they can
-            replan, Planevo builds each day around your real availability — then quietly
-            adapts when life gets in the way. Free to use, forever.
+          <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-[var(--color-ink-soft)] sm:text-[19px]">
+            For students whose calendars change faster than they can replan.
+            Planevo builds your day around your real availability — and adapts
+            when life happens.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -38,6 +38,7 @@ export function HeroSection() {
               See how it works
             </Link>
           </div>
+          <p className="mt-4 text-[13px] text-[var(--color-ink-soft)]">No card required</p>
         </div>
 
         <div className="relative mx-auto mt-16 max-w-4xl rounded-[28px] border border-[var(--color-line)] bg-[var(--color-surface-raised)]/90 p-4 shadow-lg backdrop-blur-sm sm:mt-20 sm:p-6">

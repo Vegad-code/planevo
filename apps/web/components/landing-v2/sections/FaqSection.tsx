@@ -76,7 +76,7 @@ export function FaqSection() {
             {FAQS.map((faq) => (
               <details
                 key={faq.q}
-                className="group border-b border-[var(--color-line)] py-5 first:pt-0"
+                className="faq-item group border-b border-[var(--color-line)] py-5 first:pt-0"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[16px] font-medium text-[var(--color-ink)] [&::-webkit-details-marker]:hidden">
                   {faq.q}

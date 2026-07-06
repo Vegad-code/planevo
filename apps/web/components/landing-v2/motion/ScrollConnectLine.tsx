@@ -4,19 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-const NODE_IDS = [
-  'capture',
-  'board',
-  'plan',
-  'sources',
-  'tasks',
-  'calendar',
-  'notes',
-] as const;
+const NODE_IDS = ['capture', 'board', 'plan'] as const;
 
 /**
- * Vertical connect line that grows with scroll through feature sections —
- * inspired by Attio / Composio landing timelines.
+ * Vertical connect line that grows with scroll through the three deep feature rows.
  */
 export function ScrollConnectLine({ className }: { className?: string }) {
   const reduce = useReducedMotion();
@@ -31,11 +22,14 @@ export function ScrollConnectLine({ className }: { className?: string }) {
   const lineScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
     function measure() {
-      const track = trackRef.current;
-      if (!track) return;
-      const trackTop = track.getBoundingClientRect().top + window.scrollY;
-      const trackHeight = track.offsetHeight;
+      const t = trackRef.current;
+      if (!t) return;
+      const trackTop = t.getBoundingClientRect().top + window.scrollY;
+      const trackHeight = t.offsetHeight;
       const next = NODE_IDS.map((id) => {
         const el = document.getElementById(id);
         if (!el) return { id, top: 0 };
@@ -47,12 +41,13 @@ export function ScrollConnectLine({ className }: { className?: string }) {
     }
 
     measure();
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', measure, { passive: true });
-    return () => {
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure);
-    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    for (const id of NODE_IDS) {
+      const el = document.getElementById(id);
+      if (el) ro.observe(el);
+    }
+    return () => ro.disconnect();
   }, []);
 
   if (reduce) return null;

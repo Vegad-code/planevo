@@ -1,34 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { List, X } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
 import { PlanevoWordmark } from '@/components/PlanevoWordmark';
+import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
-  { name: 'Capture', href: '#capture' },
-  { name: 'Command', href: '#board' },
-  { name: 'Plan', href: '#plan' },
-  { name: 'Tasks', href: '#tasks' },
-  { name: 'Calendar', href: '#calendar' },
-  { name: 'Notes', href: '#notes' },
+  { name: 'How it works', href: '#capture' },
   { name: 'Bruno', href: '#bruno' },
   { name: 'Pricing', href: '#pricing' },
+  { name: 'FAQ', href: '#faq' },
 ];
 
-/**
- * Littlebird-style top bar: full-bleed clear liquid glass (not a floating pill).
- * Logo left, links centered, actions right — content scrolls beneath the frosted strip.
- */
 export function GlassNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ids = NAV_LINKS.map((l) => l.href.slice(1));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: '-40% 0px -55% 0px' },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [mobileOpen]);
 
   return (
     <header className="glass-nav fixed inset-x-0 top-0 z-50">
       <div className="mx-auto flex h-[60px] max-w-6xl items-center px-5 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
-        {/* Brand */}
         <Link
           href="/"
           className="flex items-center gap-2 text-[var(--color-ink)] lg:justify-self-start"
@@ -37,24 +60,24 @@ export function GlassNav() {
           <PlanevoWordmark />
         </Link>
 
-        {/* Center links — pipe separators like Littlebird */}
-        <nav className="hidden items-center justify-center gap-4 lg:flex">
-          {NAV_LINKS.map((link, index) => (
-            <div key={link.name} className="flex items-center gap-4">
-              <Link
-                href={link.href}
-                className="font-sans text-[14px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)]"
-              >
-                {link.name}
-              </Link>
-              {index < NAV_LINKS.length - 1 && (
-                <span aria-hidden className="h-3 w-px bg-[var(--color-ink)]/15" />
+        <nav className="hidden items-center justify-center gap-7 lg:flex">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.name}
+              href={link.href}
+              aria-current={activeId === link.href.slice(1) ? 'true' : undefined}
+              className={cn(
+                'font-sans text-[14px] font-medium transition-colors',
+                activeId === link.href.slice(1)
+                  ? 'text-[var(--color-ink)] underline decoration-[var(--color-honey-deep)] decoration-2 underline-offset-8'
+                  : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]',
               )}
-            </div>
+            >
+              {link.name}
+            </Link>
           ))}
         </nav>
 
-        {/* Actions */}
         <div className="ml-auto flex items-center gap-4 lg:ml-0 lg:justify-self-end">
           <Link
             href="/login"
@@ -81,7 +104,6 @@ export function GlassNav() {
         </div>
       </div>
 
-      {/* Mobile sheet — full-bleed glass, not a floating pill */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div

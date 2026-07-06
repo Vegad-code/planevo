@@ -5,10 +5,8 @@ import { ProofStrip } from '@/components/landing-v2/sections/ProofStrip';
 import { FeatureCapture } from '@/components/landing-v2/sections/FeatureCapture';
 import { FeatureBoard } from '@/components/landing-v2/sections/FeatureBoard';
 import { FeaturePlanMyDay } from '@/components/landing-v2/sections/FeaturePlanMyDay';
-import { FeatureSources } from '@/components/landing-v2/sections/FeatureSources';
-import { FeatureTasks } from '@/components/landing-v2/sections/FeatureTasks';
-import { FeatureCalendar } from '@/components/landing-v2/sections/FeatureCalendar';
-import { FeatureNotes } from '@/components/landing-v2/sections/FeatureNotes';
+import { FeatureBento } from '@/components/landing-v2/sections/FeatureBento';
+import { FoundersNote } from '@/components/landing-v2/sections/FoundersNote';
 import { BrunoSection } from '@/components/landing-v2/sections/BrunoSection';
 import { PricingSection } from '@/components/landing-v2/sections/PricingSection';
 import { FaqSection } from '@/components/landing-v2/sections/FaqSection';
@@ -16,7 +14,6 @@ import { FinalCta } from '@/components/landing-v2/sections/FinalCta';
 import { LandingFooter } from '@/components/landing-v2/sections/LandingFooter';
 import { FooterBrandBand } from '@/components/landing-v2/sections/FooterBrandBand';
 import { FeatureConnectTrack } from '@/components/landing-v2/motion/ScrollConnectLine';
-import { FoundersNote } from '@/components/landing-v2/sections/FoundersNote';
 
 export default function HomePage() {
   return (
@@ -29,11 +26,8 @@ export default function HomePage() {
           <FeatureCapture />
           <FeatureBoard />
           <FeaturePlanMyDay />
-          <FeatureSources />
-          <FeatureTasks />
-          <FeatureCalendar />
-          <FeatureNotes />
         </FeatureConnectTrack>
+        <FeatureBento />
         <FoundersNote />
         <BrunoSection />
         <PricingSection />
