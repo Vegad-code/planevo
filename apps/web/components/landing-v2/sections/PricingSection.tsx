@@ -33,7 +33,7 @@ const PRO_PERKS = [
 
 export function PricingSection() {
   return (
-    <section id="pricing" className="px-6 py-16 sm:py-24">
+    <section id="pricing" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <ScrollReveal className="mx-auto max-w-5xl">
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <p className="mb-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-ink-faint)]">

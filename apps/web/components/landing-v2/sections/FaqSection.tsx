@@ -41,7 +41,7 @@ const FAQS: Array<{ q: string; a: string }> = [
 
 export function FaqSection() {
   return (
-    <section id="faq" className="px-6 py-16 sm:py-24">
+    <section id="faq" className="scroll-mt-24 px-6 py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-5 lg:gap-16">
         {/* Littlebird split: serif headline left */}
         <ScrollReveal className="lg:col-span-2">

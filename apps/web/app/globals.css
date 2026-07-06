@@ -579,6 +579,20 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+:where(a, button, summary, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-honey-deep);
+  outline-offset: 2px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 /* ============================================================
    LIQUID GLASS — chrome surfaces (nav, cards, overlays)
    ============================================================ */

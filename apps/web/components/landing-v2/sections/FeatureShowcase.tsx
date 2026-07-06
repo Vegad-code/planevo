@@ -28,7 +28,7 @@ export function FeatureShowcase({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="px-6 py-16 sm:py-24">
+    <section id={id} className="scroll-mt-24 px-6 py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
         <ScrollReveal
           className={cn(
