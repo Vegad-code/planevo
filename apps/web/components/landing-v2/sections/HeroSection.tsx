@@ -13,7 +13,7 @@ export function HeroSection() {
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-forest)]" aria-hidden />
             Free to start
           </p>
-          <h1 className="font-serif text-[48px] font-semibold leading-[1.0] tracking-tight text-[var(--color-ink)] sm:text-[68px] lg:text-[84px]">
+          <h1 className="font-serif text-[48px] font-semibold leading-[1.06] tracking-tight text-[var(--color-ink)] sm:text-[68px] lg:text-[84px]">
             A plan that
             <br />
             <RotatingWord />

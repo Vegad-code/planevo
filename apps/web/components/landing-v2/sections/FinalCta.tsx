@@ -5,7 +5,7 @@ export function FinalCta() {
   return (
     <section className="px-6 pb-24 pt-24 sm:pb-32 sm:pt-32">
       <ScrollReveal className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <h2 className="font-serif text-[44px] leading-[1.05] tracking-tight text-[var(--color-ink)] sm:text-[72px] lg:text-[96px]">
+        <h2 className="font-serif text-[44px] leading-[1.08] tracking-tight text-[var(--color-ink)] sm:text-[72px] lg:text-[96px]">
           Ready when your day changes.
         </h2>
         <Link

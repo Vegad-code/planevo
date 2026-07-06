@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -7,13 +7,11 @@ import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
 import { appearanceNoFlashScript } from "@/lib/appearance/no-flash-script";
 import "./globals.css";
 
-// Display serif — closest free match to littlebird.ai's Meraki (high-contrast,
-// editorial headings). Not Instrument Serif or Fraunces.
-const cormorantGaramond = Cormorant_Garamond({
+const fraunces = Fraunces({
   variable: "--font-serif",
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
   subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["opsz", "SOFT", "WONK"],
   display: "swap",
 });
 
@@ -61,7 +59,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${cormorantGaramond.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
