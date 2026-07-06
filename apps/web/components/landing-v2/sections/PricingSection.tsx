@@ -85,7 +85,7 @@ export function PricingSection() {
           {/* Pro */}
           <div className="relative flex flex-col overflow-hidden rounded-[32px] border border-[var(--color-ink)] bg-[var(--color-ink)] p-8 text-[var(--color-paper)] shadow-xl md:p-10">
             <div className="flex items-center justify-between">
-              <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-paper)]/60">
+              <p className="font-mono text-xs font-bold uppercase tracking-widest text-[var(--color-paper)]/70">
                 Pro
               </p>
               <span className="rounded-full bg-[var(--color-honey)] px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--color-ink)]">
@@ -94,7 +94,7 @@ export function PricingSection() {
             </div>
             <div className="mt-4 flex items-baseline gap-1">
               <span className="font-serif text-5xl text-[var(--color-paper)]">$9.99</span>
-              <span className="font-sans text-sm font-medium text-[var(--color-paper)]/60">
+              <span className="font-sans text-sm font-medium text-[var(--color-paper)]/70">
                 / month
               </span>
             </div>

@@ -593,6 +593,16 @@ html {
   }
 }
 
+details.faq-item::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size 0.28s ease, content-visibility 0.28s allow-discrete;
+  interpolate-size: allow-keywords;
+}
+details.faq-item[open]::details-content {
+  block-size: auto;
+}
+
 /* ============================================================
    LIQUID GLASS — chrome surfaces (nav, cards, overlays)
    ============================================================ */

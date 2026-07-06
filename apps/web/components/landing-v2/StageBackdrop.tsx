@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils';
 export type StageBackdropVariant = 'sky' | 'meadow' | 'neutral';
 
 const GRADIENT_CLASS: Record<StageBackdropVariant, string> = {
-  sky: 'bg-[linear-gradient(180deg,#EBF3F7_0%,#FFFDF5_100%)]',
-  meadow: 'bg-[linear-gradient(180deg,#E4EEE7_0%,#FFFDF5_100%)]',
-  neutral: 'bg-[linear-gradient(180deg,#F4EDD9_0%,#FFFDF5_100%)]',
+  sky: 'bg-[linear-gradient(180deg,#DCEAF2_0%,#FFFDF5_100%)]',
+  meadow: 'bg-[linear-gradient(180deg,#D3E4D9_0%,#FFFDF5_100%)]',
+  neutral: 'bg-[linear-gradient(180deg,#EFE3C4_0%,#FFFDF5_100%)]',
 };
 
 export function StageBackdrop({
@@ -18,7 +18,11 @@ export function StageBackdrop({
   return (
     <div
       aria-hidden
-      className={cn('absolute inset-0', GRADIENT_CLASS[variant], className)}
+      className={cn(
+        'absolute inset-0 border border-[var(--color-line)]',
+        GRADIENT_CLASS[variant],
+        className,
+      )}
     />
   );
 }
