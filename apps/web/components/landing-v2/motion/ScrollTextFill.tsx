@@ -11,7 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 
 /** Viewport heights the user must scroll while the quote stays pinned. */
-const SCROLL_TRACK_VH = 200;
+const SCROLL_TRACK_VH = 120;
 
 function FillWord({
   word,

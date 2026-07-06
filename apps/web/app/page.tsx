@@ -16,7 +16,7 @@ import { FinalCta } from '@/components/landing-v2/sections/FinalCta';
 import { LandingFooter } from '@/components/landing-v2/sections/LandingFooter';
 import { FooterBrandBand } from '@/components/landing-v2/sections/FooterBrandBand';
 import { FeatureConnectTrack } from '@/components/landing-v2/motion/ScrollConnectLine';
-import { AdaptWithYouSection } from '@/components/landing-v2/sections/AdaptWithYouSection';
+import { FoundersNote } from '@/components/landing-v2/sections/FoundersNote';
 
 export default function HomePage() {
   return (
@@ -34,7 +34,7 @@ export default function HomePage() {
           <FeatureCalendar />
           <FeatureNotes />
         </FeatureConnectTrack>
-        <AdaptWithYouSection />
+        <FoundersNote />
         <BrunoSection />
         <PricingSection />
         <FaqSection />
