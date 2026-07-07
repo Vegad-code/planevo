@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useReducedMotion } from 'framer-motion';
 import { GlassPillButton } from '../editorial/GlassPillButton';
 import { TaskFlowPath } from '../motion/TaskFlowPath';
+import { MARKETING_BLUR_IMAGES } from '@/lib/marketing/assets';
 
 export function FooterCinematicCta() {
   const reduce = useReducedMotion();
@@ -12,7 +13,7 @@ export function FooterCinematicCta() {
     <section className="relative px-3 pb-4 pt-6 sm:px-4 sm:pb-5 lg:px-5">
       <div className="relative min-h-[min(72vh,720px)] w-full overflow-hidden rounded-[28px] sm:min-h-[min(78vh,820px)] sm:rounded-[36px] lg:rounded-[44px]">
         <Image
-          src="/landing/bg/footer-cinematic.webp"
+          src={MARKETING_BLUR_IMAGES.footer}
           alt=""
           fill
           className="object-cover"

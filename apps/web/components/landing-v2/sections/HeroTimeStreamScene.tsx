@@ -14,7 +14,7 @@ export function HeroIntro({ drawProgress }: { drawProgress?: MotionValue<number>
         Your week,
         <br />
         <span className="relative inline-block">
-          <RotatingWord />
+          <RotatingWord lockProgress={drawProgress} />
           <HandwrittenUnderline
             className="absolute -bottom-1 left-1/2 -translate-x-1/2"
             width={200}
@@ -45,7 +45,9 @@ export function HeroCtas() {
           See how it works
         </Link>
       </div>
-      <p className="mt-4 text-[13px] text-[var(--color-ink-soft)]">No card required</p>
+      <p className="mt-4 text-[13px] text-[var(--color-ink-soft)]">
+        No card required · Bruno proposes, you approve
+      </p>
     </>
   );
 }

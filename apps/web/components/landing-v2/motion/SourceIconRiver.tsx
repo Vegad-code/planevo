@@ -1,15 +1,14 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
-  GraduationCap,
-  CalendarBlank,
   CheckSquare,
   Note,
   Microphone,
-  type Icon,
 } from '@phosphor-icons/react';
+import { CanvasIcon, GoogleIcon } from '@/components/icons/BrandIcons';
 
 interface Point {
   x: number;
@@ -35,18 +34,25 @@ function samplePath(steps: number): Point[] {
 }
 
 interface Glyph {
-  icon: Icon;
+  icon: ReactNode;
   bg: string;
-  fg: string;
   label: string;
 }
 
 const GLYPHS: Glyph[] = [
-  { icon: GraduationCap, bg: 'bg-[var(--color-rose-soft)]', fg: 'text-[var(--color-rose)]', label: 'Canvas' },
-  { icon: CalendarBlank, bg: 'bg-[var(--color-blue-soft)]', fg: 'text-[var(--color-blue)]', label: 'Google Calendar' },
-  { icon: CheckSquare, bg: 'bg-[var(--color-honey-soft)]', fg: 'text-[var(--color-honey-deep)]', label: 'Tasks' },
-  { icon: Note, bg: 'bg-[var(--color-cream-2)]', fg: 'text-[var(--color-ink-soft)]', label: 'Notes' },
-  { icon: Microphone, bg: 'bg-[var(--color-sage-soft)]', fg: 'text-[var(--color-sage)]', label: 'Voice' },
+  {
+    icon: <CanvasIcon className="h-3.5 w-3.5" />,
+    bg: 'bg-[var(--color-paper)]',
+    label: 'Canvas',
+  },
+  {
+    icon: <GoogleIcon className="h-3.5 w-3.5" />,
+    bg: 'bg-[var(--color-paper)]',
+    label: 'Google Calendar',
+  },
+  { icon: <CheckSquare size={16} weight="duotone" className="text-[var(--color-honey-deep)]" />, bg: 'bg-[var(--color-honey-soft)]', label: 'Tasks' },
+  { icon: <Note size={16} weight="duotone" className="text-[var(--color-ink-soft)]" />, bg: 'bg-[var(--color-cream-2)]', label: 'Notes' },
+  { icon: <Microphone size={16} weight="duotone" className="text-[var(--color-sage)]" />, bg: 'bg-[var(--color-sage-soft)]', label: 'Voice' },
 ];
 
 const NODE_COUNT = 20;
@@ -76,7 +82,6 @@ export function SourceIconRiver() {
     >
       {Array.from({ length: NODE_COUNT }, (_, i) => {
         const glyph = GLYPHS[i % GLYPHS.length];
-        const IconComponent = glyph.icon;
         return (
           <motion.div
             key={i}
@@ -91,7 +96,7 @@ export function SourceIconRiver() {
             style={{ willChange: 'transform' }}
             className={`absolute left-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg shadow-sm ${glyph.bg}`}
           >
-            <IconComponent size={16} weight="duotone" className={glyph.fg} />
+            {glyph.icon}
           </motion.div>
         );
       })}

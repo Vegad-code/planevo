@@ -20,8 +20,8 @@ export function HeroSection() {
   });
 
   const { smoothProgress } = useHeroVacuumProgress(scrollYProgress);
-  const headlineOpacity = useTransform(smoothProgress, [0.88, 0.95], [1, 0]);
-  const headlineY = useTransform(smoothProgress, [0.88, 0.95], [0, -20]);
+  const headlineOpacity = useTransform(smoothProgress, [0.92, 0.98], [1, 0]);
+  const headlineY = useTransform(smoothProgress, [0.92, 0.98], [0, -20]);
 
   if (reduce) {
     return (

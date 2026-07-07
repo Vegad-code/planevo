@@ -1,37 +1,19 @@
 'use client';
 
-import { useState } from 'react';
 import { ScrollReveal } from '../motion/ScrollReveal';
 import { Eyebrow } from '../Eyebrow';
-import { BrunoSkillsGrid } from '../demo/BrunoSkillsGrid';
-import { BrunoDemoTabs } from '../demo/BrunoDemoTabs';
+import { BrunoPersonaProvider, useBrunoPersona } from '../demo/bruno/BrunoPersonaContext';
+import { BRUNO_PERSONAS } from '../demo/bruno/brunoFixtures';
+import { BrunoScrollStory } from './BrunoScrollStory';
+import { BrunoStudentLifeStrip } from './BrunoStudentLifeStrip';
+import { BrunoSkillsExplorer } from './BrunoSkillsExplorer';
+import { BrunoProTease } from '../demo/bruno/BrunoIntegrationsDemo';
+import { BrunoEmotionalBeat } from './BrunoEmotionalBeat';
 import { EditorialSection } from '../editorial/EditorialSection';
 import { cn } from '@/lib/utils';
 
-const PERSONAS = [
-  {
-    id: 'students',
-    label: 'Students',
-    headline: 'For students whose weeks never stay still',
-    body: 'Capture class work, practices, and life in one breath. Planevo sorts it onto a calm board and plans it into the gaps you actually have.',
-  },
-  {
-    id: 'creators',
-    label: 'Creators',
-    headline: 'For creators juggling a hundred threads',
-    body: 'Dump ideas, deadlines, and follow-ups without losing the thread. Bruno helps you turn chaos into a board you can actually work from.',
-  },
-  {
-    id: 'leaders',
-    label: 'Leaders',
-    headline: 'For leaders who need the team aligned',
-    body: 'See what is on your plate, what moved, and what needs a decision — without another status meeting.',
-  },
-] as const;
-
-export function BrunoSection() {
-  const [active, setActive] = useState<(typeof PERSONAS)[number]['id']>('students');
-  const persona = PERSONAS.find((p) => p.id === active) ?? PERSONAS[0];
+function BrunoSectionContent() {
+  const { persona, setPersona, personaMeta } = useBrunoPersona();
 
   return (
     <EditorialSection id="bruno" tone="charcoal" roundedTop className="scroll-mt-24 px-6 py-16 sm:py-24">
@@ -42,21 +24,21 @@ export function BrunoSection() {
             Made for the way <em className="not-italic text-[var(--color-paper)]/90">you</em> work
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-[var(--color-paper)]/75">
-            Planevo has a real AI inside. Bruno adapts to planning, tasks, and reflection
-            — and always proposes changes for you to confirm before anything happens.
+            Planevo has a real AI inside. Bruno adapts to planning, tasks, and reflection — and always
+            proposes changes for you to confirm before anything happens.
           </p>
         </ScrollReveal>
 
         <ScrollReveal delay={0.05}>
           <div className="flex flex-wrap justify-center gap-2">
-            {PERSONAS.map((p) => (
+            {BRUNO_PERSONAS.map((p) => (
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setActive(p.id)}
+                onClick={() => setPersona(p.id)}
                 className={cn(
                   'rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
-                  active === p.id
+                  persona === p.id
                     ? 'bg-[var(--color-paper)] text-[var(--color-charcoal)]'
                     : 'border border-[var(--color-paper)]/20 text-[var(--color-paper)]/75 hover:border-[var(--color-paper)]/40 hover:text-[var(--color-paper)]',
                 )}
@@ -67,20 +49,40 @@ export function BrunoSection() {
           </div>
           <div className="mx-auto mt-8 max-w-2xl text-center">
             <h3 className="font-serif text-[28px] leading-tight text-[var(--color-paper)] sm:text-[32px]">
-              {persona.headline}
+              {personaMeta.headline}
             </h3>
-            <p className="mt-4 text-[16px] leading-relaxed text-[var(--color-paper)]/75">{persona.body}</p>
+            <p className="mt-4 text-[16px] leading-relaxed text-[var(--color-paper)]/75">{personaMeta.body}</p>
           </div>
         </ScrollReveal>
 
         <ScrollReveal delay={0.08}>
-          <BrunoSkillsGrid />
+          <BrunoScrollStory />
         </ScrollReveal>
 
         <ScrollReveal delay={0.1}>
-          <BrunoDemoTabs />
+          <BrunoStudentLifeStrip />
+        </ScrollReveal>
+
+        <ScrollReveal delay={0.12}>
+          <BrunoSkillsExplorer />
+        </ScrollReveal>
+
+        <ScrollReveal delay={0.14}>
+          <BrunoProTease />
+        </ScrollReveal>
+
+        <ScrollReveal delay={0.16}>
+          <BrunoEmotionalBeat />
         </ScrollReveal>
       </div>
     </EditorialSection>
+  );
+}
+
+export function BrunoSection() {
+  return (
+    <BrunoPersonaProvider>
+      <BrunoSectionContent />
+    </BrunoPersonaProvider>
   );
 }

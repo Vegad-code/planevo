@@ -1,7 +1,12 @@
 import { Eyebrow } from '../Eyebrow';
 import { ScrollReveal } from '../motion/ScrollReveal';
+import { TRIAL_DAYS } from '@/lib/marketing/pricing';
 
 export const FAQS: Array<{ q: string; a: string }> = [
+  {
+    q: 'Does Bruno change my calendar without asking?',
+    a: 'Never. Bruno reads your tasks, calendar, and notes, then proposes specific changes — move an event, add a task, repair your afternoon. You see exactly what he\u2019ll do and tap Approve before anything updates.',
+  },
   {
     q: 'What is Planevo Command?',
     a: 'Command is the home screen of Planevo: one capture box and one calm board. You dump everything on your plate — typed, pasted, or spoken — and Planevo turns it into real responsibilities sorted by when they actually matter.',
@@ -20,11 +25,15 @@ export const FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Is Planevo really free?',
-    a: 'Yes. Sign up with no card and use the whole product — capture, the calm board, plan my day, tasks, calendar, notes, and Bruno (5 asks a day). Pro lifts the limits and adds power features, but you never have to pay to get real value.',
+    a: `Every new account starts with a ${TRIAL_DAYS}-day Pro trial — full access, no feature cuts. After that, you can subscribe to keep Pro, or stay on Free: capture, the calm board, plan my day, tasks, calendar, notes, and Bruno (5 asks a day). You never have to pay to get real value, but the trial is the only way to try Pro without limits first.`,
+  },
+  {
+    q: 'How does the 14-day trial work?',
+    a: `Sign up, then start your Pro trial from settings or checkout. You get ${TRIAL_DAYS} days of full Pro access. A card is collected at checkout; you won't be charged until the trial ends. One trial per account. Cancel any time before day ${TRIAL_DAYS} and you won't be billed.`,
   },
   {
     q: 'What do I get by upgrading to Pro?',
-    a: 'Pro removes the daily Bruno limit (including deep thinking), gives you unlimited plan-my-day with priority replanning, connects apps like Notion, Slack, and Linear, and includes priority support. It is $9.99/mo, or $4.99/mo with a verified .edu email.',
+    a: 'Pro removes the daily Bruno limit (including deep thinking), gives you unlimited plan-my-day with priority replanning, connects apps like Notion, Slack, and Linear, and includes priority support. New users get a 14-day trial first. After that it is $9.99/mo, $79.99/yr billed annually, or $4.99/mo with a verified .edu email.',
   },
   {
     q: 'How does the .edu discount work?',

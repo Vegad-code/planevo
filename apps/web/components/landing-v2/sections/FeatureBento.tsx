@@ -1,17 +1,13 @@
-import {
-  GraduationCap,
-  ListChecks,
-  CalendarBlank,
-  Notebook,
-} from '@phosphor-icons/react/dist/ssr';
-import type { Icon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
+import { ListChecks, ChatCircleDots } from '@phosphor-icons/react/dist/ssr';
+import { CanvasIcon, GoogleIcon } from '@/components/icons/BrandIcons';
 import { Eyebrow } from '../Eyebrow';
 import { FloatingUiCard } from '../editorial/FloatingUiCard';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
 const CELLS: Array<{
   id: string;
-  icon: Icon;
+  icon: ReactNode;
   title: string;
   body: string;
   rows: Array<{ label: string; meta: string }>;
@@ -19,7 +15,7 @@ const CELLS: Array<{
 }> = [
   {
     id: 'sources',
-    icon: GraduationCap,
+    icon: <CanvasIcon className="h-[18px] w-[18px]" />,
     title: 'Canvas deadlines land by themselves',
     body: 'Connect once. Assignments flow onto your board with dates attached.',
     rows: [
@@ -30,7 +26,7 @@ const CELLS: Array<{
   },
   {
     id: 'tasks',
-    icon: ListChecks,
+    icon: <ListChecks size={18} weight="regular" />,
     title: 'A backlog that stays honest',
     body: 'Overdue work quietly rolls forward instead of piling up.',
     rows: [
@@ -41,7 +37,7 @@ const CELLS: Array<{
   },
   {
     id: 'calendar',
-    icon: CalendarBlank,
+    icon: <GoogleIcon className="h-[18px] w-[18px]" />,
     title: 'The whole week at once',
     body: 'Google Calendar syncs in. Planevo never schedules over it.',
     rows: [
@@ -51,13 +47,13 @@ const CELLS: Array<{
     offset: 'lg:translate-y-4',
   },
   {
-    id: 'notes',
-    icon: Notebook,
-    title: 'Notes tied to your day',
-    body: 'Notebooks next to your tasks — flashcards in a tap.',
+    id: 'bruno',
+    icon: <ChatCircleDots size={18} weight="regular" />,
+    title: 'Ask Bruno — he proposes, you approve',
+    body: 'Move tasks, fix your day, or draft notes in chat. Nothing changes until you say yes.',
     rows: [
-      { label: 'Lab report outline', meta: 'Linked · Thu' },
-      { label: 'Key facts → flashcards', meta: '12 cards' },
+      { label: 'Reschedule chem lab prep', meta: 'Proposed' },
+      { label: 'Repair afternoon plan', meta: '3 steps' },
     ],
     offset: 'lg:-translate-y-6',
   },
@@ -74,12 +70,12 @@ export function FeatureBento() {
           </h2>
         </div>
         <div className="grid gap-6 sm:grid-cols-2">
-          {CELLS.map(({ id, icon: CellIcon, title, body, rows, offset }, i) => (
+          {CELLS.map(({ id, icon, title, body, rows, offset }, i) => (
             <div key={id} className={offset}>
               <FloatingUiCard variant="dark" rotate={i % 2 === 0 ? -0.5 : 0.5}>
                 <div className="flex flex-col gap-4">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-ocean-soft)] text-[var(--color-ocean)]">
-                    <CellIcon size={22} weight="duotone" />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-paper)] text-[var(--color-ocean)]">
+                    {icon}
                   </span>
                   <div className="flex flex-col gap-1.5">
                     <h3 className="font-serif text-[22px] leading-snug tracking-tight text-[var(--color-paper)]">

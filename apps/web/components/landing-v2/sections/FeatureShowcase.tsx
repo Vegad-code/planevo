@@ -1,5 +1,10 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { HiggsfieldBlurBg } from '@/components/marketing/HiggsfieldBlurBg';
+import {
+  MARKETING_BLUR_IMAGES,
+  type MarketingBlurKey,
+} from '@/lib/marketing/assets';
 import { Eyebrow } from '../Eyebrow';
 import { FloatingUiCard } from '../editorial/FloatingUiCard';
 import { HandwrittenUnderline } from '../editorial/HandwrittenUnderline';
@@ -14,6 +19,7 @@ export function FeatureShowcase({
   learnMoreHref,
   reverse = false,
   highlightHeadline = false,
+  blurSrc,
   children,
 }: {
   id: string;
@@ -23,8 +29,21 @@ export function FeatureShowcase({
   learnMoreHref?: string;
   reverse?: boolean;
   highlightHeadline?: boolean;
+  blurSrc?: MarketingBlurKey;
   children: React.ReactNode;
 }) {
+  const demo = blurSrc ? (
+    <HiggsfieldBlurBg src={MARKETING_BLUR_IMAGES[blurSrc]} variant="dark" className="min-h-0">
+      <div className="rounded-[1.25rem] bg-[var(--color-paper)] p-4 text-[var(--color-ink)] sm:p-6">
+        {children}
+      </div>
+    </HiggsfieldBlurBg>
+  ) : (
+    <div className="rounded-[1.25rem] bg-[var(--color-paper)] p-4 text-[var(--color-ink)] sm:p-6">
+      {children}
+    </div>
+  );
+
   return (
     <EditorialSection
       id={id}
@@ -61,9 +80,7 @@ export function FeatureShowcase({
 
         <div className={cn('min-w-0', reverse ? 'lg:order-1' : 'lg:order-2')}>
           <FloatingUiCard variant="dark" parallax rotate={reverse ? -1 : 1}>
-            <div className="rounded-[1.25rem] bg-[var(--color-paper)] p-4 text-[var(--color-ink)] sm:p-6">
-              {children}
-            </div>
+            {demo}
           </FloatingUiCard>
         </div>
       </div>

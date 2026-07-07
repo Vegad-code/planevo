@@ -1,20 +1,25 @@
+import type { ComponentType } from 'react';
 import {
-  GraduationCap,
-  CalendarBlank,
-  Cube,
-  ChatCircle,
-  LineSegments,
-} from '@phosphor-icons/react/dist/ssr';
-import type { Icon } from '@phosphor-icons/react';
+  CanvasIcon,
+  GoogleIcon,
+  LinearIcon,
+  NotionIcon,
+  SlackIcon,
+} from '@/components/icons/BrandIcons';
+import { cn } from '@/lib/utils';
 import { EditorialSection } from '../editorial/EditorialSection';
 import { LogoMarquee } from '../editorial/LogoMarquee';
 
-const INTEGRATIONS: Array<{ name: string; icon: Icon }> = [
-  { name: 'Canvas', icon: GraduationCap },
-  { name: 'Google Calendar', icon: CalendarBlank },
-  { name: 'Notion', icon: Cube },
-  { name: 'Slack', icon: ChatCircle },
-  { name: 'Linear', icon: LineSegments },
+const INTEGRATIONS: Array<{
+  name: string;
+  Icon: ComponentType<{ className?: string }>;
+  iconClassName?: string;
+}> = [
+  { name: 'Canvas', Icon: CanvasIcon },
+  { name: 'Google Calendar', Icon: GoogleIcon },
+  { name: 'Notion', Icon: NotionIcon, iconClassName: 'text-[var(--color-paper)]' },
+  { name: 'Slack', Icon: SlackIcon },
+  { name: 'Linear', Icon: LinearIcon },
 ];
 
 export function ProofStrip() {
@@ -26,9 +31,9 @@ export function ProofStrip() {
         </p>
         <LogoMarquee
           className="w-full"
-          items={INTEGRATIONS.map(({ name, icon: BrandIcon }) => (
+          items={INTEGRATIONS.map(({ name, Icon, iconClassName }) => (
             <span key={name} className="flex items-center gap-2">
-              <BrandIcon size={20} weight="duotone" aria-hidden />
+              <Icon className={cn('h-5 w-5', iconClassName)} aria-hidden />
               <span className="text-[15px] font-medium text-[var(--color-paper)]">{name}</span>
             </span>
           ))}

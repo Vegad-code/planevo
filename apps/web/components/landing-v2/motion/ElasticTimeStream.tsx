@@ -15,12 +15,10 @@ import {
 } from '@/components/landing-v2/demo/fixtures';
 import { cn } from '@/lib/utils';
 import {
-  easeInQuad,
   easeOutCubic,
   easeOutQuint,
   HERO_VACUUM_PHASES,
   lerp,
-  pillDepositStart,
   pillFocalX,
   PILL_FOCAL_Y,
   pillWindow,
@@ -53,14 +51,13 @@ function stackOffset(order: number, trackCount: number, gap: number): number {
 }
 
 function DualAxis({ smoothProgress }: { smoothProgress: MotionValue<number> }) {
-  const { organizeEnd, payoffEnd, depositStart, depositEnd } = HERO_VACUUM_PHASES;
+  const { organizeEnd, payoffEnd } = HERO_VACUUM_PHASES;
   const axisHeight = useTransform(smoothProgress, (p) => {
     if (p <= payoffEnd) {
       const t = Math.min(1, Math.max(0, (p - 0.5) / (payoffEnd - 0.5)));
       return `${lerp(50, 78, easeOutQuint(t))}%`;
     }
-    if (p <= depositStart) return '78%';
-    const fade = easeOutCubic((p - depositStart) / (depositEnd - depositStart));
+    const fade = easeOutCubic((p - payoffEnd) / (1 - payoffEnd));
     return `${lerp(78, 0, fade)}%`;
   });
   const axisOpacity = useTransform(smoothProgress, (p) => {
@@ -68,10 +65,9 @@ function DualAxis({ smoothProgress }: { smoothProgress: MotionValue<number> }) {
     if (p <= payoffEnd) {
       return lerp(0.4, 0.85, easeOutQuint((p - organizeEnd) / (payoffEnd - organizeEnd)));
     }
-    if (p <= depositStart) return 0.85;
-    return lerp(0.85, 0, easeOutCubic((p - depositStart) / (depositEnd - depositStart)));
+    return lerp(0.85, 0, easeOutCubic((p - payoffEnd) / (1 - payoffEnd)));
   });
-  const axisGlow = useTransform(smoothProgress, [organizeEnd, payoffEnd, depositStart], [0, 6, 0]);
+  const axisGlow = useTransform(smoothProgress, [organizeEnd, payoffEnd], [0, 6]);
 
   const leftGlow = useTransform(axisGlow, (g) =>
     g > 0 ? `0 0 ${g}px color-mix(in srgb, var(--color-ocean) 40%, transparent)` : 'none',
@@ -124,22 +120,6 @@ function VacuumPill({
       const t = easeOutQuint((progress - gatherEnd) / (organizeEnd - gatherEnd));
       return lerp(focalX, 0, t);
     }
-
-    const { releaseEnd, scatterEnd, depositEnd } = HERO_VACUUM_PHASES;
-    const depositStart = pillDepositStart(task);
-    if (progress <= depositStart) return 0;
-    if (progress <= releaseEnd) {
-      const t = easeOutCubic((progress - depositStart) / (releaseEnd - depositStart));
-      return lerp(0, task.scatterX * 0.25, t);
-    }
-    if (progress <= scatterEnd) {
-      const t = easeOutCubic((progress - releaseEnd) / (scatterEnd - releaseEnd));
-      return lerp(task.scatterX * 0.25, task.scatterX, t);
-    }
-    if (progress <= depositEnd) {
-      const t = easeInQuad((progress - scatterEnd) / (depositEnd - scatterEnd));
-      return lerp(task.scatterX, 0, t);
-    }
     return 0;
   });
 
@@ -156,20 +136,7 @@ function VacuumPill({
       const t = easeOutQuint((p - gatherEnd) / (organizeEnd - gatherEnd));
       return lerp(PILL_FOCAL_Y, settled, t);
     }
-
-    const { releaseEnd, scatterEnd, depositEnd } = HERO_VACUUM_PHASES;
-    const depositStart = pillDepositStart(task);
-    const liftY = settled - 14;
-    if (p <= depositStart) return settled;
-    if (p <= scatterEnd) {
-      const t = easeOutCubic((p - depositStart) / (scatterEnd - depositStart));
-      return lerp(settled, liftY, t);
-    }
-    if (p <= depositEnd) {
-      const t = easeInQuad((p - scatterEnd) / (depositEnd - scatterEnd));
-      return lerp(liftY, settled + task.depositY, t);
-    }
-    return settled + task.depositY;
+    return settled;
   });
 
   const rotate = useTransform(smoothProgress, (progress) => {
@@ -179,40 +146,28 @@ function VacuumPill({
       const t = easeOutQuint((progress - start) / (organizeEnd - start));
       return lerp(task.rotate, 0, t);
     }
-
-    const { scatterEnd, depositEnd } = HERO_VACUUM_PHASES;
-    const depositStart = pillDepositStart(task);
-    const targetRotate = task.rotate * 0.4;
-    if (progress <= depositStart) return 0;
-    if (progress <= scatterEnd) {
-      const t = easeOutCubic((progress - depositStart) / (scatterEnd - depositStart));
-      return lerp(0, targetRotate, t);
-    }
-    if (progress <= depositEnd) {
-      const t = easeInQuad((progress - scatterEnd) / (depositEnd - scatterEnd));
-      return lerp(targetRotate, targetRotate * 0.5, t);
-    }
-    return targetRotate * 0.5;
+    return 0;
   });
 
   const opacity = useTransform(smoothProgress, (progress) => {
-    const { start, gatherEnd } = window;
+    const { start, gatherEnd, organizeEnd } = window;
     if (progress <= start) return 0.38;
     if (progress <= gatherEnd) {
       const t = easeOutQuint((progress - start) / (gatherEnd - start));
       return lerp(0.38, 1, t);
     }
 
-    const { scatterEnd, depositEnd } = HERO_VACUUM_PHASES;
-    if (progress <= scatterEnd) return 1;
-    if (progress <= depositEnd) {
-      const t = easeInQuad((progress - scatterEnd) / (depositEnd - scatterEnd));
-      return lerp(1, 0, t);
+    const { payoffEnd } = HERO_VACUUM_PHASES;
+    if (progress <= organizeEnd) return 1;
+
+    const dissolveStart = organizeEnd + task.order * 0.015;
+    if (progress <= payoffEnd) {
+      const span = Math.max(0.001, payoffEnd - dissolveStart);
+      const t = easeOutCubic((progress - dissolveStart) / span);
+      return lerp(1, 0, Math.min(1, Math.max(0, t)));
     }
     return 0;
   });
-
-  const { organizeEnd: phaseOrganizeEnd, payoffEnd } = HERO_VACUUM_PHASES;
 
   const scale = useTransform(smoothProgress, (progress) => {
     const { start, organizeEnd } = window;
@@ -222,19 +177,12 @@ function VacuumPill({
       const t = easeOutQuint((progress - start) / (organizeEnd - start));
       base = lerp(0.78, 1, t);
     }
-    if (progress > phaseOrganizeEnd && progress <= payoffEnd) {
-      const mid = (phaseOrganizeEnd + payoffEnd) / 2;
-      if (progress <= mid) {
-        const t = easeOutQuint((progress - phaseOrganizeEnd) / (mid - phaseOrganizeEnd));
-        return base * lerp(1, 1.02, t);
-      }
-      const t = easeOutQuint((progress - mid) / (payoffEnd - mid));
-      return base * lerp(1.02, 1, t);
-    }
-    const { scatterEnd, depositEnd } = HERO_VACUUM_PHASES;
-    if (progress > scatterEnd && progress <= depositEnd) {
-      const t = easeInQuad((progress - scatterEnd) / (depositEnd - scatterEnd));
-      return base * lerp(1, 0.88, t);
+
+    const { payoffEnd } = HERO_VACUUM_PHASES;
+    if (progress > organizeEnd && progress <= payoffEnd) {
+      const dissolveStart = organizeEnd + task.order * 0.015;
+      const t = easeOutCubic((progress - dissolveStart) / Math.max(0.001, payoffEnd - dissolveStart));
+      return base * lerp(1, 0.9, Math.min(1, Math.max(0, t)));
     }
     return base;
   });

@@ -9,6 +9,7 @@ export function FeatureCapture() {
       headline="Type it, paste it, say it."
       body="Dump assignments, practices, promises, and half-remembered deadlines in one messy breath. Planevo turns it into real responsibilities with real dates — no setup, no forms, no re-typing."
       learnMoreHref="/signup"
+      blurSrc="capture"
     >
       <CaptureWaysDemo />
     </FeatureShowcase>

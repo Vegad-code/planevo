@@ -10,6 +10,7 @@ export function FeatureBoard() {
       body="Everything you're responsible for, sorted into Now, Today, and Due soon — one quiet, scannable list instead of five apps and a knot in your stomach."
       learnMoreHref="/signup"
       reverse
+      blurSrc="board"
     >
       <BoardDemoCard />
     </FeatureShowcase>

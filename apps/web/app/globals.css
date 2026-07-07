@@ -784,6 +784,36 @@ html.dark .glass-panel {
   animation: blink-cursor 0.8s steps(1) infinite;
 }
 
+@keyframes bruno-pro-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.bruno-pro-border {
+  background: linear-gradient(
+    120deg,
+    var(--color-honey-soft),
+    var(--color-honey),
+    var(--color-honey-deep),
+    var(--color-honey)
+  );
+  background-size: 220% 100%;
+  animation: bruno-pro-shimmer 4s ease-in-out infinite;
+}
+
+.bruno-pro-glow {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-honey) 35%, transparent),
+    0 8px 32px color-mix(in srgb, var(--color-honey) 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bruno-pro-border {
+    animation: none !important;
+    background-position: 50% 50%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bruno-host,
   .bruno-host.react,

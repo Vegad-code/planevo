@@ -1,50 +1,6 @@
 import Link from 'next/link';
-import { PlanevoLogo } from '@/components/PlanevoLogo';
-
-const FOOTER_COLUMNS: Array<{
-  title: string;
-  links: Array<{ label: string; href: string }>;
-}> = [
-  {
-    title: 'Product',
-    links: [
-      { label: 'Capture', href: '#capture' },
-      { label: 'Command board', href: '#board' },
-      { label: 'Plan my day', href: '#plan' },
-      { label: 'Bruno', href: '#bruno' },
-      { label: 'Pricing', href: '#pricing' },
-    ],
-  },
-  {
-    title: 'Integrations',
-    links: [
-      { label: 'Canvas LMS', href: '/signup' },
-      { label: 'Google Calendar', href: '/signup' },
-      { label: 'Tasks & notes', href: '/signup' },
-    ],
-  },
-  {
-    title: 'Account',
-    links: [
-      { label: 'Start free', href: '/signup' },
-      { label: 'Sign in', href: '/login' },
-      { label: 'For students', href: '/signup' },
-      { label: 'FAQ', href: '#faq' },
-    ],
-  },
-  {
-    title: 'Company',
-    links: [
-      { label: 'Privacy Policy', href: '/privacy' },
-      { label: 'Terms of Service', href: '/terms' },
-    ],
-  },
-];
-
-const LEGAL_LINKS = [
-  { label: 'Privacy Policy', href: '/privacy' },
-  { label: 'Terms of Use', href: '/terms' },
-];
+import { FOOTER_COLUMNS, LEGAL_LINKS } from '@/lib/marketing/nav';
+import { FooterBrandFade } from './FooterBrandFade';
 
 export function LandingFooter() {
   const year = new Date().getFullYear();
@@ -103,20 +59,7 @@ export function LandingFooter() {
         </div>
       </div>
 
-      <div className="overflow-hidden px-4 pb-16 pt-12 sm:px-8 sm:pb-24 sm:pt-16 lg:px-12 xl:px-16">
-        <div className="flex w-full items-center justify-center gap-4 sm:gap-6">
-          <PlanevoLogo
-            size={48}
-            className="shrink-0 text-[var(--color-ink)] sm:!h-[56px] sm:!w-[67px]"
-          />
-          <span
-            aria-hidden
-            className="font-serif text-[clamp(4rem,18vw,11rem)] font-semibold leading-none tracking-tight text-[var(--color-ink)]"
-          >
-            Planevo
-          </span>
-        </div>
-      </div>
+      <FooterBrandFade />
     </footer>
   );
 }

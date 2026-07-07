@@ -51,24 +51,24 @@ export function GlassNav() {
   }, [mobileOpen]);
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 pt-4">
-      <div className="pointer-events-auto mx-auto flex w-[min(100%,calc(100%-2rem))] max-w-4xl items-center justify-between gap-4 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-2 shadow-[0_8px_32px_rgba(20,20,20,0.06)] sm:px-5">
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-4 pt-3 sm:px-6">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-7xl items-center justify-between gap-4 rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-2.5 shadow-[0_4px_24px_rgba(20,20,20,0.06)] sm:px-6 sm:py-3">
         <Link
           href="/"
-          className="flex items-center gap-2 text-[var(--color-ink)]"
+          className="flex shrink-0 items-center gap-2.5 text-[var(--color-ink)]"
         >
-          <PlanevoLogo size={22} />
-          <PlanevoWordmark />
+          <PlanevoLogo size={24} />
+          <PlanevoWordmark variant="full" size="sm" />
         </Link>
 
-        <nav className="hidden items-center justify-center gap-6 md:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-7 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.name}
               href={link.href}
               aria-current={activeId === link.href.slice(1) ? 'true' : undefined}
               className={cn(
-                'text-[13px] font-medium uppercase tracking-[0.12em] transition-colors',
+                'text-[14px] font-medium transition-colors',
                 activeId === link.href.slice(1)
                   ? 'text-[var(--color-ink)]'
                   : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]',
@@ -79,10 +79,14 @@ export function GlassNav() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <span
+            aria-hidden
+            className="hidden h-5 w-px bg-[var(--color-line-strong)] sm:block"
+          />
           <Link
             href="/login"
-            className="hidden text-[13px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] sm:inline"
+            className="hidden text-[14px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] sm:inline"
           >
             Sign in
           </Link>
@@ -109,7 +113,7 @@ export function GlassNav() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="pointer-events-auto mx-auto mt-2 w-[min(100%,calc(100%-2rem))] max-w-md overflow-hidden rounded-3xl border border-[var(--color-line)] bg-[var(--color-paper)] p-5 shadow-xl md:hidden"
+            className="pointer-events-auto mx-auto mt-2 w-full max-w-7xl overflow-hidden rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-5 shadow-xl md:hidden"
           >
             <div className="flex flex-col gap-4">
               {NAV_LINKS.map((link) => (

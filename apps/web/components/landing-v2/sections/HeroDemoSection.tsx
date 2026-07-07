@@ -21,6 +21,9 @@ export function HeroDemoSection() {
       id="capture"
       className="relative z-10 bg-[var(--color-paper)] px-6 pb-20 pt-10 sm:pb-28 sm:pt-12"
     >
+      <p className="mx-auto mb-4 max-w-4xl text-center font-mono text-[10px] uppercase tracking-widest text-[var(--color-ink-soft)]">
+        Capture → board → Bruno proposes changes you approve
+      </p>
       <div className="relative mx-auto max-w-4xl">
         <FloatingUiCard variant="cream" parallax={!reduce} className="p-4 sm:p-6">
           <CommandHeroDemo startWhen={inView} />

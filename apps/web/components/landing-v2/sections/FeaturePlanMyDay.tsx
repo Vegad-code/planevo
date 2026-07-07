@@ -8,9 +8,10 @@ export function FeaturePlanMyDay() {
       id="plan"
       eyebrow="Plan my day · Availability engine"
       headline="Planned into your real free time."
-      body="One click runs your plate through your actual calendar. Planevo finds the gaps between classes, practice, and commitments — and places the work there. When the day changes, it adapts."
+      body="One click runs your plate through your actual calendar. Planevo finds the gaps between classes, practice, and commitments — and places the work there. When the day changes, Bruno can help repair it — always with your approval."
       learnMoreHref="/signup"
       highlightHeadline
+      blurSrc="plan"
     >
       <div className="mx-auto max-w-sm">
         <div className="mb-3 flex items-center justify-center gap-2">

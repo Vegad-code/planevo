@@ -190,12 +190,12 @@ function SignupForm() {
                 />
                 <label htmlFor="terms" className="text-sm font-medium text-[var(--color-ink-soft)] select-none">
                   I agree to the{" "}
-                  <Link href="#" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
-                    Terms
+                  <Link href="/terms" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
+                    Terms of Service
                   </Link>{" "}
                   and{" "}
-                  <Link href="#" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
-                    Conditions
+                  <Link href="/privacy" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
+                    Privacy Policy
                   </Link>
                 </label>
               </div>
