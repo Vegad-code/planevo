@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { checkIpRateLimit } from '@/lib/auth/ip-rate-limit';
+
+// Per-IP limit to blunt token-enumeration and DB-load abuse of this
+// unauthenticated endpoint (auth is the opaque webhook token in the body).
+const N8N_WEBHOOK_RATE_LIMIT = {
+  bucket: 'integrations:n8n-webhook',
+  maxAttempts: 60,
+  windowSeconds: 60,
+} as const;
 
 const calendarEventDataSchema = z.object({
   title: z.string().trim().min(1).max(500),
@@ -20,6 +29,19 @@ const eventSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const rateLimit = await checkIpRateLimit(req, N8N_WEBHOOK_RATE_LIMIT);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        {
+          status: 429,
+          headers: rateLimit.retryAfterSeconds
+            ? { 'Retry-After': String(rateLimit.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     const body = await req.json();
     const result = eventSchema.safeParse(body);
 

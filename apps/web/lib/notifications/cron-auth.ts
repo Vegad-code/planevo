@@ -1,8 +1,16 @@
 import { NextRequest } from 'next/server';
 
+import { secureCompareString } from '@/lib/auth/secure-compare';
+
 export function isCronAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
-  return !!cronSecret && request.headers.get('authorization') === `Bearer ${cronSecret}`;
+  if (!cronSecret) return false;
+
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return false;
+
+  // Constant-time comparison to avoid leaking CRON_SECRET via timing.
+  return secureCompareString(authHeader.slice(7), cronSecret);
 }
 
 export function getCronConfigStatus() {

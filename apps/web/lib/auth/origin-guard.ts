@@ -1,5 +1,14 @@
 import { NextRequest } from 'next/server';
 
+import { secureCompareString } from '@/lib/auth/secure-compare';
+
+/** Constant-time check for `Authorization: Bearer <CRON_SECRET>`. */
+function isCronSecretAuthHeader(authHeader: string | null): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || !authHeader?.startsWith('Bearer ')) return false;
+  return secureCompareString(authHeader.slice(7), cronSecret);
+}
+
 /**
  * Validates that an incoming request originates from an allowed domain.
  * Checks the Origin header first, then falls back to the Referer header.
@@ -59,8 +68,7 @@ export function hasBearerToken(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) return false;
   // Exclude cron tokens
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return false;
+  if (isCronSecretAuthHeader(authHeader)) return false;
   return true;
 }
 
@@ -69,12 +77,8 @@ export function hasBearerToken(request: NextRequest): boolean {
  * Use this for cron-triggered endpoints that need to accept server-to-server calls.
  */
 export function isAllowedOriginOrCron(request: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader === `Bearer ${cronSecret}`) {
-      return true;
-    }
+  if (isCronSecretAuthHeader(request.headers.get('authorization'))) {
+    return true;
   }
 
   return isAllowedOrigin(request);

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { secureCompareString } from '@/lib/auth/secure-compare';
 
 export interface AuthUser {
   id: string;
@@ -43,7 +44,7 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthRe
 
     // Skip if token matches CRON_SECRET — that's not a user token
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && token === cronSecret) {
+    if (cronSecret && secureCompareString(token, cronSecret)) {
       return { user: null, error: 'Cron token is not a user token', authMethod: null };
     }
 
