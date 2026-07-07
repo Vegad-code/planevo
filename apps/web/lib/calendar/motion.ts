@@ -1,3 +1,10 @@
+/** Hero landing pill spring — matches Structured-style snappy slot drop. */
+export const HERO_SLOT_SPRING = {
+  stiffness: 500,
+  damping: 24,
+  mass: 0.75,
+} as const;
+
 export const MOTION = {
   // Card appearing on timeline (like Structured's task card entry)
   cardEnter: {

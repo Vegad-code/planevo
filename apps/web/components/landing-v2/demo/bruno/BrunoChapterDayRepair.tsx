@@ -55,7 +55,7 @@ export function BrunoChapterDayRepairInView() {
       >
         {showPlan && (
           <BrunoProposalCard
-            intro="Here\u2019s how I\u2019d fix your afternoon — all at once?"
+            intro="Here's how I'd fix your afternoon — all at once?"
             title="Repair afternoon"
             meta={`${scenario.repairSteps.length} steps`}
             icon={ListChecks}

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { List, X } from '@phosphor-icons/react';
 import { PlanevoLogo } from '@/components/PlanevoLogo';
 import { PlanevoWordmark } from '@/components/PlanevoWordmark';
+import { GlassSignInButton } from '@/components/landing-v2/editorial/GlassSignInButton';
 import { OceanPillButton } from '@/components/landing-v2/editorial/OceanPillButton';
 import { MarketingDropdown } from '@/components/marketing/MarketingDropdown';
 import {
@@ -38,67 +39,64 @@ export function MarketingMegaNav() {
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pt-2 sm:px-5">
-      <div className="pointer-events-auto mx-auto flex h-10 w-full max-w-5xl items-center justify-between gap-3 rounded-full border border-[var(--color-line)]/80 bg-[var(--color-paper)]/92 px-3 shadow-[0_2px_16px_rgba(20,20,20,0.05)] backdrop-blur-xl sm:h-11 sm:px-4">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-1.5 text-[var(--color-ink)]"
-        >
-          <PlanevoLogo size={16} />
-          <PlanevoWordmark variant="full" size="sm" className="text-[16px]" />
-        </Link>
-
-        <nav className="hidden flex-1 items-center justify-center gap-3 lg:flex lg:gap-4">
-          <MarketingDropdown
-            dropdown={PRODUCT_DROPDOWN}
-            isActive={pathname === '/features' || pathname === '/pricing'}
-          />
-          {ROUTE_NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              aria-current={routeActive(link.href) ? 'page' : undefined}
-              className={cn(
-                'px-0.5 text-[12px] font-medium transition-colors',
-                routeActive(link.href)
-                  ? 'text-[var(--color-ink)]'
-                  : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]',
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
-          <MarketingDropdown dropdown={COMPANY_DROPDOWN} isActive={pathname === '/about'} />
-        </nav>
-
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          <span
-            aria-hidden
-            className="hidden h-4 w-px bg-[var(--color-line-strong)] sm:block"
-          />
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-4 pt-3 sm:px-6">
+      <div className="pointer-events-auto glass-panel mx-auto w-full max-w-6xl rounded-xl">
+        <div className="flex h-12 items-center justify-between gap-4 px-4 sm:h-14 sm:px-5 lg:px-6">
           <Link
-            href="/login"
-            className="hidden text-[12px] font-medium text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] sm:inline"
+            href="/"
+            className="flex shrink-0 items-center gap-2 text-[var(--color-ink)]"
           >
-            Sign in
+            <PlanevoLogo size={20} />
+            <PlanevoWordmark variant="full" size="sm" className="text-[17px]" />
           </Link>
-          <OceanPillButton
-            href="/signup"
-            showArrow={false}
-            className="hidden px-3 py-1 text-[11px] font-semibold sm:inline-flex"
-          >
-            Start free
-          </OceanPillButton>
 
-          <button
-            type="button"
-            className="p-1 text-[var(--color-ink)] lg:hidden"
-            onClick={() => setMobileOpen((open) => !open)}
-            aria-label="Toggle menu"
-            aria-expanded={mobileOpen}
-          >
-            {mobileOpen ? <X size={20} weight="bold" /> : <List size={20} weight="bold" />}
-          </button>
+          <nav className="hidden flex-1 items-center justify-center gap-5 lg:flex lg:gap-6">
+            <MarketingDropdown
+              dropdown={PRODUCT_DROPDOWN}
+              isActive={pathname === '/features' || pathname === '/pricing'}
+            />
+            {ROUTE_NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={routeActive(link.href) ? 'page' : undefined}
+                className={cn(
+                  'text-[14px] font-medium transition-colors',
+                  routeActive(link.href)
+                    ? 'text-[var(--color-ink)]'
+                    : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]',
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
+            <MarketingDropdown dropdown={COMPANY_DROPDOWN} isActive={pathname === '/about'} />
+          </nav>
+
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span
+              aria-hidden
+              className="hidden h-5 w-px bg-[var(--color-line-strong)] sm:block"
+            />
+            <GlassSignInButton href="/login" className="hidden sm:inline-flex" />
+            <OceanPillButton
+              href="/signup"
+              showArrow={false}
+              className="hidden px-4 py-1.5 text-[13px] font-semibold sm:inline-flex"
+            >
+              Start free
+            </OceanPillButton>
+
+            <button
+              type="button"
+              className="p-1.5 text-[var(--color-ink)] lg:hidden"
+              onClick={() => setMobileOpen((open) => !open)}
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -109,9 +107,9 @@ export function MarketingMegaNav() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="pointer-events-auto mx-auto mt-1.5 max-h-[min(80vh,640px)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)]/98 p-4 shadow-xl backdrop-blur-xl lg:hidden"
+            className="pointer-events-auto glass-panel mx-auto mt-2 w-full max-w-6xl overflow-hidden rounded-xl lg:hidden"
           >
-            <div className="flex flex-col gap-4">
+            <div className="flex max-h-[min(80vh,640px)] flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-5">
               <div>
                 <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-soft)]">
                   {PRODUCT_DROPDOWN.eyebrow}
@@ -153,13 +151,11 @@ export function MarketingMegaNav() {
                 ))}
               </div>
               <hr className="border-[var(--color-line)]" />
-              <Link
+              <GlassSignInButton
                 href="/login"
+                className="w-full justify-center py-2"
                 onClick={() => setMobileOpen(false)}
-                className="text-[14px] font-medium text-[var(--color-ink-soft)]"
-              >
-                Sign in
-              </Link>
+              />
               <OceanPillButton
                 href="/signup"
                 showArrow={false}

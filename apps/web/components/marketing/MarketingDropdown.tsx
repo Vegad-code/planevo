@@ -120,7 +120,7 @@ export function MarketingDropdown({
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'relative z-10 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[12px] font-medium transition-colors',
+          'relative z-10 inline-flex items-center gap-1 px-1.5 py-0.5 text-[14px] font-medium transition-colors',
           open
             ? 'rounded-t-xl border border-b-0 border-[var(--color-line)] bg-[var(--color-paper)]/98 px-4 py-1 text-[var(--color-ink)]'
             : isActive
@@ -130,7 +130,7 @@ export function MarketingDropdown({
       >
         {dropdown.label}
         <CaretDown
-          size={10}
+          size={12}
           weight="bold"
           className={cn('transition-transform duration-200', open && 'rotate-180')}
         />

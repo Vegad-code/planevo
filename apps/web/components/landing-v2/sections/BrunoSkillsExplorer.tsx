@@ -17,11 +17,12 @@ import {
   StaticSkillGrid,
 } from '../motion/BrunoSkillsOrbit';
 import { SkillLaunchOverlay } from '../motion/SkillLaunchOverlay';
+import { ProIntegrationSwarm } from '../motion/ProIntegrationSwarm';
 import { useSkillLaunchAnimation } from '../motion/useSkillLaunchAnimation';
 import { cn } from '@/lib/utils';
 
 const USER_BUBBLE_LAYOUT_ID = 'bruno-skill-launch';
-const PRO_SPOTLIGHT_MS = 2600;
+const PRO_SPOTLIGHT_MS = 3200;
 
 export function BrunoSkillsExplorer() {
   const reduce = useReducedMotion();
@@ -36,6 +37,9 @@ export function BrunoSkillsExplorer() {
   const [isLg, setIsLg] = useState(false);
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const demoPanelRef = useRef<HTMLDivElement>(null);
+  const [proSwarmRects, setProSwarmRects] = useState<{ from: DOMRect; to: DOMRect } | null>(null);
+  const [demoRect, setDemoRect] = useState<DOMRect | null>(null);
   const proSpotlightShownRef = useRef(false);
   const recessTimerRef = useRef<number | null>(null);
   const [orbitRecessed, setOrbitRecessed] = useState(false);
@@ -58,7 +62,7 @@ export function BrunoSkillsExplorer() {
   const handleLanded = useCallback((skill: BrunoSkillKey) => {
     setActiveSkill(skill);
     setDemoKey((k) => k + 1);
-    setShowLayoutMorph(true);
+    setShowLayoutMorph(false);
     setHasInteracted(true);
   }, []);
 
@@ -119,6 +123,30 @@ export function BrunoSkillsExplorer() {
   }, [reduce, hasInteracted]);
 
   useEffect(() => {
+    if (phase !== 'launching') return;
+    setDemoRect(demoPanelRef.current?.getBoundingClientRect() ?? null);
+  }, [phase, launchId]);
+
+  useEffect(() => {
+    if (!proSpotlightActive || reduce) {
+      setProSwarmRects(null);
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const card = stageRef.current?.querySelector<HTMLElement>('[data-skill-key="integrations"]');
+      const demo = demoPanelRef.current;
+      if (!card || !demo) return;
+      setProSwarmRects({
+        from: card.getBoundingClientRect(),
+        to: demo.getBoundingClientRect(),
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [proSpotlightActive, reduce]);
+
+  useEffect(() => {
     if (phase !== 'launching' || !fromRect) return;
 
     const frame = requestAnimationFrame(() => {
@@ -158,7 +186,13 @@ export function BrunoSkillsExplorer() {
   useEffect(() => () => clearRecessTimer(), [clearRecessTimer]);
 
   const demoPanel = (
-    <div className="relative rounded-[28px] border border-[var(--color-line)]/70 bg-[var(--color-surface-raised)]/78 p-4 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-md sm:p-6">
+    <div
+      ref={demoPanelRef}
+      className={cn(
+        'relative rounded-[28px] border border-[var(--color-line)]/70 bg-[var(--color-surface-raised)]/78 p-4 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-md transition-opacity duration-300 sm:p-6',
+        isLaunching && 'opacity-35',
+      )}
+    >
       <div
         ref={landingRef}
         data-skill-landing
@@ -177,15 +211,6 @@ export function BrunoSkillsExplorer() {
   return (
     <LayoutGroup>
       <div className="flex flex-col gap-6">
-        <p
-          className={cn(
-            'text-center font-mono text-[10px] uppercase tracking-widest transition-colors',
-            hasInteracted ? 'text-[var(--color-paper)]/50' : 'text-[var(--color-honey)]',
-          )}
-        >
-          {hasInteracted ? 'Replay any skill around the demo' : 'Tap a skill to watch Bruno work'}
-        </p>
-
         <div className="relative">
           {useOrbitLayout ? (
             <BrunoSkillsOrbit
@@ -249,12 +274,21 @@ export function BrunoSkillsExplorer() {
         </div>
       </div>
 
+      {proSwarmRects && (
+        <ProIntegrationSwarm
+          fromRect={proSwarmRects.from}
+          toRect={proSwarmRects.to}
+          variant="spotlight"
+        />
+      )}
+
       {phase === 'launching' && launchSkill && fromRect && (
         <SkillLaunchOverlay
           key={launchId}
           skill={launchSkill}
           fromRect={fromRect}
           toRect={toRect}
+          demoRect={demoRect}
           mobile={isMobile}
           onComplete={handleLaunchComplete}
         />

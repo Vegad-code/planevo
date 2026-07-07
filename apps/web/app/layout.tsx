@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import Script from "next/script";
 import { Geist, Geist_Mono, Instrument_Serif, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
-import { appearanceNoFlashScript } from "@/lib/appearance/no-flash-script";
+import { AppearanceNoFlashScript } from "@/components/appearance/AppearanceNoFlashScript";
+import { PUBLIC_APPEARANCE } from "@/lib/appearance/public-route";
 import "./globals.css";
 
 const instrumentSerif = Instrument_Serif({
@@ -72,14 +72,12 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} h-full antialiased`}
       data-public={isPublic ? "true" : undefined}
+      data-accent={isPublic ? PUBLIC_APPEARANCE.accent : "amber"}
+      data-color-theme={isPublic ? PUBLIC_APPEARANCE.colorTheme : "daylight"}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Script
-          id="appearance-no-flash"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: appearanceNoFlashScript }}
-        />
+        <AppearanceNoFlashScript />
         <ThemeProvider          attribute="class"
           defaultTheme="system"
           themes={["light", "dark"]}

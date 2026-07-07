@@ -34,18 +34,24 @@ export function DotGridPage({
   );
 }
 
-/** Auth split-panel right column — Bruno portrait on warm cream, with soft glow accents. */
-export function AuthPanelBackdrop({ className }: { className?: string }) {
+/** Auth split-panel right column — immersive Bruno scene on warm cream. */
+export function AuthPanelBackdrop({
+  className,
+  imageSrc = '/auth/auth-hero.png',
+}: {
+  className?: string;
+  imageSrc?: string;
+}) {
   return (
     <div
       className={cn(
-        'relative hidden overflow-hidden bg-[var(--color-cream-2)] lg:block',
+        'relative hidden overflow-hidden bg-gradient-to-br from-[var(--color-cream-2)] to-[#F5E6D8]/40 lg:block',
         className,
       )}
     >
       <Image
-        src="/planevo_login_hero.png"
-        alt="Bruno, your Planevo companion"
+        src={imageSrc}
+        alt="Bruno, your Planevo companion, in a cozy study nook"
         fill
         priority
         className="object-cover object-center"
@@ -53,7 +59,11 @@ export function AuthPanelBackdrop({ className }: { className?: string }) {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--color-ink)]/5 to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[var(--color-paper)]/25 via-transparent to-transparent"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--color-ink)]/10 via-transparent to-[#F5E6D8]/25"
       />
       <div
         aria-hidden

@@ -17,7 +17,7 @@ interface BrunoProposalCardProps {
 }
 
 export function BrunoProposalCard({
-  intro = 'Here\u2019s what I found — want me to do it?',
+  intro = "Here's what I found — want me to do it?",
   title,
   meta,
   icon: IconComponent,

@@ -1,4 +1,5 @@
 import type { Icon } from '@phosphor-icons/react';
+import { BrunoBrainIcon } from '@/components/icons/BrunoBrainIcon';
 import {
   CalendarDots,
   Command,
@@ -10,19 +11,20 @@ import {
   Question,
   Scales,
   ShieldCheck,
-  Sparkle,
   SquaresFour,
   Waveform,
 } from '@phosphor-icons/react';
 
-/** Client-side Phosphor icon map for marketing nav dropdowns */
+type CustomNavIcon = typeof BrunoBrainIcon;
+
+/** Client-side icon map for marketing nav dropdowns */
 export const NAV_ICONS = {
   SquaresFour,
   Command,
   CalendarDots,
   ListChecks,
   Notebook,
-  Sparkle,
+  BrunoBrain: BrunoBrainIcon,
   CurrencyCircleDollar,
   Question,
   Waveform,
@@ -30,6 +32,6 @@ export const NAV_ICONS = {
   Cookie,
   ShieldCheck,
   Scales,
-} as const satisfies Record<string, Icon>;
+} as const satisfies Record<string, Icon | CustomNavIcon>;
 
 export type NavIconKey = keyof typeof NAV_ICONS;

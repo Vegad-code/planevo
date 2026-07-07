@@ -18,7 +18,7 @@ export function MarketingPageShell({
   return (
     <DotGridPage className={cn('selection:bg-[var(--color-surface-muted)]', className)}>
       <MarketingMegaNav />
-      <main className={cn(padMain && 'pt-[44px] sm:pt-[48px]')}>{children}</main>
+      <main className={cn(padMain && 'pt-[60px] sm:pt-[68px]')}>{children}</main>
       {showCta ? <FooterCinematicCta /> : null}
       <LandingFooter />
     </DotGridPage>

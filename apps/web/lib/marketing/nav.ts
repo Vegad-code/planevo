@@ -53,7 +53,7 @@ export const PRODUCT_DROPDOWN: NavDropdown = {
       label: 'Bruno',
       href: '/features#bruno',
       description: 'Your AI companion with approval',
-      icon: 'Sparkle',
+      icon: 'BrunoBrain',
     },
     {
       label: 'How it works',

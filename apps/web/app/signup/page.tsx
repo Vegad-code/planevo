@@ -5,11 +5,28 @@ import { createClient } from "@/lib/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeClosed, CaretLeft } from "@phosphor-icons/react";
 import Link from "next/link";
-import { AuthPanelBackdrop, DotGridLayer } from "@/components/landing-v2/DotGridSurface";
-import { PlanevoLogo } from "@/components/PlanevoLogo";
-import { PlanevoWordmark } from "@/components/PlanevoWordmark";
 import { useSearchParams } from "next/navigation";
 import { posthog } from "@/lib/posthog";
+import {
+  SignupConversionShell,
+  AuthField,
+  AuthInput,
+  AuthPrimaryButton,
+  AuthGoogleButton,
+  AuthErrorBanner,
+  AuthFooterLink,
+  AuthDivider,
+  AuthTrustLine,
+  authLinkClass,
+  authHeadlineClass,
+  authSubtitleClass,
+} from "@/components/auth";
+
+type SignupStep = "email" | "details";
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 export default function SignupPage() {
   return (
@@ -24,6 +41,7 @@ export default function SignupPage() {
 }
 
 function SignupForm() {
+  const [step, setStep] = useState<SignupStep>("email");
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -70,6 +88,7 @@ function SignupForm() {
 
   async function handleGoogleSignup() {
     setLoading(true);
+    setError(null);
     posthog.capture('signup_started', { method: 'google' });
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -87,167 +106,205 @@ function SignupForm() {
     }
   }
 
-  return (
-    <div className="marketing-scope relative min-h-screen grid bg-[var(--color-paper)] font-sans text-[var(--color-ink)] lg:grid-cols-2">
-      <DotGridLayer />
-      {/* Left Column: Form */}
-      <div className="relative flex flex-col justify-center px-8 py-12 sm:px-16 md:px-24 lg:px-24 xl:px-32">
-        <div className="w-full max-w-[420px] mx-auto">
-          {/* Back to home */}
-          <Link 
-            href="/" 
-            className="inline-flex items-center text-sm font-medium text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] mb-12 transition-colors group"
-          >
-            <CaretLeft weight="bold" className="mr-1 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            Back to Home
-          </Link>
+  function handleContinueToDetails(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address to continue.');
+      return;
+    }
+    setStep('details');
+  }
 
-          <div className="mb-10">
-            <div className="mb-8 flex items-center gap-3">
-              <PlanevoLogo size={40} gapColor="var(--color-paper)" />
-              <PlanevoWordmark size="lg" />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight text-[var(--color-ink)] mb-2">Create an account</h1>
-            <p className="text-[var(--color-ink-soft)]">Welcome! Let&apos;s get you set up.</p>
-          </div>
-          
-          {success ? (
-            <div className="text-center py-10 px-6 rounded-2xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] shadow-sm">
-              <div className="text-5xl mb-6">✉️</div>
-              <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-3 font-serif">Check your email</h2>
-              <p className="text-[var(--color-ink-soft)] text-base">
-                We sent a confirmation link to <strong className="text-[var(--color-bruno)] font-semibold">{email}</strong>.
-                Click it to activate your account.
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSignup} className="space-y-6">
-              {error && (
-                <div className="p-4 rounded-xl bg-red-50 text-red-600 text-sm font-medium">
-                  {error}
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <label htmlFor="name" className="block text-sm font-semibold text-[var(--color-ink)]">Full name</label>
-                <input 
-                  id="name" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  placeholder="Your name"
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] focus:outline-none focus:ring-2 focus:ring-[var(--color-honey)] focus:border-transparent transition-all placeholder:text-[var(--color-ink-faint)]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-semibold text-[var(--color-ink)]">Email address</label>
-                <input 
-                  id="email" 
-                  type="email" 
-                  placeholder="you@example.com" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] focus:outline-none focus:ring-2 focus:ring-[var(--color-honey)] focus:border-transparent transition-all placeholder:text-[var(--color-ink-faint)]"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-sm font-semibold text-[var(--color-ink)]">Password</label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    className="w-full px-4 py-3 rounded-xl bg-[var(--color-cream)] border border-[var(--color-cream-2)] focus:outline-none focus:ring-2 focus:ring-[var(--color-honey)] focus:border-transparent transition-all placeholder:text-[var(--color-ink-faint)]"
-                    placeholder="At least 6 characters"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    className="absolute inset-y-0 right-0 flex h-full w-12 items-center justify-center text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] outline-none"
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    suppressHydrationWarning
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? (
-                      <EyeClosed weight="bold" size={20} aria-hidden="true" />
-                    ) : (
-                      <Eye weight="bold" size={20} aria-hidden="true" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-2 pt-1">
-                <Checkbox 
-                  id="terms" 
-                  required
-                  className="border-[var(--color-ink-soft)] data-[state=checked]:bg-[var(--color-ink)] data-[state=checked]:text-white rounded-[4px]" 
-                />
-                <label htmlFor="terms" className="text-sm font-medium text-[var(--color-ink-soft)] select-none">
-                  I agree to the{" "}
-                  <Link href="/terms" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
-                    Privacy Policy
-                  </Link>
-                </label>
-              </div>
-
-              <div className="pt-4 space-y-4">
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="w-full py-3.5 px-4 rounded-xl bg-[var(--color-ink)] hover:bg-[var(--color-ink-2)] text-[var(--color-paper)] font-semibold text-base transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-ink)] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Creating account...' : 'Create free account'}
-                </button>
-                
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-[var(--color-line-strong)]" />
-                  </div>
-                  <div className="relative flex justify-center text-xs font-bold">
-                    <span className="px-4 bg-[var(--color-paper)] text-[var(--color-ink-faint)] uppercase tracking-widest">or</span>
-                  </div>
-                </div>
-
-                <button 
-                  type="button" 
-                  onClick={handleGoogleSignup} 
-                  disabled={loading}
-                  className="w-full py-3.5 px-4 rounded-xl bg-white border border-[var(--color-line-strong)] hover:bg-gray-50 text-[var(--color-ink)] font-semibold text-base transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-ink)] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="none">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </svg>
-                  Continue with Google
-                </button>
-              </div>
-            </form>
-          )}
-          
-          {!success && (
-            <p className="mt-10 text-center text-sm font-medium text-[var(--color-ink-soft)]">
-              Already have an account?{" "}
-              <Link href="/login" className="text-[var(--color-bruno)] hover:text-[var(--color-honey-deep)] font-semibold transition-colors">
-                Sign in
-              </Link>
-            </p>
-          )}
+  if (success) {
+    return (
+      <SignupConversionShell
+        backHref="/"
+        backLabel="Back to Home"
+        title="Check your email"
+        subtitle={
+          <>
+            We sent a confirmation link to{' '}
+            <strong className="font-semibold text-[var(--color-ocean-deep)]">{email}</strong>.
+          </>
+        }
+      >
+        <div className="flex flex-col items-center gap-6 rounded-2xl border border-[var(--color-line-strong)] bg-[var(--color-cream)] px-6 py-10 text-center shadow-sm">
+          <div className="text-5xl" aria-hidden>✉️</div>
+          <h2 className={authHeadlineClass}>Almost there</h2>
+          <p className={authSubtitleClass}>
+            Open the link in your inbox to finish setting up your account.
+          </p>
         </div>
-      </div>
+      </SignupConversionShell>
+    );
+  }
 
-      <AuthPanelBackdrop />
-    </div>
+  if (step === 'email') {
+    return (
+      <SignupConversionShell
+        backHref="/"
+        backLabel="Back to Home"
+        title="Start planning for free"
+      >
+        <div className="flex flex-col gap-8">
+          {error ? <AuthErrorBanner>{error}</AuthErrorBanner> : null}
+
+          <AuthGoogleButton onClick={handleGoogleSignup} disabled={loading}>
+            Continue with Google
+          </AuthGoogleButton>
+
+          <AuthDivider />
+
+          <form onSubmit={handleContinueToDetails} className="flex flex-col gap-6">
+            <AuthField
+              label="Email"
+              htmlFor="signup-email"
+              helperText="We'll send your confirmation link here."
+            >
+              <AuthInput
+                id="signup-email"
+                type="email"
+                placeholder="Enter your email address..."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                variant="box"
+              />
+            </AuthField>
+
+            <AuthPrimaryButton
+              type="submit"
+              disabled={!isValidEmail(email) || loading}
+            >
+              Continue
+            </AuthPrimaryButton>
+          </form>
+
+          <AuthTrustLine>No card required · Bruno proposes, you approve</AuthTrustLine>
+
+          <AuthFooterLink
+            prompt="Already have an account?"
+            href="/login"
+            linkLabel="Sign in"
+          />
+        </div>
+      </SignupConversionShell>
+    );
+  }
+
+  return (
+    <SignupConversionShell
+      backHref="/"
+      backLabel="Back to Home"
+      title="Almost there"
+      subtitle={
+        <>
+          Finish setting up{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setStep('email');
+              setError(null);
+            }}
+            className={authLinkClass}
+          >
+            {email}
+          </button>
+        </>
+      }
+    >
+      <form onSubmit={handleSignup} className="flex flex-col gap-6">
+        {error ? <AuthErrorBanner>{error}</AuthErrorBanner> : null}
+
+        <button
+          type="button"
+          onClick={() => {
+            setStep('email');
+            setError(null);
+          }}
+          className="group -mt-2 inline-flex items-center text-sm font-medium text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink)]"
+        >
+          <CaretLeft
+            weight="bold"
+            className="mr-1 h-4 w-4 transition-transform group-hover:-translate-x-1"
+          />
+          Back
+        </button>
+
+        <AuthField label="Full name" htmlFor="name">
+          <AuthInput
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="Your name"
+            autoComplete="name"
+            variant="box"
+          />
+        </AuthField>
+
+        <AuthField label="Password" htmlFor="password">
+          <div className="relative">
+            <AuthInput
+              id="password"
+              placeholder="At least 6 characters"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              autoComplete="new-password"
+              className="pr-12"
+              variant="box"
+            />
+            <button
+              className="absolute inset-y-0 right-0 flex h-full w-12 items-center justify-center text-[var(--color-ink-faint)] outline-none hover:text-[var(--color-ink)]"
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              suppressHydrationWarning
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeClosed weight="bold" size={20} aria-hidden="true" />
+              ) : (
+                <Eye weight="bold" size={20} aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </AuthField>
+
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="terms"
+            required
+            className="mt-0.5 rounded-sm border-[var(--color-ink-soft)] data-[state=checked]:bg-[var(--color-ocean)] data-[state=checked]:text-white"
+          />
+          <label htmlFor="terms" className="select-none text-sm font-medium text-[var(--color-ink-soft)]">
+            I agree to the{" "}
+            <Link href="/terms" className={authLinkClass}>
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className={authLinkClass}>
+              Privacy Policy
+            </Link>
+          </label>
+        </div>
+
+        <AuthPrimaryButton loading={loading} loadingLabel="Creating account...">
+          Create free account
+        </AuthPrimaryButton>
+
+        <AuthTrustLine>Free to start · Cancel anytime</AuthTrustLine>
+      </form>
+
+      <AuthFooterLink
+        prompt="Already have an account?"
+        href="/login"
+        linkLabel="Sign in"
+      />
+    </SignupConversionShell>
   );
 }

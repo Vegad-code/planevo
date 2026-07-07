@@ -60,7 +60,6 @@ interface BrunoSkillCardProps {
   skill: BrunoSkillCardData;
   isActive?: boolean;
   compact?: boolean;
-  showPulse?: boolean;
   showProSpotlight?: boolean;
   dimmed?: boolean;
   className?: string;
@@ -74,7 +73,6 @@ export const BrunoSkillCard = forwardRef<HTMLButtonElement, BrunoSkillCardProps>
       skill,
       isActive = false,
       compact = false,
-      showPulse = false,
       showProSpotlight = false,
       dimmed = false,
       className,
@@ -107,7 +105,7 @@ export const BrunoSkillCard = forwardRef<HTMLButtonElement, BrunoSkillCardProps>
         aria-label={`${skill.label}: ${skill.description}${isPro ? ' — Pro feature' : ''}`}
         {...spotlightProps}
         className={cn(
-          'group relative flex flex-col gap-2 rounded-2xl border text-left backdrop-blur-md transition-[colors,transform,opacity,box-shadow] duration-200',
+          'group relative flex cursor-pointer flex-col gap-2 rounded-2xl border text-left backdrop-blur-md transition-[colors,transform,opacity,box-shadow] duration-200',
           'shadow-[0_8px_32px_rgba(0,0,0,0.1),inset_0_1px_0_0_rgba(255,255,255,0.22)]',
           compact ? 'min-w-[200px] shrink-0 snap-center p-3' : isPro ? 'w-[184px] p-4' : 'w-[168px] p-4',
           isPro
@@ -116,7 +114,6 @@ export const BrunoSkillCard = forwardRef<HTMLButtonElement, BrunoSkillCardProps>
           isActive && 'border-[var(--color-honey)]/80 bg-[var(--color-paper)]/86 shadow-md',
           !isPro && !isActive && 'border-[var(--color-line)]/60',
           dimmed && 'pointer-events-none scale-95 opacity-40',
-          showPulse && 'ring-2 ring-[var(--color-honey)] ring-offset-2 ring-offset-[var(--color-charcoal)]',
           className,
         )}
       >
@@ -124,12 +121,6 @@ export const BrunoSkillCard = forwardRef<HTMLButtonElement, BrunoSkillCardProps>
           <span
             aria-hidden
             className="bruno-pro-border pointer-events-none absolute -inset-px rounded-2xl"
-          />
-        )}
-        {showPulse && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 animate-ping rounded-2xl border-2 border-[var(--color-honey)] opacity-40"
           />
         )}
         <span className="relative flex items-center justify-between gap-2">
@@ -169,7 +160,7 @@ export const BrunoSkillCard = forwardRef<HTMLButtonElement, BrunoSkillCardProps>
           </span>
         )}
         {isPro && !compact && (
-          <span className="relative flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <span className="relative flex gap-1 opacity-70 transition-opacity duration-200 group-hover:opacity-100">
             {INTEGRATION_LOGOS.map(({ key, Icon, className }) => (
               <span
                 key={key}

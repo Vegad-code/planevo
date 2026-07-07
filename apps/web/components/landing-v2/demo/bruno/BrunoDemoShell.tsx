@@ -58,7 +58,10 @@ export function BrunoDemoShell({
       )}
 
       <div className="flex flex-col gap-3" style={{ minHeight }}>
-        <div data-skill-landing className="ml-auto max-w-[85%]">
+        <div
+          data-skill-landing
+          className={cn('ml-auto max-w-[85%]', showReplay && onReplay && 'pt-8')}
+        >
           {!showUser ? (
             morphLanding ? (
               <motion.div

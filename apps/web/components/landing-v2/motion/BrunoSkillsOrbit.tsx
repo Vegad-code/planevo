@@ -5,7 +5,6 @@ import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 
 import { BRUNO_SKILLS } from '../demo/bruno/brunoFixtures';
 import { BrunoSkillCard, PRO_SKILL_KEY, type BrunoSkillCardData } from '../demo/bruno/BrunoSkillCard';
 import type { BrunoSkillKey } from '../demo/bruno/types';
-import { ProSkillAppOrbit } from './ProSkillAppOrbit';
 import { cn } from '@/lib/utils';
 
 const ORBIT_DURATION_S = 60;
@@ -175,7 +174,6 @@ function OrbitCard({
         transition={ORBIT_RECESS_SPRING}
         className={cn('relative', (recess || isLaunchingCard) && 'pointer-events-none')}
       >
-        <ProSkillAppOrbit active={showProSpotlight} />
         <BrunoSkillCard
           skill={skill}
           isActive={isActive}

@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
   }
 
   let response = NextResponse.json({ success: true });
+  const rememberMe = parsed.data.rememberMe;
+  const rememberMaxAge = 30 * 24 * 60 * 60;
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
@@ -46,9 +48,16 @@ export async function POST(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.json({ success: true });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const opts = { ...(options ?? {}) };
+            if (rememberMe) {
+              opts.maxAge = rememberMaxAge;
+            } else {
+              delete opts.maxAge;
+              delete opts.expires;
+            }
+            response.cookies.set(name, value, opts);
+          });
         },
       },
     }

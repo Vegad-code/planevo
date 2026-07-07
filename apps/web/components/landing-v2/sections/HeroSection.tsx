@@ -6,12 +6,14 @@ import { FloatingUiCard } from '../editorial/FloatingUiCard';
 import { CommandHeroDemo } from '../demo/CommandHeroDemo';
 import { ElasticTimeStream } from '../motion/ElasticTimeStream';
 import { ChaosToCalmCard } from '../motion/ChaosToCalmCard';
-import { useHeroVacuumProgress } from '../motion/useHeroVacuumProgress';
+import { HeroHandoffProvider, useHeroHandoff } from '../motion/HeroHandoffContext';
+import { HERO_VACUUM_PHASES, useHeroVacuumProgress } from '../motion/useHeroVacuumProgress';
 import { HeroCopy, HeroCtas, HeroIntro } from './HeroTimeStreamScene';
 import { HeroDemoSection } from './HeroDemoSection';
 
-export function HeroSection() {
+function HeroScrollScene() {
   const trackRef = useRef<HTMLDivElement>(null);
+  const { heroViewportRef } = useHeroHandoff();
   const reduce = useReducedMotion();
 
   const { scrollYProgress } = useScroll({
@@ -20,8 +22,9 @@ export function HeroSection() {
   });
 
   const { smoothProgress } = useHeroVacuumProgress(scrollYProgress);
-  const headlineOpacity = useTransform(smoothProgress, [0.92, 0.98], [1, 0]);
-  const headlineY = useTransform(smoothProgress, [0.92, 0.98], [0, -20]);
+  const { slotFadeStart, demoTrigger } = HERO_VACUUM_PHASES;
+  const headlineOpacity = useTransform(smoothProgress, [slotFadeStart, demoTrigger], [1, 0]);
+  const headlineY = useTransform(smoothProgress, [slotFadeStart, demoTrigger], [0, -20]);
 
   if (reduce) {
     return (
@@ -53,7 +56,10 @@ export function HeroSection() {
     <>
       <section ref={trackRef} className="relative bg-[var(--color-paper)]">
         <div className="h-[140vh] sm:h-[155vh] lg:h-[200vh]">
-          <div className="sticky top-0 grid h-svh min-h-svh grid-cols-1 grid-rows-1 lg:grid-cols-[1fr_minmax(0,36rem)_1fr]">
+          <div
+            ref={heroViewportRef}
+            className="sticky top-0 grid h-svh min-h-svh grid-cols-1 grid-rows-1 lg:grid-cols-[1fr_minmax(0,36rem)_1fr]"
+          >
             <ElasticTimeStream
               smoothProgress={smoothProgress}
               variant="desktop"
@@ -75,9 +81,12 @@ export function HeroSection() {
 
             {/* Mobile hero copy */}
             <div className="relative z-20 col-start-1 row-start-1 px-6 pt-28 pb-8 lg:hidden">
-              <div className="mx-auto w-full max-w-xl text-center">
+              <motion.div
+                className="mx-auto w-full max-w-xl text-center"
+                style={{ opacity: headlineOpacity, y: headlineY }}
+              >
                 <HeroCopy drawProgress={smoothProgress} />
-              </div>
+              </motion.div>
             </div>
 
             <div className="relative z-10 col-start-1 row-start-1 flex items-end px-6 pb-8 lg:hidden">
@@ -91,7 +100,15 @@ export function HeroSection() {
         </div>
       </section>
 
-      <HeroDemoSection />
+      <HeroDemoSection scrollProgress={smoothProgress} />
     </>
+  );
+}
+
+export function HeroSection() {
+  return (
+    <HeroHandoffProvider>
+      <HeroScrollScene />
+    </HeroHandoffProvider>
   );
 }

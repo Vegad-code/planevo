@@ -4,18 +4,31 @@ import { useSpring, type MotionValue } from 'framer-motion';
 import type { HeroTimelineTask } from '@/components/landing-v2/demo/fixtures';
 
 export const HERO_VACUUM_PHASES = {
-  gatherEnd: 0.45,
+  gatherEnd: 0.38,
   organizeEnd: 0.72,
-  payoffEnd: 0.88,
+  payoffEnd: 0.82,
+  /** Slot chrome fades before pills peel. */
+  slotFadeStart: 0.84,
+  slotFadeEnd: 0.9,
+  /** Lead pills hand off to hero deposit layer. */
   depositStart: 0.88,
-  releaseEnd: 0.92,
-  scatterEnd: 0.97,
-  depositEnd: 1,
+  depositEnd: 0.965,
+  /** Demo card visible / intake ready. */
+  demoEnterStart: 0.9,
+  /** CommandHeroDemo replay fires just after deposit lands. */
+  demoTrigger: 0.97,
+  end: 1,
+} as const;
+
+/** @deprecated Use slotFadeStart/depositStart — kept for gradual migration */
+export const HERO_VACUUM_RELEASE = {
+  releaseStart: HERO_VACUUM_PHASES.slotFadeStart,
+  releaseEnd: HERO_VACUUM_PHASES.depositEnd,
 } as const;
 
 export const HERO_VACUUM_EASE = [0.22, 1, 0.36, 1] as const;
 
-const SPRING_CONFIG = { stiffness: 120, damping: 28, mass: 0.6 } as const;
+const SPRING_CONFIG = { stiffness: 180, damping: 26, mass: 0.5 } as const;
 
 export interface PillWindow {
   start: number;
@@ -23,27 +36,15 @@ export interface PillWindow {
   organizeEnd: number;
 }
 
-/** Per-pill scroll windows — farther pills start earlier; landing cascades by order. */
+/** Per-pill scroll windows — cascade by order during organize. */
 export function pillWindow(task: HeroTimelineTask): PillWindow {
-  const distanceFactor = Math.min(Math.abs(task.startX) / 400, 1);
-  const start = Math.max(0, 0.02 + task.order * 0.03 - distanceFactor * 0.05);
-  const organizeEnd = Math.min(
-    0.82,
-    HERO_VACUUM_PHASES.organizeEnd + task.order * 0.015,
-  );
+  const start = Math.max(0, 0.02 + task.order * 0.025);
   return {
     start,
     gatherEnd: HERO_VACUUM_PHASES.gatherEnd,
-    organizeEnd,
+    organizeEnd: HERO_VACUUM_PHASES.organizeEnd,
   };
 }
-
-/** Focal cluster offset toward center during the gather phase. */
-export function pillFocalX(task: HeroTimelineTask): number {
-  return task.track === 'left' ? -24 : 24;
-}
-
-export const PILL_FOCAL_Y = 0;
 
 export function useHeroVacuumProgress(scrollYProgress: MotionValue<number>) {
   const smoothProgress = useSpring(scrollYProgress, SPRING_CONFIG);
@@ -56,28 +57,49 @@ export function easeOutQuint(t: number): number {
   return 1 - (1 - clamped) ** 5;
 }
 
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-/** Ease-in quad — gravity-like acceleration for downward motion. */
+/** Ease-in quad — gravity-like acceleration for downward deposit fall. */
 export function easeInQuad(t: number): number {
   const clamped = Math.min(1, Math.max(0, t));
   return clamped * clamped;
 }
 
-/** Ease-out cubic — quick scatter burst settling outward. */
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/** Ease-out cubic — quick settle. */
 export function easeOutCubic(t: number): number {
   const clamped = Math.min(1, Math.max(0, t));
   return 1 - (1 - clamped) ** 3;
 }
 
-/** Per-pill deposit start — outer stack positions release first. */
-export function pillDepositStart(task: HeroTimelineTask): number {
-  const outerBias = Math.abs(task.order - 1.5) / 1.5;
-  return (
-    HERO_VACUUM_PHASES.depositStart +
-    (1 - outerBias) * 0.012 +
-    task.delay * 0.15
-  );
+/** 0→1 while slot chrome fades (84–90%). */
+export function slotFadeT(progress: number): number {
+  const { slotFadeStart, slotFadeEnd } = HERO_VACUUM_PHASES;
+  if (progress <= slotFadeStart) return 0;
+  if (progress >= slotFadeEnd) return 1;
+  return easeOutQuint((progress - slotFadeStart) / (slotFadeEnd - slotFadeStart));
+}
+
+/** Interleaved stagger: left/right pairs peel by slot order (0…7). */
+export function depositStaggerIndex(task: HeroTimelineTask): number {
+  return task.order * 2 + (task.track === 'right' ? 1 : 0);
+}
+
+/** 0→1 per deposit pill (staggerIndex 0…7 interleaves left/right by slot order). */
+export function depositT(progress: number, staggerIndex: number): number {
+  const { depositStart, depositEnd } = HERO_VACUUM_PHASES;
+  const span = depositEnd - depositStart;
+  const staggerStep = span * 0.045;
+  const fallSpan = span * 0.72;
+  const landStart = depositStart + staggerStep * staggerIndex;
+  const landEnd = Math.min(depositEnd, landStart + fallSpan);
+  if (progress <= landStart) return 0;
+  if (progress >= landEnd) return 1;
+  return easeInQuad((progress - landStart) / (landEnd - landStart));
+}
+
+/** @deprecated Use slotFadeT — legacy alias */
+export function releaseT(progress: number): number {
+  return slotFadeT(progress);
 }

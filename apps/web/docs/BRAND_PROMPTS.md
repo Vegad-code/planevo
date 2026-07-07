@@ -27,3 +27,14 @@ Character cutout illustration: friendly brown bear mascot Bruno wearing green an
 ```
 
 Model: `marketing_studio_image` (2 credits/image). Compress with `sharp` to WebP q80 (~65–120KB). **Never embed titles in the image** — copy lives in the React overlay only.
+
+## Auth hero (split-panel signup/login)
+
+**Desktop** → `public/auth/auth-hero.png`  
+**Mobile strip** → `public/auth/auth-hero-mobile.png`
+
+```
+Premium editorial illustration for a student planner app auth page. Cozy sunlit study nook: friendly brown bear mascot Bruno in green-and-cream striped sweater at a wooden desk with open planner, succulent, warm coffee, soft window light with autumn trees. Warm cream (#FFFFEB), forest green (#044337), ocean blue (#6395EE) accents. Painterly hand-drawn editorial style, immersive full-height composition, shallow depth, aspirational calm productivity mood. Absolutely no text, no words, no letters, no typography, no UI mockups.
+```
+
+Model: `marketing_studio_image` (3:4) when Higgsfield credits available; fallback: Cursor image generation with same prompt. **Higgsfield requires a paid workspace** — preflight with `get_cost: true` before batch generation.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AnimatePresence,
   motion,
@@ -20,7 +20,7 @@ const INTERVAL_MS = 3200;
 const ZERO_PROGRESS = motionValue(0);
 
 interface RotatingWordProps {
-  /** When progress crosses organizeEnd, lock permanently on "sorted." until reload. */
+  /** When progress crosses organizeEnd, lock on "sorted."; resume shuffling when scrolling back. */
   lockProgress?: MotionValue<number>;
 }
 
@@ -28,16 +28,15 @@ export function RotatingWord({ lockProgress }: RotatingWordProps) {
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
   const [locked, setLocked] = useState(false);
-  const lockedRef = useRef(false);
   const progress = lockProgress ?? ZERO_PROGRESS;
 
   useMotionValueEvent(progress, 'change', (value) => {
-    if (lockedRef.current) return;
     if (value >= HERO_VACUUM_PHASES.organizeEnd) {
-      lockedRef.current = true;
       setLocked(true);
       setIndex(SORTED_INDEX);
+      return;
     }
+    setLocked(false);
   });
 
   useEffect(() => {

@@ -28,6 +28,7 @@ export const weeklyReviewBodySchema = emptyStrictBodySchema;
 export const authSignInBodySchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(256),
+  rememberMe: z.boolean().optional().default(true),
 });
 
 export const passwordPolicySchema = z.string().min(8).max(256);

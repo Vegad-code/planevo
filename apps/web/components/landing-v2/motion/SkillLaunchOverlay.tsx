@@ -3,20 +3,27 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { BrunoSkillCard, type BrunoSkillCardData } from '../demo/bruno/BrunoSkillCard';
+import { ProIntegrationSwarm } from './ProIntegrationSwarm';
 import { SKILL_LAUNCH_SPRING } from './useSkillLaunchAnimation';
 import { cn } from '@/lib/utils';
-
-const USER_BUBBLE_LAYOUT_ID = 'bruno-skill-launch';
 
 interface SkillLaunchOverlayProps {
   skill: BrunoSkillCardData;
   fromRect: DOMRect;
   toRect: DOMRect | null;
+  demoRect?: DOMRect | null;
   mobile?: boolean;
   onComplete: () => void;
 }
 
-export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, onComplete }: SkillLaunchOverlayProps) {
+export function SkillLaunchOverlay({
+  skill,
+  fromRect,
+  toRect,
+  demoRect = null,
+  mobile = false,
+  onComplete,
+}: SkillLaunchOverlayProps) {
   const reduce = useReducedMotion();
   const isPro = Boolean(skill.pro);
   const [target, setTarget] = useState(() => ({
@@ -49,7 +56,7 @@ export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, on
   useEffect(() => {
     if (reduce || !toRect) return;
     const baseMs = mobile ? 520 : 680;
-    const durationMs = isPro ? baseMs + 160 : baseMs;
+    const durationMs = isPro ? baseMs + 480 : baseMs;
     const timeout = window.setTimeout(onComplete, durationMs);
     return () => window.clearTimeout(timeout);
   }, [toRect, reduce, onComplete, mobile, isPro]);
@@ -58,8 +65,9 @@ export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, on
 
   const midScale = mobile ? 0.94 : isPro ? 0.9 : 0.92;
   const landScale = 1;
-  const flightDuration = mobile ? 0.52 : isPro ? 0.82 : 0.65;
-  const arcLift = isPro && !mobile ? -28 : 0;
+  const flightDuration = mobile ? 0.52 : isPro ? 1.15 : 0.65;
+  const arcLift = isPro && !mobile ? -32 : 0;
+  const swarmTarget = demoRect ?? toRect;
 
   return (
     <motion.div
@@ -69,30 +77,11 @@ export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, on
       animate={{ opacity: toRect ? 1 : 0 }}
       exit={{ opacity: 0 }}
     >
-      {isPro && toRect && (
-        <motion.div
-          className="absolute left-0 top-0 h-2 w-2 rounded-full bg-[var(--color-honey)] blur-md"
-          initial={{
-            x: fromRect.left + fromRect.width / 2,
-            y: fromRect.top + fromRect.height / 2,
-            opacity: 0.8,
-            scale: 1,
-          }}
-          animate={{
-            x: target.x + target.width / 2,
-            y: target.y + target.height / 2 + arcLift * 0.5,
-            opacity: 0,
-            scale: 3.5,
-          }}
-          transition={{
-            duration: flightDuration,
-            ease: 'easeOut',
-          }}
-        />
+      {isPro && swarmTarget && (
+        <ProIntegrationSwarm fromRect={fromRect} toRect={swarmTarget} variant="launch" />
       )}
 
       <motion.div
-        layoutId={toRect ? USER_BUBBLE_LAYOUT_ID : undefined}
         className={cn(
           'absolute left-0 top-0 origin-top-left',
           isPro && 'drop-shadow-[0_12px_40px_color-mix(in_srgb,var(--color-honey)_45%,transparent)]',
@@ -114,8 +103,9 @@ export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, on
             : fromRect.top,
           width: target.width,
           height: target.height,
-          scale: toRect ? [1, midScale, isPro ? 1.06 : 1.02, landScale] : 1,
-          rotate: toRect ? (mobile ? 0 : isPro ? [0, -5, 3, 0] : [0, -3, 2, 0]) : 0,
+          scale: toRect ? [1, midScale, landScale] : 1,
+          rotate: toRect ? (mobile ? 0 : isPro ? [0, -4, 2, 0] : [0, -3, 2, 0]) : 0,
+          opacity: toRect ? [1, 1, 0.85, 0] : 1,
         }}
         transition={{
           x: SKILL_LAUNCH_SPRING,
@@ -133,8 +123,16 @@ export function SkillLaunchOverlay({ skill, fromRect, toRect, mobile = false, on
             ? {
                 type: 'tween',
                 duration: flightDuration,
-                times: [0, 0.4, 0.72, 1],
+                times: [0, 0.45, 1],
                 ease: 'easeInOut',
+              }
+            : SKILL_LAUNCH_SPRING,
+          opacity: toRect
+            ? {
+                type: 'tween',
+                duration: flightDuration,
+                times: [0, 0.72, 0.9, 1],
+                ease: 'easeOut',
               }
             : SKILL_LAUNCH_SPRING,
           rotate:

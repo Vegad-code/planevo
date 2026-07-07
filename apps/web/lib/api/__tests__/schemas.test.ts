@@ -44,6 +44,16 @@ describe('api schemas', () => {
       authSignInBodySchema.safeParse({ email: 'a@b.com', password: 'secret' }).success
     ).toBe(true);
     expect(
+      authSignInBodySchema.parse({ email: 'a@b.com', password: 'secret' }).rememberMe
+    ).toBe(true);
+    expect(
+      authSignInBodySchema.parse({
+        email: 'a@b.com',
+        password: 'secret',
+        rememberMe: false,
+      }).rememberMe
+    ).toBe(false);
+    expect(
       authSignUpBodySchema.safeParse({
         email: 'a@b.com',
         password: 'secret12',
