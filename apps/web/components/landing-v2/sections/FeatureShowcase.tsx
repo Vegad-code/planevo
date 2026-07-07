@@ -9,6 +9,11 @@ import { Eyebrow } from '../Eyebrow';
 import { FloatingUiCard } from '../editorial/FloatingUiCard';
 import { HandwrittenUnderline } from '../editorial/HandwrittenUnderline';
 import { EditorialSection } from '../editorial/EditorialSection';
+import { FeatureSnakeStream } from '../motion/FeatureSnakeStream';
+import {
+  FEATURE_SEGMENT_COUNT,
+  featureSectionSegment,
+} from '../motion/featureSectionSegments';
 import { ScrollReveal } from '../motion/ScrollReveal';
 
 export function FeatureShowcase({
@@ -49,9 +54,13 @@ export function FeatureShowcase({
       id={id}
       tone="charcoal"
       roundedTop
-      className="scroll-mt-24 px-6 py-16 sm:py-24"
+      className="scroll-mt-24 relative flex h-full flex-col justify-center overflow-hidden px-6 py-16 sm:py-24 lg:min-h-svh"
     >
-      <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
+      <FeatureSnakeStream
+        segmentIndex={featureSectionSegment(id)}
+        segmentCount={FEATURE_SEGMENT_COUNT}
+      />
+      <div className="relative z-10 mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
         <ScrollReveal
           className={cn(
             'flex min-h-0 flex-col items-start text-left lg:min-h-[420px] lg:justify-center',

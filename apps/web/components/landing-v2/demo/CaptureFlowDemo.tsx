@@ -1,177 +1,63 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CommandCapture } from '@/components/command/CommandCapture';
 import { CommandPreviewPanel } from '@/components/command/CommandPreviewPanel';
-import { DemoCursor, targetCenter, type CursorPoint } from '../motion/DemoCursor';
+import { DemoCursor } from '../motion/DemoCursor';
+import { PREVIEW_SUMMARY, DUMP_TEXT, makePreviewDrafts } from './fixtures';
 import {
-  DUMP_TEXT,
-  PREVIEW_SUMMARY,
-  makePreviewDrafts,
-} from './fixtures';
+  useCaptureFlowDemo,
+  type CaptureFlowDemoController,
+  type CaptureFlowStep,
+  type UseCaptureFlowDemoOptions,
+} from './useCaptureFlowDemo';
 
 const noop = () => {};
 
-type Phase =
-  | 'typing'
-  | 'move-submit'
-  | 'click-submit'
-  | 'preview'
-  | 'move-confirm'
-  | 'click-confirm'
-  | 'hold';
+export type { CaptureFlowStep, CaptureFlowDemoController };
 
-const REST: CursorPoint = { x: 24, y: 24 };
-
-function useTypewriter(text: string, active: boolean, charsPerSecond = 55): string {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!active) {
-      setCount(0);
-      return;
-    }
-    setCount(0);
-    let raf = 0;
-    let start: number | null = null;
-    const tick = (t: number) => {
-      if (start === null) start = t;
-      const next = Math.min(text.length, Math.floor(((t - start) / 1000) * charsPerSecond));
-      setCount((c) => (next > c ? next : c));
-      if (next < text.length) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [text, active, charsPerSecond]);
-  return text.slice(0, count);
+export interface CaptureFlowDemoProps extends UseCaptureFlowDemoOptions {
+  compact?: boolean;
+  /** Parent-owned controller — when set, hook runs in the parent instead. */
+  controller?: CaptureFlowDemoController;
+  onTakeover?: () => void;
 }
 
-/**
- * Shared capture → review demo: rAF typewriter, cursor clicks Clear My Plate,
- * then cursor clicks Add to Command. Plays once — no infinite loop.
- */
-export function CaptureFlowDemo({
+function CaptureFlowStage({
   compact = false,
-  paused = false,
-  onConfirmed,
-  onPreviewChange,
+  demo,
+  onTakeover,
 }: {
   compact?: boolean;
-  paused?: boolean;
-  /** Called after the confirm click — hero uses this to advance to board. */
-  onConfirmed?: () => void;
-  /** Fires when the review panel opens or closes. */
-  onPreviewChange?: (showingPreview: boolean) => void;
+  demo: CaptureFlowDemoController;
+  onTakeover?: () => void;
 }) {
-  const reduce = useReducedMotion();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<Phase>('typing');
-  const [showPreview, setShowPreview] = useState(false);
-  const [cursor, setCursor] = useState<CursorPoint>(REST);
-  const [clicking, setClicking] = useState(false);
-  const [cursorVisible, setCursorVisible] = useState(false);
+  const {
+    containerRef,
+    reduce,
+    mode,
+    typedText,
+    typedLength,
+    showCaret,
+    showPreview,
+    cursor,
+    cursorVisible,
+    clicking,
+    submitPressed,
+    confirmPressed,
+    takeover,
+    handleManualSubmit,
+    handleManualConfirm,
+  } = demo;
+
   const [now] = useState(() => new Date());
-
   const drafts = useMemo(() => makePreviewDrafts(now), [now]);
-  const typed = useTypewriter(DUMP_TEXT, phase === 'typing' && !reduce && !paused);
 
-  const moveTo = useCallback((selector: string) => {
-    const point = targetCenter(containerRef.current, selector);
-    if (point) setCursor(point);
-    setCursorVisible(true);
-  }, []);
-
-  const playClick = useCallback(() => {
-    setClicking(true);
-    return new Promise<void>((resolve) => {
-      window.setTimeout(() => {
-        setClicking(false);
-        resolve();
-      }, 320);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (reduce || paused) return;
-
-    let cancelled = false;
-    const wait = (ms: number) =>
-      new Promise<void>((resolve) => {
-        window.setTimeout(() => {
-          if (!cancelled) resolve();
-        }, ms);
-      });
-
-    async function run() {
-      switch (phase) {
-        case 'typing': {
-          await wait(Math.ceil((DUMP_TEXT.length / 55) * 1000) + 600);
-          if (cancelled) return;
-          setPhase('move-submit');
-          break;
-        }
-        case 'move-submit': {
-          await wait(400);
-          if (cancelled) return;
-          moveTo('[data-demo-target="clear-my-plate"]');
-          await wait(500);
-          if (cancelled) return;
-          setPhase('click-submit');
-          break;
-        }
-        case 'click-submit': {
-          await playClick();
-          if (cancelled) return;
-          setShowPreview(true);
-          onPreviewChange?.(true);
-          setPhase('preview');
-          break;
-        }
-        case 'preview': {
-          await wait(900);
-          if (cancelled) return;
-          setPhase('move-confirm');
-          break;
-        }
-        case 'move-confirm': {
-          await wait(350);
-          if (cancelled) return;
-          moveTo('[data-demo-target="add-to-command"]');
-          await wait(500);
-          if (cancelled) return;
-          setPhase('click-confirm');
-          break;
-        }
-        case 'click-confirm': {
-          await playClick();
-          if (cancelled) return;
-          onConfirmed?.();
-          setPhase('hold');
-          break;
-        }
-        case 'hold': {
-          if (!onConfirmed) return;
-          await wait(400);
-          if (cancelled) return;
-          setShowPreview(false);
-          onPreviewChange?.(false);
-          setCursorVisible(false);
-          setCursor(REST);
-          setPhase('typing');
-          break;
-        }
-        default: {
-          const exhaustive: never = phase;
-          throw new Error(`Unhandled capture demo phase: ${exhaustive}`);
-        }
-      }
-    }
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, reduce, paused, moveTo, playClick, onConfirmed, onPreviewChange]);
+  const handleTakeover = () => {
+    takeover();
+    onTakeover?.();
+  };
 
   if (reduce) {
     return (
@@ -189,30 +75,107 @@ export function CaptureFlowDemo({
     );
   }
 
+  const isManual = mode === 'manual';
+  const scriptedText = isManual ? undefined : typedLength > 0 ? typedText : undefined;
+
   return (
     <div
       ref={containerRef}
-      className={`relative mx-auto w-full ${compact ? 'max-w-md' : 'max-w-xl'}`}
+      onFocusCapture={!isManual ? handleTakeover : undefined}
+      className={[
+        'relative mx-auto w-full',
+        compact ? 'max-w-md' : 'max-w-xl',
+        !isManual ? 'cursor-none' : '',
+      ].join(' ')}
     >
-      {!showPreview ? (
-        <CommandCapture
-          variant="hero"
-          submitting={false}
-          onSubmit={noop}
-          scriptedText={typed}
-        />
-      ) : (
-        <CommandPreviewPanel
-          summary={PREVIEW_SUMMARY}
-          drafts={drafts}
-          now={now}
-          submitting={false}
-          onChange={noop}
-          onConfirm={noop}
-          onDiscard={noop}
-        />
-      )}
+      <div className="min-h-[400px] sm:min-h-[420px]">
+        <AnimatePresence mode="wait">
+          {!showPreview ? (
+            <motion.div
+              key="capture"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              <CommandCapture
+                variant="hero"
+                submitting={false}
+                onSubmit={isManual ? () => handleManualSubmit() : noop}
+                scriptedText={scriptedText}
+                seedText={
+                  isManual && typedLength > 0 ? DUMP_TEXT.slice(0, typedLength) : undefined
+                }
+                showCaret={showCaret}
+                demoPressed={submitPressed}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="preview"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              <CommandPreviewPanel
+                summary={PREVIEW_SUMMARY}
+                drafts={drafts}
+                now={now}
+                submitting={false}
+                onChange={noop}
+                onConfirm={isManual ? handleManualConfirm : noop}
+                onDiscard={noop}
+                demoPressed={confirmPressed}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
       <DemoCursor point={cursor} visible={cursorVisible} clicking={clicking} />
     </div>
   );
+}
+
+/**
+ * Shared capture → review demo: rAF typewriter, cursor clicks Clear My Plate,
+ * then cursor clicks Add to Command. Plays once — no infinite loop.
+ */
+export function CaptureFlowDemo({
+  compact = false,
+  paused = false,
+  autoPlay = true,
+  onConfirmed,
+  onPreviewChange,
+  onStepChange,
+  controller,
+  onTakeover,
+}: CaptureFlowDemoProps) {
+  if (controller) {
+    return <CaptureFlowStage compact={compact} demo={controller} onTakeover={onTakeover} />;
+  }
+
+  return (
+    <CaptureFlowDemoInner
+      compact={compact}
+      paused={paused}
+      autoPlay={autoPlay}
+      onConfirmed={onConfirmed}
+      onPreviewChange={onPreviewChange}
+      onStepChange={onStepChange}
+      onTakeover={onTakeover}
+    />
+  );
+}
+
+function CaptureFlowDemoInner(props: CaptureFlowDemoProps) {
+  const demo = useCaptureFlowDemo({
+    paused: props.paused,
+    autoPlay: props.autoPlay,
+    onConfirmed: props.onConfirmed,
+    onPreviewChange: props.onPreviewChange,
+    onStepChange: props.onStepChange,
+  });
+
+  return <CaptureFlowStage compact={props.compact} demo={demo} onTakeover={props.onTakeover} />;
 }

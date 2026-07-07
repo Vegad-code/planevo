@@ -21,16 +21,15 @@ export function DemoStateDots({
   states?: Array<{ id: DemoState; label: string }>;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2" role="tablist" aria-label="Demo steps">
+    <div className="flex items-center justify-center gap-2" aria-label="Demo steps">
       {states.map((state) => {
         const isActive = state.id === active;
         return (
           <button
             key={state.id}
             type="button"
-            role="tab"
             data-demo-target={`demo-dot-${state.id}`}
-            aria-selected={isActive}
+            aria-current={isActive ? 'step' : undefined}
             aria-label={state.label}
             onClick={() => onJump(state.id)}
             className={cn(

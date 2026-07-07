@@ -27,6 +27,9 @@ export function CommandCapture({
   onVoicePreview,
   onVoiceError,
   scriptedText,
+  showCaret = false,
+  demoPressed = false,
+  seedText,
 }: {
   variant: 'hero' | 'bar';
   submitting: boolean;
@@ -39,10 +42,20 @@ export function CommandCapture({
   onVoiceError?: (message: string) => void;
   /** Marketing-demo mode: renders this text read-only (typewriter driven by the caller). */
   scriptedText?: string;
+  /** Blinking caret after scripted text (landing demo). */
+  showCaret?: boolean;
+  /** Scripted click press state (landing demo). */
+  demoPressed?: boolean;
+  /** Pre-fill textarea when switching to manual demo mode. */
+  seedText?: string;
 }) {
   const [text, setText] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (seedText !== undefined) setText(seedText);
+  }, [seedText]);
 
   // Rotate the placeholder subtly on the hero variant only.
   useEffect(() => {
@@ -73,29 +86,48 @@ export function CommandCapture({
       ].join(' ')}
     >
       <div className={isHero ? 'flex flex-col gap-3' : 'flex items-center gap-2'}>
-        <textarea
-          ref={textareaRef}
-          value={displayText}
-          readOnly={isScripted}
-          onChange={(e) => {
-            if (!isScripted) setText(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              submit();
+        {isScripted ? (
+          <div
+            data-demo-target="capture-textarea"
+            className={[
+              'w-full text-[var(--color-ink)]',
+              isHero ? 'text-[16px] leading-relaxed min-h-[76px]' : 'text-[14px] leading-6',
+            ].join(' ')}
+          >
+            {displayText}
+            <span
+              data-demo-target="capture-caret"
+              aria-hidden
+              className={
+                showCaret
+                  ? 'typing-cursor'
+                  : 'inline-block h-[1em] w-px align-text-bottom opacity-0'
+              }
+            />
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            data-demo-target="capture-textarea"
+            value={displayText}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={isHero ? 3 : 1}
+            placeholder={
+              isHero ? ROTATING_PLACEHOLDERS[placeholderIndex] : ROTATING_PLACEHOLDERS[0]
             }
-          }}
-          rows={isHero ? 3 : 1}
-          placeholder={
-            isHero ? ROTATING_PLACEHOLDERS[placeholderIndex] : ROTATING_PLACEHOLDERS[0]
-          }
-          className={[
-            'w-full resize-none bg-transparent text-[var(--color-ink)] outline-none',
-            'placeholder:text-[var(--color-ink-faint)]',
-            isHero ? 'text-[16px] leading-relaxed min-h-[76px]' : 'text-[14px] leading-6',
-          ].join(' ')}
-        />
+            className={[
+              'w-full resize-none bg-transparent text-[var(--color-ink)] outline-none',
+              'placeholder:text-[var(--color-ink-faint)]',
+              isHero ? 'text-[16px] leading-relaxed min-h-[76px]' : 'text-[14px] leading-6',
+            ].join(' ')}
+          />
+        )}
 
         <div className={isHero ? 'flex items-center justify-between' : 'flex items-center gap-1.5'}>
           {FEATURES.COMMAND_VOICE && onVoicePreview ? (
@@ -119,6 +151,7 @@ export function CommandCapture({
             className={[
               'flex items-center gap-1.5 rounded-full font-medium transition-all duration-150',
               'bg-[var(--color-accent-warm)] text-white disabled:opacity-40',
+              demoPressed ? 'scale-95 ring-2 ring-white/50' : '',
               isHero ? 'px-4 py-2 text-[14px]' : 'h-9 w-9 justify-center p-0',
             ].join(' ')}
           >

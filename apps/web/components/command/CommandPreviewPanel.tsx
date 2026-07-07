@@ -25,6 +25,7 @@ export function CommandPreviewPanel({
   onChange,
   onConfirm,
   onDiscard,
+  demoPressed = false,
 }: {
   summary: string;
   drafts: PreviewDraft[];
@@ -33,6 +34,8 @@ export function CommandPreviewPanel({
   onChange: (index: number, patch: Partial<PreviewDraft>) => void;
   onConfirm: () => void;
   onDiscard: () => void;
+  /** Scripted click press state (landing demo). */
+  demoPressed?: boolean;
 }) {
   const reduce = useReducedMotion();
   const acceptedCount = drafts.filter((d) => d.accepted).length;
@@ -78,7 +81,10 @@ export function CommandPreviewPanel({
             data-demo-target="add-to-command"
             onClick={onConfirm}
             disabled={submitting || acceptedCount === 0}
-            className="rounded-full bg-[var(--color-accent-warm)] px-4 py-2 text-[14px] font-medium text-white transition-opacity disabled:opacity-40"
+            className={[
+              'rounded-full bg-[var(--color-accent-warm)] px-4 py-2 text-[14px] font-medium text-white transition-all duration-150 disabled:opacity-40',
+              demoPressed ? 'scale-95 ring-2 ring-white/50' : '',
+            ].join(' ')}
           >
             {submitting
               ? 'Adding…'

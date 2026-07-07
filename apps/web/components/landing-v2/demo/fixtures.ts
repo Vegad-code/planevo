@@ -263,11 +263,24 @@ export const HERO_PILL_TONES = {
 export type HeroPillTone = keyof typeof HERO_PILL_TONES;
 
 /** Hero time-stream: scattered life tasks that vacuum into left/right track stacks on scroll. */
+export const HERO_TRACK_DAY = {
+  left: { label: 'Today', sub: 'Wed' },
+  right: { label: 'Friday', sub: 'Mar 7' },
+} as const;
+
+/** Commitments between free gaps — shown as hatched blocks on the mini day column. */
+export const HERO_TRACK_BLOCKS = {
+  left: ['Chem lecture', 'Study block', 'Commute'],
+  right: ['Standup', 'Office hrs', 'Shift'],
+} as const;
+
 export const HERO_TIMELINE_TASKS = [
   {
     id: 'groceries',
     label: 'Groceries',
     meta: '',
+    slotTime: '7 AM',
+    slotDuration: '45m',
     track: 'left' as const,
     order: 0,
     tone: 'sage' as const,
@@ -282,6 +295,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'gym',
     label: 'Gym',
     meta: '7AM',
+    slotTime: '11 AM',
+    slotDuration: '1h',
     track: 'left' as const,
     order: 1,
     tone: 'ice' as const,
@@ -296,6 +311,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'call-mom',
     label: 'Call mom',
     meta: '',
+    slotTime: '2 PM',
+    slotDuration: '30m',
     track: 'left' as const,
     order: 2,
     tone: 'rose' as const,
@@ -310,6 +327,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'meal-prep',
     label: 'Meal prep',
     meta: '',
+    slotTime: '6 PM',
+    slotDuration: '45m',
     track: 'left' as const,
     order: 3,
     tone: 'coral' as const,
@@ -324,6 +343,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'rent',
     label: 'Pay rent',
     meta: 'Fri',
+    slotTime: '9 AM',
+    slotDuration: '30m',
     track: 'right' as const,
     order: 0,
     tone: 'rose' as const,
@@ -338,6 +359,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'project',
     label: 'Project deadline',
     meta: '',
+    slotTime: '12 PM',
+    slotDuration: '1h',
     track: 'right' as const,
     order: 1,
     tone: 'ocean' as const,
@@ -352,6 +375,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'dentist',
     label: 'Dentist',
     meta: 'Tue',
+    slotTime: '3 PM',
+    slotDuration: '45m',
     track: 'right' as const,
     order: 2,
     tone: 'ice' as const,
@@ -366,6 +391,8 @@ export const HERO_TIMELINE_TASKS = [
     id: 'birthday',
     label: 'Birthday gift',
     meta: '',
+    slotTime: '7 PM',
+    slotDuration: '30m',
     track: 'right' as const,
     order: 3,
     tone: 'sage' as const,

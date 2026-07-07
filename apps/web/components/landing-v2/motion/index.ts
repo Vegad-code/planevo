@@ -4,6 +4,8 @@ export { ElasticTimeStream } from './ElasticTimeStream';
 export { useHeroVacuumProgress } from './useHeroVacuumProgress';
 export { ScrollReveal } from './ScrollReveal';
 export { ScrollConnectLine } from './ScrollConnectLine';
+export { FeatureStackScroll, FeatureConnectTrack } from './FeatureStackScroll';
+export { FeatureSnakeStream } from './FeatureSnakeStream';
 export { ScrollZoom } from './ScrollZoom';
 export { ScrollTextFill } from './ScrollTextFill';
 export { RotatingWord } from './RotatingWord';

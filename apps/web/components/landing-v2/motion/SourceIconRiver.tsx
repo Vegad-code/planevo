@@ -1,14 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import {
-  CheckSquare,
-  Note,
-  Microphone,
-} from '@phosphor-icons/react';
-import { CanvasIcon, GoogleIcon } from '@/components/icons/BrandIcons';
+import { FEATURE_STREAM_GLYPHS_LEGACY as FEATURE_STREAM_GLYPHS } from './featureStreamGlyphs';
 
 interface Point {
   x: number;
@@ -32,28 +26,6 @@ function samplePath(steps: number): Point[] {
   }
   return points;
 }
-
-interface Glyph {
-  icon: ReactNode;
-  bg: string;
-  label: string;
-}
-
-const GLYPHS: Glyph[] = [
-  {
-    icon: <CanvasIcon className="h-3.5 w-3.5" />,
-    bg: 'bg-[var(--color-paper)]',
-    label: 'Canvas',
-  },
-  {
-    icon: <GoogleIcon className="h-3.5 w-3.5" />,
-    bg: 'bg-[var(--color-paper)]',
-    label: 'Google Calendar',
-  },
-  { icon: <CheckSquare size={16} weight="duotone" className="text-[var(--color-honey-deep)]" />, bg: 'bg-[var(--color-honey-soft)]', label: 'Tasks' },
-  { icon: <Note size={16} weight="duotone" className="text-[var(--color-ink-soft)]" />, bg: 'bg-[var(--color-cream-2)]', label: 'Notes' },
-  { icon: <Microphone size={16} weight="duotone" className="text-[var(--color-sage)]" />, bg: 'bg-[var(--color-sage-soft)]', label: 'Voice' },
-];
 
 const NODE_COUNT = 20;
 const LOOP_SECONDS = 14;
@@ -81,7 +53,7 @@ export function SourceIconRiver() {
       className="pointer-events-none absolute inset-0 hidden overflow-hidden md:block"
     >
       {Array.from({ length: NODE_COUNT }, (_, i) => {
-        const glyph = GLYPHS[i % GLYPHS.length];
+        const glyph = FEATURE_STREAM_GLYPHS[i % FEATURE_STREAM_GLYPHS.length];
         return (
           <motion.div
             key={i}
